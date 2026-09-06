@@ -115,7 +115,11 @@ def validate_container(info: Any, run_id: str, image_id: str) -> None:
             and host["PublishAllPorts"] is False
             and host["PidMode"] == ""
             and host["IpcMode"] == "private"
+            and host["UTSMode"] in {"", "private"}
+            and host["UsernsMode"] in {"", "private"}
+            and host["CgroupnsMode"] in {"", "private"}
             and _empty(host["Devices"])
+            and _empty(host["DeviceRequests"])
             and _empty(host["CapAdd"])
             and host["Memory"] == 2 * 1024**3
             and host["NanoCpus"] == 2 * 10**9

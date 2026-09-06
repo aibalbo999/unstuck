@@ -48,8 +48,15 @@ def allowed_path(name: str) -> bool:
     return p.parts[0] == "tests" and len(p.parts) == 2 and p.suffix == ".py"
 
 
-def _signature(info: os.stat_result) -> tuple[int, int, int, int]:
-    return (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns)
+def _signature(info: os.stat_result) -> tuple[int, int, int, int, int, int]:
+    return (
+        info.st_dev,
+        info.st_ino,
+        info.st_mode,
+        info.st_size,
+        info.st_mtime_ns,
+        info.st_ctime_ns,
+    )
 
 
 def _read_verified(source: Path, repo: Path) -> bytes:

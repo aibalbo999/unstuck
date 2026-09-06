@@ -41,7 +41,11 @@ def _container_info() -> dict:
             "PublishAllPorts": False,
             "PidMode": "",
             "IpcMode": "private",
+            "UTSMode": "",
+            "UsernsMode": "",
+            "CgroupnsMode": "private",
             "Devices": [],
+            "DeviceRequests": [],
             "CapAdd": None,
             "Memory": 2 * 1024**3,
             "NanoCpus": 2 * 10**9,
@@ -66,6 +70,9 @@ def _container_info() -> dict:
         lambda info: info["HostConfig"].update(PublishAllPorts=True),
         lambda info: info["HostConfig"].update(PidMode="host"),
         lambda info: info["HostConfig"].update(IpcMode="host"),
+        lambda info: info["HostConfig"].update(UTSMode="host"),
+        lambda info: info["HostConfig"].update(UsernsMode="host"),
+        lambda info: info["HostConfig"].update(CgroupnsMode="host"),
         lambda info: info.update(Image="sha256:" + "c" * 64),
         lambda info: info["Config"]["Labels"].update(
             {"stock-agent.validation.run": "fedcba9876543210"}
@@ -75,6 +82,9 @@ def _container_info() -> dict:
         lambda info: info["HostConfig"].pop("NanoCpus"),
         lambda info: info["HostConfig"].pop("PidsLimit"),
         lambda info: info["HostConfig"].update(Devices=[{"PathOnHost": "/dev/x"}]),
+        lambda info: info["HostConfig"].update(
+            DeviceRequests=[{"Driver": "", "Count": -1, "Capabilities": [["gpu"]]}]
+        ),
         lambda info: info["HostConfig"].update(CapAdd=["SYS_ADMIN"]),
         lambda info: info["HostConfig"]["Tmpfs"].update({"/extra": "rw"}),
         lambda info: info["HostConfig"]["Tmpfs"].update({"/tmp": "rw"}),
@@ -266,6 +276,7 @@ def test_build_context_fails_closed_when_source_is_replaced_during_open(
 
     repo = _mini_repo(tmp_path)
     victim = repo / "backend/api.py"
+    monkeypatch.setattr(bundle, "_index_paths", lambda _repo: ["backend/api.py"])
     real_open = bundle.os.open
     replaced = False
 
@@ -290,6 +301,7 @@ def test_build_context_fails_closed_when_source_stat_changes_after_read(
 
     repo = _mini_repo(tmp_path)
     victim = repo / "backend/api.py"
+    monkeypatch.setattr(bundle, "_index_paths", lambda _repo: ["backend/api.py"])
     real_read = bundle.os.read
     changed = False
 
@@ -297,10 +309,36 @@ def test_build_context_fails_closed_when_source_stat_changes_after_read(
         nonlocal changed
         data = real_read(fd, size)
         if data and not changed:
-            opened = Path(os.readlink(f"/dev/fd/{fd}"))
-            if opened == victim:
-                changed = True
-                victim.write_bytes(victim.read_bytes() + b"# changed\n")
+            changed = True
+            victim.write_bytes(victim.read_bytes() + b"# changed\n")
+        return data
+
+    monkeypatch.setattr(bundle.os, "read", racing_read)
+    with pytest.raises(ValueError, match="^isolated_pg_bundle_rejected$"):
+        build_context(repo, tmp_path / "context")
+
+
+def test_build_context_detects_same_size_rewrite_with_restored_mtime(
+    tmp_path, monkeypatch
+):
+    from pg_validation import bundle
+
+    repo = _mini_repo(tmp_path)
+    victim = repo / "backend/api.py"
+    monkeypatch.setattr(bundle, "_index_paths", lambda _repo: ["backend/api.py"])
+    before = victim.stat()
+    replacement = b"EVIL = True\n"
+    assert len(replacement) == before.st_size
+    real_read = bundle.os.read
+    changed = False
+
+    def racing_read(fd, size):
+        nonlocal changed
+        data = real_read(fd, size)
+        if data and not changed:
+            changed = True
+            victim.write_bytes(replacement)
+            os.utime(victim, ns=(before.st_atime_ns, before.st_mtime_ns))
         return data
 
     monkeypatch.setattr(bundle.os, "read", racing_read)
