@@ -34,7 +34,7 @@ import psycopg
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 from psycopg import sql
 
-from pg_validation.cases import PgCase, pg_builder
+from pg_validation.cases import PgCase, deny_draft_write, pg_builder
 from workflow_checkpoints import open_postgres_checkpointer
 from workflow_quality_draft_test_support import (
     initial_state,
@@ -515,6 +515,74 @@ def test_pg06_dependency_repair_resumes_atomic_invalidated_round(
     asyncio.run(execute())
     assert prior == ["already successful"]
     assert visits == [4, 6, 21, 4, 6, 21, 7]
+
+
+def test_pg07_original_draft_permission_denied_fails_closed(
+    pg_case, quality_runtime, monkeypatch,
+):
+    calls, control, _events = quality_runtime
+    state = initial_state()
+    asyncio.run(_save_draft(pg_case, state, "old-other-thread", thread="baseline"))
+    before = [row.checkpoint for row in pg_case.drafts("baseline")]
+
+    evidence = deny_draft_write(
+        monkeypatch,
+        pg_case,
+        target_thread=pg_case.thread(),
+        matches=lambda record: record.get("text", "").startswith("unvalidated-draft-4:"),
+    )
+    with pytest.raises(psycopg.Error) as denied:
+        pg_case.execute(state, calls, builder=pg_builder(calls))
+
+    assert denied.value.sqlstate == "42501"
+    assert evidence and all(item["sqlstate"] == "42501" for item in evidence)
+    assert all(item["thread_id"] == pg_case.thread() for item in evidence)
+    assert all(item["namespace"].startswith("quality_draft/") for item in evidence)
+    assert not pg_case.drafts()
+    assert [row.checkpoint for row in pg_case.drafts("baseline")] == before
+    assert calls["initial"] == [4]
+    assert not calls["parsed"] and not calls["validated"] and not calls["rewrite"]
+    assert calls["published"] == 0 and calls["prerequisite"] == 1
+    assert pg_case.snapshot(calls, builder=pg_builder(calls)).next == ("agent_4",)
+
+
+def test_pg07_intermediate_draft_permission_denied_preserves_original(
+    pg_case, intermediate_quality_runtime, monkeypatch,
+):
+    calls, control, generated = intermediate_quality_runtime
+    control["deferred"] = False
+    barrier_counts = []
+
+    def matches(record):
+        selected = record.get("text") == "repaired-draft-1"
+        if selected:
+            barrier_counts.append((len(calls["validated"]), len(calls["parsed"])))
+        return selected
+
+    evidence = deny_draft_write(
+        monkeypatch,
+        pg_case,
+        target_thread=pg_case.thread(),
+        matches=matches,
+    )
+    with pytest.raises(psycopg.Error) as denied:
+        pg_case.execute(initial_state(), calls, builder=pg_builder(calls))
+
+    assert denied.value.sqlstate == "42501"
+    assert len(evidence) == 1 and evidence[0]["sqlstate"] == "42501"
+    assert evidence[0]["thread_id"] == pg_case.thread()
+    assert evidence[0]["namespace"].startswith("quality_draft/")
+    assert generated == ["bad-json", "repaired-draft-1"]
+    rows = pg_case.drafts()
+    assert len(rows) == 1
+    original = rows[0].checkpoint["channel_values"]["quality_draft"]
+    assert original["text"] == "bad-json"
+    assert original["structured_output"] == {"draft": "bad-json"}
+    assert barrier_counts == [(len(calls["validated"]), len(calls["parsed"]))]
+    assert not calls["rewrite"] and calls["published"] == 0
+    snapshot = pg_case.snapshot(calls, builder=pg_builder(calls))
+    assert snapshot.next == ("agent_4",)
+    assert not snapshot.values.get("analyses") and not snapshot.values.get("agent_reports")
 
 
 def test_pg08_completed_graph_reopen_does_not_repeat_work_or_publish(
