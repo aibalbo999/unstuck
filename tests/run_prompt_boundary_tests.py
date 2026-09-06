@@ -11,6 +11,46 @@ import tempfile
 from urllib.parse import parse_qs, unquote, urlsplit
 
 
+def _import_psycopg():
+    try:
+        import psycopg
+    except ImportError:
+        return None
+    return psycopg
+
+
+def _install_pg_guard(driver, endpoints):
+    from pg_validation.guard import install
+
+    install(driver, endpoints)
+
+
+def _load_pg_policy(path):
+    from pg_validation.guard import load_policy
+
+    return load_policy(path)
+
+
+def configure_postgres_boundary() -> bool:
+    """Clear libpq inheritance and install default-deny or live policy guard."""
+
+    policy_path = os.environ.get("STOCK_AGENT_PG_VALIDATION_POLICY")
+    for name in tuple(os.environ):
+        if name.startswith("PG"):
+            os.environ.pop(name, None)
+    driver = _import_psycopg()
+    if driver is None:
+        return policy_path is None
+    endpoints = ()
+    if policy_path is not None:
+        try:
+            endpoints = _load_pg_policy(policy_path)
+        except (OSError, TypeError, ValueError):
+            return False
+    _install_pg_guard(driver, endpoints)
+    return True
+
+
 def main() -> int:
     with tempfile.TemporaryDirectory(prefix="prompt-boundary-tests-") as directory:
         root = Path(directory).resolve()
@@ -51,6 +91,9 @@ def main() -> int:
         socket.socket.connect = no_network
         socket.socket.connect_ex = no_network
         socket.create_connection = no_network
+        if not configure_postgres_boundary():
+            print("PostgreSQL validation policy unavailable", flush=True)
+            return 2
         import pytest
 
         print(f"Isolated CACHE/OPERATIONAL/CHECKPOINT databases: {root}; network disabled", flush=True)
