@@ -179,7 +179,8 @@ G3：工程與保存 artifact 驗收完成；代表案例 `ReportArtifactLocator
 - [x] 新增 `scripts/rebuild_tracked_reports.py prepare-indexed` 與 `tests/test_rebuild_tracked_reports.py` 回歸；以 `/api/reports` 全分頁建立 `prepare_only` manifest，實際 148 筆／57 個 ticker-mode 最新群組／28 個最新重跑候選。`submit` 明確拒絕 prepare-only manifest，未把追蹤 28 組冒稱全量完成。
 - [x] 將 28 組候選以 live index 固定至 `docs/report-update-candidates-2026-09-08.json`，範圍為 7 檔 ticker 各 v1～v4，SHA-256 `f9d697eacc525ba8c0bbd7d8d4dde0d8619982ee96da6076f2af3c7d2fce0af2`；全部維持 `not_submitted`，因此範圍已可審核但尚未被視為核定。
 - [x] 已核對本分支 scoped diff、驗證證據並建立本地提交（前序實作提交亦保留）；未推送／建立 PR／merge，因本輪未重新核定外部發布授權。
-- [ ] 核對 remote／base 後，在適用授權內完成 push／PR／merge 與必要 CI；整合後若程式變動，對實際整合 revision 補必要回歸，再進入 runtime 載入。
+- [x] 唯讀核對 remote／base：`origin` 預設分支為 `main`，遠端 `main` 為 `5f44bce0`，本分支以該 revision 為 merge-base、領先 45 commits，遠端尚無 `codex/analysis-credibility-spec`；未執行 push。
+- [ ] 在適用授權內完成 push／PR／merge 與必要 CI；整合後若程式變動，對實際整合 revision 補必要回歸，再進入 runtime 載入。
 - [x] 新增 `/api/runtime-identity` 唯讀 revision endpoint，schema 為 `stock-agent.runtime-identity.v1`；受影響的 runtime／API／文件／維護流程 lane 共 `255 passed`。現有程序尚未重啟，live endpoint 仍 `404`，不把 checkout 測試當成 runtime 載入證據。
 - [x] 已以 [`capture_runtime_release_baseline.py`](../../scripts/capture_runtime_release_baseline.py) 完成發布前唯讀 baseline：3 個 process 的 PID/cwd/command、health／ready、active jobs、tracking、148 份報告與 DB 大小均保存；`.env` 僅記 presence，不讀取值。
 - [ ] 用現有正式啟動入口載入指定版本並驗證 health／ready、API／Worker 版本及四模式路由；重啟前的 live identity `404` 與 baseline 已保留，不能提前勾選。
