@@ -547,6 +547,8 @@ Redis health check 可用 `redis-cli -u "$REDIS_URL" ping`（預期 `PONG`），
 
 API process manager 可用 `/healthz` 做 liveness probe，用 `/readyz` 做 readiness probe；`/readyz` 會檢查 runtime storage 與 Redis/RQ queue，不可用時回 HTTP 503。Operator 可用 `/api/observability/dashboard` 查看報告耗時 p50/p95/p99、stuck jobs、node/model telemetry、prompt token budget、RQ queue depth、provider degradation 與 API quota ledger 摘要。
 
+要核對 API process 實際載入的程式版本，可讀取 `/api/runtime-identity`；它只回傳 versioned `commit`／`dirty` 欄位，不會送出工作或改寫資料。欄位為 `null` 或端點不存在時，仍不能把 checkout 版本當成 live revision。
+
 任務狀態、SSE 事件、API 用量 ledger、provider SLA、watchlist 與 decision tracking 預設會寫入 `OPERATIONAL_DB_PATH` / `TASK_DB_PATH` 指定的 SQLite 檔，所以 API 與 worker 需要共用同一個檔案路徑。LangGraph checkpoint 預設跟隨 `CACHE_DB_PATH`；production 高併發可改 `LANGGRAPH_CHECKPOINT_BACKEND=postgres` 並設定 `LANGGRAPH_CHECKPOINT_POSTGRES_DSN`，此時 readiness / maintenance 不會再把 checkpoint 當 SQLite 檔處理。若另外設定 `API_USAGE_DB_PATH`、`WATCHLIST_DB_PATH`、`DECISION_TRACKING_DB_PATH` 或 `LANGGRAPH_CHECKPOINT_PATH`，也要讓 API 與背景 worker 指向同一份檔案。這個預設把 operational data 與 cache/checkpoint data 分成兩個主要 DB，降低備份與維運分散度；舊版 standalone `decision_tracking.sqlite3` 與 `watchlist.sqlite3` 會在第一次讀寫時匯入目前 operational DB，匯入後以 meta key 去重，避免重啟 worker 重複搬資料。
 
 ## 常見問題

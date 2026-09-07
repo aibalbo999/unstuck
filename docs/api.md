@@ -1695,6 +1695,14 @@ Readiness 會檢查 runtime storage 與 task queue；若 Redis/RQ 或 SQLite pat
 curl http://127.0.0.1:8080/readyz
 ```
 
+Release verification 可用唯讀的 runtime identity endpoint 核對 process provenance：
+
+```bash
+curl http://127.0.0.1:8080/api/runtime-identity
+```
+
+回傳 schema `stock-agent.runtime-identity.v1`、`commit` 與 `dirty`。若回傳 `null` 或 `404`，只能表示目前 process 沒有可驗證的 revision，不能以 checkout 的 Git HEAD 代替；此端點在啟用 Basic Auth 時受同一保護。
+
 Operator dashboard 是 read-only 聚合端點，不需要 mutation token：
 
 ```bash
