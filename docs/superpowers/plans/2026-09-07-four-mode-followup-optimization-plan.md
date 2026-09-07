@@ -170,6 +170,8 @@ G3：工程與保存 artifact 驗收完成；代表案例 `ReportArtifactLocator
 
 這是正式服務與生成資源的外部動作階段。先完成 F3 的可審閱發布候選與明確清單，再依已有且適用的授權執行；不把早期另一批 commit／push 的同意推定為本分支 merge、重啟或無上限生成的授權。
 
+目前狀態（2026-09-07）：尚未執行。唯讀探測顯示本機 `8080` 的 health 路徑回應 404，`/api/decision-tracking` 在 2 秒內無回應；沒有可驗證的 API／Worker revision、active-job 清單或核定歷史範圍，故不送件、不重啟、不改寫正式 output。這是可定位的外部 runtime／範圍前置條件，不把未確認當完成。
+
 - [ ] 重新唯讀盤點 canonical index、追蹤清單、全部版本與每 ticker／模式最新版；產生有時間與 hash 的候選清單，區分最新缺口／已符合／不可重播及原因。
 - [ ] 建議預設更新「核定每組最新版」，保留原歷史。102 份歷史回放若被選定，另建版本並標 retrospective，不冒稱原日期的前瞻分析。先前 49／102 只是舊盤點，不是固定配額。
 - [ ] `scripts/rebuild_tracked_reports.py prepare` 目前只列 enabled tracking 的模式，不覆蓋全部 indexed groups；若目標是全部最新版，先補明示清單／prepare-only 功能與 `tests/test_rebuild_tracked_reports.py` 回歸，再核定輸出 manifest。不得把追蹤 28 組當全量完成。
@@ -184,6 +186,8 @@ G4：核定清單 `completed + failed + pending + unconfirmed = total`，可逐�
 停止／回復：錯誤發布、來源身分漂移或健康檢查退化時，停止後續送件並恢復前一個已驗證程式版本；已建立的新 Job／artifact 不以刪除掩蓋，保留其狀態與修復記錄。除非另有精確刪除範圍，本流程不使用 purge。
 
 ## 8. F5：真實前瞻 protocol 與到期評估
+
+目前狀態：尚未啟用。真實 prospective 需要使用者另行固定 ticker universe、收樣起訖、模型／版本政策、事前 receipt 來源與資料成本；即使立即啟用，A 的 3／6／12 個月及 D 的 5／10 交易日仍須等待資料成熟。合成 OOS 只證明工具行為，不可替代這些外部證據。
 
 ### F5.1 在收樣前固定研究內容
 
@@ -204,6 +208,8 @@ G4：核定清單 `completed + failed + pending + unconfirmed = total`，可逐�
 G5：取得有可驗證 provenance 與完整分母的結果，或清楚列出成熟時間／資料不足。若需跨日觀察，再依使用者要求建立持續監測；本計畫不自動建立排程。
 
 ## 9. F6：依證據安排第二輪模式優化
+
+目前狀態：條件尚未觸發。F2／F3 的工程驗收沒有提供真實 cohort 的穩定偏差或可檢驗策略假設，因此本階段不擅自調參、改策略或宣稱效果改善。
 
 下列為條件式候選，並非本次已確認 bug 或已核准的新策略。先用 F3／F5 分類實際問題；只有可重現品質缺陷或事前可檢驗假設才安排實作。
 
