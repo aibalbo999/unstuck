@@ -268,11 +268,11 @@ OOS 新增單元測試由上述 runner 逐一明列，並納入既有：
 
 每個階段交付至少包含：
 
-- [ ] 變更與驗收所對應的 commit／dirty、manifest／input hash；程式修正、工具驗收、正式載入、資料產製與效果各自狀態。
-- [ ] requirement→案例→實際結果對照；passed／failed／skip／尚未執行，不重複加總同一案例。
-- [ ] 產物／Job／case 的可追溯清單，保留失敗與未知原因；新舊結果只有同資料、同抽樣、同口徑時才比較。
-- [ ] 範圍內完整 diff 與必要 review；`.env`、DB、歷史資料、秘密與他人修改不進 scoped commit。
-- [ ] 風險、停止／回復方式與首個未完成步驟；原 PG／OOS 文件記錄詳細證據，本文件僅更新總關卡狀態。
+- [x] 已為目前完成的 PG／OOS／F3／F4 prepare 階段保存 commit／dirty、manifest／input hash 與逐層狀態；正式載入、資料產製與效果仍獨立標示未完成。
+- [x] 已建立 requirement→案例→實際結果對照，分開記錄 passed／failed／skip／尚未執行，沒有重複加總同一案例。
+- [x] 已保存 OOS bundle、PG live result、代表 artifact、Job／report inventory 與失敗／未知原因；新舊結果未在不同資料或抽樣間比較。
+- [x] 已檢查目前範圍 diff、測試與文件契約；`.env`、正式 DB、歷史資料、秘密與他人修改未進 scoped commit。
+- [x] 已記錄風險、停止／回復方式與首個未完成步驟；原 PG／OOS 文件保存詳細證據，本文件只更新總關卡狀態。
 
 本計畫已完成 PG／OOS 與可信度交付的獨立交叉審查，結果 Approved；審查建議的精確 admission enum 與第一批原始價格政策已納入。文件審查不等於上述工作已實作或通過測試。
 
