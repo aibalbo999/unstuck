@@ -12,6 +12,7 @@
 - 本分支新增 `/api/runtime-identity`（`stock-agent.runtime-identity.v1`）供重啟後驗證 process commit；目前 2026-09-06 啟動的 live 程序對此新路徑回 `404`，證實它尚未載入本分支新增 API。
 - 代表 stale candidates：`1623.TW/v1`、`1623.TW/v4`、`2308.TW/v3` 均明示 `needs_rerun=true`，原因是 snapshot 已刷新而 HTML／Markdown 結論尚未重跑。
 - 另以 `scripts/rebuild_tracked_reports.py prepare-indexed` 讀取同一 indexed API 建立 prepare-only manifest：148 筆版本收斂為 57 個 ticker／mode 最新群組，其中 29 個 `current`、28 個 `needs_rerun`；這 28 個只是候選清單，不是已核定送件數。
+- 2026-09-08 07:07（Asia/Taipei）重新讀取 live index，將 28 組候選固定為 [`report-update-candidates-2026-09-08.json`](./report-update-candidates-2026-09-08.json)：`1623.TW`、`2308.TW`、`2367.TW`、`3017.TW`、`3324.TWO`、`3653.TW`、`6282.TW` 各 `v1`～`v4`；檔案 SHA-256 為 `f9d697eacc525ba8c0bbd7d8d4dde0d8619982ee96da6076f2af3c7d2fce0af2`。manifest 仍為 `prepare_only=true`、28 筆 `not_submitted`，只固定審核範圍，不表示已獲送件授權。
 - `prepare-indexed` 只寫入新 manifest，並以 `prepare_only=true` 標記；`submit` 對此標記會在任何 POST 前拒絕，避免唯讀盤點被誤當成送件授權。
 
 工具：[`scripts/inspect_report_update_candidates.py`](/Volumes/X10 Pro Mac/stock-agent/scripts/inspect_report_update_candidates.py)。工具要求明確新輸出路徑、逐頁核對 total／identity、記錄 HTML／Markdown／snapshot hash 與時間欄位，並以 exclusive create 防止覆寫。
