@@ -7,6 +7,7 @@ import argparse
 import hashlib
 import json
 import math
+import os
 import sys
 from collections import Counter
 from datetime import datetime, timezone
@@ -34,6 +35,138 @@ def _requires_submission_confirmation(item):
     return not item.get("job_id") and (
         bool(item.get("submission_started_at")) or item.get("submission_state") in {"pending", "accepted"}
     )
+
+
+def _canonical_json(value):
+    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+
+
+def _authorized_scope_rows(jobs, *, require_unsubmitted=False):
+    if not isinstance(jobs, list) or not jobs:
+        raise ValueError("Indexed authorization requires a non-empty jobs list")
+    rows = []
+    seen = set()
+    for item in jobs:
+        if not isinstance(item, dict):
+            raise ValueError("Indexed authorization job must be an object")
+        ticker = item.get("ticker")
+        pipeline_id = item.get("pipeline_id")
+        source_filename = item.get("source_filename")
+        if not isinstance(ticker, str) or not ticker.strip():
+            raise ValueError("Indexed authorization job ticker is invalid")
+        if pipeline_id not in {"v1", "v2", "v3", "v4"}:
+            raise ValueError("Indexed authorization job pipeline is invalid")
+        if not isinstance(source_filename, str) or not source_filename.strip():
+            raise ValueError("Indexed authorization source filename is invalid")
+        identity = (ticker, pipeline_id)
+        if identity in seen:
+            raise ValueError("Indexed authorization scope contains a duplicate ticker/pipeline")
+        seen.add(identity)
+        if item.get("requires_rerun") is not True:
+            raise ValueError("Indexed authorization only accepts refresh candidates")
+        if require_unsubmitted:
+            if item.get("status") != "not_submitted":
+                raise ValueError("Indexed authorization only accepts unsubmitted refresh candidates")
+            if any(item.get(key) for key in ("job_id", "submission_state", "submission_started_at")):
+                raise ValueError("Indexed authorization source already contains submission state")
+        rows.append({
+            "ticker": ticker,
+            "pipeline_id": pipeline_id,
+            "source_filename": source_filename,
+            "requires_rerun": True,
+            "requires_rerun_reason": item.get("requires_rerun_reason") or "",
+        })
+    return rows
+
+
+def _scope_sha256(jobs):
+    return hashlib.sha256(_canonical_json(_authorized_scope_rows(jobs))).hexdigest()
+
+
+def _validate_authorized_submission_manifest(manifest):
+    if manifest.get("schema_version") != "stock-agent.report-rebuild-authorized.v1":
+        return
+    authorization = manifest.get("authorization")
+    jobs = manifest.get("jobs")
+    if not isinstance(authorization, dict) or not isinstance(jobs, list):
+        raise RuntimeError("Authorized scope metadata is missing or malformed")
+    candidate_count = authorization.get("candidate_count")
+    expected_hash = authorization.get("scope_sha256")
+    source_hash = authorization.get("source_manifest_sha256")
+    if (
+        isinstance(candidate_count, bool)
+        or not isinstance(candidate_count, int)
+        or candidate_count != len(jobs)
+        or not isinstance(expected_hash, str)
+        or len(expected_hash) != 64
+        or not isinstance(source_hash, str)
+        or len(source_hash) != 64
+    ):
+        raise RuntimeError("Authorized scope metadata is inconsistent")
+    try:
+        actual_hash = _scope_sha256(jobs)
+    except ValueError as exc:
+        raise RuntimeError("Authorized scope no longer matches a valid indexed candidate set") from exc
+    if actual_hash != expected_hash:
+        raise RuntimeError("Authorized scope fingerprint changed; no jobs were submitted")
+
+
+def _write_exclusive_manifest(path, manifest):
+    if not path.is_absolute() or path.exists() or path.is_symlink() or not path.parent.is_dir():
+        raise ValueError("Submission manifest must be a new absolute path in an existing directory")
+    manifest["updated_at"] = datetime.now(timezone.utc).isoformat()
+    encoded = json.dumps(manifest, ensure_ascii=False, indent=2).encode("utf-8")
+    flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
+    fd = os.open(path, flags, 0o600)
+    try:
+        view = memoryview(encoded)
+        while view:
+            written = os.write(fd, view)
+            if written <= 0:
+                raise OSError("short submission manifest write")
+            view = view[written:]
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+    fsync_directory(path.parent)
+
+
+def _authorize_indexed_manifest(args):
+    if args.submission_manifest is None or args.confirm_source_sha256 is None or args.confirm_candidate_count is None:
+        raise ValueError(
+            "authorize-indexed requires --submission-manifest, --confirm-source-sha256 and --confirm-candidate-count"
+        )
+    if args.manifest_was_symlink or args.manifest.is_symlink() or not args.manifest.is_file():
+        raise ValueError("Indexed source manifest must be a regular non-symlink file")
+    source_bytes = args.manifest.read_bytes()
+    actual_hash = hashlib.sha256(source_bytes).hexdigest()
+    if args.confirm_source_sha256.lower() != actual_hash:
+        raise ValueError("Indexed source manifest SHA-256 does not match the explicit confirmation")
+    source = json.loads(source_bytes)
+    if source.get("schema_version") != "stock-agent.report-rebuild-prepare-indexed.v1" or source.get("prepare_only") is not True:
+        raise ValueError("authorize-indexed requires a prepare-only indexed manifest")
+    jobs = source.get("jobs")
+    scope_rows = _authorized_scope_rows(jobs, require_unsubmitted=True)
+    candidate_count = source.get("refresh_candidate_count")
+    if isinstance(candidate_count, bool) or not isinstance(candidate_count, int) or candidate_count != len(scope_rows):
+        raise ValueError("Indexed source candidate count is inconsistent")
+    if args.confirm_candidate_count != candidate_count:
+        raise ValueError("Indexed candidate count does not match the explicit confirmation")
+    scope_hash = hashlib.sha256(_canonical_json(scope_rows)).hexdigest()
+    authorized = {
+        "schema_version": "stock-agent.report-rebuild-authorized.v1",
+        "prepare_only": False,
+        "authorized_at": datetime.now(timezone.utc).isoformat(),
+        "source": source.get("source"),
+        "authorization": {
+            "source_manifest_sha256": actual_hash,
+            "candidate_count": candidate_count,
+            "scope_sha256": scope_hash,
+        },
+        "jobs": [dict(item) for item in jobs],
+    }
+    _write_exclusive_manifest(args.submission_manifest, authorized)
+    print(json.dumps({"candidate_count": candidate_count, "scope_sha256": scope_hash}, ensure_ascii=False, indent=2))
 
 
 def _indexed_prepare_manifest(reports, *, base_url, generated_at=None):
@@ -191,14 +324,24 @@ def purge_confirmed_targets(args, paths, manifest, get):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("prepare", "prepare-indexed", "purge", "submit", "status"))
+    parser.add_argument("action", choices=("prepare", "prepare-indexed", "authorize-indexed", "purge", "submit", "status"))
     parser.add_argument("--manifest", type=Path, required=True)
     parser.add_argument("--base-url", default="http://127.0.0.1:8080")
     parser.add_argument("--confirm-purge", action="store_true", help="Confirm removal of only the explicitly named prepared keys")
     parser.add_argument("--report-key", action="append", default=[], help="Exact prepared artifact key to remove; repeat for each file")
     parser.add_argument("--backup-dir", type=Path, help="New recoverable backup directory outside report output")
+    parser.add_argument("--submission-manifest", type=Path, help="New manifest created from an explicitly confirmed indexed scope")
+    parser.add_argument("--confirm-source-sha256", help="Exact SHA-256 of the prepare-only indexed manifest")
+    parser.add_argument("--confirm-candidate-count", type=int, help="Exact number of indexed candidates being authorized")
     args = parser.parse_args()
+    args.manifest_was_symlink = args.manifest.is_symlink()
     args.manifest = args.manifest.resolve()
+    if args.submission_manifest is not None:
+        if not args.submission_manifest.is_absolute():
+            raise ValueError("Submission manifest path must be absolute")
+        if args.submission_manifest.is_symlink():
+            raise ValueError("Submission manifest path must not be a symlink")
+        args.submission_manifest = args.submission_manifest.parent.resolve() / args.submission_manifest.name
     # Use a stable, dedicated directory rather than the manifest's parent: the
     # parent may also be report storage, whose operations acquire their own flock.
     # Never remove this directory after use; waiters must share the same inode.
@@ -220,6 +363,10 @@ def _run_action(args):
         response = session.get(args.base_url + path, timeout=60)
         response.raise_for_status()
         return response.json()
+
+    if args.action == "authorize-indexed":
+        _authorize_indexed_manifest(args)
+        return
 
     if args.action == "prepare-indexed":
         if args.manifest.exists():
@@ -287,6 +434,7 @@ def _run_action(args):
     if args.action == "submit":
         if manifest.get("prepare_only"):
             raise RuntimeError("This manifest is prepare-only; confirm an explicit submission scope before submit")
+        _validate_authorized_submission_manifest(manifest)
         if any(_requires_submission_confirmation(item) for item in manifest["jobs"]):
             raise RuntimeError(
                 "Submission pending: verify existing jobs before retrying; manually attach the verified job_id "

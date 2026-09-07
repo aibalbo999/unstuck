@@ -178,6 +178,7 @@ G3：工程與保存 artifact 驗收完成；代表案例 `ReportArtifactLocator
 - [ ] 建議預設更新「核定每組最新版」，保留原歷史。102 份歷史回放若被選定，另建版本並標 retrospective，不冒稱原日期的前瞻分析。先前 49／102 只是舊盤點，不是固定配額。
 - [x] 新增 `scripts/rebuild_tracked_reports.py prepare-indexed` 與 `tests/test_rebuild_tracked_reports.py` 回歸；以 `/api/reports` 全分頁建立 `prepare_only` manifest，實際 148 筆／57 個 ticker-mode 最新群組／28 個最新重跑候選。`submit` 明確拒絕 prepare-only manifest，未把追蹤 28 組冒稱全量完成。
 - [x] 將 28 組候選以 live index 固定至 `docs/report-update-candidates-2026-09-08.json`，範圍為 7 檔 ticker 各 v1～v4，SHA-256 `f9d697eacc525ba8c0bbd7d8d4dde0d8619982ee96da6076f2af3c7d2fce0af2`；全部維持 `not_submitted`，因此範圍已可審核但尚未被視為核定。
+- [x] 新增 `authorize-indexed` 明示授權接縫：只有來源 manifest SHA-256、候選數與全體候選 schema 都吻合時，才以 exclusive create 產生另一份 submission manifest；送件前會重驗 scope fingerprint，任何 ticker／mode／來源檔／理由變動均在網路請求前拒絕，來源 symlink 亦拒絕。隔離 lane `36 passed`；本輪沒有實際產生授權檔或送件。
 - [x] 已核對本分支 scoped diff、驗證證據並建立本地提交（前序實作提交亦保留）；未推送／建立 PR／merge，因本輪未重新核定外部發布授權。
 - [x] 唯讀核對 remote／base：`origin` 預設分支為 `main`，遠端 `main` 為 `5f44bce0`，本分支以該 revision 為 merge-base、領先 45 commits，遠端尚無 `codex/analysis-credibility-spec`；未執行 push。
 - [ ] 在適用授權內完成 push／PR／merge 與必要 CI；整合後若程式變動，對實際整合 revision 補必要回歸，再進入 runtime 載入。
