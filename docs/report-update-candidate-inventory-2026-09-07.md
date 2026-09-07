@@ -8,6 +8,7 @@
 - 完整排序清單內容 hash：`0e870f7451506bdcccfd7753191a6661766d4db4774102aca5bf5c5d8c2417cd`。
 - 追加唯讀 runtime 盤點（2026-09-07 22:30 Asia/Taipei）：`/api/observability/active-jobs` 回傳 `active_count=0`（10 筆歷史 job 均 `done`）；`/api/decision-tracking` 回傳 7 筆且 `enabled=7`，10 秒界線內約 4.03 秒完成。
 - canonical DB 對帳：`backend/cache/stock_agent_cache.sqlite3` 的 `reports` 為 148 筆、`analysis_text_stale=39`；`backend/cache/operational.sqlite3` 的 tracking 為 7／7 enabled，`analysis_jobs` 沒有 queued／running／waiting_retry（僅 done／error／cancelled）。
+- 代表報告的 `reproducibility_packet.code_commit`／`code_dirty` 仍為空／null；因此 indexed report 與 health 讀取不能反推執行中 API／Worker 已載入哪個 revision。
 - 代表 stale candidates：`1623.TW/v1`、`1623.TW/v4`、`2308.TW/v3` 均明示 `needs_rerun=true`，原因是 snapshot 已刷新而 HTML／Markdown 結論尚未重跑。
 - 另以 `scripts/rebuild_tracked_reports.py prepare-indexed` 讀取同一 indexed API 建立 prepare-only manifest：148 筆版本收斂為 57 個 ticker／mode 最新群組，其中 29 個 `current`、28 個 `needs_rerun`；這 28 個只是候選清單，不是已核定送件數。
 - `prepare-indexed` 只寫入新 manifest，並以 `prepare_only=true` 標記；`submit` 對此標記會在任何 POST 前拒絕，避免唯讀盤點被誤當成送件授權。
