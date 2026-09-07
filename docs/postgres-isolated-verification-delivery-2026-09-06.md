@@ -10,7 +10,7 @@ PostgreSQL 驗收；OOS 與正式 PostgreSQL 切換仍不在本批範圍。
 - 實作交付基線：`9bbeaa83`（`test: require complete isolated PostgreSQL evidence`）
 - 本批整合 commit：`test: complete isolated postgres live validation`（以目前
   `HEAD` 為準）；文件提交後以 `git status --short --branch` 重新核對。
-- OOS：尚未實作、尚未驗證；依核准設計與 PostgreSQL 批次分開。
+- OOS：已另案完成合成／離線隔離設施，詳見 [OOS 交付紀錄](oos-isolated-verification-delivery-2026-09-07.md)；真實 prospective cohort 仍未啟用。
 
 ## 實際離線命令與結果
 
@@ -74,8 +74,8 @@ live registry、native libpq TEST-NET negative case、真實 migration／checkpo
 reopen、42501 拒寫觀測、container stop／remove cleanup，以及本批正式 PG adapter
 隔離驗收結論。
 
-尚未交付：OOS 合成研究流程、正式 PostgreSQL runtime 切換、正式報告重建與真實
-前瞻效果樣本；這些仍依總計畫 F2～F5 的獨立關卡處理。
+尚未交付：正式 PostgreSQL runtime 切換、正式報告重建與真實前瞻效果樣本；OOS
+合成研究流程已依總計畫 F2／G2 的獨立關卡完成。
 
 明確未變更：`.env`、正式 `.venv` 套件、production SQLite checkpoint adapter、
 canonical DB／Redis／output、API／worker 狀態；未 push、merge、restart、rebuild，

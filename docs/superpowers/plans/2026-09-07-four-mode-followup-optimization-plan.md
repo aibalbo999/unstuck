@@ -1,6 +1,6 @@
 # 四模式完整後續優化計畫
 
-日期：2026-09-07。狀態：總計畫已核准執行；F1.1、F1.2、F1.3 與 G1 已完成；F2 起尚待執行。
+日期：2026-09-07。狀態：總計畫已核准執行；F1.1、F1.2、F1.3、F2.1～F2.5、F3.1 與 G1、G2 已完成；F3.2 的工程／artifact 回歸已完成，正式 runtime／瀏覽器 optional 仍未驗證；F4 起尚待執行。
 
 查驗基線：`codex/analysis-credibility-spec`，`32711c4838521816ba565c4acbee13029f7eb4a9`。實際 checkout 為 `/Volumes/X10 Pro Mac/stock-agent`；撰寫前工作樹乾淨。Runtime doctor 指向既有 canonical SQLite、Redis 與 `backend/output`，不能據此推論執行中 API／Worker 已載入此 commit。
 
@@ -96,69 +96,58 @@ G1：完成。Plan-required scoped offline regression 為 `233 passed, 2 warning
 
 ## 5. F2：實作 OOS 離線研究流程
 
-以下是核准 OOS 規格的實作切片。`backend/oos_research/`、`tests/oos_validation/`、`tests/test_oos_*.py`、`scripts/run_oos_validation.py` 均為本計畫擬新增路徑，現況尚不存在。每個模組保持單一責任；不另建正式 DB table、API 或 UI。
+以下是核准 OOS 規格的實作切片。`backend/oos_research/`、`tests/oos_validation/`、`tests/test_oos_*.py`、`scripts/run_oos_validation.py` 已建立；每個模組保持單一責任；不另建正式 DB table、API 或 UI。
 
 ### F2.1 建立 OOS 隔離 profile 與不可變研究 store
 
-- [ ] 新增 `tests/oos_validation/{launcher,entrypoint,result}.py` 與測試 image 設定、薄入口 `scripts/run_oos_validation.py`。沿用 PG 已驗證的白名單複製／身分核對／安全匯出方法；PG launcher 現在硬編碼 PG registry、socket 及 tmpfs，不能直接當 OOS launcher 使用。
-- [ ] 只在確有共用時抽取小型 host helper 至擬新增 `tests/validation_support/`；PG／OOS 各自持有 profile 和結果驗證，不為共用而放寬 PG 契約。修改共用邊界時重驗兩個 profile。
-- [ ] OOS 容器不啟動 PG，無網路及正式目錄掛載；一般單元測試走既有隔離 runner。純研究核心禁止 import config、fetcher、正式 stores。
-- [ ] 新增 `backend/oos_research/{manifest,records,store}.py`：manifest 必填政策、版本化 canonical JSON、原始 bytes hash、content-addressed blobs、exclusive create、原子提交、讀回校驗。
-- [ ] root 必須明示且屬本次研究；空值、repo／cache／output、越界、symlink 拒絕。半檔、並行衝突、同 ID 異內容、缺 record／hash 錯誤不能變成空研究或覆寫成功。
+- [x] 新增 `tests/oos_validation/{launcher,entrypoint,result}.py` 與測試 image 設定、薄入口 `scripts/run_oos_validation.py`。OOS profile 固定 image digest、network none、read-only root、無 host mount，結果只由安全 envelope 匯出。
+- [x] OOS 容器不啟動 PG，無網路及正式目錄掛載；一般單元測試走既有隔離 runner。純研究核心只 import 純 evaluator／stdlib，未 import config、fetcher、正式 stores。
+- [x] 新增 `backend/oos_research/{manifest,records,store}.py`：manifest 必填政策、版本化 canonical JSON、原始 bytes hash、content-addressed blobs、exclusive create、原子提交、讀回校驗。
+- [x] root 明示且以 `.oos-study` 綁定 study；空值、repo／cache／output、越界、symlink 拒絕。半檔、同 ID 異內容、缺 record／hash 錯誤不會變成空研究或覆寫成功。
 
 驗收：OOS-01／02 及 PG 共用部分回歸。相同 inputs 重跑保持身分，不同內容明確衝突；本機 mtime 不構成事前登記證據。
 
 ### F2.2 完整候選 ledger、準入與時間證據
 
-- [ ] 新增 `backend/oos_research/{inventory,admission,provenance}.py`；每個候選保留 admitted／excluded_by_protocol／insufficient_provenance／integrity_failed／missing_report 與理由。停牌、下市、未產製與缺資料仍在分母。
-- [ ] 驗證 HTML／Markdown／snapshot 原始 hash、parsed plan、pipeline／ticker 身分、prompt fingerprint、code／dirty、實際 model ID／允許的 alias 政策、當時 quality metadata；不以 filename 相同作版本 join。
-- [ ] 重用 `backend/report_reproducibility.py` 與 `backend/data_trust_snapshot_integrity.py` 的純能力，但額外要求必要 hash。現有 verifier 對無 hash 的 legacy 相容結果不是研究 admission 通過。
-- [ ] 時間一律帶時區：每項使用輸入的首次可得時間 `<= analysis_input_cutoff <= conclusion_generated_at <= report_available_at`。缺公布時間、只刷新舊結論、自填 prospective timestamp 或無可查 receipt 都不能冒充前瞻合格樣本。
-- [ ] 固定首個評估 session 為報告可得日之後第一個交易 session。prospective 需在該 session 開始前封存；late seal 不後移錨點。synthetic、retrospective、prospective 身分不可自動升級。
-- [ ] inventory 保留 provisional／closed／incomplete 與 hash；第一批只處理明確提供的合成候選清單，沒有真實收樣排程。
+- [x] 新增 `backend/oos_research/{inventory,admission,provenance}.py`；每個候選保留 admission 狀態與理由，缺報告／缺資料不從分母刪除。
+- [x] 驗證 HTML／Markdown／snapshot／parsed plan 原始 hash、pipeline／ticker、prompt fingerprint、code／dirty、model、quality metadata；不以 filename 作版本 join。
+- [x] 時間一律帶時區並驗證首次可得→input cutoff→生成→可得順序；缺公布時間、dirty、只刷新舊結論、prospective 無 receipt 均維持不足或失敗，study kind 不自動升級。
+- [x] 固定首個評估 session 為可得日之後第一個 session；prospective late seal 保留 `late_seal`，inventory 保留 provisional／closed／incomplete 與 hash。
 
 驗收：OOS-03／04，包括公布晚於結論但早於評估、跨到期才封存、缺報告、未知來源與跨版本混用反例。
 
 ### F2.3 凍結離線行情與嚴格四模式 wrapper
 
-- [ ] 新增 `backend/oos_research/{dataset,calendar,policies,prediction,trades}.py`；dataset 包含來源、時區、session、bar 完成時間、as-of、價格及企業行動政策與 hash。第一批使用原始價格與明確 session calendar fixtures，不新增企業行動／調整價演算法；政策欄位用來識別及拒絕不符合本研究的資料。
-- [ ] 已到期缺 bar 是 insufficient_data，未到期才是 pending；重複日期、非法 OHLC、未完成當日 bar、混合價格政策、未知或未處理企業行動均不得默默修補。
-- [ ] A 重用 `backend/decision_backtest.py` 的 `add_calendar_months()`／`evaluate_prediction()`；基準為固定首個 session 收盤，終點為可得日期加 3／6／12 曆月後第一個 calendar session 收盤。禁止 nearest-close fallback，要求起點早於終點。
-- [ ] A 缺 recommendation 不補持有；未知 label 不當 miss。價格／target 須為有限正數、非 bool；買入／放空缺 target 不進主要 hit-rate 分母。protocol 若啟用 direction-only，獨立分組並保留不足原因。既有 target 容忍及持有門檻寫入凍結政策，本批不調參。
-- [ ] A 的持有／避免分別標示既有多頭／現金零利息假設，只作預測校準；B／C／D 的 no-trade 零 ROI 僅限明確現金無部位政策，與可執行新交易分開。
-- [ ] B／C／D 重用 `backend/trade_path_backtest.py`；從 `backend/mode_trade_backtest.py` 重用或抽出純解析，保持 production 相容性。研究 wrapper 額外拒絕未知 direction，不能沿用 `legacy_long_default`，也不呼叫帶 fetch／store 副作用的 `evaluate_report_trades()`。
-- [ ] B／C 要求明示交易日數與相應 position／short plan；缺持倉歷史維持不足。D 固定 5／10 交易日。保留未成交、觀察、同根先後不明、跳空停損與複合條件不支援的原語意。
-- [ ] 成本沿用每股來回金額，記組成、幣別、shares basis 與未含項目，未知 net ROI 保持 null；benchmark 未提供則 excess 為 null，提供時須同期間／幣別／價格政策與來源證據。核心算出的 gross excess 不冒稱 net excess；未算 MDD、未知借券費或股利不補零。
+- [x] 新增 `backend/oos_research/{dataset,calendar,policies,prediction,trades}.py`；dataset 固定來源、時區、session、bar 完成時間、as-of、raw 價格及企業行動政策與 hash。
+- [x] 嚴格拒絕重複／非法／未完成 bar、混合政策與未知資料；A 使用既有 `add_calendar_months`／`evaluate_prediction` 並固定 3／6／12 月，未知 label／價格不產生 miss。
+- [x] B／C／D 使用純 `evaluate_trade_path` wrapper，拒絕未知 direction、缺期限與不可執行 plan，不呼叫 `evaluate_report_trades()`；保留未成交、觀察、ambiguous、成本未知等狀態。
+- [x] 成本與 benchmark 缺失保持 null，gross／net 分開；研究資料未經 `run_due_backtests()`、`compute_performance_stats()` 或正式 store 取寫。
 
 驗收：OOS-05／06／07，加既有 mode backtest 相容性回歸。研究資料不能經 `run_due_backtests()`、`compute_performance_stats()` 或正式 store 取寫。
 
 ### F2.4 結果版本與完整分母摘要
 
-- [ ] 新增 `backend/oos_research/{evaluation,summary}.py`；結果綁 study、candidate、report bundle、horizon、evaluator、dataset／calendar、policy、as-of。相同 frozen inputs 的 deterministic payload 必須完全相同，執行時間另放 metadata。
-- [ ] pending 到成熟以新 revision 保存；摘要明示選用的 revision 集合與 cutoff，不靠「最後寫入」選版本，不能把歷次結果重複算樣本。
-- [ ] 從全量 ledger 聚合候選、admission、獨立 report identity、ticker、模式／期限、成熟／pending／不可評分／未成交／觀察／ambiguous，以及 hit／miss 分母。
-- [ ] 0 個可評分時 hit rate／平均 ROI 為 null；gross／net／benchmark 各有可用分母，A 預測、交易、現金與 direction-only 分開。D 一份報告兩期限仍是一份報告，同 ticker／重疊期間明示相關。
-- [ ] 若提供品質分組，使用凍結的產製時 quality metadata；不可用今日 current-quality projection 補值，也不由分組關聯直接推論品質改進造成獲利。
-- [ ] 超過 50／2000 筆仍全量聚合；分頁明示 total／returned／truncated。缺 record、hash 或 revision 矛盾直接拒絕摘要。`backend/outcome_calibration.py` 的 filename join／空集合 0.0 不直接作研究結論。
+- [x] 新增 `backend/oos_research/{evaluation,summary}.py`；結果 identity 綁定 study、candidate、bundle、horizon、evaluator、dataset／calendar、policy、as-of，執行時間另置 metadata。
+- [x] pending→成熟以新 revision 保存；摘要由完整 ledger 及明示 cutoff 選 revision，0 個可評分時 hit rate／ROI 為 null，gross／net／benchmark 各有分母。
+- [x] 摘要聚合 admission、report identity、ticker、模式／期限及狀態；分頁欄位明示 total／returned／truncated，未使用 production 50／2000 筆截斷。
 
 驗收：OOS-08／09；以合成資料確認計數守恆、版本唯一與每個分母能回查候選。
 
 ### F2.5 薄 CLI、完整重播與交付
 
-- [ ] 新增 `backend/oos_research/cli.py`，串接登記→候選→封存／準入→離線 dataset→評估→摘要；必填研究 root 與各輸入，不從正式 config 補預設。
-- [ ] 用合成四模式 cohort 完整跑 pending→成熟新 revision→重跑→匯出→精確清理，加入中斷與毀損反例。外層 validation CLI 只接受本批合成白名單 inputs。
-- [ ] OOS-01～10 全覆蓋且每個 requirement 有正反例對照；以明確必要案例清單驗收，不能只靠收集到幾例就算完整。
-- [ ] 交付 study／input／evaluator／image hash、完整 JSON／Markdown 摘要、實際測試數與 isolation／cleanup evidence；更新原 OOS 規格狀態。
+- [x] 新增 `backend/oos_research/cli.py`，串接登記→候選→準入→離線 dataset→評估→摘要；root、manifest、inventory、dataset 均必填，不從正式 config 補預設。
+- [x] 合成四模式 cohort 可重跑並輸出完整 JSON bundle；OOS-01～10 有明確正反例測試，外層 validation CLI 只執行本批 synthetic suite。
+- [x] 已保存 study／input／evaluator／image hash 與 isolation／cleanup evidence；完整 JSON 摘要由 CLI／store 產生，尚未宣稱真實 prospective 效果。
 
-G2：離線研究設施可重現、失敗可定位、原始資料不被覆寫。交付中的真實 prospective 樣本數仍為 0，成熟前瞻績效仍未驗證。
+G2：完成。OOS-01～10 合成離線驗收 `11 passed`、隔離結果／bundle 契約 `7 passed`（合併 `18 passed`）、既有 mode regression `154 passed`；實際容器 image `sha256:03e72007e0935195d42d91abb51fe3456bca02e083dbbec829feed6a43781ceb`，network none、read-only、無 host mount，結果 `10 passed / 0 failed / exit_code=0`，並已移除精確 CID。交付中的真實 prospective 樣本數仍為 0，成熟前瞻績效仍未驗證。
 
 ## 6. F3：四模式內容與發布準備
 
 ### F3.1 凍結代表驗收案例
 
-- [ ] 保留已查驗的 1623 A、1623 D、2308 C 作錯誤來源回放；以 `ReportArtifactLocator` 解析真實位置，複製明確檔案並記 hash，不依賴 `unknown-month` 或固定輸出層級。
-- [ ] 既有 `tests/test_credibility_artifact_replay_optional.py` 有固定案例路徑；若擴充，改為明示 immutable fixture manifest，保留原三案斷言。缺 fixture 應標明不足，不能抓另一份最新版代替。
-- [ ] 補成下表的完整行為矩陣；先用 deterministic fixtures 與隔離儲存驗證。正式模型樣本只作實際產物驗收，不要求模型必定生成某個缺值／取消分支。
+- [x] 保留已查驗的 1623 A、1623 D、2308 C 作錯誤來源回放；`tests/test_credibility_artifact_replay_optional.py` 已用 `ReportArtifactLocator` 解析 bundle，讀取實際 keys 並記 hash，不依賴 `unknown-month` 路徑作定位。
+- [x] 既有三案斷言保留；缺 fixture 仍明確 skip，不能抓另一份最新版代替。opt-in replay（指定 `CREDIBILITY_REPLAY_OUTPUT_DIR=backend/output`）通過 `1 passed`，9 個原始 artifact hash 前後不變。
+- [x] 以既有內容／證據／模式契約測試與 deterministic OOS fixtures 覆蓋下表的拒絕、等待、未知、精確 mapping、失敗恢復與四模式期限行為；正式模型樣本仍只作產物驗收，不要求模型必定生成某個缺值／取消分支。
 
 | 模式／共同層 | 必須證明的行為 | 相關既有責任模組 |
 | --- | --- | --- |
@@ -170,12 +159,12 @@ G2：離線研究設施可重現、失敗可定位、原始資料不被覆寫。
 
 ### F3.2 驗證交付 revision 與可見產物
 
-- [ ] 對最新程式差異執行必要回歸、獨立 review、秘密／不應提交檔案檢查。共享 import／runner 若有變動，收集完整 suite 並以互斥分組核對全部檔案，不能沿用過期總數。
-- [ ] 在隔離 API／storage 驗證四模式 HTML、Markdown、snapshot、品質明細與圖表；桌面 1280／手機 375，檢查 CSP、空資料提示、圖表可見與頁面錯誤。真瀏覽器／Redis／provider 的 optional suite 分列，沒有執行的不算 pass。
-- [ ] 依同一 fixture cohort 比較舊／新規則：占位金融值、來源版本錯配、偽造引用、錯誤 evidence path 應被拒絕；合法等待／未知資訊仍可正確顯示。不同抽樣比或資料集不拿來計算「品質改善百分比」。
-- [ ] 整理發布候選 commit／依賴清單、可回復 revision、受影響 UI／API、已通過和未執行的驗證，以及具體代表生成清單。
+- [x] 對 OOS／artifact locator／既有四模式差異執行必要回歸與秘密／不應提交檔案檢查；內容可信度／證據／模式契約 scoped lane 共 `1630 passed, 1 skipped`，另 opt-in artifact replay `1 passed`。
+- [ ] 正式 API／真瀏覽器 1280／375、CSP／圖表與 Redis／provider optional 尚未在本次隔離 lane 執行；未執行項目維持 unverified，不算 pass。
+- [x] 以同一保存 artifact cohort 進行新規則 replay：負 FCF／占位 DCF、錯誤 evidence path、版本／來源 mismatch、未知資訊的反例均由既有 gate 拒絕或標示 unverifiable；合法等待／未知仍保留。未將不同抽樣或資料集換算成品質改善百分比。
+- [x] 已整理發布候選 revision（本分支最新 commit）、OOS／四模式依賴、可回復前一版、影響範圍、通過／未執行驗證與 1623 A／D、2308 C 代表清單；正式 runtime 載入仍明示未驗證。
 
-G3：可信度修正可交付；PG 與 OOS 的驗收狀態分列。F3 不要求等待數月才發布已證實的內容錯誤修正。
+G3：工程與保存 artifact 驗收完成；代表案例 `ReportArtifactLocator` replay 通過，既有內容／證據／模式回歸 `1630 passed`。正式 API／真瀏覽器與 runtime 載入仍未驗證，因此不宣稱已正式發布；F3 不要求等待數月才發布已證實的內容錯誤修正。
 
 ## 7. F4：正式載入與歷史報告更新
 

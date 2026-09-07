@@ -2,7 +2,7 @@
 
 日期：2026-09-06。基準程式：`fec17737`。
 
-狀態：**使用者已於 2026-09-06 核准本書面規格；排在 PostgreSQL 批次之後，尚未建立實作、真實前瞻 cohort 或成熟 OOS 績效。**
+狀態：**使用者已於 2026-09-06 核准本書面規格；合成／離線 OOS 隔離設施已於 2026-09-07 實作並驗收。真實前瞻 cohort 與成熟 OOS 績效仍未建立。**
 
 ## 1. 目的與非目標
 
@@ -172,5 +172,12 @@ result identity 至少綁定 `study_id + candidate_id + report_bundle_hash + hor
 - [x] 使用者已同意離線 fixtures、樣本／版本凍結與不宣稱成熟績效的界線。
 - [x] 規格已自我檢核未知值、時間、分母、重現性及隔離語意。
 - [x] 使用者檢視並核准本書面規格（2026-09-06）。
-- [ ] PG 批次完成後建立並執行本批獨立實作計畫。
-- [ ] 離線隔離設施驗收完成。
+- [x] PG 批次完成後建立並執行本批獨立實作計畫。
+- [x] 離線隔離設施驗收完成。
+
+## 13. 合成離線實作證據（2026-09-07）
+
+- 純研究核心：`backend/oos_research/` 的 manifest、canonical hash、不可變 store、candidate admission、provenance、dataset/calendar/policy validator、A 與 B/C/D wrapper、evaluation revision 與完整 summary。
+- 驗收案例：`tests/test_oos_research.py` 的 OOS-01～10 共 `11 passed`，`tests/test_oos_validation_contract.py` 的隔離結果／bundle 契約共 `7 passed`；合併 OOS lane `18 passed`，既有 mode regression `154 passed`。
+- 容器 evidence：image `sha256:03e72007e0935195d42d91abb51fe3456bca02e083dbbec829feed6a43781ceb`；`network=none`、read-only root、非 root、只有 `/tmp`／`/results` tmpfs、`Mounts=[]`；結果 `10 passed / 0 failed / exit_code=0`，精確 CID 已移除。
+- 輸出界線：CLI 只接受明確 manifest／inventory／dataset／root；研究 bundle 不使用正式 config、PG、fetcher、formal store 或 API。合成研究不外推投資績效。

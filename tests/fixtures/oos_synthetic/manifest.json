@@ -1,0 +1,20 @@
+{
+  "schema_version": "oos.manifest.v1",
+  "study_id": "synthetic-four-mode-20260907",
+  "study_kind": "synthetic_validation",
+  "registered_at": "2026-09-07T00:00:00Z",
+  "timezone": "Asia/Taipei",
+  "selection_period": {"start": "2025-01-01", "end": "2025-12-31"},
+  "ticker_universe": ["2330"],
+  "pipelines": ["v1", "v2", "v3", "v4"],
+  "horizons": {"v1": [3, 6, 12], "v2": [5], "v3": [5], "v4": [5, 10]},
+  "policies": {
+    "a_direction_only": true,
+    "a_horizons_months": [3, 6, 12],
+    "benchmark_default": "not_provided",
+    "d_horizons_trading_days": [5, 10],
+    "price_policy": "raw",
+    "unknown_cost_is_null": true
+  },
+  "evaluator_version": "oos.evaluator.v1"
+}

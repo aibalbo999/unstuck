@@ -1,0 +1,16 @@
+{
+  "schema_version": "oos.dataset.v1",
+  "provider": "fixture",
+  "timezone": "Asia/Taipei",
+  "as_of": "2026-01-03T00:00:00Z",
+  "price_policy": "raw",
+  "corporate_action_policy": "explicit_unprocessed_allowed",
+  "calendar": ["2025-01-03", "2025-02-03", "2025-04-02", "2025-07-02", "2026-01-02"],
+  "bars": {"2330": [
+    {"date": "2025-01-03", "open": 100, "high": 110, "low": 95, "close": 105, "complete": true, "completed_at": "2025-01-03T06:00:00Z"},
+    {"date": "2025-02-03", "open": 101, "high": 111, "low": 96, "close": 106, "complete": true, "completed_at": "2025-02-03T06:00:00Z"},
+    {"date": "2025-04-02", "open": 102, "high": 112, "low": 97, "close": 107, "complete": true, "completed_at": "2025-04-02T06:00:00Z"},
+    {"date": "2025-07-02", "open": 103, "high": 113, "low": 98, "close": 108, "complete": true, "completed_at": "2025-07-02T06:00:00Z"},
+    {"date": "2026-01-02", "open": 104, "high": 114, "low": 99, "close": 109, "complete": true, "completed_at": "2026-01-02T06:00:00Z"}
+  ]}
+}
