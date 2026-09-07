@@ -1,6 +1,6 @@
 # 四模式完整後續優化計畫
 
-日期：2026-09-07。狀態：總計畫已核准執行；F1.1、F1.2、F1.3、F2.1～F2.5、F3.1、F3.2 工程／artifact／瀏覽器證據與 G1、G2、G3 已完成；F4 已完成唯讀候選盤點，正式送件／載入／重建仍待核定範圍與目前 runtime revision；F5／F6 受外部資料成熟度與條件約束。
+日期：2026-09-07。狀態：總計畫已核准執行；F1.1、F1.2、F1.3、F2.1～F2.5、F3.1、F3.2 工程／artifact／瀏覽器證據與 G1、G2、G3 已完成；F4 已完成唯讀候選盤點並補上 runtime identity endpoint，正式送件／載入／重建仍待核定範圍與重啟後 revision 證據；F5／F6 受外部資料成熟度與條件約束。
 
 查驗基線：`codex/analysis-credibility-spec`，`32711c4838521816ba565c4acbee13029f7eb4a9`。實際 checkout 為 `/Volumes/X10 Pro Mac/stock-agent`；撰寫前工作樹乾淨。Runtime doctor 指向既有 canonical SQLite、Redis 與 `backend/output`，不能據此推論執行中 API／Worker 已載入此 commit。
 
@@ -170,7 +170,7 @@ G3：工程與保存 artifact 驗收完成；代表案例 `ReportArtifactLocator
 
 這是正式服務與生成資源的外部動作階段。先完成 F3 的可審閱發布候選與明確清單，再依已有且適用的授權執行；不把早期另一批 commit／push 的同意推定為本分支 merge、重啟或無上限生成的授權。
 
-目前狀態（2026-09-07）：已完成唯讀前置盤點，但尚未送件。`/healthz`／`/readyz`、`/api/reports`、`/api/observability/active-jobs` 與 `/api/decision-tracking` 均可讀；decision-tracking 在較寬的 10 秒界線內約 4.03 秒回應，active jobs 為 `0`（回傳 10 筆歷史均 `done`），tracking items 為 `7` 且 enabled `7`。仍沒有可驗證的 API／Worker revision 或核定歷史範圍，故不送件、不重啟、不改寫正式 output。這是可定位的外部 runtime／範圍前置條件，不把未確認當完成。
+目前狀態（2026-09-07）：已完成唯讀前置盤點，但尚未送件。`/healthz`／`/readyz`、`/api/reports`、`/api/observability/active-jobs` 與 `/api/decision-tracking` 均可讀；decision-tracking 在較寬的 10 秒界線內約 4.03 秒回應，active jobs 為 `0`（回傳 10 筆歷史均 `done`），tracking items 為 `7` 且 enabled `7`。本分支新增 `/api/runtime-identity` 與 3 個回歸測試，但目前 2026-09-06 啟動的程序對該路徑仍回 `404`，所以重啟前沒有可驗證的 API／Worker revision 或核定歷史範圍；故不送件、不重啟、不改寫正式 output。這是可定位的外部 runtime／範圍前置條件，不把未確認當完成。
 
 更新：`/healthz`、`/readyz`、`/api/observability/active-jobs`、`/api/decision-tracking` 與 `/api/reports` 已可讀；新增唯讀工具並完成兩頁盤點，完整 indexed reports `148`、`current=109`、`needs_rerun=39`，清單 hash `0e870f7451506bdcccfd7753191a6661766d4db4774102aca5bf5c5d8c2417cd`。active jobs=0、tracking=7／7。仍未核定送件範圍，亦未送 Job／重啟／改寫正式 artifacts。
 
@@ -179,6 +179,7 @@ G3：工程與保存 artifact 驗收完成；代表案例 `ReportArtifactLocator
 - [x] 新增 `scripts/rebuild_tracked_reports.py prepare-indexed` 與 `tests/test_rebuild_tracked_reports.py` 回歸；以 `/api/reports` 全分頁建立 `prepare_only` manifest，實際 148 筆／57 個 ticker-mode 最新群組／28 個最新重跑候選。`submit` 明確拒絕 prepare-only manifest，未把追蹤 28 組冒稱全量完成。
 - [x] 已核對本分支 scoped diff、驗證證據並建立本地提交（前序實作提交亦保留）；未推送／建立 PR／merge，因本輪未重新核定外部發布授權。
 - [ ] 核對 remote／base 後，在適用授權內完成 push／PR／merge 與必要 CI；整合後若程式變動，對實際整合 revision 補必要回歸，再進入 runtime 載入。
+- [x] 新增 `/api/runtime-identity` 唯讀 revision endpoint，schema 為 `stock-agent.runtime-identity.v1`；`tests/test_runtime_observability.py` 與 OpenAPI contract 共 `255 passed` 相關驗證通過。現有程序尚未重啟，live endpoint 仍 `404`，不把 checkout 測試當成 runtime 載入證據。
 - [ ] 發布前核對執行中程序的 owner、checkout、queue／active jobs；保留 `.env`、歷史 artifact hashes、queue 與 quota 狀態基線。用現有正式啟動入口載入指定版本並驗證 health／ready、API／Worker 版本及四模式路由。
 - [ ] 先送具體代表工作，核對實際 Job 與產物的 code／prompt／input fingerprint，確認有新結論；不能把 resume 舊完成工作或 metadata refresh 當新版重建。
 - [ ] 再按核定清單小批新增報告，尊重原 provider quota／deferred 政策。每批保存送件前 pending、返回 Job ID、完成／失敗／未確認與新舊 artifact 對照；回應不明先查既有 Job，不自動重送。

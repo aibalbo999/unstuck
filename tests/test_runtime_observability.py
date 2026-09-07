@@ -4400,6 +4400,28 @@ def test_healthz_and_readyz_routes(monkeypatch):
     assert ready.json()["status"] == "ready"
 
 
+def test_runtime_identity_route_is_read_only_and_versioned():
+    client = TestClient(api.app)
+    response = client.get("/api/runtime-identity")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["schema_version"] == "stock-agent.runtime-identity.v1"
+    assert payload["commit"] is None or len(payload["commit"]) == 40
+    assert payload["dirty"] is None or isinstance(payload["dirty"], bool)
+
+
+def test_runtime_identity_payload_does_not_leak_untrusted_values():
+    payload = runtime_health.build_runtime_identity_payload(
+        lambda: {"commit": 123, "dirty": "false", "path": "/private/secret"},
+    )
+    assert payload == {
+        "schema_version": "stock-agent.runtime-identity.v1",
+        "commit": None,
+        "dirty": None,
+    }
+
+
 def test_basic_auth_protects_read_endpoints_when_configured(monkeypatch):
     monkeypatch.setattr(basic_auth, "BASIC_AUTH_USERNAME", "operator", raising=False)
     monkeypatch.setattr(basic_auth, "BASIC_AUTH_PASSWORD", "correct-horse", raising=False)

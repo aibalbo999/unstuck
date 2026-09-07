@@ -147,6 +147,7 @@ def test_openapi_contract_covers_runtime_surface_and_mutation_security():
     expected = {
         "/healthz": {"get"},
         "/readyz": {"get"},
+        "/api/runtime-identity": {"get"},
         "/api/client-config": {"get"},
         "/api/stocks/{ticker}/snapshot": {"get"},
         "/api/analysis-jobs": {"post"},

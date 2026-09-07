@@ -75,7 +75,7 @@ from report_index_maintenance import cleanup_report_index_orphans
 from reporting import ReportRenderer
 from runtime_dependencies import create_api_runtime, get_report_storage_for_output_dir, runtime_settings_for_output_dir
 from runtime_events import emit_log, format_event_log_line
-from runtime_health import build_health_payload, build_readiness_payload
+from runtime_health import build_health_payload, build_readiness_payload, build_runtime_identity_payload
 from settings import validate_runtime_settings
 from storage_inventory import build_storage_summary, ensure_runtime_storage
 from task_queue import create_api_task_queue
@@ -185,6 +185,7 @@ def create_app() -> FastAPI:
             task_queue=analysis_task_queue,
             warnings=runtime_settings_warnings_for_readiness(),
         ),
+        build_runtime_identity_payload=build_runtime_identity_payload,
     )))
     app.include_router(create_static_router(lambda: STATIC_DIR, get_client_config=get_client_config))
     app.include_router(create_reports_router(ReportRouteDeps(
