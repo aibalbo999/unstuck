@@ -179,7 +179,7 @@ G3：工程與保存 artifact 驗收完成；代表案例 `ReportArtifactLocator
 - [x] 新增 `scripts/rebuild_tracked_reports.py prepare-indexed` 與 `tests/test_rebuild_tracked_reports.py` 回歸；以 `/api/reports` 全分頁建立 `prepare_only` manifest，實際 148 筆／57 個 ticker-mode 最新群組／28 個最新重跑候選。`submit` 明確拒絕 prepare-only manifest，未把追蹤 28 組冒稱全量完成。
 - [x] 已核對本分支 scoped diff、驗證證據並建立本地提交（前序實作提交亦保留）；未推送／建立 PR／merge，因本輪未重新核定外部發布授權。
 - [ ] 核對 remote／base 後，在適用授權內完成 push／PR／merge 與必要 CI；整合後若程式變動，對實際整合 revision 補必要回歸，再進入 runtime 載入。
-- [x] 新增 `/api/runtime-identity` 唯讀 revision endpoint，schema 為 `stock-agent.runtime-identity.v1`；`tests/test_runtime_observability.py` 與 OpenAPI contract 共 `255 passed` 相關驗證通過。現有程序尚未重啟，live endpoint 仍 `404`，不把 checkout 測試當成 runtime 載入證據。
+- [x] 新增 `/api/runtime-identity` 唯讀 revision endpoint，schema 為 `stock-agent.runtime-identity.v1`；受影響的 runtime／API／文件／維護流程 lane 共 `255 passed`。現有程序尚未重啟，live endpoint 仍 `404`，不把 checkout 測試當成 runtime 載入證據。
 - [ ] 發布前核對執行中程序的 owner、checkout、queue／active jobs；保留 `.env`、歷史 artifact hashes、queue 與 quota 狀態基線。用現有正式啟動入口載入指定版本並驗證 health／ready、API／Worker 版本及四模式路由。
 - [ ] 先送具體代表工作，核對實際 Job 與產物的 code／prompt／input fingerprint，確認有新結論；不能把 resume 舊完成工作或 metadata refresh 當新版重建。
 - [ ] 再按核定清單小批新增報告，尊重原 provider quota／deferred 政策。每批保存送件前 pending、返回 Job ID、完成／失敗／未確認與新舊 artifact 對照；回應不明先查既有 Job，不自動重送。
