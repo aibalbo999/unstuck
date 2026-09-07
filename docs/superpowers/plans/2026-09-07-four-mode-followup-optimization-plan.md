@@ -170,11 +170,11 @@ G3：工程與保存 artifact 驗收完成；代表案例 `ReportArtifactLocator
 
 這是正式服務與生成資源的外部動作階段。先完成 F3 的可審閱發布候選與明確清單，再依已有且適用的授權執行；不把早期另一批 commit／push 的同意推定為本分支 merge、重啟或無上限生成的授權。
 
-目前狀態（2026-09-07）：已完成唯讀前置盤點，但尚未送件。`/healthz`／`/readyz` 與 `/api/reports` 可讀，`/api/decision-tracking` 在 2 秒內無回應；沒有可驗證的 API／Worker revision、active-job 清單或核定歷史範圍，故不送件、不重啟、不改寫正式 output。這是可定位的外部 runtime／範圍前置條件，不把未確認當完成。
+目前狀態（2026-09-07）：已完成唯讀前置盤點，但尚未送件。`/healthz`／`/readyz`、`/api/reports`、`/api/observability/active-jobs` 與 `/api/decision-tracking` 均可讀；decision-tracking 在較寬的 10 秒界線內約 4.03 秒回應，active jobs 為 `0`（回傳 10 筆歷史均 `done`），tracking items 為 `7` 且 enabled `7`。仍沒有可驗證的 API／Worker revision 或核定歷史範圍，故不送件、不重啟、不改寫正式 output。這是可定位的外部 runtime／範圍前置條件，不把未確認當完成。
 
-更新：`/healthz`、`/readyz` 與 `/api/reports` 已可讀；新增唯讀工具並完成兩頁盤點，完整 indexed reports `148`、`current=109`、`needs_rerun=39`，清單 hash `0e870f7451506bdcccfd7753191a6661766d4db4774102aca5bf5c5d8c2417cd`。仍未核定送件範圍，亦未送 Job／重啟／改寫正式 artifacts。
+更新：`/healthz`、`/readyz`、`/api/observability/active-jobs`、`/api/decision-tracking` 與 `/api/reports` 已可讀；新增唯讀工具並完成兩頁盤點，完整 indexed reports `148`、`current=109`、`needs_rerun=39`，清單 hash `0e870f7451506bdcccfd7753191a6661766d4db4774102aca5bf5c5d8c2417cd`。active jobs=0、tracking=7／7。仍未核定送件範圍，亦未送 Job／重啟／改寫正式 artifacts。
 
-- [x] 重新唯讀盤點 indexed reports 的全部版本與每 ticker／模式狀態；產生有時間與 hash 的候選清單，區分 `current`／`needs_rerun`，並保留 148 筆完整分母與 39 筆候選的理由。追蹤清單與 canonical index 仍受 `/api/decision-tracking` timeout 限制，未冒稱已核定送件範圍。
+- [x] 重新唯讀盤點 indexed reports 的全部版本與每 ticker／模式狀態；產生有時間與 hash 的候選清單，區分 `current`／`needs_rerun`，並保留 148 筆完整分母與 39 筆候選的理由。追蹤清單現可在 10 秒界線內讀取（7／7 enabled），但仍未冒稱已核定送件範圍。
 - [ ] 建議預設更新「核定每組最新版」，保留原歷史。102 份歷史回放若被選定，另建版本並標 retrospective，不冒稱原日期的前瞻分析。先前 49／102 只是舊盤點，不是固定配額。
 - [x] 新增 `scripts/rebuild_tracked_reports.py prepare-indexed` 與 `tests/test_rebuild_tracked_reports.py` 回歸；以 `/api/reports` 全分頁建立 `prepare_only` manifest，實際 148 筆／57 個 ticker-mode 最新群組／28 個最新重跑候選。`submit` 明確拒絕 prepare-only manifest，未把追蹤 28 組冒稱全量完成。
 - [ ] 核對當時 remote／base 與 scoped diff，準備發布 commit、PR 內容及驗證證據；在適用授權內完成 commit／push／PR／merge，檢查必要 CI。整合後若程式變動，對實際整合 revision 補必要回歸，再進入 runtime 載入。
