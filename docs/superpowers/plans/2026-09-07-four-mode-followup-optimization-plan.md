@@ -180,7 +180,7 @@ G3：工程與保存 artifact 驗收完成；代表案例 `ReportArtifactLocator
 - [x] 已核對本分支 scoped diff、驗證證據並建立本地提交（前序實作提交亦保留）；未推送／建立 PR／merge，因本輪未重新核定外部發布授權。
 - [ ] 核對 remote／base 後，在適用授權內完成 push／PR／merge 與必要 CI；整合後若程式變動，對實際整合 revision 補必要回歸，再進入 runtime 載入。
 - [x] 新增 `/api/runtime-identity` 唯讀 revision endpoint，schema 為 `stock-agent.runtime-identity.v1`；受影響的 runtime／API／文件／維護流程 lane 共 `255 passed`。現有程序尚未重啟，live endpoint 仍 `404`，不把 checkout 測試當成 runtime 載入證據。
-- [x] 已以 [`capture_runtime_release_baseline.py`](../../scripts/capture_runtime_release_baseline.py) 完成發布前唯讀 baseline：3 個 process 的 owner/cwd/command、health／ready、active jobs、tracking、148 份報告與 DB 大小均保存；`.env` 僅記 presence，不讀取值。
+- [x] 已以 [`capture_runtime_release_baseline.py`](../../scripts/capture_runtime_release_baseline.py) 完成發布前唯讀 baseline：3 個 process 的 PID/cwd/command、health／ready、active jobs、tracking、148 份報告與 DB 大小均保存；`.env` 僅記 presence，不讀取值。
 - [ ] 用現有正式啟動入口載入指定版本並驗證 health／ready、API／Worker 版本及四模式路由；重啟前的 live identity `404` 與 baseline 已保留，不能提前勾選。
 - [ ] 先送具體代表工作，核對實際 Job 與產物的 code／prompt／input fingerprint，確認有新結論；不能把 resume 舊完成工作或 metadata refresh 當新版重建。
 - [ ] 再按核定清單小批新增報告，尊重原 provider quota／deferred 政策。每批保存送件前 pending、返回 Job ID、完成／失敗／未確認與新舊 artifact 對照；回應不明先查既有 Job，不自動重送。
