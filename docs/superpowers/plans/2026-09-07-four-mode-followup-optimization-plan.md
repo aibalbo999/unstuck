@@ -160,11 +160,11 @@ G2：完成。OOS-01～10 合成離線驗收 `11 passed`、隔離結果／bundle
 ### F3.2 驗證交付 revision 與可見產物
 
 - [x] 對 OOS／artifact locator／既有四模式差異執行必要回歸與秘密／不應提交檔案檢查；內容可信度／證據／模式契約 scoped lane 共 `1630 passed, 1 skipped`，另 opt-in artifact replay `1 passed`。
-- [x] 正式 API／真瀏覽器 1280／375、CSP／圖表的唯讀驗證已執行：1623 A、1623 D、2308 C 於 1280／375 各一組均通過 charts／layout、tooltip 與 zero errors；HTML 下載與 CSP／content-type header 亦通過。Redis／provider 仍是 optional，未執行項目維持 unverified，不算 pass。
+- [x] 代表 artifact 的 host browser renderer 1280／375、CSP／圖表與 live API download 的唯讀驗證已執行：1623 A、1623 D、2308 C 於 1280／375 各一組均通過 charts／layout、tooltip 與 zero errors；HTML 下載與 CSP／content-type header 亦通過。Redis／provider 仍是 optional，未執行項目維持 unverified，不算 pass。
 - [x] 以同一保存 artifact cohort 進行新規則 replay：負 FCF／占位 DCF、錯誤 evidence path、版本／來源 mismatch、未知資訊的反例均由既有 gate 拒絕或標示 unverifiable；合法等待／未知仍保留。未將不同抽樣或資料集換算成品質改善百分比。
 - [x] 已整理發布候選 revision（本分支最新 commit）、OOS／四模式依賴、可回復前一版、影響範圍、通過／未執行驗證與 1623 A／D、2308 C 代表清單；正式 runtime 載入仍明示未驗證。
 
-G3：工程與保存 artifact 驗收完成；代表案例 `ReportArtifactLocator` replay 通過，既有內容／證據／模式回歸 `1630 passed, 1 skipped`，三組代表報告的 1280／375 browser QA、HTML／Markdown／snapshot download、CSP 與 content-type 檢查通過。執行中的 API 程序仍早於本分支最新 revision，故 runtime 載入與正式發布維持未驗證；F3 不要求等待數月才發布已證實的內容錯誤修正。
+G3：工程與保存 artifact 驗收完成；代表案例 `ReportArtifactLocator` replay 通過，既有內容／證據／模式回歸 `1630 passed, 1 skipped`，三組代表報告的 host-renderer 1280／375 browser QA、live API HTML／Markdown／snapshot download、CSP 與 content-type 檢查通過。執行中的 API 程序仍早於本分支最新 revision，故 runtime 載入與正式發布維持未驗證；F3 不要求等待數月才發布已證實的內容錯誤修正。
 
 ## 7. F4：正式載入與歷史報告更新
 
