@@ -44,9 +44,9 @@
 
 1. 主機 CLI 不需要 import `psycopg`；driver 安裝在隔離 image。主機缺 PQ wrapper 不是容器測試的阻塞因素。
 2. `STOCK_AGENT_PG_VALIDATION_POLICY` 由容器 entrypoint 產生；主機目前沒有 policy 屬正常狀態。
-3. Docker server 可用、固定 base image 尚未存在，只表示尚待 build／pull。下載、apt pin、wheel 相容性必須由第一次建置判定，不能先宣稱不可執行。
-4. `tests/pg_validation/launcher.py` 在容器非零退出時，先 raise 再進清理，沒有先取回 structured failure result；建置失敗等路徑也可能只留下 exit code。失敗診斷與未清理資源 ID 尚有缺口。
-5. `tests/pg_validation/result.py` 現在只記 Python／PG／psycopg／libpq，核准 PG 規格另要求 saver 實際版本；固定 lock 不等於實際 runtime 版本證據。
+3. Docker server 可用；固定 base／derived image、apt pin、wheel 相容性已由 F1 live build 實際判定並保存 digest，不再是待確認的環境阻塞。
+4. `tests/pg_validation/launcher.py` 的非零退出與 cleanup failure 已改以安全 failure envelope 先保存 bounded structured result，再進清理；建置失敗、timeout／中斷與資源身分均有對應結果。
+5. `tests/pg_validation/result.py` 已加入 saver distribution 實際版本與 `psycopg.pq.__impl__`，F1 live attestation 已核對 Python／PG／psycopg／libpq／saver 版本；固定 lock 與實際 runtime 證據分開保存。
 
 ## 3. 優先順序與相依關係
 
