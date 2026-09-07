@@ -29,7 +29,7 @@ Docker flags 或主機 credentials：
 
 建置與驗證是兩個不同階段。`tests/pg_validation/Dockerfile` 固定 base image
 `postgres:17.11-trixie@sha256:413da4542e091471785b7f18f1a2258df134bc6506ab4e1e53725aa8bcfdb650`、
-`linux/arm64`、Python 3.13.5 apt pin，以及 `psycopg-binary==3.3.4` 的
+`linux/arm64`、Python 3.13.5 apt pin（目前為 `3.13.5-2+deb13u4`），以及 `psycopg-binary==3.3.4` 的
 SHA-256 lock。建置時才會得到 derived image ID；文件不得以 base digest 冒充
 derived image identity，也不得在未成功 build 時填入版本或 libpq 資訊。
 
@@ -37,7 +37,11 @@ derived image identity，也不得在未成功 build 時填入版本或 libpq �
 socket、host PID、privileged 或 anonymous volume；server 只監聽容器內 Unix
 socket。容器以 `USER 999:999` 執行，管理角色只負責本次 cluster setup／清理，
 app role 不是 superuser。local trust 是 disposable cluster 的測試設定，不是
-正式認證建議。
+正式認證建議；bootstrap superuser 只用於 setup，建立資料庫後立即降為
+`NOLOGIN`；實際 owner endpoint 是另建的 `NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION`
+角色，且 database owner 為該角色。cluster 以 `UTF8` encoding 建立；這避免 PostgreSQL `SQL_ASCII`
+將 binary cursor 的文字欄位退化為 `bytes`，使 checkpoint namespace／identity
+的語意驗證失真。
 
 ## 離線驗證與結果判讀
 

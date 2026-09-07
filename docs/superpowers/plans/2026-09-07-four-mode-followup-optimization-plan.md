@@ -1,6 +1,6 @@
 # 四模式完整後續優化計畫
 
-日期：2026-09-07。狀態：總計畫已核准執行；F1.1 已完成，F1.2 起尚待執行。
+日期：2026-09-07。狀態：總計畫已核准執行；F1.1、F1.2、F1.3 與 G1 已完成；F2 起尚待執行。
 
 查驗基線：`codex/analysis-credibility-spec`，`32711c4838521816ba565c4acbee13029f7eb4a9`。實際 checkout 為 `/Volumes/X10 Pro Mac/stock-agent`；撰寫前工作樹乾淨。Runtime doctor 指向既有 canonical SQLite、Redis 與 `backend/output`，不能據此推論執行中 API／Worker 已載入此 commit。
 
@@ -33,7 +33,7 @@
 | --- | --- | --- |
 | 四模式基本契約 | A 未知護城河、B 等待／零部位、C 不預設做空、D 日 OHLC／5、10 交易日已落地 | 保留相容性並驗證最新修正的實際產物；不重做相同功能 |
 | 金融來源、依賴修復、新聞 manifest、精確 evidence | `fec17737`；交付紀錄載明完整隔離回歸 `9,716 passed / 21 skipped / 75 subtests passed` | 當時證據不等於目前正式服務或歷史報告已更新 |
-| PG 工具及測試程式 | `32711c48` 的前一輪合併 scoped command：`267 passed / 1 skipped / 2 warnings` | 固定 17 個 live cases／51 phases 未實際執行；skip 是未啟用 |
+| PG 工具及測試程式 | `32711c48` 的前一輪合併 scoped command：`267 passed / 1 skipped / 2 warnings` | 本批已完成固定 17 個 live cases／51 phases；另以 fresh scoped regression 更新證據 |
 | OOS | 已有完整核准規格與可重用的純評估核心 | 尚無研究 store、cohort admission、嚴格摘要或 OOS 容器驗收 |
 | 歷史與正式交付 | 舊版曾完成正式驗收，詳見[前輪收尾紀錄](../../remaining-analysis-delivery-2026-09-06.md) | 不能將舊版正式驗收套用到後來的可信度分支 |
 | 真實前瞻效果 | 未有本計畫可引用的成熟 cohort | 先完成工具，再凍結 protocol 與未來收樣 |
@@ -78,19 +78,21 @@
 
 ### F1.2 固定映像建置、完整案例與直接缺陷修復
 
-- [ ] 將 F1.1 整合成可追溯的本機提交；由既有 launcher 產生白名單 build context。沿用 PG 17.11 digest、Python／binary lock 與 `linux/arm64`，記錄實際 derived image ID。
-- [ ] 公開依賴下載只在建置階段進行；執行階段保留 `network=none`、Unix socket、非 root、無 host bind mount／port publication，2 CPU／2 GiB／256 PIDs。
-- [ ] 從完整 registry 執行 PG-00～PG-08：migration／重開、原稿與中稿、deferred／取消、新 saver／graph、thread／agent 隔離、真依賴失效、真 `42501` 拒寫、完成 graph 不重複發布及 native 負面案例。
-- [ ] 若建置因固定版本取得或平台相容性失敗，保存具體失敗階段與證據，再修測試環境；任何 pin 變更必須記錄來源與理由並重新驗證，不改成浮動版本或 fake pass。
-- [ ] 若 live 揭露缺陷，只修直接相關 checkpoint／draft／測試 fixture 邏輯，加入行為回歸後重跑受影響項及完整 registry。必要時連同 `backend/workflow_checkpoints.py`、`backend/workflow_quality_drafts.py` 與 repair transaction 回歸。
+- [x] 將 F1.1 整合成可追溯的本機提交；由既有 launcher 產生白名單 build context。沿用 PG 17.11 digest、Python／binary lock 與 `linux/arm64`，記錄實際 derived image ID。
+- [x] 公開依賴下載只在建置階段進行；執行階段保留 `network=none`、Unix socket、非 root、無 host bind mount／port publication，2 CPU／2 GiB／256 PIDs。
+- [x] 從完整 registry 執行 PG-00～PG-08：migration／重開、原稿與中稿、deferred／取消、新 saver／graph、thread／agent 隔離、真依賴失效、真 `42501` 拒寫、完成 graph 不重複發布及 native 負面案例。
+- [x] 若建置因固定版本取得或平台相容性失敗，保存具體失敗階段與證據，再修測試環境；任何 pin 變更必須記錄來源與理由並重新驗證，不改成浮動版本或 fake pass。
+- [x] 若 live 揭露缺陷，只修直接相關 checkpoint／draft／測試 fixture 邏輯，加入行為回歸後重跑受影響項及完整 registry；本批修正 build context／apt pin／inspect contract／UTF8 encoding／bootstrap owner setup，未改 production checkpoint adapter。
+
+F1.2 實際證據：`derived_image=sha256:9816a7d97b354827d9bc281974a8b90d81b1733d630657256499677cd601ec3a`；live `17 passed`、固定 registry `17/17 cases`、`51/51 phases`、`collection_errors=0`、`exit_code=0`。runtime attestation 為 Python `3.13.5`、PostgreSQL `server_version_num=170011`、psycopg `3.3.4`、libpq `180000`、saver `3.1.0`、binary implementation。首次 build 的具體修正與理由已寫入 [PG 操作手冊](../../postgres-isolated-verification.md)與[交付紀錄](../../postgres-isolated-verification-delivery-2026-09-06.md)。
 
 ### F1.3 驗證清理並更新原交付文件
 
-- [ ] 對本次精確 CID 重查身分再清理；成功、失敗、中斷、cleanup failure 都有對應契約測試。真實 run 保存 server stop、CID 移除／殘留觀察；故障注入限本次資源或 fake Docker seam。
-- [ ] cleanup failure 回非零並列已知本次 CID，不使用名稱掃描／prune；派生 image 是否保留作快取如實記錄。
-- [ ] 更新既有 PG 計畫未勾選的 live 步驟、操作手冊與交付紀錄，追加實際結果，不抹除先前離線驗證時點。
+- [x] 對本次精確 CID 重查身分再清理；成功、失敗、中斷、cleanup failure 都有對應契約測試。真實 run 保存 server stop、CID 移除／殘留觀察；故障注入限本次資源或 fake Docker seam。
+- [x] cleanup failure 回非零並列已知本次 CID，不使用名稱掃描／prune；派生 image 是否保留作快取如實記錄。
+- [x] 更新既有 PG 計畫未勾選的 live 步驟、操作手冊與交付紀錄，追加實際結果，不抹除先前離線驗證時點。
 
-G1：完整 live、相關離線回歸與清理全部成立。若 live 尚未成功，只能交付部分證據；此關卡不宣稱切換正式 PostgreSQL。
+G1：完成。Plan-required scoped offline regression 為 `233 passed, 2 warnings`；補充 PG contract／live module offline lane 為 `37 passed, 1 skipped`（skip 是無 policy 的保護邊界）；本次 live `17/17 cases`、`51/51 phases`、`status=passed`、`server_stop_status=stopped`、`cleanup_status=removed`。G1 只證明隔離 adapter／測試契約與生命週期，不宣稱切換正式 PostgreSQL。
 
 ## 5. F2：實作 OOS 離線研究流程
 
@@ -275,4 +277,4 @@ OOS 新增單元測試由上述 runner 逐一明列，並納入既有：
 
 本計畫已完成 PG／OOS 與可信度交付的獨立交叉審查，結果 Approved；審查建議的精確 admission enum 與第一批原始價格政策已納入。文件審查不等於上述工作已實作或通過測試。
 
-本次計畫的下一個可執行步驟是 **F1.2：由既有入口進行第一次固定映像建置與完整 live 驗收**。PG／OOS 既有授權沿用；本次交付本身不會啟動建置、模型生成、發布或研究收樣。
+本次計畫的下一個可執行步驟是 **F2.1：建立 OOS 隔離 profile 與不可變研究 store**。F2 仍須逐項實作與驗證；本次 PG 交付不會啟動模型生成、正式發布或研究收樣。

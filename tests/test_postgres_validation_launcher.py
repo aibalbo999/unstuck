@@ -64,10 +64,7 @@ def _container_info() -> dict:
             "RestartPolicy": {"Name": "no", "MaximumRetryCount": 0},
             "Tmpfs": dict(TMPFS),
         },
-        "Mounts": [
-            {"Type": "tmpfs", "Destination": "/tmp"},
-            {"Type": "tmpfs", "Destination": "/var/lib/postgresql/data"},
-        ],
+        "Mounts": [],
     }
 
 
@@ -186,6 +183,7 @@ def test_create_args_rejects_untrusted_identifiers(run_id, image_id):
         ("backend/api.py", True),
         ("backend/requirements.lock", True),
         ("backend/model_routes.json", True),
+        ("backend/prompts/agents.json", True),
         ("backend/templates/report.html", True),
         ("prompts/system.md", True),
         ("tests/test_something.py", True),
@@ -220,6 +218,7 @@ def _mini_repo(tmp_path: Path) -> Path:
         "backend/api.py": b"SAFE = True\n",
         "backend/requirements.lock": b"psycopg==3.2.9\n",
         "backend/model_routes.json": b"{}\n",
+        "backend/prompts/agents.json": b"{}\n",
         "backend/templates/report.html": b"safe\n",
         "prompts/system.md": b"safe\n",
         "tests/test_unit.py": b"def test_ok(): pass\n",
@@ -253,6 +252,7 @@ def test_build_context_copies_only_allowed_tracked_files_and_hashes_manifest(tmp
         "backend/api.py",
         "backend/model_routes.json",
         "backend/requirements.lock",
+        "backend/prompts/agents.json",
         "backend/templates/report.html",
         "prompts/system.md",
         "tests/pg_validation/Dockerfile",

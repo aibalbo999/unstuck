@@ -224,14 +224,18 @@ def _manifest_hash(path: Path) -> str:
     return value
 
 
-def _sql_commands(run_id: str) -> tuple[str, str]:
+def _sql_commands(run_id: str) -> tuple[str, str, str, str]:
     # The run token has already matched lowercase hex exactly, so these are
     # closed-form identifiers rather than caller-provided SQL fragments.
+    bootstrap = f'"bootstrap_{run_id}"'
+    owner = f'"owner_{run_id}"'
     app = f'"app_{run_id}"'
     database = f'"db_{run_id}"'
     return (
+        f"CREATE ROLE {owner} LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION",
         f"CREATE ROLE {app} LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION",
-        f"CREATE DATABASE {database} OWNER {app}",
+        f"CREATE DATABASE {database} OWNER {owner}",
+        f"ALTER ROLE {bootstrap} NOLOGIN",
     )
 
 
@@ -247,6 +251,7 @@ def run(
     if not isinstance(run_id, str) or not _RUN_RE.fullmatch(run_id):
         return USAGE_FAILED
     root, socket_dir, data_dir = _paths(run_id)
+    bootstrap = f"bootstrap_{run_id}"
     owner = f"owner_{run_id}"
     app = f"app_{run_id}"
     database = f"db_{run_id}"
@@ -267,8 +272,9 @@ def run(
         _call(
             invoke,
             [
-                "initdb", "-D", str(data_dir), "-U", owner,
+                "initdb", "-D", str(data_dir), "-U", bootstrap,
                 "--auth-local=trust", "--auth-host=reject", "--no-locale",
+                "--encoding=UTF8",
             ],
             env=base_env,
             timeout=120,
@@ -285,13 +291,15 @@ def run(
             env=base_env,
             timeout=120,
         )
-        create_role, create_database = _sql_commands(run_id)
+        create_owner, create_app, create_database, disable_bootstrap = _sql_commands(run_id)
         psql_prefix = [
-            "psql", "-h", str(socket_dir), "-p", "5432", "-U", owner,
+            "psql", "-h", str(socket_dir), "-p", "5432", "-U", bootstrap,
             "-d", "postgres", "-v", "ON_ERROR_STOP=1", "-c",
         ]
-        _call(invoke, [*psql_prefix, create_role], env=base_env, timeout=60)
+        _call(invoke, [*psql_prefix, create_owner], env=base_env, timeout=60)
+        _call(invoke, [*psql_prefix, create_app], env=base_env, timeout=60)
         _call(invoke, [*psql_prefix, create_database], env=base_env, timeout=60)
+        _call(invoke, [*psql_prefix, disable_bootstrap], env=base_env, timeout=60)
         endpoint_owner = Endpoint(str(socket_dir), "5432", database, owner)
         endpoint_app = Endpoint(str(socket_dir), "5432", database, app)
         _write_private_json(

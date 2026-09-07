@@ -39,6 +39,8 @@ def allowed_path(name: str) -> bool:
         return True
     if p.parts[0] == "backend" and p.suffix == ".py":
         return True
+    if name.startswith("backend/prompts/") and p.suffix in {".md", ".json", ".yaml"}:
+        return True
     if name.startswith("backend/templates/") and p.suffix in {".j2", ".html"}:
         return True
     if p.parts[0] == "prompts" and p.suffix in {".md", ".json", ".yaml"}:

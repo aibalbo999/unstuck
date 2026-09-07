@@ -39,10 +39,12 @@ def test_dockerfile_is_the_exact_pinned_nonroot_runtime_contract():
         "postgres:17.11-trixie@sha256:"
         "413da4542e091471785b7f18f1a2258df134bc6506ab4e1e53725aa8bcfdb650"
     )
-    assert "python3.13=3.13.5-2+deb13u3" in dockerfile
-    assert "python3.13-venv=3.13.5-2+deb13u3" in dockerfile
+    assert "python3.13=3.13.5-2+deb13u4" in dockerfile
+    assert "python3.13-venv=3.13.5-2+deb13u4" in dockerfile
     assert "COPY backend/requirements.lock /opt/locks/backend.lock" in dockerfile
     assert "COPY tests/pg_validation/binary.lock /opt/locks/binary.lock" in dockerfile
+    assert "COPY backend /work/backend" in dockerfile
+    assert "COPY prompts /work/prompts" not in dockerfile
     assert "COPY . " not in dockerfile
     assert "ADD " not in dockerfile
     assert "PSYCOPG_IMPL=binary" in dockerfile
@@ -179,8 +181,9 @@ def test_entrypoint_runs_fixed_bootstrap_test_and_stop_argv_with_clean_env(
     commands = [call[0] for call in fake.calls]
     assert commands == [
         [
-            "initdb", "-D", str(DATA), "-U", f"owner_{RUN_ID}",
+            "initdb", "-D", str(DATA), "-U", f"bootstrap_{RUN_ID}",
             "--auth-local=trust", "--auth-host=reject", "--no-locale",
+            "--encoding=UTF8",
         ],
         [
             "pg_ctl", "-D", str(DATA), "-o",
@@ -189,14 +192,24 @@ def test_entrypoint_runs_fixed_bootstrap_test_and_stop_argv_with_clean_env(
             "-w", "-t", "60", "start",
         ],
         [
-            "psql", "-h", str(SOCKET), "-p", "5432", "-U", f"owner_{RUN_ID}",
+            "psql", "-h", str(SOCKET), "-p", "5432", "-U", f"bootstrap_{RUN_ID}",
+            "-d", "postgres", "-v", "ON_ERROR_STOP=1", "-c",
+            f'CREATE ROLE "owner_{RUN_ID}" LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION',
+        ],
+        [
+            "psql", "-h", str(SOCKET), "-p", "5432", "-U", f"bootstrap_{RUN_ID}",
             "-d", "postgres", "-v", "ON_ERROR_STOP=1", "-c",
             f'CREATE ROLE "app_{RUN_ID}" LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOREPLICATION',
         ],
         [
-            "psql", "-h", str(SOCKET), "-p", "5432", "-U", f"owner_{RUN_ID}",
+            "psql", "-h", str(SOCKET), "-p", "5432", "-U", f"bootstrap_{RUN_ID}",
             "-d", "postgres", "-v", "ON_ERROR_STOP=1", "-c",
-            f'CREATE DATABASE "db_{RUN_ID}" OWNER "app_{RUN_ID}"',
+            f'CREATE DATABASE "db_{RUN_ID}" OWNER "owner_{RUN_ID}"',
+        ],
+        [
+            "psql", "-h", str(SOCKET), "-p", "5432", "-U", f"bootstrap_{RUN_ID}",
+            "-d", "postgres", "-v", "ON_ERROR_STOP=1", "-c",
+            f'ALTER ROLE "bootstrap_{RUN_ID}" NOLOGIN',
         ],
         [
             sys.executable, "-B", "tests/run_prompt_boundary_tests.py",
@@ -205,7 +218,7 @@ def test_entrypoint_runs_fixed_bootstrap_test_and_stop_argv_with_clean_env(
         ],
         ["pg_ctl", "-D", str(DATA), "-w", "-t", "30", "stop"],
     ]
-    assert [call[1]["timeout"] for call in fake.calls] == [120, 120, 60, 60, 600, 30]
+    assert [call[1]["timeout"] for call in fake.calls] == [120, 120, 60, 60, 60, 60, 600, 30]
     for command, kwargs in fake.calls:
         env = kwargs["env"]
         assert not any(name.startswith("PG") for name in env)

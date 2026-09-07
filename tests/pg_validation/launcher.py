@@ -206,15 +206,10 @@ def validate_container(info: Any, run_id: str, image_id: str) -> None:
             and restart.get("Name") == "no"
             and isinstance(tmpfs, dict)
             and tmpfs == _EXPECTED_TMPFS
-            and isinstance(mounts, list)
-            and len(mounts) == 2
-            and all(
-                isinstance(mount, dict)
-                and mount.get("Type") == "tmpfs"
-                and mount.get("Destination") in _TMPFS_DESTINATIONS
-                for mount in mounts
-            )
-            and {mount["Destination"] for mount in mounts} == _TMPFS_DESTINATIONS
+            # Docker reports CLI-configured tmpfs mounts in HostConfig.Tmpfs;
+            # the live inspect payload leaves Mounts empty. Any non-empty
+            # Mounts entry would represent an unapproved bind/volume mount.
+            and mounts == []
         )
         if not valid:
             _container_reject()

@@ -161,7 +161,10 @@ def _runtime_versions() -> dict[str, str] | None:
         policy_path = os.environ["STOCK_AGENT_PG_VALIDATION_POLICY"]
         owner, _app = load_policy(policy_path)
         with psycopg.connect(owner.conninfo(), autocommit=True) as conn:
-            row = conn.execute("SELECT current_setting('server_version')").fetchone()
+            # server_version includes distro text (spaces/parentheses), while
+            # server_version_num is an exact, bounded PostgreSQL version token
+            # suitable for the structured evidence allowlist.
+            row = conn.execute("SELECT current_setting('server_version_num')").fetchone()
         postgres = row[0] if row else None
         versions = {
             "python": platform.python_version(),
