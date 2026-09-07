@@ -197,6 +197,8 @@ G4：核定清單 `completed + failed + pending + unconfirmed = total`，可逐�
 
 目前狀態：尚未啟用。真實 prospective 需要使用者另行固定 ticker universe、收樣起訖、模型／版本政策、事前 receipt 來源與資料成本；即使立即啟用，A 的 3／6／12 個月及 D 的 5／10 交易日仍須等待資料成熟。合成 OOS 只證明工具行為，不可替代這些外部證據。
 
+2026-09-08 已新增 [`oos-prospective-protocol-draft-2026-09-08.md`](../../oos-prospective-protocol-draft-2026-09-08.md)，將 F4 的 7 ticker × 4 mode 共 28 組候選直接安排為第一個 cohort，固定研究問題、分母、版本、期限、成本／benchmark／企業行動、remote Git receipt 與成熟規則；狀態仍為 `draft_unactivated／prospective_unverified`，沒有啟用、收樣或宣稱效果。
+
 ### F5.1 在收樣前固定研究內容
 
 - [ ] 先根據 G2 工具能力產出具體 protocol：ticker universe、四模式、收樣起訖、產製頻率、版本選擇規則、模型／prompt／code 政策、每模式主要期限與指標、缺樣／排除規則、成本／benchmark／企業行動／calendar 政策。
