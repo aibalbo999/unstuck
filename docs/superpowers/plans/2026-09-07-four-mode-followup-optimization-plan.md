@@ -31,12 +31,12 @@
 
 | 項目 | 已有證據 | 後續工作 |
 | --- | --- | --- |
-| 四模式基本契約 | A 未知護城河、B 等待／零部位、C 不預設做空、D 日 OHLC／5、10 交易日已落地 | 保留相容性並驗證最新修正的實際產物；不重做相同功能 |
-| 金融來源、依賴修復、新聞 manifest、精確 evidence | `fec17737`；交付紀錄載明完整隔離回歸 `9,716 passed / 21 skipped / 75 subtests passed` | 當時證據不等於目前正式服務或歷史報告已更新 |
-| PG 工具及測試程式 | `32711c48` 的前一輪合併 scoped command：`267 passed / 1 skipped / 2 warnings` | 本批已完成固定 17 個 live cases／51 phases；另以 fresh scoped regression 更新證據 |
-| OOS | 已有完整核准規格與可重用的純評估核心 | 尚無研究 store、cohort admission、嚴格摘要或 OOS 容器驗收 |
-| 歷史與正式交付 | 舊版曾完成正式驗收，詳見[前輪收尾紀錄](../../remaining-analysis-delivery-2026-09-06.md) | 不能將舊版正式驗收套用到後來的可信度分支 |
-| 真實前瞻效果 | 未有本計畫可引用的成熟 cohort | 先完成工具，再凍結 protocol 與未來收樣 |
+| 四模式基本契約 | A 未知護城河、B 等待／零部位、C 不預設做空、D 日 OHLC／5、10 交易日已落地；F3 代表 artifact 與 renderer 驗收完成 | 保留相容性；正式 runtime 載入仍待 F4 reload，不重做相同功能 |
+| 金融來源、依賴修復、新聞 manifest、精確 evidence | `fec17737`；交付紀錄載明完整隔離回歸 `9,716 passed / 21 skipped / 75 subtests passed` | 舊證據不等於目前正式服務或歷史報告已更新；F4 僅需核定範圍後重建 |
+| PG 工具及測試程式 | `32711c48` 的前一輪合併 scoped command：`267 passed / 1 skipped / 2 warnings`；本批 live `17/17`、`51/51` | 維持隔離 evidence；未啟動正式 PostgreSQL 切換，除非另有明確部署需求 |
+| OOS | 完整核准規格、研究 store、cohort admission、嚴格摘要與 OOS 容器驗收均已完成（OOS lane `18 passed`、container `10/0`） | 真實 prospective protocol／cohort 仍未建立，不把 synthetic 結果外推 |
+| 歷史與正式交付 | 舊版曾完成正式驗收，詳見[前輪收尾紀錄](../../remaining-analysis-delivery-2026-09-06.md)；本分支已有 F4 prepare-only inventory | 不能將舊版正式驗收套用到後來的可信度分支；正式送件／重建仍待範圍與 reload |
+| 真實前瞻效果 | 未有本計畫可引用的成熟 cohort；離線工具已可執行 | 需固定 protocol／receipt／資料政策後再收樣，期限成熟後才評估 |
 
 上述測試數字是已檢視的既有執行證據；本次計畫編寫沒有再跑全套測試。兩個 warning 是 legacy repair facade 棄用提示。舊盤點的 49 組最新版／102 份歷史版本，以及 28 組追蹤工作是不同集合，數量可能已變，不能直接當成新的送件清單。
 
