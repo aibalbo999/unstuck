@@ -48,3 +48,9 @@
 | 投資效果 | 未執行樣本外（OOS）績效研究，無績效提升承諾 |
 
 本批的跨模組接線共同構成來源可信度與發布邊界，最後以一個已驗證的 scoped 實作提交交付，不把相互依賴的中間狀態拆成可發布版本。設計／計畫的前置提交另行保留。
+
+## 2026-09-07 後續驗證追加
+
+- 既有代表 artifact（1623 A、1623 D、2308 C）以目前 host renderer 做 1280／375 兩種 viewport 的唯讀 QA；六組均通過圖表／layout、tooltip 與 zero errors。對應 HTML／Markdown／snapshot 均可由 `/api/reports` 下載，HTML header 的 CSP、`X-Content-Type-Options` 與 content-type 檢查通過。
+- 受影響的 OOS／artifact replay／四模式 scoped lane 為 `170 passed`；OOS 合成與隔離 bundle 契約為 `18 passed`；另既有模式回歸 `154 passed`。這些結果證明目前 checkout 的工程與保存 artifact 行為，不代表已重啟的正式 API／Worker 已載入本分支。
+- 唯讀候選盤點見[正式報告更新候選清單](report-update-candidate-inventory-2026-09-07.md)：indexed reports 共 `148`（`current=109`、`needs_rerun=39`），完整排序清單 hash 為 `0e870f7451506bdcccfd7753191a6661766d4db4774102aca5bf5c5d8c2417cd`。尚未核定更新範圍、送出 Job、重啟服務或改寫正式 artifacts。

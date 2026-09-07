@@ -1,6 +1,6 @@
 # 四模式完整後續優化計畫
 
-日期：2026-09-07。狀態：總計畫已核准執行；F1.1、F1.2、F1.3、F2.1～F2.5、F3.1 與 G1、G2 已完成；F3.2 的工程／artifact 回歸已完成，正式 runtime／瀏覽器 optional 仍未驗證；F4 起尚待執行。
+日期：2026-09-07。狀態：總計畫已核准執行；F1.1、F1.2、F1.3、F2.1～F2.5、F3.1、F3.2 工程／artifact／瀏覽器證據與 G1、G2、G3 已完成；F4 已完成唯讀候選盤點，正式送件／載入／重建仍待核定範圍與目前 runtime revision；F5／F6 受外部資料成熟度與條件約束。
 
 查驗基線：`codex/analysis-credibility-spec`，`32711c4838521816ba565c4acbee13029f7eb4a9`。實際 checkout 為 `/Volumes/X10 Pro Mac/stock-agent`；撰寫前工作樹乾淨。Runtime doctor 指向既有 canonical SQLite、Redis 與 `backend/output`，不能據此推論執行中 API／Worker 已載入此 commit。
 
@@ -160,21 +160,23 @@ G2：完成。OOS-01～10 合成離線驗收 `11 passed`、隔離結果／bundle
 ### F3.2 驗證交付 revision 與可見產物
 
 - [x] 對 OOS／artifact locator／既有四模式差異執行必要回歸與秘密／不應提交檔案檢查；內容可信度／證據／模式契約 scoped lane 共 `1630 passed, 1 skipped`，另 opt-in artifact replay `1 passed`。
-- [ ] 正式 API／真瀏覽器 1280／375、CSP／圖表與 Redis／provider optional 尚未在本次隔離 lane 執行；未執行項目維持 unverified，不算 pass。
+- [x] 正式 API／真瀏覽器 1280／375、CSP／圖表的唯讀驗證已執行：1623 A、1623 D、2308 C 於 1280／375 各一組均通過 charts／layout、tooltip 與 zero errors；HTML 下載與 CSP／content-type header 亦通過。Redis／provider 仍是 optional，未執行項目維持 unverified，不算 pass。
 - [x] 以同一保存 artifact cohort 進行新規則 replay：負 FCF／占位 DCF、錯誤 evidence path、版本／來源 mismatch、未知資訊的反例均由既有 gate 拒絕或標示 unverifiable；合法等待／未知仍保留。未將不同抽樣或資料集換算成品質改善百分比。
 - [x] 已整理發布候選 revision（本分支最新 commit）、OOS／四模式依賴、可回復前一版、影響範圍、通過／未執行驗證與 1623 A／D、2308 C 代表清單；正式 runtime 載入仍明示未驗證。
 
-G3：工程與保存 artifact 驗收完成；代表案例 `ReportArtifactLocator` replay 通過，既有內容／證據／模式回歸 `1630 passed`。正式 API／真瀏覽器與 runtime 載入仍未驗證，因此不宣稱已正式發布；F3 不要求等待數月才發布已證實的內容錯誤修正。
+G3：工程與保存 artifact 驗收完成；代表案例 `ReportArtifactLocator` replay 通過，既有內容／證據／模式回歸 `1630 passed, 1 skipped`，三組代表報告的 1280／375 browser QA、HTML／Markdown／snapshot download、CSP 與 content-type 檢查通過。執行中的 API 程序仍早於本分支最新 revision，故 runtime 載入與正式發布維持未驗證；F3 不要求等待數月才發布已證實的內容錯誤修正。
 
 ## 7. F4：正式載入與歷史報告更新
 
 這是正式服務與生成資源的外部動作階段。先完成 F3 的可審閱發布候選與明確清單，再依已有且適用的授權執行；不把早期另一批 commit／push 的同意推定為本分支 merge、重啟或無上限生成的授權。
 
-目前狀態（2026-09-07）：尚未執行。唯讀探測顯示本機 `8080` 的 health 路徑回應 404，`/api/decision-tracking` 在 2 秒內無回應；沒有可驗證的 API／Worker revision、active-job 清單或核定歷史範圍，故不送件、不重啟、不改寫正式 output。這是可定位的外部 runtime／範圍前置條件，不把未確認當完成。
+目前狀態（2026-09-07）：已完成唯讀前置盤點，但尚未送件。`/healthz`／`/readyz` 與 `/api/reports` 可讀，`/api/decision-tracking` 在 2 秒內無回應；沒有可驗證的 API／Worker revision、active-job 清單或核定歷史範圍，故不送件、不重啟、不改寫正式 output。這是可定位的外部 runtime／範圍前置條件，不把未確認當完成。
 
-- [ ] 重新唯讀盤點 canonical index、追蹤清單、全部版本與每 ticker／模式最新版；產生有時間與 hash 的候選清單，區分最新缺口／已符合／不可重播及原因。
+更新：`/healthz`、`/readyz` 與 `/api/reports` 已可讀；新增唯讀工具並完成兩頁盤點，完整 indexed reports `148`、`current=109`、`needs_rerun=39`，清單 hash `0e870f7451506bdcccfd7753191a6661766d4db4774102aca5bf5c5d8c2417cd`。仍未核定送件範圍，亦未送 Job／重啟／改寫正式 artifacts。
+
+- [x] 重新唯讀盤點 indexed reports 的全部版本與每 ticker／模式狀態；產生有時間與 hash 的候選清單，區分 `current`／`needs_rerun`，並保留 148 筆完整分母與 39 筆候選的理由。追蹤清單與 canonical index 仍受 `/api/decision-tracking` timeout 限制，未冒稱已核定送件範圍。
 - [ ] 建議預設更新「核定每組最新版」，保留原歷史。102 份歷史回放若被選定，另建版本並標 retrospective，不冒稱原日期的前瞻分析。先前 49／102 只是舊盤點，不是固定配額。
-- [ ] `scripts/rebuild_tracked_reports.py prepare` 目前只列 enabled tracking 的模式，不覆蓋全部 indexed groups；若目標是全部最新版，先補明示清單／prepare-only 功能與 `tests/test_rebuild_tracked_reports.py` 回歸，再核定輸出 manifest。不得把追蹤 28 組當全量完成。
+- [x] 新增 `scripts/rebuild_tracked_reports.py prepare-indexed` 與 `tests/test_rebuild_tracked_reports.py` 回歸；以 `/api/reports` 全分頁建立 `prepare_only` manifest，實際 148 筆／57 個 ticker-mode 最新群組／28 個最新重跑候選。`submit` 明確拒絕 prepare-only manifest，未把追蹤 28 組冒稱全量完成。
 - [ ] 核對當時 remote／base 與 scoped diff，準備發布 commit、PR 內容及驗證證據；在適用授權內完成 commit／push／PR／merge，檢查必要 CI。整合後若程式變動，對實際整合 revision 補必要回歸，再進入 runtime 載入。
 - [ ] 發布前核對執行中程序的 owner、checkout、queue／active jobs；保留 `.env`、歷史 artifact hashes、queue 與 quota 狀態基線。用現有正式啟動入口載入指定版本並驗證 health／ready、API／Worker 版本及四模式路由。
 - [ ] 先送具體代表工作，核對實際 Job 與產物的 code／prompt／input fingerprint，確認有新結論；不能把 resume 舊完成工作或 metadata refresh 當新版重建。

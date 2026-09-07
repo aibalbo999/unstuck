@@ -320,6 +320,92 @@ def test_submission_stops_on_quota_rejection_and_never_retries_or_changes_routes
     assert rebuild.storage.exists(TARGET) and rebuild.storage.exists(OTHER)
 
 
+def test_indexed_prepare_is_latest_per_group_and_prepare_only(tmp_path, monkeypatch):
+    spec = importlib.util.spec_from_file_location("rebuild_indexed_test", ROOT / "scripts/rebuild_tracked_reports.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    output = tmp_path / "output"
+    module.LocalFileStorage(output)
+    pages = {
+        1: {"reports": [
+            {"filename": "A_old.html", "ticker": "AAA.TW", "pipeline_id": "v1", "timestamp": 10, "decision_freshness": {"status": "needs_rerun", "requires_rerun": True, "requires_rerun_reason": "snapshot_refreshed"}},
+            {"filename": "A_new.html", "ticker": "AAA.TW", "pipeline_id": "v1", "timestamp": 20, "decision_freshness": {"status": "current", "requires_rerun": False}},
+            {"filename": "B_new.html", "ticker": "BBB.TW", "pipeline_id": "v4", "timestamp": 30, "decision_freshness": {"status": "needs_rerun", "requires_rerun": True, "requires_rerun_reason": "missing_conclusion"}},
+        ], "pagination": {"total": 3, "has_next": False}},
+    }
+    state = {"posts": []}
+
+    class Response:
+        def __init__(self, body):
+            self.body = body
+
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return self.body
+
+    class Session:
+        headers = {}
+
+        def get(self, url, **kwargs):
+            assert "/api/reports?" in url
+            page = int(url.split("page=", 1)[1].split("&", 1)[0])
+            return Response(pages[page])
+
+        def post(self, *args, **kwargs):
+            state["posts"].append(kwargs)
+            return Response({"job_id": "unexpected"})
+
+    monkeypatch.setattr(module, "current_runtime_paths", lambda: SimpleNamespace(output_dir=output))
+    monkeypatch.setattr(module.requests, "Session", Session)
+    manifest_path = tmp_path / "indexed.json"
+    monkeypatch.setattr(sys, "argv", ["rebuild_tracked_reports.py", "prepare-indexed", "--manifest", str(manifest_path), "--base-url", "http://fixture"])
+    module.main()
+    manifest = json.loads(manifest_path.read_text())
+    assert manifest["prepare_only"] is True
+    assert manifest["indexed_report_count"] == 3
+    assert manifest["latest_group_count"] == 2
+    assert manifest["refresh_candidate_count"] == 1
+    assert manifest["jobs"] == [{
+        "ticker": "BBB.TW", "pipeline_id": "v4", "source_filename": "B_new.html",
+        "status": "not_submitted", "requires_rerun": True, "requires_rerun_reason": "missing_conclusion",
+    }]
+
+
+def test_prepare_only_indexed_manifest_cannot_submit(tmp_path, monkeypatch):
+    spec = importlib.util.spec_from_file_location("rebuild_prepare_only_test", ROOT / "scripts/rebuild_tracked_reports.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    manifest = tmp_path / "indexed.json"
+    manifest.write_text(json.dumps({"prepare_only": True, "jobs": [{"ticker": "AAA.TW", "pipeline_id": "v1"}]}))
+    monkeypatch.setattr(module, "current_runtime_paths", lambda: SimpleNamespace(output_dir=tmp_path / "output"))
+    (tmp_path / "output").mkdir()
+    class Session:
+        headers = {}
+        def get(self, *args, **kwargs):
+            raise AssertionError("prepare-only submit must fail before network access")
+    monkeypatch.setattr(module.requests, "Session", Session)
+    monkeypatch.setattr(sys, "argv", ["rebuild_tracked_reports.py", "submit", "--manifest", str(manifest)])
+    with pytest.raises(RuntimeError, match="prepare-only"):
+        module.main()
+
+
+def test_indexed_prepare_keeps_missing_timestamp_unverifiable(tmp_path):
+    spec = importlib.util.spec_from_file_location("rebuild_indexed_timestamp_test", ROOT / "scripts/rebuild_tracked_reports.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    manifest = module._indexed_prepare_manifest([{
+        "filename": "A.html", "ticker": "AAA.TW", "pipeline_id": "v1", "timestamp": "unknown",
+        "decision_freshness": {"status": "needs_rerun", "requires_rerun": True},
+    }], base_url="http://fixture", generated_at="2026-09-07T00:00:00+00:00")
+    assert manifest["refresh_candidate_count"] == 0
+    assert manifest["latest_groups"] == [{
+        "ticker": "AAA.TW", "pipeline_id": "v1", "status": "unverifiable",
+        "reason": "missing_or_invalid_timestamp", "version_count": 1, "latest": None,
+    }]
+
+
 def test_backup_directory_created_concurrently_is_not_reused_or_overwritten(rebuild, monkeypatch):
     original_mkdir = Path.mkdir
     raced = False

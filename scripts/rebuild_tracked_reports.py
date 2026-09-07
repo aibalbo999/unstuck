@@ -6,6 +6,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import math
 import sys
 from collections import Counter
 from datetime import datetime, timezone
@@ -33,6 +34,100 @@ def _requires_submission_confirmation(item):
     return not item.get("job_id") and (
         bool(item.get("submission_started_at")) or item.get("submission_state") in {"pending", "accepted"}
     )
+
+
+def _indexed_prepare_manifest(reports, *, base_url, generated_at=None):
+    """Build a read-only latest-per-ticker/mode inventory from /api/reports.
+
+    The resulting manifest is deliberately marked ``prepare_only``.  It is an
+    inventory for operator review, not a submission queue, because the API
+    report index does not establish a user-approved refresh scope.
+    """
+    if not isinstance(reports, list):
+        raise ValueError("indexed report payload must be a list")
+    seen = set()
+    groups = {}
+    indexed = []
+    for report in reports:
+        if not isinstance(report, dict):
+            raise ValueError("indexed report entry must be an object")
+        filename = report.get("filename")
+        ticker = report.get("ticker")
+        pipeline_id = report.get("pipeline_id")
+        if not all(isinstance(value, str) and value.strip() for value in (filename, ticker, pipeline_id)):
+            raise ValueError("indexed report identity is incomplete")
+        if filename in seen:
+            raise ValueError("indexed report identity is duplicated")
+        seen.add(filename)
+        freshness = report.get("decision_freshness")
+        freshness = freshness if isinstance(freshness, dict) else {}
+        timestamp = report.get("timestamp")
+        valid_timestamp = isinstance(timestamp, (int, float)) and not isinstance(timestamp, bool) and math.isfinite(timestamp)
+        entry = {
+            "filename": filename,
+            "ticker": ticker,
+            "pipeline_id": pipeline_id,
+            "timestamp": timestamp if valid_timestamp else None,
+            "date": report.get("date"),
+            "html_hash": report.get("html_hash"),
+            "markdown_hash": report.get("markdown_hash"),
+            "data_snapshot_hash": report.get("data_snapshot_hash"),
+            "freshness_status": freshness.get("status"),
+            "requires_rerun": freshness.get("requires_rerun"),
+            "requires_rerun_reason": freshness.get("requires_rerun_reason"),
+            "conclusion_generated_at": freshness.get("conclusion_generated_at"),
+            "snapshot_refreshed_at": freshness.get("snapshot_refreshed_at"),
+        }
+        indexed.append(entry)
+        groups.setdefault((ticker, pipeline_id), []).append(entry)
+
+    latest_groups = []
+    jobs = []
+    for (ticker, pipeline_id), entries in sorted(groups.items()):
+        if not all(entry["timestamp"] is not None for entry in entries):
+            latest_groups.append({
+                "ticker": ticker,
+                "pipeline_id": pipeline_id,
+                "status": "unverifiable",
+                "reason": "missing_or_invalid_timestamp",
+                "version_count": len(entries),
+                "latest": None,
+            })
+            continue
+        latest = max(entries, key=lambda entry: (entry["timestamp"], entry["filename"]))
+        action = "refresh" if latest["requires_rerun"] is True else "no_action"
+        group = {
+            "ticker": ticker,
+            "pipeline_id": pipeline_id,
+            "status": latest["freshness_status"] or "unknown",
+            "action": action,
+            "reason": latest["requires_rerun_reason"] or "",
+            "version_count": len(entries),
+            "latest": latest,
+        }
+        latest_groups.append(group)
+        if action == "refresh":
+            jobs.append({
+                "ticker": ticker,
+                "pipeline_id": pipeline_id,
+                "source_filename": latest["filename"],
+                "status": "not_submitted",
+                "requires_rerun": True,
+                "requires_rerun_reason": latest["requires_rerun_reason"] or "",
+            })
+
+    return {
+        "schema_version": "stock-agent.report-rebuild-prepare-indexed.v1",
+        "prepare_only": True,
+        "generated_at": generated_at or datetime.now(timezone.utc).isoformat(),
+        "source": {"kind": "indexed_reports", "base_url": base_url.rstrip("/")},
+        "indexed_report_count": len(indexed),
+        "latest_group_count": len(latest_groups),
+        "refresh_candidate_count": len(jobs),
+        "indexed_reports": indexed,
+        "latest_groups": latest_groups,
+        "jobs": jobs,
+    }
 
 
 def _source_path(root, key):
@@ -96,7 +191,7 @@ def purge_confirmed_targets(args, paths, manifest, get):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("action", choices=("prepare", "purge", "submit", "status"))
+    parser.add_argument("action", choices=("prepare", "prepare-indexed", "purge", "submit", "status"))
     parser.add_argument("--manifest", type=Path, required=True)
     parser.add_argument("--base-url", default="http://127.0.0.1:8080")
     parser.add_argument("--confirm-purge", action="store_true", help="Confirm removal of only the explicitly named prepared keys")
@@ -125,6 +220,36 @@ def _run_action(args):
         response = session.get(args.base_url + path, timeout=60)
         response.raise_for_status()
         return response.json()
+
+    if args.action == "prepare-indexed":
+        if args.manifest.exists():
+            raise ValueError("Manifest already exists; use its existing inventory instead")
+        reports = []
+        page = 1
+        total = None
+        while True:
+            payload = get(f"/api/reports?page={page}&limit=100&include_versions=true")
+            if not isinstance(payload, dict) or not isinstance(payload.get("reports"), list):
+                raise ValueError("report API returned malformed indexed inventory")
+            pagination = payload.get("pagination")
+            if not isinstance(pagination, dict) or not isinstance(pagination.get("total"), int):
+                raise ValueError("report API returned malformed pagination")
+            if total is None:
+                total = pagination["total"]
+            elif total != pagination["total"]:
+                raise ValueError("report index changed during prepare")
+            reports.extend(payload["reports"])
+            if not pagination.get("has_next"):
+                break
+            page += 1
+            if page > 1000:
+                raise ValueError("report API pagination exceeded safety bound")
+        if total != len(reports):
+            raise ValueError("report API total does not match indexed inventory")
+        manifest = _indexed_prepare_manifest(reports, base_url=args.base_url)
+        save(args.manifest, manifest)
+        print(json.dumps({key: manifest[key] for key in ("indexed_report_count", "latest_group_count", "refresh_candidate_count", "jobs")}, ensure_ascii=False, indent=2))
+        return
 
     if args.action == "prepare":
         if args.manifest.exists():
@@ -160,6 +285,8 @@ def _run_action(args):
         return
 
     if args.action == "submit":
+        if manifest.get("prepare_only"):
+            raise RuntimeError("This manifest is prepare-only; confirm an explicit submission scope before submit")
         if any(_requires_submission_confirmation(item) for item in manifest["jobs"]):
             raise RuntimeError(
                 "Submission pending: verify existing jobs before retrying; manually attach the verified job_id "
