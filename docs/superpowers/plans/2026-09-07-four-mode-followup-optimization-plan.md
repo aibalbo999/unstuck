@@ -264,7 +264,7 @@ OOS 新增單元測試由上述 runner 逐一明列，並納入既有：
   -q -p no:cacheprovider --tb=short
 ```
 
-`scripts/run_oos_validation.py --result-dir` 是 F2 擬新增入口，完成前不能宣稱可執行；容器端合成 end-to-end 與一般單元測試分開記錄。
+`scripts/run_oos_validation.py --result-dir` 已是 F2 的可執行入口；本批容器端合成 end-to-end 為 `10 passed / 0 failed / exit_code=0`，並與一般單元測試分開記錄。每次執行仍須傳入新且明確的 result directory，不能寫入正式 output。
 
 每個階段交付至少包含：
 
@@ -276,4 +276,4 @@ OOS 新增單元測試由上述 runner 逐一明列，並納入既有：
 
 本計畫已完成 PG／OOS 與可信度交付的獨立交叉審查，結果 Approved；審查建議的精確 admission enum 與第一批原始價格政策已納入。文件審查不等於上述工作已實作或通過測試。
 
-本次計畫的下一個可執行步驟是 **F2.1：建立 OOS 隔離 profile 與不可變研究 store**。F2 仍須逐項實作與驗證；本次 PG 交付不會啟動模型生成、正式發布或研究收樣。
+本次計畫目前的下一個外部關卡是 **F4：在核定 ticker／mode 範圍與重啟授權後，載入目前 revision 並逐批更新報告**。F2／F3 工程驗收與 F4 唯讀準備已完成；F4 submit、正式 runtime reload、歷史 artifact 重建與 F5 真實 prospective 收樣仍未執行。本次交付不會將合成 OOS、舊程序或唯讀盤點誤當成正式發布／研究效果。
