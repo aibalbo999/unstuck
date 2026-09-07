@@ -56,10 +56,10 @@ def _process_baseline() -> list[dict]:
         return []
     records = []
     for line in output.splitlines():
-        match = re.match(r"^\s*(\d+)\s+(.*)$", line)
-        if not match:
+        fields = line.split(None, 6)
+        if len(fields) < 7 or not fields[0].isdigit():
             continue
-        pid, command = int(match.group(1)), match.group(2).strip()
+        pid, command = int(fields[0]), fields[6].strip()
         if not any(pattern in command for pattern in PROCESS_PATTERNS):
             continue
         cwd = None

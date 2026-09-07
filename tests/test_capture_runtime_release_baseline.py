@@ -118,3 +118,18 @@ def test_file_baseline_refuses_symlink_target(module, tmp_path):
     link.symlink_to(target)
     result = module._file_baseline(link)
     assert result == {"path": str(link), "present": True, "is_symlink": True}
+
+
+def test_process_baseline_parses_ps_start_columns_without_polluting_command(module, monkeypatch):
+    def fake_run(command, *, timeout=5):
+        if command[:2] == ["ps", "-axo"]:
+            return 0, "  42 Mon Sep  7 12:34:56 2026 /usr/bin/python worker_main.py --role all\n", ""
+        assert command[:2] == ["lsof", "-a"]
+        return 0, "p42\nfcwd\nn/Volumes/project/backend\n", ""
+
+    monkeypatch.setattr(module, "_run", fake_run)
+    assert module._process_baseline() == [{
+        "pid": 42,
+        "command": "/usr/bin/python worker_main.py --role all",
+        "cwd": "/Volumes/project/backend",
+    }]
