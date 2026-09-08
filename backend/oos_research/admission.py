@@ -6,7 +6,7 @@ from typing import Any, Mapping
 
 from .canonical import content_hash, sha256_bytes
 from .inventory import admission_record
-from .provenance import verify_seal, verify_time_chain
+from .provenance import verify_registration_receipt, verify_seal, verify_time_chain
 
 
 def _artifact_hashes(candidate: Mapping[str, Any]) -> list[str]:
@@ -27,7 +27,14 @@ def _artifact_hashes(candidate: Mapping[str, Any]) -> list[str]:
     return reasons
 
 
-def evaluate_candidate(candidate: Mapping[str, Any], *, study_kind: str, allow_dirty: bool = False) -> dict[str, Any]:
+def evaluate_candidate(
+    candidate: Mapping[str, Any],
+    *,
+    study_kind: str,
+    allow_dirty: bool = False,
+    registration_evidence: Mapping[str, Any] | None = None,
+    manifest_sha256: str | None = None,
+) -> dict[str, Any]:
     if not isinstance(candidate, Mapping):
         raise ValueError("candidate must be an object")
     reasons = _artifact_hashes(candidate)
@@ -49,6 +56,12 @@ def evaluate_candidate(candidate: Mapping[str, Any], *, study_kind: str, allow_d
     elif content_hash(quality) != report.get("quality_metadata_hash"):
         reasons.append("quality_metadata_hash_mismatch")
     reasons.extend(verify_time_chain(report))
+    if study_kind == "prospective":
+        reasons.extend(verify_registration_receipt(
+            registration_evidence,
+            manifest_sha256=manifest_sha256,
+            analysis_input_cutoff=report.get("analysis_input_cutoff"),
+        ))
     reasons.extend(verify_seal(study_kind=study_kind, report_available_at=report.get("report_available_at"),
                                sealed_at=candidate.get("sealed_at"), first_session_date=candidate.get("first_session_date")))
     if report.get("source_publication_at") is None:

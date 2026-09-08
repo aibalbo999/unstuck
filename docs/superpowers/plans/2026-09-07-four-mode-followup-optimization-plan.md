@@ -204,6 +204,7 @@ G4：核定清單 `completed + failed + pending + unconfirmed = total`，可逐�
 - [ ] 先根據 G2 工具能力產出具體 protocol：ticker universe、四模式、收樣起訖、產製頻率、版本選擇規則、模型／prompt／code 政策、每模式主要期限與指標、缺樣／排除規則、成本／benchmark／企業行動／calendar 政策。
 - [ ] 建議 universe 使用核定當下的追蹤清單快照；實際 ticker 列表、開始日、生成預算及模型成本在啟用前明列。不能用結果挑股票或預先填勝率／最小樣本已足夠的結論。
 - [ ] 明定可查的事前登記與 artifact 封存 receipt 來源、時間、hash 及驗證方式。本機 timestamp 不能單獨自證；若現有工具無此證據，保持未驗證 prospective 或 retrospective 身分，先完成有用的離線研究。
+- [x] 已完成 Git capture evidence 的工程接縫但未啟用：`capture_oos_registration_receipt.py` 只接受乾淨 HEAD、commit 內同 bytes manifest、精確 remote ref 與 repository 外 exclusive output；OOS provenance/admission/CLI 驗證 schema、manifest hash、remote evidence、URL 與所有 candidate cutoff。v1 本機觀測時間不可作外部公證，固定回報 `registration_time_not_externally_attested`，因此仍維持 `prospective_unverified`／`insufficient_provenance`。隔離 OOS／capture lane `24 passed`；不可回填的 external receipt 仍屬上一項未完成條件。
 - [ ] 盤點並補真正需要的時間 provenance／事件 ledger 接線：資料首次可得、分析 input cutoff、report available、實際模型／fallback、生成失敗與未產製事件。從 `report_reproducibility.py`、資料來源 audit 與 job telemetry 接入，不把 `fetched_at` 重新命名成公布時間。
 - [ ] 凍結未來評估資料的取得／匯入流程與 allowed inputs；完整收樣與企業行動／成本缺口若無法取得，明確保留 insufficient 狀態，不暗增資料訂閱。
 

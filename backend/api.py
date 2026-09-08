@@ -179,13 +179,12 @@ def create_app() -> FastAPI:
     )
 
     app.include_router(create_health_router(HealthRouteDeps(
-        build_health_payload=build_health_payload,
+        build_health_payload=build_health_payload, build_runtime_identity_payload=build_runtime_identity_payload,
         build_readiness_payload=lambda: build_readiness_payload(
             runtime_settings=runtime_settings_for_output_dir(OUTPUT_DIR),
             task_queue=analysis_task_queue,
             warnings=runtime_settings_warnings_for_readiness(),
         ),
-        build_runtime_identity_payload=build_runtime_identity_payload,
     )))
     app.include_router(create_static_router(lambda: STATIC_DIR, get_client_config=get_client_config))
     app.include_router(create_reports_router(ReportRouteDeps(

@@ -24,3 +24,5 @@ CLI 對上述 fixture 產生 `4` candidates、`7` evaluations；v1 3／6／12 �
 ## 邊界與未交付
 
 本批僅證明 OOS 隔離設施可重現、可拒絕篡改、可保留完整分母及未知狀態。真實 prospective protocol／外部事前 receipt、收樣、A 3／6／12 個月與 D 5／10 日成熟績效仍是 0／未驗證；不把合成命中率寫成投資效果，也未啟動正式 PostgreSQL 切換、報告重建、push 或 merge。
+
+2026-09-08 後續補強：`provenance.verify_registration_receipt()` 現要求結構化 `oos.registration-receipt.v1`，綁 manifest SHA-256、HTTPS Git remote、ref／commit、本機觀測時間與精確 `git ls-remote` evidence；任意 truthy receipt 不再升格 prospective。因 v1 沒有不可回填的外部時間 attestation，canonical verifier 固定回報 `registration_time_not_externally_attested`，`evaluate_candidate()` 不會准入，CLI 也保持 `prospective_unverified`；晚於任一候選 cutoff、malformed URL 等原因會聚合保存，未通過者仍留在 admission 分母。新增 `scripts/capture_oos_registration_receipt.py`，只在乾淨且已提交的 manifest 與遠端 ref 同 revision 時產生 repository 外的 exclusive capture evidence；相關 OOS／capture 隔離 lane `24 passed`。這仍是啟用前工程，不代表已有外部事前 receipt 或 cohort。

@@ -34,7 +34,13 @@
 
 ## 4. 事前登記與封存 receipt
 
-建議使用本 repository 的 GitHub 遠端 commit 作外部登記：先把最終 manifest、候選 hash、研究政策與 evaluator version commit 並 push；保存遠端 commit URL、GitHub 接收時間、commit SHA 與 manifest SHA-256。只有這個 receipt 可查後，才能 reload runtime 或送第一個 Job。
+建議使用可查且不可由研究執行者回填時間的外部服務作正式登記：先固定最終 manifest、候選 hash、研究政策與 evaluator version，再由外部 receipt 綁定內容 hash、commit/ref 與服務端時間。只有這種 receipt 可驗證後，才能 reload runtime 或送第一個 Job。單獨 push Git commit 不會留下可由離線 Git 證明的遠端接收時間，因此不能自行完成這個條件。
+
+主機端可使用 `scripts/capture_oos_registration_receipt.py` 擷取 `oos.registration-receipt.v1` capture evidence。工具要求乾淨 worktree、HEAD 等於明示 40 字元 commit、manifest 本機 bytes 與該 commit 內檔案完全相同，且 `git ls-remote --refs` 回傳的遠端 ref 精確指向同一 commit；只保存 HTTPS remote URL、ref、commit、本機觀測時間、manifest hash，以及有界的 `commit<TAB>ref` 證據與 hash。輸出必須是 repository 外、尚不存在的絕對路徑（含 symlink parent 都以實際路徑判斷），工具不執行 push、runtime reload 或 Job 送件。
+
+v1 的 `observed_at` 來自主機時鐘，`git ls-remote` 也不含遠端接收時間或簽章；它只能證明捕捉當下的內容／ref 一致性，不能單獨證明事前登記。OOS runner 因此固定加入 `registration_time_not_externally_attested`，保存 capture record 但不把研究升格為 `prospective`。正式啟用仍需另定可重新查驗、時間不可回填且綁定 manifest/commit/ref 的外部 attestation schema 與 verifier。
+
+OOS runner 的 `--registration` 只接受目前已知的 `oos.registration-receipt.v1` capture 格式。任意 truthy 值、malformed 或帶 credentials/query 的 URL、manifest mismatch、remote evidence mismatch，或 receipt 晚於任一候選 `analysis_input_cutoff`，都維持 `prospective_unverified`／`insufficient_provenance`；頂層與 receipt record 會保存聚合原因碼，admission 分母也不會消失。即使 v1 結構與 cutoff 全部通過，仍因缺外部時間 attestation 而保持未驗證。
 
 本機檔案時間、Git author date、口頭同意或事後補寫的 hash 均不能單獨證明 prospective。若遠端 receipt 不可查，研究分類維持 `prospective_unverified`，但資料可保留供 retrospective replay。
 
@@ -63,7 +69,7 @@
 
 ## 7. 收樣、成熟與版本規則
 
-1. 遠端 receipt 可查後，才建立 final prospective manifest 與不可覆寫 study root。
+1. 帶不可回填外部時間且綁定研究身分的 receipt 可查後，才建立 final prospective manifest 與不可覆寫 study root；v1 Git capture 不足以通過。
 2. 載入 receipt 所指 code revision，核對 API／Worker identity、health／ready 與四模式 route。
 3. 按核定 28 組分批送件；每批保存 pending、Job ID、完成／失敗／未確認，回應不明不得重送。
 4. 每份新產物立即封存 bundle、時間鏈、model／prompt／code／input identity 與 quality metadata；所有缺件仍建立 admission record。
@@ -75,7 +81,8 @@
 - [ ] 使用者核定上述 7 ticker × 4 mode 的 28 組 cohort。
 - [ ] 填入精確 selection period、final code commit、prompt／model route policy hash 與 evaluator version。
 - [ ] 產生 final machine-readable manifest 並通過現有 `oos_research.manifest`／policy validator。
-- [ ] push 後保存可查的遠端 receipt；receipt 時間必須早於第一個 Job。
+- [ ] 選定並實作不可回填的外部 timestamp／attestation 來源與 verifier，綁定 manifest SHA-256、commit/ref；時間必須早於第一個 Job。
+- [ ] push 後以 `capture_oos_registration_receipt.py` 保存 v1 Git capture evidence，另以外部 attestation 完成正式登記。
 - [ ] 明確授權 runtime reload 與正式 Job 送件；未授權前不得啟用。
 
 最早可報告的真實成熟結果仍受市場時間限制：D 至少 5／10 個交易日，A 至少 3／6／12 個月。工程完成不能縮短這些期限。

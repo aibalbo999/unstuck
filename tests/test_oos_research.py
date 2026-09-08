@@ -16,7 +16,12 @@ from oos_research.inventory import validate_inventory
 from oos_research.manifest import build_manifest, manifest_hash, validate_manifest
 from oos_research.policies import DEFAULT_POLICIES, validate_policies
 from oos_research.prediction import evaluate_a_horizon, evaluate_prediction_oos
-from oos_research.provenance import classify_study_kind, verify_seal, verify_time_chain
+from oos_research.provenance import (
+    classify_study_kind,
+    verify_registration_receipt,
+    verify_seal,
+    verify_time_chain,
+)
 from oos_research.records import make_record, validate_record
 from oos_research.store import StoreError, StudyStore
 from oos_research.summary import summarize, summary_markdown
@@ -65,6 +70,21 @@ def _candidate(pipeline="v1", *, available="2025-01-02T09:00:00+08:00", sealed="
         "report": report,
         "artifacts": {name: _artifact(name, f"{pipeline}-{name}") for name in ("html", "markdown", "snapshot", "parsed_plan")},
     }
+
+
+def _registration_evidence(manifest_sha256, *, observed_at="2025-01-01T00:00:00Z"):
+    remote_evidence = f"{'c' * 40}\trefs/heads/prospective-study\n"
+    return {"external_registration_receipt": {
+        "schema_version": "oos.registration-receipt.v1",
+        "source": "git_remote",
+        "remote_url": "https://github.com/example/stock-agent.git",
+        "ref": "refs/heads/prospective-study",
+        "commit": "c" * 40,
+        "observed_at": observed_at,
+        "manifest_sha256": manifest_sha256,
+        "remote_evidence": remote_evidence,
+        "remote_evidence_sha256": hashlib.sha256(remote_evidence.encode()).hexdigest(),
+    }}
 
 
 def _dataset():
@@ -126,6 +146,75 @@ def test_oos_04_time_and_study_classification_never_upgrade():
                        sealed_at="2025-01-03T09:00:00+08:00", first_session_date="2025-01-03") == ["late_seal"]
     assert classify_study_kind("retrospective_replay") == "retrospective_replay"
     assert classify_study_kind("prospective") == "prospective_unverified"
+    assert classify_study_kind(
+        "prospective", evidence={"external_registration_receipt": True}
+    ) == "prospective_unverified"
+    manifest_sha256 = "a" * 64
+    evidence = _registration_evidence(manifest_sha256)
+    assert verify_registration_receipt(evidence, manifest_sha256=manifest_sha256) == [
+        "registration_time_not_externally_attested"
+    ]
+    assert classify_study_kind(
+        "prospective", evidence=evidence, manifest_sha256=manifest_sha256
+    ) == "prospective_unverified"
+    assert set(verify_registration_receipt(
+        evidence,
+        manifest_sha256=manifest_sha256,
+        analysis_input_cutoff="2024-12-31T23:59:59Z",
+    )) == {
+        "registration_after_analysis_input_cutoff",
+        "registration_time_not_externally_attested",
+    }
+    assert "registration_manifest_hash_mismatch" in verify_registration_receipt(
+        evidence, manifest_sha256="b" * 64
+    )
+    forged = json.loads(json.dumps(evidence))
+    forged["external_registration_receipt"]["remote_evidence"] = (
+        f"{'d' * 40}\trefs/heads/prospective-study\n"
+    )
+    assert "registration_evidence_hash_mismatch" in verify_registration_receipt(
+        forged, manifest_sha256=manifest_sha256
+    )
+    malformed_url = json.loads(json.dumps(evidence))
+    malformed_url["external_registration_receipt"]["remote_url"] = "https://["
+    assert "invalid_registration_receipt_url" in verify_registration_receipt(
+        malformed_url, manifest_sha256=manifest_sha256
+    )
+
+
+def test_prospective_admission_requires_receipt_bound_before_analysis():
+    manifest_fields = dict(_manifest())
+    manifest_fields.pop("manifest_sha256")
+    manifest_fields["study_kind"] = "prospective"
+    manifest = build_manifest(**manifest_fields)
+    candidate = _candidate()
+
+    missing = evaluate_candidate(
+        candidate,
+        study_kind="prospective",
+        manifest_sha256=manifest["manifest_sha256"],
+    )
+    assert missing["status"] == "insufficient_provenance"
+    assert "missing_or_invalid_external_registration_receipt" in missing["reason_codes"]
+
+    captured_but_unattested = evaluate_candidate(
+        candidate,
+        study_kind="prospective",
+        registration_evidence=_registration_evidence(manifest["manifest_sha256"]),
+        manifest_sha256=manifest["manifest_sha256"],
+    )
+    assert captured_but_unattested["status"] == "insufficient_provenance"
+    assert "registration_time_not_externally_attested" in captured_but_unattested["reason_codes"]
+
+    late = evaluate_candidate(
+        candidate,
+        study_kind="prospective",
+        registration_evidence=_registration_evidence(
+            manifest["manifest_sha256"], observed_at="2025-01-02T00:00:00Z"
+        ),
+        manifest_sha256=manifest["manifest_sha256"],
+    )
+    assert "registration_after_analysis_input_cutoff" in late["reason_codes"]
 
 
 def test_oos_05_a_calendar_and_strict_prices():
@@ -215,3 +304,85 @@ def test_oos_10_cli_replay_writes_complete_bundle(tmp_path):
                         inventory_input=str(inventory_path), dataset_input=str(dataset_path))
     assert output["summary"]["candidate_total"] == 1
     assert output["summary"]["evaluation_total"] == 3
+
+
+def test_prospective_cli_records_receipt_classification_and_controls_admission(tmp_path):
+    manifest_fields = dict(_manifest("prospective-four-mode"))
+    manifest_fields.pop("manifest_sha256")
+    manifest_fields["study_kind"] = "prospective"
+    manifest = build_manifest(**manifest_fields)
+    manifest_path = tmp_path / "manifest.json"
+    inventory_path = tmp_path / "inventory.json"
+    dataset_path = tmp_path / "dataset.json"
+    receipt_path = tmp_path / "registration.json"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    inventory_path.write_text(json.dumps({
+        "coverage_status": "closed", "candidates": [_candidate("v1")]
+    }), encoding="utf-8")
+    dataset_path.write_text(json.dumps(_dataset()), encoding="utf-8")
+
+    unverified = run_replay(
+        root=str(tmp_path / "unverified-study"),
+        manifest_input=str(manifest_path),
+        inventory_input=str(inventory_path),
+        dataset_input=str(dataset_path),
+    )
+    assert unverified["study_classification"] == "prospective_unverified"
+    assert unverified["summary"]["admission_counts"] == {"insufficient_provenance": 1}
+    assert unverified["summary"]["evaluation_total"] == 0
+
+    receipt_path.write_text(json.dumps(
+        _registration_evidence(manifest["manifest_sha256"])
+    ), encoding="utf-8")
+    captured = run_replay(
+        root=str(tmp_path / "captured-study"),
+        manifest_input=str(manifest_path),
+        inventory_input=str(inventory_path),
+        dataset_input=str(dataset_path),
+        registration_input=str(receipt_path),
+    )
+    assert captured["study_classification"] == "prospective_unverified"
+    assert captured["registration_reason_codes"] == [
+        "registration_time_not_externally_attested"
+    ]
+    assert captured["summary"]["admission_counts"] == {"insufficient_provenance": 1}
+    assert captured["summary"]["evaluation_total"] == 0
+    assert "registration-receipt" in StudyStore(
+        tmp_path / "captured-study", study_id=manifest["study_id"], create=False
+    ).list_records()
+
+    receipt_path.write_text(json.dumps(_registration_evidence(
+        manifest["manifest_sha256"], observed_at="2025-01-02T00:00:00Z"
+    )), encoding="utf-8")
+    late = run_replay(
+        root=str(tmp_path / "late-study"),
+        manifest_input=str(manifest_path),
+        inventory_input=str(inventory_path),
+        dataset_input=str(dataset_path),
+        registration_input=str(receipt_path),
+    )
+    assert late["study_classification"] == "prospective_unverified"
+    assert "registration_after_analysis_input_cutoff" in late["registration_reason_codes"]
+    assert late["summary"]["admission_counts"] == {"insufficient_provenance": 1}
+    assert late["summary"]["evaluation_total"] == 0
+    late_record = StudyStore(
+        tmp_path / "late-study", study_id=manifest["study_id"], create=False
+    ).read_record("registration-receipt")
+    assert late_record["payload"]["study_classification"] == "prospective_unverified"
+    assert "registration_after_analysis_input_cutoff" in late_record["payload"]["reason_codes"]
+
+    unsafe_evidence = _registration_evidence(manifest["manifest_sha256"])
+    unsafe_evidence["external_registration_receipt"]["api_key"] = "must-not-persist"
+    receipt_path.write_text(json.dumps(unsafe_evidence), encoding="utf-8")
+    unsafe = run_replay(
+        root=str(tmp_path / "unsafe-study"),
+        manifest_input=str(manifest_path),
+        inventory_input=str(inventory_path),
+        dataset_input=str(dataset_path),
+        registration_input=str(receipt_path),
+    )
+    assert unsafe["study_classification"] == "prospective_unverified"
+    stored = StudyStore(
+        tmp_path / "unsafe-study", study_id=manifest["study_id"], create=False
+    ).read_record("registration-receipt")
+    assert "must-not-persist" not in json.dumps(stored)

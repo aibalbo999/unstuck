@@ -6,7 +6,7 @@ import argparse
 import json
 from datetime import date
 from pathlib import Path
-from typing import Any
+from typing import Any, Mapping
 
 from .admission import evaluate_candidate
 from .calendar import calendar_digest
@@ -17,6 +17,7 @@ from .inventory import validate_inventory
 from .manifest import build_manifest
 from .policies import validate_policies
 from .prediction import evaluate_a_horizon
+from .provenance import classify_study_kind, registration_receipt_projection, verify_registration_receipt
 from .records import make_record
 from .store import StudyStore
 from .summary import summarize, summary_markdown
@@ -32,14 +33,55 @@ def _load(path: str) -> dict[str, Any]:
     return value
 
 
-def run_replay(*, root: str, manifest_input: str, inventory_input: str, dataset_input: str) -> dict[str, Any]:
+def run_replay(
+    *,
+    root: str,
+    manifest_input: str,
+    inventory_input: str,
+    dataset_input: str,
+    registration_input: str | None = None,
+) -> dict[str, Any]:
     manifest_data = _load(manifest_input)
     inventory = _load(inventory_input)
     dataset = _load(dataset_input)
     store = StudyStore(root, study_id=str(manifest_data.get("study_id", "")))
     manifest = build_manifest(**manifest_data)
     store.register_manifest(manifest)
+    registration_evidence = _load(registration_input) if registration_input else None
     inventory_hash = validate_inventory(inventory)
+    if manifest["study_kind"] == "prospective":
+        registration_reason_set = set(verify_registration_receipt(
+            registration_evidence, manifest_sha256=manifest["manifest_sha256"]
+        ))
+        for candidate in inventory["candidates"]:
+            report = candidate.get("report") if isinstance(candidate, Mapping) else None
+            if isinstance(report, Mapping) and report.get("analysis_input_cutoff") is not None:
+                registration_reason_set.update(verify_registration_receipt(
+                    registration_evidence,
+                    manifest_sha256=manifest["manifest_sha256"],
+                    analysis_input_cutoff=report["analysis_input_cutoff"],
+                ))
+        registration_reasons = sorted(registration_reason_set)
+    else:
+        registration_reasons = []
+    study_classification = classify_study_kind(
+        manifest["study_kind"],
+        evidence=registration_evidence,
+        manifest_sha256=manifest["manifest_sha256"],
+    )
+    if registration_reasons and study_classification == "prospective":
+        study_classification = "prospective_unverified"
+    if registration_evidence is not None:
+        store.put_record(make_record(
+            "registration_receipt",
+            "registration-receipt",
+            {
+                "evidence": registration_receipt_projection(registration_evidence),
+                "reason_codes": registration_reasons,
+                "study_classification": study_classification,
+            },
+            created_at=manifest["registered_at"],
+        ))
     dataset_hash = validate_dataset(dataset)
     policy_hash = validate_policies(manifest["policies"])
     calendar_hash = calendar_digest(dataset["calendar"])
@@ -47,7 +89,12 @@ def run_replay(*, root: str, manifest_input: str, inventory_input: str, dataset_
     evaluations: list[dict[str, Any]] = []
     sessions = [date.fromisoformat(value) for value in dataset["calendar"]]
     for candidate in inventory["candidates"]:
-        admission = evaluate_candidate(candidate, study_kind=manifest["study_kind"])
+        admission = evaluate_candidate(
+            candidate,
+            study_kind=manifest["study_kind"],
+            registration_evidence=registration_evidence,
+            manifest_sha256=manifest["manifest_sha256"],
+        )
         candidate_row = dict(candidate)
         candidate_row.update({"admission_status": admission["status"], "admission_reasons": admission["reason_codes"],
                               "report_bundle_hash": content_hash(candidate.get("artifacts", {}))})
@@ -82,8 +129,15 @@ def run_replay(*, root: str, manifest_input: str, inventory_input: str, dataset_
                                          created_at=manifest["registered_at"]))
     result = summarize(candidates=candidates, evaluations=evaluations, cutoff=dataset["as_of"])
     store.put_record(make_record("summary", "summary", result, created_at=manifest["registered_at"]))
-    return {"study_id": manifest["study_id"], "manifest_hash": manifest["manifest_sha256"],
-            "inventory_hash": inventory_hash, "dataset_hash": dataset_hash, "summary": result}
+    return {
+        "study_id": manifest["study_id"],
+        "study_classification": study_classification,
+        "registration_reason_codes": registration_reasons,
+        "manifest_hash": manifest["manifest_sha256"],
+        "inventory_hash": inventory_hash,
+        "dataset_hash": dataset_hash,
+        "summary": result,
+    }
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -92,10 +146,17 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--manifest", required=True)
     parser.add_argument("--inventory", required=True)
     parser.add_argument("--dataset", required=True)
+    parser.add_argument("--registration")
     parser.add_argument("--output", required=True)
     parser.add_argument("--markdown-output")
     args = parser.parse_args(argv)
-    payload = run_replay(root=args.root, manifest_input=args.manifest, inventory_input=args.inventory, dataset_input=args.dataset)
+    payload = run_replay(
+        root=args.root,
+        manifest_input=args.manifest,
+        inventory_input=args.inventory,
+        dataset_input=args.dataset,
+        registration_input=args.registration,
+    )
     Path(args.output).write_text(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8")
     if args.markdown_output:
         Path(args.markdown_output).write_text(summary_markdown(payload["summary"]), encoding="utf-8")
