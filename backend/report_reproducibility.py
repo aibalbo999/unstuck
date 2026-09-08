@@ -10,6 +10,9 @@ from data_trust_scoring import normalize_data_trust
 from mapping_fields import safe_dict_list, safe_mapping_dict, safe_text
 from numeric_safety import is_non_finite_number
 from report_target_price_detection import detect_explicit_target_price_fields
+from model_execution_provenance import normalized_model_executions, report_model_id
+from report_input_provenance import input_bundle_observed_at
+from model_route_policy_identity import model_route_policy_sha256
 
 
 EXPLICIT_TARGET_PRICE_MIN_SCORE = 60
@@ -98,6 +101,7 @@ def build_reproducibility_packet(context: dict, data_trust: Any, generated_at: s
     context = safe_mapping_dict(context) or {}
     data = safe_mapping_dict(dict.get(context, "data")) or {}
     prompt_fingerprint = validated_prompt_fingerprint(_first_text(context, data, "prompt_fingerprint"))
+    model_executions = normalized_model_executions(context)
     return {
         "ticker": _first_value_text(
             dict.get(context, "ticker") if isinstance(context, dict) else None,
@@ -106,7 +110,10 @@ def build_reproducibility_packet(context: dict, data_trust: Any, generated_at: s
         "data_snapshot_hash": "",
         "prompt_version": _first_text(context, data, "prompt_version") or DEFAULT_PROMPT_VERSION,
         "prompt_fingerprint": prompt_fingerprint,
-        "model_id": _model_id(context, data),
+        "model_id": report_model_id(context, data, _safe_text),
+        "model_executions": model_executions,
+        "model_revision_unknown": True,
+        "model_route_policy_sha256": model_route_policy_sha256(),
         "pipeline_id": _first_value_text(
             dict.get(context, "pipeline_id") if isinstance(context, dict) else None,
             dict.get(data, "pipeline_id"),
@@ -114,6 +121,12 @@ def build_reproducibility_packet(context: dict, data_trust: Any, generated_at: s
         "code_commit": _first_text(context, data, "code_commit") or os.getenv("GIT_COMMIT", ""),
         "code_dirty": _first_bool(context, data, "code_dirty"),
         "generated_at": _safe_text(generated_at),
+        "analysis_input_cutoff": _first_text(context, data, "analysis_input_cutoff"),
+        "analysis_input_hash": _first_text(context, data, "analysis_input_hash"),
+        "input_first_available_at": _first_text(context, data, "input_first_available_at"),
+        "source_publication_at": _first_text(context, data, "source_publication_at"),
+        "source_provenance_coverage": _first_text(context, data, "source_provenance_coverage") or "incomplete",
+        "input_bundle_observed_at": input_bundle_observed_at(data),
         "provider_list": provider_list_from_audit(data),
         "source_data_time": source_data_time(data, data_trust),
     }
@@ -161,17 +174,3 @@ def _safe_text(value: Any) -> str:
 def _is_missing_text_token(text: str) -> bool:
     stripped = text.strip()
     return not stripped or stripped.upper() in MISSING_TEXT_TOKENS
-
-
-def _model_id(context: dict, data: dict) -> str:
-    for key in ("model_id", "final_model_id", "decision_model_id"):
-        value = _first_text(context, data, key)
-        if value:
-            return value
-    metadata = dict.get(context, "metadata") if isinstance(context, dict) else None
-    metadata_map = safe_mapping_dict(metadata)
-    if metadata_map is not None:
-        model_id = _safe_text(dict.get(metadata_map, "model_id")).strip()
-        if model_id:
-            return model_id
-    return "unknown"

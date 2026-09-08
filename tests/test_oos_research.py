@@ -18,6 +18,7 @@ from oos_research.policies import DEFAULT_POLICIES, validate_policies
 from oos_research.prediction import evaluate_a_horizon, evaluate_prediction_oos
 from oos_research.provenance import (
     classify_study_kind,
+    exchange_date,
     verify_registration_receipt,
     verify_seal,
     verify_time_chain,
@@ -54,7 +55,7 @@ def _candidate(pipeline="v1", *, available="2025-01-02T09:00:00+08:00", sealed="
         "analysis_input_cutoff": "2025-01-01T18:00:00+08:00",
         "input_first_available_at": "2025-01-01T17:00:00+08:00",
         "conclusion_generated_at": "2025-01-02T08:00:00+08:00", "report_available_at": available,
-        "source_publication_at": "2025-01-01T16:00:00+08:00", "data_snapshot_hash": "b" * 64,
+        "source_publication_at": "2025-01-01T16:00:00+08:00", "data_snapshot_hash": "",
     }
     if pipeline == "v1":
         report.update({"recommendation": "買入", "target_price": 110})
@@ -64,11 +65,18 @@ def _candidate(pipeline="v1", *, available="2025-01-02T09:00:00+08:00", sealed="
         report.update({"direction": "Short", "plan": {"entry_zone": "100", "target_price": "90", "stop_loss": "105", "horizon_trading_days": 5, "observation_reason": ""}})
     else:
         report.update({"direction": "Long", "plan": {"entry_zone": "100", "target_price": "110", "stop_loss": "95", "observation_reason": ""}})
+    snapshot = {"ticker": "2330", "pipeline": pipeline, "reproducibility_packet": {"data_snapshot_hash": ""}}
+    snapshot_hash = content_hash({"ticker": "2330", "pipeline": pipeline, "reproducibility_packet": {}})
+    snapshot["snapshot_hash"] = snapshot_hash
+    snapshot["reproducibility_packet"]["data_snapshot_hash"] = snapshot_hash
+    report["data_snapshot_hash"] = snapshot_hash
+    artifacts = {name: _artifact(name, f"{pipeline}-{name}") for name in ("html", "markdown", "parsed_plan")}
+    artifacts["snapshot"] = _artifact("snapshot", json.dumps(snapshot, sort_keys=True))
     return {
         "candidate_id": f"cand-{pipeline}", "sealed_at": sealed,
         "first_session_date": "2025-01-03",
         "report": report,
-        "artifacts": {name: _artifact(name, f"{pipeline}-{name}") for name in ("html", "markdown", "snapshot", "parsed_plan")},
+        "artifacts": artifacts,
     }
 
 
@@ -128,6 +136,20 @@ def test_oos_02_manifest_record_and_store_are_immutable(tmp_path):
     assert set(store.list_records()) == {"manifest", "c1"}
 
 
+def test_oos_store_rejects_symlinked_records_and_read_only_open_of_incomplete_layout(tmp_path):
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    with pytest.raises(StoreError, match="layout"):
+        StudyStore(empty, study_id="x", create=False)
+
+    store = StudyStore(tmp_path / "study", study_id="x")
+    target = tmp_path / "outside.json"
+    target.write_text("{}")
+    (store.records_dir / "linked.json").symlink_to(target)
+    with pytest.raises(StoreError, match="malformed"):
+        store.read_record("linked")
+
+
 def test_oos_03_admission_keeps_failures_in_denominator():
     candidate = _candidate()
     assert evaluate_candidate(candidate, study_kind="synthetic_validation")["status"] == "admitted"
@@ -144,6 +166,17 @@ def test_oos_04_time_and_study_classification_never_upgrade():
     assert verify_time_chain(candidate["report"]) == []
     assert verify_seal(study_kind="prospective", report_available_at="2025-01-02T09:00:00+08:00",
                        sealed_at="2025-01-03T09:00:00+08:00", first_session_date="2025-01-03") == ["late_seal"]
+    assert exchange_date("2026-09-08T16:30:00Z", "Asia/Taipei").isoformat() == "2026-09-09"
+    assert verify_seal(
+        study_kind="prospective", report_available_at="2026-09-08T15:30:00Z",
+        sealed_at="2026-09-08T16:30:00Z", first_session_date="2026-09-09",
+        timezone_name="Asia/Taipei",
+    ) == []
+    assert verify_seal(
+        study_kind="prospective", report_available_at="2026-09-08T15:30:00Z",
+        sealed_at="2026-09-09T01:00:00Z", first_session_date="2026-09-09",
+        timezone_name="Asia/Taipei",
+    ) == ["late_seal"]
     assert classify_study_kind("retrospective_replay") == "retrospective_replay"
     assert classify_study_kind("prospective") == "prospective_unverified"
     assert classify_study_kind(
@@ -215,6 +248,119 @@ def test_prospective_admission_requires_receipt_bound_before_analysis():
         manifest_sha256=manifest["manifest_sha256"],
     )
     assert "registration_after_analysis_input_cutoff" in late["reason_codes"]
+
+
+def test_prospective_admission_rejects_placeholder_identity_and_late_publication():
+    candidate = _candidate()
+    candidate["report"]["source_publication_at"] = "2025-01-01T19:00:00+08:00"
+
+    result = evaluate_candidate(candidate, study_kind="prospective", manifest_sha256="a" * 64)
+
+    assert "invalid_code_commit" in result["reason_codes"]
+    assert "source_publication_after_analysis_input_cutoff" in result["reason_codes"]
+    assert "missing_analysis_input_hash" in result["reason_codes"]
+    assert "missing_model_execution_receipt" in result["reason_codes"]
+
+
+def test_prospective_admission_preserves_selection_and_registered_horizon_boundaries():
+    candidate = _candidate("v2", available="2026-09-12T00:00:00+08:00")
+    candidate["ticker"] = candidate["report"]["ticker"]
+    candidate["pipeline_id"] = "v2"
+    candidate["report"].update({
+        "prompt_fingerprint": "a" * 64,
+        "analysis_input_hash": "b" * 64,
+        "data_snapshot_hash": "c" * 64,
+        "model_route_policy_sha256": "d" * 64,
+        "code_commit": "e" * 40,
+        "model_executions": [{
+            "agent_num": 16,
+            "model_id": "model-x",
+            "route_index": 0,
+            "route_considered": ["model-x"],
+            "provider_call_models": ["model-x"],
+            "route_skipped": [],
+            "failed_models": [],
+            "fallback_used": False,
+            "cache_hit": False,
+        }],
+        "model_revision_unknown": True,
+        "source_provenance_coverage": "complete",
+    })
+    candidate["report"]["plan"]["horizon_trading_days"] = 10
+
+    result = evaluate_candidate(
+        candidate,
+        study_kind="prospective",
+        manifest_sha256="f" * 64,
+        selection_period={"start": "2026-09-09", "end": "2026-09-11"},
+        expected_horizons={"v2": [5]},
+    )
+
+    assert "report_outside_selection_period" in result["reason_codes"]
+    assert "trade_horizon_not_registered" in result["reason_codes"]
+
+
+def test_prospective_admission_rejects_internally_inconsistent_model_receipt():
+    candidate = _candidate("v2")
+    candidate["ticker"] = candidate["report"]["ticker"]
+    candidate["pipeline_id"] = "v2"
+    candidate["report"].update({
+        "prompt_fingerprint": "a" * 64,
+        "analysis_input_hash": "b" * 64,
+        "data_snapshot_hash": "c" * 64,
+        "model_route_policy_sha256": "d" * 64,
+        "code_commit": "e" * 40,
+        "model_executions": [{
+            "agent_num": 16,
+            "model_id": "model-x",
+            "route_index": 0,
+            "route_considered": ["different-model"],
+            "provider_call_models": [],
+            "route_skipped": [],
+            "failed_models": [],
+            "fallback_used": False,
+            "cache_hit": False,
+        }],
+        "model_revision_unknown": True,
+        "source_provenance_coverage": "complete",
+    })
+
+    result = evaluate_candidate(
+        candidate,
+        study_kind="prospective",
+        manifest_sha256="f" * 64,
+        selection_period={"start": "2026-09-09", "end": "2026-09-11"},
+        expected_horizons={"v2": [5]},
+    )
+
+    assert "invalid_model_execution_receipt" in result["reason_codes"]
+
+
+def test_time_chain_still_rejects_required_order_when_first_available_is_missing():
+    assert set(verify_time_chain({
+        "analysis_input_cutoff": "2026-09-09T02:00:00Z",
+        "conclusion_generated_at": "2026-09-09T01:00:00Z",
+        "report_available_at": "2026-09-09T03:00:00Z",
+    })) == {"missing_input_first_available_at", "timestamp_order_invalid"}
+
+
+def test_prospective_seal_uses_explicit_exchange_open_instead_of_calendar_date():
+    assert verify_seal(
+        study_kind="prospective",
+        report_available_at="2026-09-09T08:00:00+08:00",
+        sealed_at="2026-09-09T08:30:00+08:00",
+        first_session_date="2026-09-09",
+        timezone_name="Asia/Taipei",
+        session_open_local_time="09:00:00",
+    ) == []
+    assert "late_seal" in verify_seal(
+        study_kind="prospective",
+        report_available_at="2026-09-09T08:00:00+08:00",
+        sealed_at="2026-09-09T09:00:00+08:00",
+        first_session_date="2026-09-09",
+        timezone_name="Asia/Taipei",
+        session_open_local_time="09:00:00",
+    )
 
 
 def test_oos_05_a_calendar_and_strict_prices():

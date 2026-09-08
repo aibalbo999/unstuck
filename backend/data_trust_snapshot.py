@@ -77,6 +77,19 @@ def sanitize_rerun_context(context: dict) -> dict:
     })
 
 
+def oos_evaluation_inputs(context: dict, pipeline_id: str | None = None) -> dict:
+    """Preserve the small decision contract even when rerun context is trimmed."""
+
+    context_map = safe_mapping_dict(context) or {}
+    parsed = safe_mapping_dict(dict.get(context_map, "parsed")) or {}
+    result = {"pipeline_id": _first_text(pipeline_id, dict.get(context_map, "pipeline_id"))}
+    for key in ("recommendation", "price_targets", "position_plan", "short_setup", "trade_setup"):
+        value = safe_mapping_dict(dict.get(parsed, key))
+        if value:
+            result[key] = value
+    return sanitize_for_snapshot(result)
+
+
 def build_data_snapshot(
     context: dict,
     pipeline_id: Optional[str] = None,
@@ -156,6 +169,7 @@ def build_data_snapshot(
         "content_credibility": sanitize_for_snapshot(dict.get(context, "content_credibility", {})),
         "report_conformance": sanitize_for_snapshot(dict.get(context, "report_conformance", {})),
         "final_audit": sanitize_for_snapshot(dict.get(context, "final_audit", {})),
+        "oos_evaluation_inputs": oos_evaluation_inputs(context, pipeline_id),
         "rerun_context": sanitize_rerun_context(context),
         "data": sanitize_for_snapshot(data),
     }

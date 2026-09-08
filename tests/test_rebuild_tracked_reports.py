@@ -94,6 +94,24 @@ def test_submit_uses_non_destructive_active_attach_contract(rebuild):
     assert all(row["force"] is False and row["resume"] is True for row in rebuild.state["posts"])
 
 
+def test_submit_batch_size_limits_each_invocation_without_resending(rebuild):
+    rebuild.run("submit", "--batch-size", "1")
+    assert [row["pipeline_id"] for row in rebuild.state["posts"]] == ["v1"]
+    saved = json.loads(rebuild.manifest.read_text())
+    assert saved["jobs"][0]["submission_state"] == "accepted"
+    assert not saved["jobs"][1].get("job_id")
+
+    rebuild.run("submit", "--batch-size", "1")
+    assert [row["pipeline_id"] for row in rebuild.state["posts"]] == ["v1", "v2"]
+
+
+@pytest.mark.parametrize("value", ["0", "-1"])
+def test_submit_rejects_non_positive_batch_size_before_network_access(rebuild, value):
+    with pytest.raises(ValueError, match="batch-size"):
+        rebuild.run("submit", "--batch-size", value)
+    assert rebuild.state["posts"] == []
+
+
 def test_accepted_request_timeout_stays_pending_and_cannot_be_resubmitted(rebuild):
     def accepted_but_response_lost(payload):
         # The request reached the server, but the CLI never learns its job ID.

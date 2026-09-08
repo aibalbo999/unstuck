@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -14,18 +15,19 @@ from pipeline_modes import get_pipeline_agents
 from .env import DEFAULT_MODEL_ROUTES_FILE, env_bool, env_int, env_list, env_str, json_env_dict
 
 
-def _load_model_routes() -> dict:
+def _load_model_routes() -> tuple[dict, str]:
     routes_path = Path(env_str("MODEL_ROUTES_FILE", str(DEFAULT_MODEL_ROUTES_FILE))).expanduser()
     if not routes_path.exists():
-        return {}
+        return {}, ""
     try:
-        parsed = json.loads(routes_path.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return {}
-    return parsed if isinstance(parsed, dict) else {}
+        raw = routes_path.read_bytes()
+        parsed = json.loads(raw.decode("utf-8"))
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError):
+        return {}, ""
+    return (parsed, hashlib.sha256(raw).hexdigest()) if isinstance(parsed, dict) else ({}, "")
 
 
-MODEL_ROUTES = _load_model_routes()
+MODEL_ROUTES, MODEL_ROUTES_FILE_SHA256 = _load_model_routes()
 LLM_QUOTA_MAX_ATTEMPTS_PER_MODEL = max(0, env_int("LLM_QUOTA_MAX_ATTEMPTS_PER_MODEL", int(MODEL_ROUTES.get("quota_max_attempts_per_model", 0))))
 LLM_ROUTE_SERVER_ERROR_MAX_ATTEMPTS = max(0, env_int("LLM_ROUTE_SERVER_ERROR_MAX_ATTEMPTS", int(MODEL_ROUTES.get("server_error_max_attempts", 0))))
 

@@ -1,6 +1,6 @@
 # 四模式完整後續優化計畫
 
-日期：2026-09-07。狀態：總計畫已核准執行；F1.1、F1.2、F1.3、F2.1～F2.5、F3.1、F3.2 工程／artifact／瀏覽器證據與 G1、G2、G3 已完成；F4 已完成唯讀候選盤點並補上 runtime identity endpoint，正式送件／載入／重建仍待核定範圍與重啟後 revision 證據；F5／F6 受外部資料成熟度與條件約束。
+日期：2026-09-07。狀態：總計畫已核准執行；F1.1、F1.2、F1.3、F2.1～F2.5、F3.1、F3.2 工程／artifact／瀏覽器證據與 G1、G2、G3 已完成。2026-09-08 使用者另核准 F4 的 28 組正式重建、API／Worker reload、push／PR，以及 F5 的 GitHub Actions／Sigstore attestation 與同一 28 組 prospective cohort；merge 未授權。實際 attestation、runtime identity、Job 與 artifact 仍須用執行結果完成勾選；F5 成熟績效仍受市場時間約束。
 
 查驗基線：`codex/analysis-credibility-spec`，`32711c4838521816ba565c4acbee13029f7eb4a9`。實際 checkout 為 `/Volumes/X10 Pro Mac/stock-agent`；撰寫前工作樹乾淨。Runtime doctor 指向既有 canonical SQLite、Redis 與 `backend/output`，不能據此推論執行中 API／Worker 已載入此 commit。
 
@@ -195,9 +195,9 @@ G4：核定清單 `completed + failed + pending + unconfirmed = total`，可逐�
 
 ## 8. F5：真實前瞻 protocol 與到期評估
 
-目前狀態：尚未啟用。真實 prospective 需要使用者另行固定 ticker universe、收樣起訖、模型／版本政策、事前 receipt 來源與資料成本；即使立即啟用，A 的 3／6／12 個月及 D 的 5／10 交易日仍須等待資料成熟。合成 OOS 只證明工具行為，不可替代這些外部證據。
+目前狀態：啟用已核准、工程與固定政策已完成，正在等待 final manifest bootstrap、Sigstore attestation、正式 runtime reload 與 28 組送件執行證據。即使立即啟用，A 的 3／6／12 個月及 D 的 5／10 交易日仍須等待資料成熟；合成 OOS 只證明工具行為，不可替代這些外部證據。
 
-2026-09-08 已新增 [`oos-prospective-protocol-draft-2026-09-08.md`](../../oos-prospective-protocol-draft-2026-09-08.md)，將 F4 的 7 ticker × 4 mode 共 28 組候選直接安排為第一個 cohort，固定研究問題、分母、版本、期限、成本／benchmark／企業行動、remote Git receipt 與成熟規則；狀態仍為 `draft_unactivated／prospective_unverified`，沒有啟用、收樣或宣稱效果。
+2026-09-08 已新增並核准 [`oos-prospective-protocol-draft-2026-09-08.md`](../../oos-prospective-protocol-draft-2026-09-08.md)，將 F4 的 7 ticker × 4 mode 共 28 組候選直接安排為第一個 cohort，固定研究問題、分母、版本、期限、成本／benchmark／企業行動、Sigstore receipt 與成熟規則；目前為 `approved_activation_pending_attestation`，在外部 attestation 與正式收樣執行前仍不宣稱 prospective 效果。
 
 ### F5.1 在收樣前固定研究內容
 

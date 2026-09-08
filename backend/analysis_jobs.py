@@ -14,8 +14,9 @@ from analysis_job_progress import make_pipeline_progress_callback
 from analysis_job_reports import render_and_persist_report
 from analysis_job_telemetry import make_analysis_job_telemetry_callback
 from analysis_job_retry import build_analysis_retry_event, prepare_analysis_retry
+from analysis_job_provenance import attach_model_executions, freeze_and_record_analysis_inputs
 from data_fetch import FetchRequest, StockDataService
-from job_store import append_event, is_job_cancel_requested, update_job
+from job_store import append_event, get_events_since, is_job_cancel_requested, update_job
 from pipeline_modes import (
     get_pipeline_definition,
     get_pipeline_run_agent_total,
@@ -126,6 +127,7 @@ async def run_stock_analysis_job_async(
                 mode_data["temporal_memory"] = temporal_memory
                 append_event(job_id, {"type": "status", "pipeline_id": current_pipeline_id,
                     "message": "已載入同模式上一期報告記憶，最終 Agent 將反思先前假設。"})
+            freeze_and_record_analysis_inputs(job_id, current_pipeline_id, mode_data, append_event)
             pipeline_def = get_pipeline_definition(current_pipeline_id)
             current_thread_id = f"{job_id}:{current_pipeline_id}"
             current_pipeline_label = pipeline_def["label"]
@@ -179,6 +181,7 @@ async def run_stock_analysis_job_async(
             )
             _raise_if_cancelled(job_id)
             context = analysis_result.context
+            attach_model_executions(context, get_events_since(job_id), current_pipeline_id)
             audit_notice = build_operator_audit_notice(context)
 
             if audit_notice["status"] == "needs_attention":

@@ -333,6 +333,7 @@ def main():
     parser.add_argument("--submission-manifest", type=Path, help="New manifest created from an explicitly confirmed indexed scope")
     parser.add_argument("--confirm-source-sha256", help="Exact SHA-256 of the prepare-only indexed manifest")
     parser.add_argument("--confirm-candidate-count", type=int, help="Exact number of indexed candidates being authorized")
+    parser.add_argument("--batch-size", type=int, help="Submit at most this many new jobs in one invocation")
     args = parser.parse_args()
     args.manifest_was_symlink = args.manifest.is_symlink()
     args.manifest = args.manifest.resolve()
@@ -432,6 +433,8 @@ def _run_action(args):
         return
 
     if args.action == "submit":
+        if args.batch_size is not None and args.batch_size <= 0:
+            raise ValueError("--batch-size must be a positive integer")
         if manifest.get("prepare_only"):
             raise RuntimeError("This manifest is prepare-only; confirm an explicit submission scope before submit")
         _validate_authorized_submission_manifest(manifest)
@@ -442,9 +445,12 @@ def _run_action(args):
             )
         config = get("/api/client-config")
         session.headers[config["mutation_header"]] = config["mutation_token"]
+        submitted_count = 0
         for item in manifest["jobs"]:
             if item.get("job_id"):
                 continue
+            if args.batch_size is not None and submitted_count >= args.batch_size:
+                break
             # A timeout or a failed acceptance save cannot prove rejection. Keep
             # this durable marker until an operator verifies the existing job.
             item["submission_state"] = "pending"
@@ -463,6 +469,7 @@ def _run_action(args):
             item["submission_state"] = "accepted"
             item["status"] = result.get("status", "queued")
             save(args.manifest, manifest)
+            submitted_count += 1
             print(json.dumps({key: item[key] for key in ("ticker", "pipeline_id", "job_id", "status")}), flush=True)
         return
 

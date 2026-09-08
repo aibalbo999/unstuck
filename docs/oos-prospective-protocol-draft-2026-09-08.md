@@ -1,8 +1,8 @@
-# 四模式內容可信度前瞻研究 Protocol 草案
+# 四模式內容可信度前瞻研究 Protocol
 
-日期：2026-09-08（Asia/Taipei）。狀態：**draft_unactivated／prospective_unverified**。
+日期：2026-09-08（Asia/Taipei）。狀態：**approved_activation_pending_attestation**。
 
-本文件把 F4 的 28 組正式重建候選安排成第一個真實 prospective cohort，避免另產生一批報告與模型成本。它不是事前登記 receipt，也未授權 push、runtime reload、Job 送件或資料訂閱；在遠端 receipt 形成前，樣本數固定為 0。
+本文件把 F4 的 28 組正式重建候選固定為第一個真實 prospective cohort，避免另產生一批報告與模型成本。使用者已核准 GitHub Actions／Sigstore attestation、這 28 組 cohort、manual workflow／PR／push、正式 API／Worker 重啟、分批送件與 artifact 重建；不含 PR merge 或新增付費資料訂閱。在 Sigstore receipt 實際完成並經固定政策離線驗證前，樣本數仍為 0。
 
 ## 1. 研究問題與判定界線
 
@@ -21,7 +21,7 @@
 - 每個 ticker／pipeline 只取外部 receipt 後第一份符合本 protocol 的新報告；重送、resume 或 fallback 不增加候選數。
 - 生成失敗、配額延後、缺報告、證據不足、品質拒絕、停牌或下市均留在 28 個候選分母內，不以成功報告反推 cohort。
 
-最終啟用 manifest 必須在 receipt 前填入明確 `selection_period.start/end`。建議生成窗口為連續 3 個台灣交易日，僅用來容納 provider quota；每份報告仍以自身 `report_available_at` 決定評估起點。
+最終啟用 manifest 的 `selection_period` 固定為 2026-09-09 至 2026-09-11（Asia/Taipei），僅用來容納 provider quota；每份報告仍以自身 `report_available_at` 決定評估起點。
 
 ## 3. 版本與生成政策
 
@@ -40,13 +40,13 @@
 
 v1 的 `observed_at` 來自主機時鐘，`git ls-remote` 也不含遠端接收時間或簽章；它只能證明捕捉當下的內容／ref 一致性，不能單獨證明事前登記。OOS runner 因此固定加入 `registration_time_not_externally_attested`，保存 capture record 但不把研究升格為 `prospective`。正式啟用仍需另定可重新查驗、時間不可回填且綁定 manifest/commit/ref 的外部 attestation schema 與 verifier。
 
-### 建議的外部 attestation（尚未核准／實作）
+### 已核准的外部 attestation
 
-優先方案為 GitHub Actions artifact attestation（Sigstore）：本 repository 為 public、Actions 已啟用，官方能力可為 manifest 檔案 digest 產生加密簽章 provenance，並能下載 bundle 與 trusted roots 後離線驗證。手動 workflow 應只給 `contents: read`、`id-token: write`、`attestations: write`，使用 GitHub-hosted runner，且 action 必須 pin 到完整 commit SHA；不得使用可變 tag 作正式身分。
+採用 GitHub Actions artifact attestation（Sigstore）：workflow 只給 `contents: read`、`id-token: write`、`attestations: write`，使用 GitHub-hosted `ubuntu-24.04`，且 `actions/checkout`、`actions/attest` 均 pin 到完整 commit SHA。因 workflow 尚未存在於 default branch 且本授權不含 merge，首次 push bootstrap 只允許一個 parent，且該提交只能新增 workflow 與 final manifest；日後以 `workflow_dispatch` 手動執行。
 
 正式 verifier 不只接受 `gh attestation verify` exit 0，還必須固定 `aibalbo999/unstuck`、signer workflow path、OIDC issuer、source commit/ref、SLSA predicate type，拒絕 self-hosted runner，並解析 `--format=json`：subject digest 必須等於 final manifest bytes，`signature.certificate` 身分必須符合固定 workflow，`verifiedTimestamps` 至少一筆且最早不可偽造時間早於所有 candidate cutoff。bundle 與當次 trusted-root snapshot 各自保存 SHA-256；verification 在 network-disabled 環境用 `--bundle` 與 `--custom-trusted-root` 重跑，不接受使用者自行填寫的 `verified=true` 或 timestamp。
 
-目前查得可 pin 的 upstream revisions（啟用前仍須重新核對）：`actions/checkout@v4` = `11d5960a326750d5838078e36cf38b85af677262`、`actions/attest@v4` = `1e69f48acb82d1966a394da916b4c1698aa569d6`。是否加入具有 `id-token: write`／`attestations: write` 的 workflow、push 並實際執行，屬外部安全與成本決策，須使用者另行明確核准。
+固定 revisions：`actions/checkout@11d5960a326750d5838078e36cf38b85af677262`、`actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6`。workflow 的實際成功 run、bundle 下載、trusted-root snapshot 與離線 verifier 結果仍須以執行證據填回，不因程式已存在而預先算通過。
 
 官方參考：
 
@@ -54,19 +54,19 @@ v1 的 `observed_at` 來自主機時鐘，`git ls-remote` 也不含遠端接收�
 - <https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/verify-attestations-offline>
 - <https://cli.github.com/manual/gh_attestation_verify>
 
-OOS runner 的 `--registration` 只接受目前已知的 `oos.registration-receipt.v1` capture 格式。任意 truthy 值、malformed 或帶 credentials/query 的 URL、manifest mismatch、remote evidence mismatch，或 receipt 晚於任一候選 `analysis_input_cutoff`，都維持 `prospective_unverified`／`insufficient_provenance`；頂層與 receipt record 會保存聚合原因碼，admission 分母也不會消失。即使 v1 結構與 cutoff 全部通過，仍因缺外部時間 attestation 而保持未驗證。
+OOS verifier 支援舊的 `oos.registration-receipt.v1` capture 與新的 v2 GitHub/Sigstore receipt。v2 必須由同一程序以 manifest、bundle、trusted root 重新執行離線 `gh attestation verify` 後取得 process-local capability；把 v2 projection 寫成 JSON 再讀回不會重建驗證權限。任意 truthy 值、malformed receipt、manifest／subject／certificate／commit／ref mismatch，或 verified timestamp 晚於候選 `analysis_input_cutoff`，都維持 `prospective_unverified`／`insufficient_provenance`，admission 分母不會消失。
 
 本機檔案時間、Git author date、口頭同意或事後補寫的 hash 均不能單獨證明 prospective。若遠端 receipt 不可查，研究分類維持 `prospective_unverified`，但資料可保留供 retrospective replay。
 
-每份候選必須在首個可評估交易 session 前封存 HTML、Markdown、snapshot、parsed plan 與內容 hash。封存逾時回 `late_seal`，不可移動基準日補救。
+每份候選必須在首個可評估交易 session 前封存 HTML、Markdown、snapshot、parsed plan 與內容 hash。正常盤開盤時間固定為 Asia/Taipei 09:00；開盤前完成的報告以當日為首個後續 session，開盤後完成則以下一交易日為首個後續 session。封存逾時回 `late_seal`，不可移動基準日補救。
 
 ## 5. 四模式主要期限與指標
 
 | 模式 | 固定期限 | 主要輸出 |
 | --- | --- | --- |
 | A／v1 | 3、6、12 曆月 | recommendation／target 校準；direction-only 另列，不混入主要 target 分母 |
-| B／v2 | 報告 `position_plan.horizon_trading_days` | 新進場／等待交易路徑；缺期限或既有部位歷史為不足 |
-| C／v3 | 報告 `short_setup.horizon_trading_days` | 空方／避免與保守 OHLC 路徑；複合條件不降成單一價格 |
+| B／v2 | 主要期限固定 5 交易日，且報告 `position_plan.horizon_trading_days` 必須明示為 5 | 新進場／等待交易路徑；期限不符或既有部位歷史為不足 |
+| C／v3 | 主要期限固定 5 交易日，且報告 `short_setup.horizon_trading_days` 必須明示為 5 | 空方／避免與保守 OHLC 路徑；複合條件不降成單一價格 |
 | D／v4 | 5、10 交易日 | `trade_setup` 路徑；兩期限相關，不當成兩份獨立報告 |
 
 共同主要分母：預定候選、實際生成、admitted、成熟、pending、不可評分、未成交／觀察、ambiguous、hit／miss。命中率只用明確 hit／miss；0 個可評分時為 `null`。
@@ -90,13 +90,13 @@ OOS runner 的 `--registration` 只接受目前已知的 `oos.registration-recei
 5. D 到第 5／10 個完整交易日後評估；B／C 依各報告明示期限；A 到 3／6／12 曆月後評估。未成熟保持 `pending_horizon`。
 6. 新 cutoff／dataset 只建立 evaluation revision，不覆寫舊 pending；摘要由明示 cutoff 與完整 ledger 選取 revision。
 
-## 8. 啟用前尚待填定
+## 8. 啟用執行清單
 
-- [ ] 使用者核定上述 7 ticker × 4 mode 的 28 組 cohort。
-- [ ] 填入精確 selection period、final code commit、prompt／model route policy hash 與 evaluator version。
-- [ ] 產生 final machine-readable manifest 並通過現有 `oos_research.manifest`／policy validator。
-- [ ] 選定並實作不可回填的外部 timestamp／attestation 來源與 verifier，綁定 manifest SHA-256、commit/ref；時間必須早於第一個 Job。
-- [ ] push 後以 `capture_oos_registration_receipt.py` 保存 v1 Git capture evidence，另以外部 attestation 完成正式登記。
-- [ ] 明確授權 runtime reload 與正式 Job 送件；未授權前不得啟用。
+- [x] 使用者核定上述 7 ticker × 4 mode 的 28 組 cohort、GitHub/Sigstore attestation、push／PR、runtime reload、分批送件與 artifact 重建；merge 未授權。
+- [x] 固定 selection period 2026-09-09 至 2026-09-11、prompt fingerprint、model-route policy hash、evaluator version 與 28 組來源 SHA-256；final code commit 由 bootstrap revision 綁定。
+- [x] 實作 v2 process-local verifier、嚴格 admission、唯一 `report_done` 時間鏈、content-addressed candidate seal、分批送件與 pending 防重送。
+- [ ] 產生 final machine-readable manifest，與 workflow 形成僅兩檔案的 bootstrap commit 並 push。
+- [ ] GitHub Actions 成功產生 attestation；下載 bundle／trusted-root，離線驗證並保存非秘密 projection 與 hashes。
+- [ ] 以 attested clean revision 重啟 API／Worker，驗證 runtime identity、health／ready，再按 28 組分批送件並封存正式 artifacts。
 
 最早可報告的真實成熟結果仍受市場時間限制：D 至少 5／10 個交易日，A 至少 3／6／12 個月。工程完成不能縮短這些期限。

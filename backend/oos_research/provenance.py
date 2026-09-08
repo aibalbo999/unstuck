@@ -2,11 +2,17 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, time, timezone
 import hashlib
 import re
 from typing import Any, Mapping
 from urllib.parse import urlsplit
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+from .github_attestation import (
+    github_registration_projection,
+    verify_runtime_github_registration,
+)
 
 
 SHA256_RE = re.compile(r"[0-9a-f]{64}")
@@ -36,6 +42,14 @@ def parse_timestamp(value: Any, *, field: str = "timestamp") -> datetime:
     return parsed
 
 
+def exchange_date(value: Any, timezone_name: str) -> date:
+    try:
+        zone = ZoneInfo(timezone_name)
+    except (TypeError, ZoneInfoNotFoundError):
+        raise ValueError("exchange timezone is invalid") from None
+    return parse_timestamp(value).astimezone(zone).date()
+
+
 def verify_time_chain(values: Mapping[str, Any]) -> list[str]:
     """Return stable reason codes; no timestamp is inferred from mtime."""
     required = ("analysis_input_cutoff", "conclusion_generated_at", "report_available_at")
@@ -52,12 +66,20 @@ def verify_time_chain(values: Mapping[str, Any]) -> list[str]:
     except ValueError:
         first = None
         reasons.append("missing_input_first_available_at")
-    if not reasons and first and not (first <= parsed["analysis_input_cutoff"] <= parsed["conclusion_generated_at"] <= parsed["report_available_at"]):
-        reasons.append("timestamp_order_invalid")
+    if all(field in parsed for field in required):
+        cutoff = parsed["analysis_input_cutoff"]
+        if not cutoff <= parsed["conclusion_generated_at"] <= parsed["report_available_at"]:
+            reasons.append("timestamp_order_invalid")
+        elif first is not None and first > cutoff:
+            reasons.append("timestamp_order_invalid")
     return reasons
 
 
-def verify_seal(*, study_kind: str, report_available_at: Any, sealed_at: Any, first_session_date: str | None) -> list[str]:
+def verify_seal(
+    *, study_kind: str, report_available_at: Any, sealed_at: Any,
+    first_session_date: str | None, timezone_name: str = "Asia/Taipei",
+    session_open_local_time: str = "09:00:00",
+) -> list[str]:
     reasons: list[str] = []
     try:
         available = parse_timestamp(report_available_at, field="report_available_at")
@@ -70,9 +92,14 @@ def verify_seal(*, study_kind: str, report_available_at: Any, sealed_at: Any, fi
         else:
             try:
                 first_session = datetime.fromisoformat(first_session_date).date()
-                if sealed.date() >= first_session:
+                zone = ZoneInfo(timezone_name)
+                opened = time.fromisoformat(session_open_local_time)
+                if opened.tzinfo is not None:
+                    raise ValueError("session open time must not carry timezone")
+                first_open = datetime.combine(first_session, opened, tzinfo=zone)
+                if sealed >= first_open:
                     reasons.append("late_seal")
-            except ValueError:
+            except (TypeError, ValueError, ZoneInfoNotFoundError):
                 reasons.append("invalid_first_session")
         if sealed < available:
             reasons.append("seal_before_report_available")
@@ -182,12 +209,18 @@ def verify_registration_receipt(
     analysis_input_cutoff: Any = None,
 ) -> list[str]:
     """Validate admission evidence and reject v1's unattested local timestamp."""
+    receipt = evidence.get("external_registration_receipt") if isinstance(evidence, Mapping) else None
+    if isinstance(receipt, Mapping) and receipt.get("schema_version") == "oos.registration-receipt.v2":
+        return verify_runtime_github_registration(
+            evidence,
+            manifest_sha256=manifest_sha256,
+            analysis_input_cutoff=analysis_input_cutoff,
+        )
     reasons = _verify_registration_receipt(
         evidence,
         manifest_sha256=manifest_sha256,
         analysis_input_cutoff=analysis_input_cutoff,
     )
-    receipt = evidence.get("external_registration_receipt") if isinstance(evidence, Mapping) else None
     if isinstance(receipt, Mapping) and receipt.get("schema_version") == "oos.registration-receipt.v1":
         reasons.append("registration_time_not_externally_attested")
     return sorted(set(reasons))
@@ -200,6 +233,8 @@ def registration_receipt_projection(evidence: Mapping[str, Any] | None) -> dict[
     receipt = evidence.get("external_registration_receipt")
     if not isinstance(receipt, Mapping):
         return {}
+    if receipt.get("schema_version") == "oos.registration-receipt.v2":
+        return github_registration_projection(evidence)
     return {"external_registration_receipt": {
         key: receipt[key] for key in REGISTRATION_RECEIPT_FIELDS if key in receipt
     }}

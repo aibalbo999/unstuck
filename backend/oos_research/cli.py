@@ -17,7 +17,7 @@ from .inventory import validate_inventory
 from .manifest import build_manifest
 from .policies import validate_policies
 from .prediction import evaluate_a_horizon
-from .provenance import classify_study_kind, registration_receipt_projection, verify_registration_receipt
+from .provenance import classify_study_kind, exchange_date, registration_receipt_projection, verify_registration_receipt
 from .records import make_record
 from .store import StudyStore
 from .summary import summarize, summary_markdown
@@ -94,6 +94,9 @@ def run_replay(
             study_kind=manifest["study_kind"],
             registration_evidence=registration_evidence,
             manifest_sha256=manifest["manifest_sha256"],
+            timezone_name=manifest["timezone"],
+            selection_period=manifest["selection_period"],
+            expected_horizons=manifest["horizons"],
         )
         candidate_row = dict(candidate)
         candidate_row.update({"admission_status": admission["status"], "admission_reasons": admission["reason_codes"],
@@ -106,11 +109,13 @@ def run_replay(
         ticker = str(report["ticker"])
         rows = dataset["bars"].get(ticker, [])
         closes = {str(row["date"]): row["close"] for row in rows}
-        available = date.fromisoformat(str(report["report_available_at"])[:10])
+        available = exchange_date(report["report_available_at"], manifest["timezone"])
         for horizon in manifest["horizons"].get(report["pipeline_id"], []):
             if report["pipeline_id"] == "v1":
+                targets = report.get("targets_by_horizon")
+                target_price = targets.get(str(horizon)) if isinstance(targets, Mapping) else report.get("target_price")
                 result = evaluate_a_horizon(report_available_date=available, sessions=sessions, closes=closes,
-                                            recommendation=report.get("recommendation"), target_price=report.get("target_price"),
+                                            recommendation=report.get("recommendation"), target_price=target_price,
                                             horizon_months=horizon)
                 unit = "months"
             else:
