@@ -40,6 +40,20 @@
 
 v1 的 `observed_at` 來自主機時鐘，`git ls-remote` 也不含遠端接收時間或簽章；它只能證明捕捉當下的內容／ref 一致性，不能單獨證明事前登記。OOS runner 因此固定加入 `registration_time_not_externally_attested`，保存 capture record 但不把研究升格為 `prospective`。正式啟用仍需另定可重新查驗、時間不可回填且綁定 manifest/commit/ref 的外部 attestation schema 與 verifier。
 
+### 建議的外部 attestation（尚未核准／實作）
+
+優先方案為 GitHub Actions artifact attestation（Sigstore）：本 repository 為 public、Actions 已啟用，官方能力可為 manifest 檔案 digest 產生加密簽章 provenance，並能下載 bundle 與 trusted roots 後離線驗證。手動 workflow 應只給 `contents: read`、`id-token: write`、`attestations: write`，使用 GitHub-hosted runner，且 action 必須 pin 到完整 commit SHA；不得使用可變 tag 作正式身分。
+
+正式 verifier 不只接受 `gh attestation verify` exit 0，還必須固定 `aibalbo999/unstuck`、signer workflow path、OIDC issuer、source commit/ref、SLSA predicate type，拒絕 self-hosted runner，並解析 `--format=json`：subject digest 必須等於 final manifest bytes，`signature.certificate` 身分必須符合固定 workflow，`verifiedTimestamps` 至少一筆且最早不可偽造時間早於所有 candidate cutoff。bundle 與當次 trusted-root snapshot 各自保存 SHA-256；verification 在 network-disabled 環境用 `--bundle` 與 `--custom-trusted-root` 重跑，不接受使用者自行填寫的 `verified=true` 或 timestamp。
+
+目前查得可 pin 的 upstream revisions（啟用前仍須重新核對）：`actions/checkout@v4` = `11d5960a326750d5838078e36cf38b85af677262`、`actions/attest@v4` = `1e69f48acb82d1966a394da916b4c1698aa569d6`。是否加入具有 `id-token: write`／`attestations: write` 的 workflow、push 並實際執行，屬外部安全與成本決策，須使用者另行明確核准。
+
+官方參考：
+
+- <https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/use-artifact-attestations>
+- <https://docs.github.com/en/actions/how-tos/secure-your-work/use-artifact-attestations/verify-attestations-offline>
+- <https://cli.github.com/manual/gh_attestation_verify>
+
 OOS runner 的 `--registration` 只接受目前已知的 `oos.registration-receipt.v1` capture 格式。任意 truthy 值、malformed 或帶 credentials/query 的 URL、manifest mismatch、remote evidence mismatch，或 receipt 晚於任一候選 `analysis_input_cutoff`，都維持 `prospective_unverified`／`insufficient_provenance`；頂層與 receipt record 會保存聚合原因碼，admission 分母也不會消失。即使 v1 結構與 cutoff 全部通過，仍因缺外部時間 attestation 而保持未驗證。
 
 本機檔案時間、Git author date、口頭同意或事後補寫的 hash 均不能單獨證明 prospective。若遠端 receipt 不可查，研究分類維持 `prospective_unverified`，但資料可保留供 retrospective replay。
