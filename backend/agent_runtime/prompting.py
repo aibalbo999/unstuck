@@ -26,6 +26,7 @@ from .prompt_budget import (
     get_agent_prompt_token_budget,
 )
 from .prompt_config import ANALYSIS_PROMPTS
+from .prompt_routing_policy import AGENT_HISTORY_YEARS, ROUTED_EXTERNAL_CONTEXT_KEYS
 from .state_prompt_projection import bound_state_analysis, restrict_state_reports
 from .prompt_safety import (
     _safe_bool_flag,
@@ -36,49 +37,6 @@ from .prompt_safety import (
 )
 
 OUTPUT_CLEANLINESS_RULE = build_output_cleanliness_rule()
-
-ROUTED_EXTERNAL_CONTEXT_KEYS = {
-    "macro_indicators": {11},
-    "macro_context": {11},
-    "chip_data": {15, 18, 23, 24},
-    "tdcc_shareholder_distribution": {15, 18, 23, 24},
-    "twse_margin_short_sales": {15, 18, 23, 24},
-    "alternative_data": {13, 14},
-    "sentiment_context": {17},
-    "social_sentiment": {17},
-    "sec_edgar": {13, 14, 21},
-    "taiwan_open_data": {11},
-    "earnings_call": {20},
-    "dcard_sentiment": {17},
-    "ptt_sentiment": {17},
-    "temporal_memory": {7, 16, 19, 21, 24},
-    "valuation_memory": {4, 14},
-}
-
-AGENT_HISTORY_YEARS = {
-    11: 3,
-    1: 5,
-    2: 5,
-    3: 5,
-    4: 10,
-    5: 5,
-    6: 5,
-    7: 5,
-    12: 5,
-    13: 5,
-    14: 10,
-    15: 5,
-    16: 5,
-    17: 3,
-    18: 5,
-    19: 5,
-    20: 3,
-    21: 5,
-    22: 3,
-    23: 3,
-    24: 3,
-}
-
 
 def data_for_agent_prompt(agent_num: int, data: StockData) -> StockData:
     """Return prompt data with newly added external contexts routed by agent role."""

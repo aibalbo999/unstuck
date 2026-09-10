@@ -7,8 +7,6 @@ from tenacity import AsyncRetrying, Retrying, retry_if_exception_type
 from analysis_types import AnalysisContext, StockData
 from llm_client import KeyRotator
 from llm_input_capacity import InputCapacityExceededError
-from .single_agent_events import route_rejection_event
-
 from .llm_calls import (
     AgentConfigurationError,
     AgentMissingModelError,
@@ -30,6 +28,7 @@ from .model_policy import (
 from .prompting import build_prompt
 from market_context_manifest import adopt_market_context_result, market_output_attempt
 from .routing import get_runtime_model_sequence
+from .single_agent_prompt import build_model_prompt as _build_model_prompt_impl
 from .step_cache import (
     build_agent_step_cache_key,
     get_cached_agent_step,
@@ -38,21 +37,14 @@ from .step_cache import (
     store_cached_agent_step,
     cached_market_context_matches,
 )
-from .single_agent_events import emit_async_model_event, emit_sync_model_event
+from .single_agent_events import emit_async_model_event, emit_sync_model_event, route_rejection_event
 from runtime_events import emit_log
+
+
 def _build_model_prompt(agent_num, data, context, model_id, compact_primary):
-    keys = ("_primary_probe_prompt", "_prompt_model_id")
-    previous = {key: context[key] for key in keys if key in context}
-    try:
-        context["_primary_probe_prompt"] = compact_primary
-        context["_prompt_model_id"] = model_id
-        return build_prompt(agent_num, data, context)
-    finally:
-        for key in keys:
-            if key in previous:
-                context[key] = previous[key]
-            else:
-                context.pop(key, None)
+    return _build_model_prompt_impl(
+        agent_num, data, context, model_id, compact_primary, prompt_builder=build_prompt,
+    )
 
 
 def run_single_agent(

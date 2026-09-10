@@ -1689,18 +1689,24 @@ def test_llm_call_event_helpers_are_split_from_call_attempt_flow():
 def test_single_agent_event_helpers_are_split_from_orchestration():
     single_agent = BACKEND / "agent_runtime" / "single_agent.py"
     helpers = BACKEND / "agent_runtime" / "single_agent_events.py"
+    prompt_helper = BACKEND / "agent_runtime" / "single_agent_prompt.py"
     single_agent_text = single_agent.read_text(encoding="utf-8")
 
     assert helpers.exists()
+    assert prompt_helper.exists()
     assert "from .single_agent_events import" in single_agent_text
+    assert "from .single_agent_prompt import" in single_agent_text
     assert "def _event_fields" not in single_agent_text
     assert "def _emit_sync_model_event" not in single_agent_text
     assert "def _emit_async_model_event" not in single_agent_text
     assert "make_runtime_event" not in single_agent_text
     assert "emit_context_event" not in single_agent_text
     assert "emit_context_event_async" not in single_agent_text
+    assert 'context["_primary_probe_prompt"] =' not in single_agent_text
+    assert 'context["_prompt_model_id"] =' not in single_agent_text
     assert len(single_agent_text.splitlines()) < 270
     assert len(helpers.read_text(encoding="utf-8").splitlines()) < 90
+    assert len(prompt_helper.read_text(encoding="utf-8").splitlines()) < 60
 
 
 def test_repair_context_helpers_are_split_from_repair_loop():
@@ -1775,14 +1781,20 @@ def test_llm_http_provider_helpers_are_split_from_transport():
 def test_llm_rate_limit_bucket_helpers_are_split_from_key_rotator():
     rotator = BACKEND / "llm_rate_limits.py"
     buckets = BACKEND / "llm_rate_limit_buckets.py"
+    routes = BACKEND / "llm_rate_limit_routes.py"
     rotator_text = rotator.read_text(encoding="utf-8")
 
     assert buckets.exists()
+    assert routes.exists()
     assert "from llm_rate_limit_buckets import TokenBucket" in rotator_text
+    assert "from llm_rate_limit_routes import KeyAvailabilityMixin" in rotator_text
     assert "class TokenBucket" not in rotator_text
     assert "refill_per_second" not in rotator_text
+    assert "def _available_candidate_key_positions" not in rotator_text
+    assert "def model_retry_wait" not in rotator_text
     assert len(rotator_text.splitlines()) < 250
     assert len(buckets.read_text(encoding="utf-8").splitlines()) < 90
+    assert len(routes.read_text(encoding="utf-8").splitlines()) < 180
 
 
 def test_external_search_provider_clients_are_split_from_search_orchestration():
@@ -3036,15 +3048,21 @@ def test_agent_runtime_prompt_safety_helpers_are_split_from_prompting():
 def test_agent_runtime_prompt_budget_helpers_are_split_from_prompting():
     prompting = BACKEND / "agent_runtime" / "prompting.py"
     prompt_budget = BACKEND / "agent_runtime" / "prompt_budget.py"
+    prompt_routing = BACKEND / "agent_runtime" / "prompt_routing_policy.py"
     prompting_text = prompting.read_text(encoding="utf-8")
 
     assert prompt_budget.exists()
+    assert prompt_routing.exists()
     assert "from .prompt_budget import" in prompting_text
+    assert "from .prompt_routing_policy import" in prompting_text
     assert "def _enforce_prompt_token_budget" not in prompting_text
     assert "estimate_text_tokens" not in prompting_text
     assert "PROMPT_CONTEXT_RESPONSE_TOKEN_BUDGET" not in prompting_text
+    assert "ROUTED_EXTERNAL_CONTEXT_KEYS =" not in prompting_text
+    assert "AGENT_HISTORY_YEARS =" not in prompting_text
     assert len(prompting_text.splitlines()) < 260
     assert len(prompt_budget.read_text(encoding="utf-8").splitlines()) < 90
+    assert len(prompt_routing.read_text(encoding="utf-8").splitlines()) < 100
 
 
 def test_frontend_bootstrap_is_split_into_focused_modules():

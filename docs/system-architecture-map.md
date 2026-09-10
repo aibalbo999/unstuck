@@ -22,11 +22,11 @@
 
 Agent 可用性與品質失敗分流：`agent_runtime/deferred.py` 將耗盡的暫時性模型失敗交給 `analysis_job_retry.py`，由 RQ 按實際恢復時間延後；本機 circuit 攔截不重新延長 provider 冷卻。`agent_runtime/quality_drafts.py` 的未通過草稿例外阻止正式發布，不能將草稿當作成功分析。`workflow_quality_drafts.py` 在同一個 checkpointer 的獨立 namespace 保存未驗證原稿，恢復後仍須重新通過品質檢查，不會推進成功節點。
 
-目前 usage-aware profile 的一般分析路由以 Gemma 為主，依角色在 Preview／3.6 後接續 3.8／Lite；估值 4／14 分別以 3.6／Preview 為主，audit 與最終決策以 3.8 為主，這些角色的備援限於 Preview／3.6／3.8。`agent_runtime/routing.py` 仍以設定的順序為準，`single_agent.py` 在輸入容量與可用性檢查後自動嘗試下一候選，品質重寫和 audit override 不跨越角色邊界。路由更新需重載 runtime，不提前執行已排定的 RQ retry。
+目前 usage-aware profile 的一般分析路由以 Gemma 為主，依角色在 Preview／3.6 後接續 3.8／Lite；估值 4／14 分別以 3.6／Preview 為主，audit 與最終決策以 3.8 為主，這些角色的備援限於 Preview／3.6／3.8。`agent_runtime/routing.py` 仍以設定的順序為準，`single_agent.py` 保留同步／非同步 retry orchestration，`single_agent_prompt.py` 只管理單次模型嘗試的暫時 prompt context；輸入容量與可用性檢查後才自動嘗試下一候選，品質重寫和 audit override 不跨越角色邊界。路由更新需重載 runtime，不提前執行已排定的 RQ retry。
 
 工具迴圈的每日預留結算由 `llm_daily_budget.py`／`llm_budget_settlement.py` 管理，canonical operational DB 的 `llm_budget_reservations` 以 receipt 綁原 Pacific 日與 key-model；`llm_tool_rate_guard.py` 在 scope 結束後僅歸還未 claim 的預留，重複結算、跨日或失敗不得擴大預算。已 claim 的失敗／不確定請求仍扣帳，無 hook 證據與 legacy 扣帳不回補。
 
-提示資料邊界在 `prompt_evidence.py`：內部 RAG 索引與向量不進入 prompt，checkpoint 與檢索證據保持原樣。`llm_response_diagnostics.py` 保存有界的回應結束原因、阻擋原因、工具呼叫觀察與 usage，不保存 key、工具參數或思考內容；未取得 metadata 時不得猜測空白回應的原因。
+提示資料邊界在 `prompt_evidence.py`：內部 RAG 索引與向量不進入 prompt，checkpoint 與檢索證據保持原樣。`agent_runtime/prompt_routing_policy.py` 宣告角色可見的外部 context 與歷史年限，`agent_runtime/prompting.py` 負責安全投影及模板組裝。`llm_response_diagnostics.py` 保存有界的回應結束原因、阻擋原因、工具呼叫觀察與 usage，不保存 key、工具參數或思考內容；未取得 metadata 時不得猜測空白回應的原因。
 
 量化來源邊界在 `quant_input_contract.py`／`quant_metric_contract.py`：`quant_metrics.v2` 分別記錄 DCF、WACC、本益比可用性、raw facts provenance、單位及政策假設。`QuantEngine` 和 prompt 的 `financial_tools` 共用計算，缺事實不補示範值，負 FCF 不被舊正歷史覆蓋。`final_audit_dcf.py` 只比同方法、情境和每股單位；不可用來源主張為 critical。歷史無契約值只能以未驗證狀態讀取，不能從圖表 fallback 變回 canonical。
 
@@ -44,7 +44,7 @@ Agent 可用性與品質失敗分流：`agent_runtime/deferred.py` 將耗盡的�
 
 Gemma dense 編碼的相容稀疏表在 `prompt_record_tables.py`：`absent` 區分缺欄與 null；`prompt_builder.py` 將完整同值的時效資料副本改為 payload 內部引用，保留原值與來源路徑。僅屬輸入表示法，不修改原始 snapshot、角色資料範圍、admission 或品質 gate。
 
-正式 usage-aware profile 的 `provider_quota_authoritative` 在 `settings/models.py` 載入，`llm_rate_limits.py` 保留 provider RPD key+model 停用，將本機每日限制切為可超過參考值的用量記錄；`llm_daily_budget.py` 的觀測模式仍保有交易式累計和 receipt 結算。`analysis_job_retry.py` 僅為模型可用性例外持續補足 RQ 延後重試；`analysis_jobs.py`／`report_rerun_jobs.py` 共用入口，真實 provider 日額度回饋與暫時 cooldown 分開標示。取消與品質阻擋不被此策略覆寫。API／面板的每日計數不再顯示為停止依據。
+正式 usage-aware profile 的 `provider_quota_authoritative` 在 `settings/models.py` 載入，`llm_rate_limits.py` 保留同步／非同步 RPM/TPM 與 daily reservation orchestration，`llm_rate_limit_routes.py` 承接 provider key availability、RPD key+model 停用及 model-circuit 查詢；本機每日限制則切為可超過參考值的用量記錄。`llm_daily_budget.py` 的觀測模式仍保有交易式累計和 receipt 結算。`analysis_job_retry.py` 僅為模型可用性例外持續補足 RQ 延後重試；`analysis_jobs.py`／`report_rerun_jobs.py` 共用入口，真實 provider 日額度回饋與暫時 cooldown 分開標示。取消與品質阻擋不被此策略覆寫。API／面板的每日計數不再顯示為停止依據。
 
 ## 目前 Runtime 真相
 
