@@ -24,15 +24,38 @@
 | 2026-12-09、12-10 | v1 的 3 個曆月 endpoint；依正式 report availability date 加 3 個月後取當日／下一個 session |
 | v1 6／12 個月 | 取得覆蓋 2027 年的明確官方 session calendar 後另算，不得猜日期 |
 
+固定 inventory 與 session calendar 的逐批映射如下；runner 每次仍讀取完整 28 組分母，不建立子 cohort：
+
+| Cutoff | 本次新到期的 report／horizon | 數量 |
+| --- | --- | ---: |
+| 2026-09-15 | first session 09-09 的 v2／v3／v4 5-session | 7 |
+| 2026-09-16 | first session 09-10 的 v2／v3／v4 5-session | 7 |
+| 2026-09-17 | first session 09-11 的 v2／v3／v4 5-session | 6 |
+| 2026-09-22 | first session 09-09 的 v4 10-session | 3 |
+| 2026-09-23 | first session 09-10 的 v4 10-session | 2 |
+| 2026-09-24 | first session 09-11 的 v4 10-session | 2 |
+| 2026-12-09 | report availability local date 09-09 的 v1 3-month | 4 |
+| 2026-12-10 | report availability local date 09-10 的 v1 3-month | 2 |
+
+`3324.TWO` v1／v3 是固定的 `missing_report`，沒有到期 horizon。其餘 26 份目前也都是 `insufficient_provenance`；到期只允許保存真實行情與重新執行 admission，除非同一份固定 evidence 經新版 validator 證明原分類錯誤，否則 scored evaluation 仍應為 0。
+
 ## 每個 checkpoint
 
 從乾淨、已 commit 的 runner checkout 執行。`CHECKPOINT_DIR` 與其下所有檔名都必須是新的 revision；若已存在，保留原件並改用新的 revision 名稱，不得刪除或覆寫。
+
+在任何網路存取或寫入前先執行唯讀 preflight：
+
+1. `CUTOFF_SESSION` 必須精確取自上表目前已到期的一列，不以當天日期猜測；`RUN_ID` 必須包含相同 cutoff、實際執行時間及新的 `rN`。
+2. 先檢查 `checkpoints/` 是否已有相同 `cutoff_session` 的完整 checkpoint。完整代表 `dataset.json`、`replay-result.json`、`summary.md` 都是非 symlink 一般檔，dataset 自身 hash 等於 replay 的 `dataset_hash`，且 study store 已有同 dataset hash 的 checkpoint record。
+3. 若已有完整同 cutoff checkpoint，不再呼叫 TWSE／TPEx、不建立新 revision，只重驗既有 hashes 並把 heartbeat 移到下一個實際成熟日。
+4. 若只有失敗或不完整 revision，原目錄保持不動；行情確已完整後使用新的 `rN` 重試。不得重用舊目錄，也不得把半成品升格為完成。
 
 ```bash
 PROJECT_PYTHON="/Volumes/X10 Pro Mac/stock-agent/.venv/bin/python"
 PROJECT_ROOT="$(pwd -P)"
 EVIDENCE_ROOT="/Volumes/X10 Pro Mac/stock-agent-oos-evidence/four-mode-credibility-prospective-r1"
-RUN_ID="2026-09-15T150500+0800-r1"
+CUTOFF_SESSION="${OOS_CUTOFF_SESSION:?set one exact matured cutoff from the table}"
+RUN_ID="${OOS_RUN_ID:?set a new cutoff-time-rN identifier}"
 CHECKPOINTS_ROOT="$EVIDENCE_ROOT/checkpoints"
 CHECKPOINT_DIR="$CHECKPOINTS_ROOT/$RUN_ID"
 umask 077
@@ -49,7 +72,7 @@ mkdir -m 700 "$CHECKPOINT_DIR"
   --expected-inventory-sha256 007370b69653c7a6ad3cfc382a31b4c542377991bb1244c40bf4497088844158 \
   --sessions "$EVIDENCE_ROOT/twse-sessions-2026-09-09-to-2026-12-31.json" \
   --expected-session-calendar-sha256 87bce6c60c2e159a938e5cf0b7ad5f5d3d433b0a9f9fc4c04446dfb25286d775 \
-  --cutoff-session 2026-09-15 \
+  --cutoff-session "$CUTOFF_SESSION" \
   --raw-dir "$CHECKPOINT_DIR/raw-official" \
   --output "$CHECKPOINT_DIR/dataset.json"
 
