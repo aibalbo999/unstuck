@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 from typing import Any, Mapping
 
 from trade_path_backtest import evaluate_trade_path
@@ -28,12 +28,17 @@ def validate_trade_inputs(*, direction: Any, horizon_trading_days: Any, plan: Ma
 
 
 def evaluate_trade_oos(*, bars: list[Mapping[str, Any]], generated_date: date, as_of: date,
-                       direction: str, plan: Mapping[str, Any], horizon_trading_days: int) -> dict[str, Any]:
+                       direction: str, plan: Mapping[str, Any], horizon_trading_days: int,
+                       first_session_date: date | None = None) -> dict[str, Any]:
     issues = validate_trade_inputs(direction=direction, horizon_trading_days=horizon_trading_days, plan=plan)
     if issues:
         return {"status": "insufficient_data", "reason": ";".join(sorted(set(issues))),
                 "outcome": None, "strategy_roi_pct": None, "net_strategy_roi_pct": None}
-    return evaluate_trade_path(bars=bars, generated_date=generated_date, as_of=as_of, direction=direction,
+    if first_session_date is not None and first_session_date < generated_date:
+        return {"status": "insufficient_data", "reason": "invalid_first_session",
+                "outcome": None, "strategy_roi_pct": None, "net_strategy_roi_pct": None}
+    start_boundary = first_session_date - timedelta(days=1) if first_session_date is not None else generated_date
+    return evaluate_trade_path(bars=bars, generated_date=start_boundary, as_of=as_of, direction=direction,
                                entry_zone=plan.get("entry_zone"), target_price=plan.get("target_price"),
                                stop_loss=plan.get("stop_loss"), transaction_cost=plan.get("transaction_cost"),
                                horizon_trading_days=horizon_trading_days,

@@ -371,6 +371,17 @@ def test_oos_05_a_calendar_and_strict_prices():
     result = evaluate_a_horizon(report_available_date=date(2025, 1, 2), sessions=[date(2025, 1, 3), date(2025, 4, 2)],
                                 closes={"2025-01-03": 100, "2025-04-02": 120}, recommendation="買入", target_price=110, horizon_months=3)
     assert result["outcome"] == "hit"
+    same_day = evaluate_a_horizon(
+        report_available_date=date(2025, 1, 3),
+        first_session_date=date(2025, 1, 3),
+        sessions=[date(2025, 1, 3), date(2025, 4, 3)],
+        closes={"2025-01-03": 100, "2025-04-03": 120},
+        recommendation="買入",
+        target_price=110,
+        horizon_months=3,
+    )
+    assert same_day["baseline_session"] == "2025-01-03"
+    assert same_day["outcome"] == "hit"
 
 
 def test_oos_06_b_c_d_path_and_unknown_direction():
@@ -385,6 +396,21 @@ def test_oos_06_b_c_d_path_and_unknown_direction():
                                     generated_date=date(2025, 1, 2), as_of=date(2025, 1, 3), direction="Long",
                                     plan={"entry_zone": "100", "target_price": "110", "stop_loss": "90"}, horizon_trading_days=1)
     assert ambiguous["status"] == "ambiguous"
+    five_bars = [
+        {"date": f"2025-01-{day:02d}", "open": 100, "high": 101, "low": 99, "close": 100}
+        for day in range(3, 8)
+    ]
+    same_day = evaluate_trade_oos(
+        bars=five_bars,
+        generated_date=date(2025, 1, 3),
+        first_session_date=date(2025, 1, 3),
+        as_of=date(2025, 1, 7),
+        direction="Long",
+        plan={"entry_zone": "100", "target_price": "110", "stop_loss": "90"},
+        horizon_trading_days=5,
+    )
+    assert same_day["status"] == "horizon_exit"
+    assert same_day["evaluation_date"] == "2025-01-07"
 
 
 def test_oos_07_dataset_rejects_incomplete_or_mixed_data():
@@ -452,6 +478,83 @@ def test_oos_10_cli_replay_writes_complete_bundle(tmp_path):
     assert output["summary"]["evaluation_total"] == 3
 
 
+def test_cli_replay_does_not_count_missing_reports_as_report_identities(tmp_path):
+    manifest_path = tmp_path / "manifest.json"
+    inventory_path = tmp_path / "inventory.json"
+    dataset_path = tmp_path / "dataset.json"
+    manifest_path.write_text(json.dumps(_manifest(), ensure_ascii=False), encoding="utf-8")
+    inventory_path.write_text(json.dumps({
+        "coverage_status": "closed",
+        "candidates": [{
+            "candidate_id": "missing-v1",
+            "ticker": "2330",
+            "pipeline_id": "v1",
+            "report": None,
+            "artifacts": {},
+        }],
+    }, ensure_ascii=False), encoding="utf-8")
+    dataset_path.write_text(json.dumps(_dataset(), ensure_ascii=False), encoding="utf-8")
+
+    output = run_replay(
+        root=str(tmp_path / "study"),
+        manifest_input=str(manifest_path),
+        inventory_input=str(inventory_path),
+        dataset_input=str(dataset_path),
+    )
+
+    assert output["summary"]["admission_counts"] == {"missing_report": 1}
+    assert output["summary"]["report_identity_count"] == 0
+
+
+def test_cli_replay_appends_dataset_scoped_checkpoint_records(tmp_path):
+    manifest_path = tmp_path / "manifest.json"
+    inventory_path = tmp_path / "inventory.json"
+    first_dataset_path = tmp_path / "dataset-first.json"
+    second_dataset_path = tmp_path / "dataset-second.json"
+    root = tmp_path / "study"
+    manifest_path.write_text(json.dumps(_manifest(), ensure_ascii=False), encoding="utf-8")
+    inventory_path.write_text(
+        json.dumps({"coverage_status": "closed", "candidates": [_candidate("v1")]}, ensure_ascii=False),
+        encoding="utf-8",
+    )
+    first_dataset = _dataset()
+    second_dataset = {**_dataset(), "as_of": "2026-01-04T00:00:00Z"}
+    first_dataset_path.write_text(json.dumps(first_dataset, ensure_ascii=False), encoding="utf-8")
+    second_dataset_path.write_text(json.dumps(second_dataset, ensure_ascii=False), encoding="utf-8")
+    seeded_store = StudyStore(root, study_id=_manifest()["study_id"])
+    seeded_store.register_manifest(_manifest())
+    seeded_store.put_record(make_record("candidate", "cand-v1", _candidate("v1")))
+
+    first_result = run_replay(
+        root=str(root),
+        manifest_input=str(manifest_path),
+        inventory_input=str(inventory_path),
+        dataset_input=str(first_dataset_path),
+    )
+    second_result = run_replay(
+        root=str(root),
+        manifest_input=str(manifest_path),
+        inventory_input=str(inventory_path),
+        dataset_input=str(second_dataset_path),
+    )
+
+    store = StudyStore(root, study_id=_manifest()["study_id"], create=False)
+    records = [store.read_record(record_id) for record_id in store.list_records() if record_id != "manifest"]
+    record_types = [record["record_type"] for record in records]
+    assert record_types.count("candidate") == 1
+    assert record_types.count("admission") == 2
+    assert record_types.count("dataset") == 2
+    assert record_types.count("evaluation") == 6
+    assert record_types.count("summary") == 2
+    assert record_types.count("checkpoint") == 2
+    assert first_result["runner_identity"]["source_sha256"]
+    assert first_result["runner_identity"] == second_result["runner_identity"]
+    admission_times = sorted(
+        record["created_at"] for record in records if record["record_type"] == "admission"
+    )
+    assert admission_times == [first_dataset["as_of"], second_dataset["as_of"]]
+
+
 def test_prospective_cli_records_receipt_classification_and_controls_admission(tmp_path):
     manifest_fields = dict(_manifest("prospective-four-mode"))
     manifest_fields.pop("manifest_sha256")
@@ -493,7 +596,7 @@ def test_prospective_cli_records_receipt_classification_and_controls_admission(t
     ]
     assert captured["summary"]["admission_counts"] == {"insufficient_provenance": 1}
     assert captured["summary"]["evaluation_total"] == 0
-    assert "registration-receipt" in StudyStore(
+    assert f"registration-receipt-{captured['dataset_hash']}" in StudyStore(
         tmp_path / "captured-study", study_id=manifest["study_id"], create=False
     ).list_records()
 
@@ -513,7 +616,7 @@ def test_prospective_cli_records_receipt_classification_and_controls_admission(t
     assert late["summary"]["evaluation_total"] == 0
     late_record = StudyStore(
         tmp_path / "late-study", study_id=manifest["study_id"], create=False
-    ).read_record("registration-receipt")
+    ).read_record(f"registration-receipt-{late['dataset_hash']}")
     assert late_record["payload"]["study_classification"] == "prospective_unverified"
     assert "registration_after_analysis_input_cutoff" in late_record["payload"]["reason_codes"]
 
@@ -530,5 +633,5 @@ def test_prospective_cli_records_receipt_classification_and_controls_admission(t
     assert unsafe["study_classification"] == "prospective_unverified"
     stored = StudyStore(
         tmp_path / "unsafe-study", study_id=manifest["study_id"], create=False
-    ).read_record("registration-receipt")
+    ).read_record(f"registration-receipt-{unsafe['dataset_hash']}")
     assert "must-not-persist" not in json.dumps(stored)

@@ -5,6 +5,7 @@ from __future__ import annotations
 import math
 from datetime import datetime
 from typing import Any, Mapping
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from .canonical import content_hash
 from .calendar import validate_sessions
@@ -23,9 +24,15 @@ def validate_dataset(dataset: Mapping[str, Any]) -> str:
         raise ValueError("dataset policy is not allowed for this study")
     sessions = validate_sessions(dataset["calendar"])
     try:
-        datetime.fromisoformat(str(dataset["as_of"]).replace("Z", "+00:00"))
-    except ValueError as exc:
+        as_of = datetime.fromisoformat(str(dataset["as_of"]).replace("Z", "+00:00"))
+        timezone_name = str(dataset["timezone"])
+        timezone = ZoneInfo(timezone_name)
+    except (ValueError, ZoneInfoNotFoundError) as exc:
         raise ValueError("dataset as_of is invalid") from exc
+    if as_of.tzinfo is None or as_of.utcoffset() is None:
+        raise ValueError("dataset as_of must include timezone")
+    if sessions and sessions[-1] > as_of.astimezone(timezone).date():
+        raise ValueError("calendar exceeds dataset as_of")
     bars = dataset["bars"]
     if not isinstance(bars, Mapping):
         raise ValueError("bars must be ticker mapping")
@@ -54,6 +61,8 @@ def validate_dataset(dataset: Mapping[str, Any]) -> str:
                 raise ValueError("completed_at is invalid") from exc
             if completed_at.tzinfo is None or completed_at.utcoffset() is None:
                 raise ValueError("completed_at must include timezone")
+            if completed_at > as_of:
+                raise ValueError("completed_at exceeds dataset as_of")
     expected = dataset.get("dataset_sha256")
     actual = content_hash({k: v for k, v in dataset.items() if k != "dataset_sha256"})
     if expected is not None and expected != actual:

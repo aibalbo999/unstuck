@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 
+import oos_research.cli as oos_cli
 import oos_research.github_attestation as github_attestation
 from oos_research.github_attestation import (
     GitHubAttestationPolicy,
@@ -195,6 +196,62 @@ def test_v1_stays_unattested_and_plain_json_v2_cannot_recreate_runtime_verificat
     assert verify_registration_receipt(
         v1, manifest_sha256=manifest["manifest_sha256"]
     ) == ["registration_time_not_externally_attested"]
+
+
+def test_replay_cli_passes_fresh_runtime_attestation_capability_without_serializing(
+    tmp_path, monkeypatch
+):
+    manifest, manifest_path, bundle_path, trusted_root_path = _paths(tmp_path)
+    inventory_path = tmp_path / "inventory.json"
+    dataset_path = tmp_path / "dataset.json"
+    output_path = tmp_path / "result.json"
+    inventory_path.write_text("{}", encoding="utf-8")
+    dataset_path.write_text("{}", encoding="utf-8")
+    capability = object()
+    verification_calls = []
+    replay_calls = []
+
+    def fake_verify(**kwargs):
+        verification_calls.append(kwargs)
+        return capability
+
+    def fake_run_replay(**kwargs):
+        replay_calls.append(kwargs)
+        return {"summary": {}}
+
+    monkeypatch.setattr(oos_cli, "verify_github_registration_attestation", fake_verify)
+    monkeypatch.setattr(oos_cli, "run_replay", fake_run_replay)
+
+    assert oos_cli.main([
+        "--root", str(tmp_path / "study"),
+        "--manifest", str(manifest_path),
+        "--inventory", str(inventory_path),
+        "--dataset", str(dataset_path),
+        "--attestation-bundle", str(bundle_path),
+        "--trusted-root", str(trusted_root_path),
+        "--source-commit", SOURCE_COMMIT,
+        "--source-ref", SOURCE_REF,
+        "--output", str(output_path),
+    ]) == 0
+
+    assert verification_calls
+    assert verification_calls[0]["expected_manifest_sha256"] == manifest["manifest_sha256"]
+    assert replay_calls[0]["registration_evidence"] is capability
+
+    with pytest.raises(FileExistsError, match="already exists"):
+        oos_cli.main([
+            "--root", str(tmp_path / "study"),
+            "--manifest", str(manifest_path),
+            "--inventory", str(inventory_path),
+            "--dataset", str(dataset_path),
+            "--attestation-bundle", str(bundle_path),
+            "--trusted-root", str(trusted_root_path),
+            "--source-commit", SOURCE_COMMIT,
+            "--source-ref", SOURCE_REF,
+            "--output", str(output_path),
+        ])
+    assert len(verification_calls) == 1
+    assert len(replay_calls) == 1
 
 
 def test_verified_timestamp_is_the_only_v2_cutoff_clock(tmp_path):

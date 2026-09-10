@@ -42,10 +42,14 @@ def evaluate_prediction_oos(*, recommendation: Any, initial_price: Any, actual_p
 
 
 def evaluate_a_horizon(*, report_available_date: date, sessions: list[date], closes: Mapping[str, Any],
-                       recommendation: Any, target_price: Any, horizon_months: int) -> dict[str, Any]:
+                       recommendation: Any, target_price: Any, horizon_months: int,
+                       first_session_date: date | None = None) -> dict[str, Any]:
     if horizon_months not in {3, 6, 12}:
         raise ValueError("A horizon must be 3, 6 or 12 months")
-    baseline = next((s for s in sessions if s > report_available_date), None)
+    if first_session_date is not None:
+        baseline = first_session_date if first_session_date in sessions else None
+    else:
+        baseline = next((s for s in sessions if s > report_available_date), None)
     endpoint = add_calendar_months(report_available_date, horizon_months)
     endpoint = next((s for s in sessions if s >= endpoint), None)
     result = {"horizon_months": horizon_months, "baseline_session": baseline.isoformat() if baseline else None,

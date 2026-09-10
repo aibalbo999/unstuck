@@ -1,6 +1,6 @@
 # 四模式內容可信度前瞻研究 Protocol
 
-日期：2026-09-08（Asia/Taipei）。狀態：**approved_activation_pending_attestation**。
+日期：2026-09-08（Asia/Taipei）。狀態：**selection_closed_waiting_maturity**（2026-09-10 更新）。
 
 本文件把 F4 的 28 組正式重建候選固定為第一個真實 prospective cohort，避免另產生一批報告與模型成本。使用者已核准 GitHub Actions／Sigstore attestation、這 28 組 cohort、manual workflow／PR／push、正式 API／Worker 重啟、分批送件與 artifact 重建；不含 PR merge 或新增付費資料訂閱。在 Sigstore receipt 實際完成並經固定政策離線驗證前，樣本數仍為 0。
 
@@ -95,8 +95,10 @@ OOS verifier 支援舊的 `oos.registration-receipt.v1` capture 與新的 v2 Git
 - [x] 使用者核定上述 7 ticker × 4 mode 的 28 組 cohort、GitHub/Sigstore attestation、push／PR、runtime reload、分批送件與 artifact 重建；merge 未授權。
 - [x] 固定 selection period 2026-09-09 至 2026-09-11、prompt fingerprint、model-route policy hash、evaluator version 與 28 組來源 SHA-256；final code commit 由 bootstrap revision 綁定。
 - [x] 實作 v2 process-local verifier、嚴格 admission、唯一 `report_done` 時間鏈、content-addressed candidate seal、分批送件與 pending 防重送。
-- [ ] 產生 final machine-readable manifest，與 workflow 形成僅兩檔案的 bootstrap commit 並 push。
-- [ ] GitHub Actions 成功產生 attestation；下載 bundle／trusted-root，離線驗證並保存非秘密 projection 與 hashes。
-- [ ] 以 attested clean revision 重啟 API／Worker，驗證 runtime identity、health／ready，再按 28 組分批送件並封存正式 artifacts。
+- [x] 產生 final machine-readable manifest，與 workflow 形成僅兩檔案的 bootstrap commit 並 push。
+- [x] GitHub Actions 成功產生 attestation；下載 bundle／trusted-root，離線驗證並保存非秘密 projection 與 hashes。
+- [x] 以 attested clean revision 重啟 API／Worker，驗證 runtime identity、health／ready，再按 28 組分批送件並封存正式 artifacts。最終 26 份報告 sealed，`3324.TWO` v1／v3 以 `missing_report` 留在固定 28 分母，沒有補送或替代。
+
+成熟日的正式執行入口與 append-only 命名規則見 [`oos-maturity-checkpoint-runbook.md`](./oos-maturity-checkpoint-runbook.md)。
 
 最早可報告的真實成熟結果仍受市場時間限制：D 至少 5／10 個交易日，A 至少 3／6／12 個月。工程完成不能縮短這些期限。
