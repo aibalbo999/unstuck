@@ -50,6 +50,8 @@
 3. 若已有完整同 cutoff checkpoint，不再呼叫 TWSE／TPEx、不建立新 revision，只重驗既有 hashes 並把 heartbeat 移到下一個實際成熟日。
 4. 若只有失敗或不完整 revision，原目錄保持不動；行情確已完整後使用新的 `rN` 重試。不得重用舊目錄，也不得把半成品升格為完成。
 
+以下 preflight 是實際 capture gate，不只是人工檢查清單。它只讀取符合 `<cutoff>T<HHMMSS><offset>-rN` 的目錄、三份 checkpoint 投影與 study checkpoint record；`complete` 會正常結束而不送網路請求，`conflict`／設定或 evidence 錯誤會 fail closed，只有 `not_found` 或 `incomplete` 才能進入新的 capture revision。
+
 ```bash
 PROJECT_PYTHON="/Volumes/X10 Pro Mac/stock-agent/.venv/bin/python"
 PROJECT_ROOT="$(pwd -P)"
@@ -59,11 +61,39 @@ RUN_ID="${OOS_RUN_ID:?set a new cutoff-time-rN identifier}"
 CHECKPOINTS_ROOT="$EVIDENCE_ROOT/checkpoints"
 CHECKPOINT_DIR="$CHECKPOINTS_ROOT/$RUN_ID"
 umask 077
-if [[ -L "$CHECKPOINTS_ROOT" ]]; then
-  echo "checkpoint root must not be a symlink" >&2
+if [[ -L "$CHECKPOINTS_ROOT" || ! -d "$CHECKPOINTS_ROOT" ]]; then
+  echo "checkpoint root must be an existing non-symlink directory" >&2
   exit 1
 fi
-mkdir -p "$CHECKPOINTS_ROOT"
+
+if ! PREFLIGHT_RESULT="$(
+  "$PROJECT_PYTHON" -B "$PROJECT_ROOT/scripts/inspect_oos_maturity_checkpoints.py" \
+    --checkpoints-root "$CHECKPOINTS_ROOT" \
+    --study-root "$EVIDENCE_ROOT/study" \
+    --study-id four-mode-credibility-prospective-r1 \
+    --cutoff-session "$CUTOFF_SESSION"
+)"; then
+  printf '%s\n' "$PREFLIGHT_RESULT" >&2
+  echo "checkpoint preflight denied capture" >&2
+  exit 1
+fi
+PREFLIGHT_DECISION="$(
+  printf '%s' "$PREFLIGHT_RESULT" | "$PROJECT_PYTHON" -c \
+    'import json, sys; p = json.load(sys.stdin); print("{}:{}".format(p["status"], str(p["should_capture"]).lower()))'
+)" || exit 1
+case "$PREFLIGHT_DECISION" in
+  complete:false)
+    echo "cutoff already has one complete checkpoint; no capture needed"
+    exit 0
+    ;;
+  not_found:true|incomplete:true)
+    ;;
+  *)
+    echo "checkpoint preflight returned an unsafe decision: $PREFLIGHT_DECISION" >&2
+    exit 1
+    ;;
+esac
+
 chmod 700 "$CHECKPOINTS_ROOT"
 mkdir -m 700 "$CHECKPOINT_DIR"
 
