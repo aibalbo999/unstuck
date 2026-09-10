@@ -5,8 +5,9 @@ from __future__ import annotations
 import asyncio
 import threading
 import time
+from contextvars import ContextVar
 
-from config import API_KEY_SETUP_MESSAGE, MODEL_INPUT_TOKEN_LIMITS, RPD_LIMITS, RPM_LIMITS, TPM_LIMITS
+from config import LLM_PROVIDER_QUOTA_AUTHORITATIVE, API_KEY_SETUP_MESSAGE, MODEL_INPUT_TOKEN_LIMITS, RPD_LIMITS, RPM_LIMITS, TPM_LIMITS
 from llm_daily_budget import AllKeysRpdDisabledError, DailyBudgetBlockedError, DailyBudgetStore
 from llm_input_capacity import InputCapacityExceededError, ensure_input_capacity, estimate_text_tokens
 from llm_rate_limit_buckets import TokenBucket, build_key_status
@@ -34,14 +35,31 @@ class KeyRotator:
         self._local_rpd_limiter = LocalFixedWindowRateLimiter()
         self._model_circuits = ModelCircuitStore()
         self._daily_budget = DailyBudgetStore()
+        self._pending_daily_reservation = ContextVar("daily_reservation", default=None)
 
     def _daily_remaining(self, model: str) -> dict[str, int]:
         limit = RPD_LIMITS.get(model, RPD_LIMITS.get("*", 0))
         return self._daily_budget.remaining(self.keys, model, limit) if limit > 0 else {}
 
     def _reserve_daily_budget(self, key: str, model: str, request_units: int = 1) -> bool:
+        self._pending_daily_reservation.set(None)
         limit = RPD_LIMITS.get(model, RPD_LIMITS.get("*", 0))
-        return limit <= 0 or self._daily_budget.reserve(key, model, limit, self.keys, request_units=request_units)
+        if limit > 0 and request_units > 1:
+            receipt = self._daily_budget.reserve_with_receipt(key, model, limit, self.keys, request_units=request_units, enforce_limit=not LLM_PROVIDER_QUOTA_AUTHORITATIVE)
+            if receipt:
+                self._pending_daily_reservation.set((key, model, request_units, receipt))
+            return receipt is not None
+        return limit <= 0 or self._daily_budget.reserve(key, model, limit, self.keys, request_units=request_units, enforce_limit=not LLM_PROVIDER_QUOTA_AUTHORITATIVE)
+
+    def take_daily_reservation(self, key, model, request_units):
+        pending = self._pending_daily_reservation.get()
+        self._pending_daily_reservation.set(None)
+        if pending and pending[:3] == (key, model, request_units):
+            return pending[3]
+        return None
+
+    def settle_daily_reservation(self, receipt, accounted_units):
+        return self._daily_budget.settle_reservation(receipt, accounted_units=accounted_units)
 
     def _bucket(self, store: dict, key: str, model: str, limit: int | float) -> TokenBucket:
         bucket_key = (key, model)
@@ -88,7 +106,7 @@ class KeyRotator:
         if shared_circuit_wait > 0:
             raise ModelCircuitOpenError(model, shared_circuit_wait)
         provider, keys, candidates = self._candidate_key_positions(model)
-        remaining = self._daily_remaining(model)
+        remaining = {} if LLM_PROVIDER_QUOTA_AUTHORITATIVE else self._daily_remaining(model)
         available = []
         disabled_waits = []
         local_blocked = False
@@ -115,11 +133,15 @@ class KeyRotator:
             raise RuntimeError(f"未設定 {provider} API key，無法呼叫模型 {model}。")
         return provider, keys
 
+    def provider_quota_exhausted(self, model: str) -> bool:
+        _, keys = self._keys_for_model(model)
+        return bool(keys) and all(self._rpd_disabled_wait(key, model) > 0 for key in keys)
+
     def eligible_key_slots(self, model: str) -> set[int]:
         """Return anonymous ledger slots eligible for this provider/model."""
         _, keys = self._keys_for_model(model)
         try:
-            remaining = self._daily_remaining(model)
+            remaining = {} if LLM_PROVIDER_QUOTA_AUTHORITATIVE else self._daily_remaining(model)
         except DailyBudgetBlockedError:
             return set()
         return {self.keys.index(key) + 1 for key in keys
@@ -131,7 +153,7 @@ class KeyRotator:
     def model_retry_wait(self, model: str) -> float:
         _, keys = self._keys_for_model(model)
         try:
-            remaining = self._daily_remaining(model)
+            remaining = {} if LLM_PROVIDER_QUOTA_AUTHORITATIVE else self._daily_remaining(model)
         except DailyBudgetBlockedError as exc:
             return max(exc.retry_wait_seconds, self.model_circuit_wait(model))
         rpd_waits = [max(self._rpd_disabled_wait(key, model),

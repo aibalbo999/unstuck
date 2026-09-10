@@ -4,7 +4,7 @@ import asyncio
 
 from config import API_KEY_SETUP_MESSAGE, OUTPUT_DIR, has_api_keys
 from agent_runtime import AnalysisPipelineRunner, AnalysisRequest
-from agent_runtime.retry_policy import AgentRateLimitError
+from agent_runtime.retry_policy import AgentRateLimitError, AgentTransientError
 from analysis_job_helpers import (
     build_data_fetch_blocking_notice,
     build_operator_audit_notice,
@@ -249,7 +249,7 @@ async def run_stock_analysis_job_async(
         update_job(job_id, "error", error=message)
         append_event(job_id, {"type": "error", "message": message})
         return ""
-    except AgentRateLimitError as e:
+    except (AgentRateLimitError, AgentTransientError) as e:
         retry = prepare_analysis_retry(job_id, e)
         event = build_analysis_retry_event(e, retry)
         update_job(job_id, "waiting_retry" if retry["retry_scheduled"] else "error", error=event["error"])

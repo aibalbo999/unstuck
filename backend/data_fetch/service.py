@@ -46,6 +46,14 @@ class StockDataService:
         duration_ms = max(0, int(round((time.time() - started) * 1000)))
         return self._build_result(normalized_request, data or {}, duration_ms)
 
+    async def fetch_radar_async(self, request: FetchRequest, sources: tuple[str, ...]) -> FetchResult:
+        if "full" in sources or self._fetcher is not None:
+            return await self.fetch_async(request)
+        from .radar import fetch_radar_payload
+        started = time.time()
+        data = await fetch_radar_payload(request, sources, self.registry)
+        return self._build_result(request, data, max(0, int((time.time() - started) * 1000)))
+
     def fetch(self, request: FetchRequest) -> FetchResult:
         import asyncio
 

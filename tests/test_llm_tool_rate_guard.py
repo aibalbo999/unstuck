@@ -663,3 +663,68 @@ def test_stream_cleanup_error_preserves_cancellation(rig):
         assert caught.value is error
 
     asyncio.run(scenario())
+
+
+@pytest.mark.parametrize("mode", ["sync", "async", "stream"])
+@pytest.mark.parametrize("rounds", [1, 3, 6])
+def test_unused_tool_reservations_are_settled_after_actual_http_calls(rig, monkeypatch, mode, rounds):
+    monkeypatch.setattr(llm_rate_limits, "RPD_LIMITS", {MODEL: 16})
+    monkeypatch.setattr(rig.rotator, "_daily_remaining", llm_rate_limits.KeyRotator._daily_remaining.__get__(rig.rotator))
+    monkeypatch.setattr(rig.rotator, "_reserve_daily_budget", llm_rate_limits.KeyRotator._reserve_daily_budget.__get__(rig.rotator))
+    rig.sdk.payloads = [body()] * rounds
+    run(rig, mode)
+    assert len(rig.sdk.sent) == rounds
+    assert rig.rotator._daily_remaining(MODEL) == {KEY: 16 - rounds}
+
+
+@pytest.mark.parametrize("mode", ["sync", "async", "stream"])
+def test_settlement_makes_room_for_another_complete_tool_loop(rig, monkeypatch, mode):
+    monkeypatch.setattr(llm_rate_limits, "RPD_LIMITS", {MODEL: 12})
+    monkeypatch.setattr(llm_rate_limits, "asyncio", NS(Lock=asyncio.Lock, sleep=rig.clock.asleep))
+    monkeypatch.setattr(rig.rotator, "_daily_remaining", llm_rate_limits.KeyRotator._daily_remaining.__get__(rig.rotator))
+    monkeypatch.setattr(rig.rotator, "_reserve_daily_budget", llm_rate_limits.KeyRotator._reserve_daily_budget.__get__(rig.rotator))
+    # Each call still reserves all six slots before starting; early completion
+    # makes room for subsequent calls without increasing the twelve-unit cap.
+    rig.sdk.payloads = [body()]
+    for _ in range(7):
+        run(rig, mode)
+    assert len(rig.sdk.sent) == 7
+    assert rig.rotator._daily_remaining(MODEL) == {KEY: 5}
+
+
+@pytest.mark.parametrize('mode', ['sync', 'async'])
+@pytest.mark.parametrize('failure', ['error', 'cancelled'])
+def test_tool_settlement_keeps_claimed_attempt_on_failure(rig, monkeypatch, mode, failure):
+    monkeypatch.setattr(llm_rate_limits, 'RPD_LIMITS', {MODEL: 16})
+    monkeypatch.setattr(rig.rotator, '_daily_remaining', llm_rate_limits.KeyRotator._daily_remaining.__get__(rig.rotator))
+    monkeypatch.setattr(rig.rotator, '_reserve_daily_budget', llm_rate_limits.KeyRotator._reserve_daily_budget.__get__(rig.rotator))
+    rig.sdk.payloads = [body()]
+    rig.rotator.get_key(MODEL, 10, request_units=6)
+    scope = rig.guard.tool_request_scope(rig.rotator, KEY, MODEL, request_units=6)
+    error = asyncio.CancelledError() if failure == 'cancelled' else RuntimeError('provider outcome uncertain')
+    with pytest.raises(type(error)) as caught:
+        if mode == 'sync':
+            with scope:
+                llm_transport.generate_content(KEY, MODEL, 'prompt', None)
+                raise error
+        else:
+            async def scenario():
+                async with scope:
+                    await llm_transport.generate_content_async(KEY, MODEL, 'prompt', None)
+                    raise error
+            asyncio.run(scenario())
+    assert caught.value is error
+    assert len(rig.sdk.sent) == 1
+    assert rig.rotator._daily_remaining(MODEL) == {KEY: 15}
+    scope._settle_budget()
+    assert rig.rotator._daily_remaining(MODEL) == {KEY: 15}
+
+
+def test_no_http_hook_evidence_keeps_full_reservation(rig, monkeypatch):
+    monkeypatch.setattr(llm_rate_limits, 'RPD_LIMITS', {MODEL: 16})
+    monkeypatch.setattr(rig.rotator, '_daily_remaining', llm_rate_limits.KeyRotator._daily_remaining.__get__(rig.rotator))
+    monkeypatch.setattr(rig.rotator, '_reserve_daily_budget', llm_rate_limits.KeyRotator._reserve_daily_budget.__get__(rig.rotator))
+    rig.rotator.get_key(MODEL, 10, request_units=6)
+    with rig.guard.tool_request_scope(rig.rotator, KEY, MODEL, request_units=6):
+        pass
+    assert rig.rotator._daily_remaining(MODEL) == {KEY: 10}

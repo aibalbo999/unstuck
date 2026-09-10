@@ -6,11 +6,13 @@ import json
 import math
 import sqlite3
 import time
+import uuid
 from datetime import datetime, time as dt_time
 from zoneinfo import ZoneInfo
 
 from shared_runtime_guard_utils import guard_hash, seconds_until_next_pacific_midnight
 from storage.sqlite_resource import ThreadLocalSqliteResource
+from llm_budget_settlement import init_reservation_schema, record_reservation, settle_reservation
 
 
 PACIFIC = ZoneInfo("America/Los_Angeles")
@@ -42,6 +44,7 @@ def _db_path():
 
 
 def _init_schema(conn):
+    init_reservation_schema(conn)
     conn.execute("""CREATE TABLE IF NOT EXISTS llm_daily_budgets (
         quota_day TEXT NOT NULL, model_id TEXT NOT NULL, key_hash TEXT NOT NULL,
         used INTEGER NOT NULL DEFAULT 0, seeded INTEGER NOT NULL DEFAULT 0,
@@ -128,7 +131,22 @@ class DailyBudgetStore:
         except (sqlite3.Error, OSError):
             raise DailyBudgetBlockedError(model, 60.0, "budget_store_unavailable") from None
 
-    def reserve(self, key: str, model: str, limit: int, keys: list[str], *, request_units: int = 1) -> bool:
+    def reserve(self, key: str, model: str, limit: int, keys: list[str], *, request_units: int = 1, enforce_limit: bool = True) -> bool:
+        return self._reserve(key, model, limit, keys, request_units=request_units, enforce_limit=enforce_limit)
+
+    def reserve_with_receipt(self, key, model, limit, keys, *, request_units, enforce_limit=True):
+        receipt = uuid.uuid4().hex
+        if self._reserve(key, model, limit, keys, request_units=request_units, receipt=receipt, enforce_limit=enforce_limit):
+            return receipt
+        return None
+
+    def settle_reservation(self, receipt, *, accounted_units):
+        try:
+            return settle_reservation(self._resource.connect(), receipt, accounted_units, self._clock())
+        except (sqlite3.Error, OSError):
+            raise DailyBudgetBlockedError("reservation", 60.0, "budget_settlement_unavailable") from None
+
+    def _reserve(self, key, model, limit, keys, *, request_units, receipt=None, enforce_limit=True):
         request_units = max(1, int(request_units))
         try:
             conn = self._resource.connect()
@@ -136,11 +154,16 @@ class DailyBudgetStore:
             self._rows(conn, keys, model, now)
             # Conditional UPDATE is atomic across independent worker/API processes.
             with conn:
-                result = conn.execute(
-                    """UPDATE llm_daily_budgets SET used=used+?, updated_at=?
-                       WHERE quota_day=? AND model_id=? AND key_hash=? AND used<=?""",
-                    (request_units, now.timestamp(), now.date().isoformat(), model, guard_hash(key), limit - request_units),
-                )
+                sql = """UPDATE llm_daily_budgets SET used=used+?, updated_at=?
+                         WHERE quota_day=? AND model_id=? AND key_hash=?"""
+                params = (request_units, now.timestamp(), now.date().isoformat(), model, guard_hash(key))
+                if enforce_limit:
+                    sql += " AND used<=?"
+                    params += (limit - request_units,)
+                result = conn.execute(sql, params)
+                if result.rowcount == 1 and receipt:
+                    record_reservation(conn, receipt, now.date().isoformat(), model,
+                                       guard_hash(key), request_units, now.timestamp())
             return result.rowcount == 1
         except (sqlite3.Error, OSError):
             raise DailyBudgetBlockedError(model, 60.0, "budget_store_unavailable") from None
@@ -151,7 +174,9 @@ class DailyBudgetStore:
             if not isinstance(model, str) or model == "*" or isinstance(limit, bool) or not isinstance(limit, int) or limit <= 0:
                 continue
             remaining = self.remaining(keys, model, limit)
+            rows = self._rows(self._resource.connect(), keys, model, self._now())
             models[model] = {
+                "observed_requests": sum(rows[guard_hash(key)]["used"] for key in keys),
                 "per_project_budget": limit, "total_budget": limit * len(keys),
                 "remaining": sum(remaining.values()),
                 "available_projects": sum(value > 0 for value in remaining.values()),

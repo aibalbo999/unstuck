@@ -6,6 +6,7 @@ import math
 from datetime import datetime, timedelta, timezone
 
 from analysis_job_payloads import analysis_task_id
+from config import LLM_PROVIDER_QUOTA_AUTHORITATIVE
 
 
 def prepare_analysis_retry(job_id: str, error: Exception, *, task_id: str | None = None) -> dict:
@@ -23,6 +24,19 @@ def prepare_analysis_retry(job_id: str, error: Exception, *, task_id: str | None
         job = get_current_job()
         if job is not None and job.id == (task_id or analysis_task_id(job_id)):
             remaining = int(job.retries_left or 0)
+            # Renew only availability retries. Permanent request/quality failures
+            # retain their existing terminal behavior; cancellation is owned by RQ.
+            from agent_runtime.retry_policy import AgentRateLimitError, AgentTransientError
+            if LLM_PROVIDER_QUOTA_AUTHORITATIVE and isinstance(error, (AgentRateLimitError, AgentTransientError)):
+                meta = dict(getattr(job, "meta", None) or {})
+                count = max(0, int(meta.get("availability_retry_count", 0))) + 1
+                meta["availability_retry_count"] = count
+                meta["availability_retry_policy"] = "provider_feedback"
+                meta.setdefault("analysis_base_retry_intervals", list(job.retry_intervals or [60]))
+                job.meta = meta
+                wait = max(wait, min(1800, 300 * 2 ** min(count - 1, 3)))
+                remaining = max(1, remaining)
+                job.retries_left = remaining
             if remaining > 0:
                 meta = dict(getattr(job, "meta", None) or {})
                 baseline = meta.setdefault("analysis_base_retry_intervals", list(job.retry_intervals or [60]))
@@ -45,6 +59,8 @@ def prepare_analysis_retry(job_id: str, error: Exception, *, task_id: str | None
         "retry_budget_exhausted": remaining == 0,
         "queue_retries_left": remaining,
         "routes": list(getattr(error, "routes", []) or []),
+        "provider_quota_confirmed": getattr(error, "provider_quota_confirmed", False) is True,
+        "retry_policy": "provider_feedback" if LLM_PROVIDER_QUOTA_AUTHORITATIVE else "bounded_queue_retries",
         **({"retry_preparation_error": preparation_error} if preparation_error else {}),
     }
 
@@ -58,6 +74,8 @@ def build_analysis_retry_event(error: Exception, retry: dict, *, rerun: bool = F
             if rerun else
             f"模型暫時不可用；進度已保留，至少 {retry['retry_after_seconds']} 秒後重試，不產生缺段報告。"
         )
+        if retry.get("provider_quota_confirmed"):
+            message = f"供應商已確認目前可用路徑的每日額度耗盡；進度保留，至少 {retry['retry_after_seconds']} 秒後重試。"
     elif retry["retry_budget_exhausted"]:
         message = (
             "模型仍不可用且自動重試次數已用完，請稍後重新送出。"

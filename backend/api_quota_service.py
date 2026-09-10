@@ -7,7 +7,7 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from config import (
-    API_KEYS, FMP_API_KEY, RPD_LIMITS, RPM_LIMITS, TPM_LIMITS, MODEL_INPUT_TOKEN_LIMITS,
+    LLM_PROVIDER_QUOTA_AUTHORITATIVE, API_KEYS, FMP_API_KEY, RPD_LIMITS, RPM_LIMITS, TPM_LIMITS, MODEL_INPUT_TOKEN_LIMITS,
     AGENT_MODELS, AGENT_FALLBACK_MODELS, CONTEXT_DIGEST_MODEL, TEAR_SHEET_MODEL, MODEL_ROUTES,
     LLM_QUOTA_MAX_ATTEMPTS_PER_MODEL, LLM_ROUTE_SERVER_ERROR_MAX_ATTEMPTS, LLM_SERVER_ERROR_MAX_ATTEMPTS,
 )
@@ -169,6 +169,7 @@ def build_api_quota_payload(provider_summary_fetcher) -> dict:
         gemini_usage["daily_budget"] = DAILY_BUDGET_STORE.summary(API_KEYS, RPD_LIMITS)
     except DailyBudgetBlockedError:
         gemini_usage["daily_budget"] = {"available": False, "reason": "budget_store_unavailable"}
+    gemini_usage["daily_budget"]["enforced"] = not LLM_PROVIDER_QUOTA_AUTHORITATIVE
     for name, timezone_name in (("daily_profile", "Asia/Taipei"), ("quota_day_profile", "America/Los_Angeles")):
         try:
             gemini_usage[name] = summarize_llm_daily_usage(timezone_name=timezone_name)
@@ -185,7 +186,8 @@ def build_api_quota_payload(provider_summary_fetcher) -> dict:
             "context_digest_model": CONTEXT_DIGEST_MODEL, "tear_sheet_model": TEAR_SHEET_MODEL,
             "rpm_limits": RPM_LIMITS, "tpm_limits": TPM_LIMITS, "input_token_limits": MODEL_INPUT_TOKEN_LIMITS,
             "provider_limits_verified": False, "limit_basis": "local_operating_budgets_not_provider_entitlements",
-            "rpd_limits": RPD_LIMITS, "rpd_enforcement": "atomic_sqlite_per_key_model_pacific_day",
+            "rpd_limits": RPD_LIMITS, "rpd_enforcement": "provider_feedback_only" if LLM_PROVIDER_QUOTA_AUTHORITATIVE else "atomic_sqlite_per_key_model_pacific_day",
+            "availability_retry_policy": "persistent_with_backoff" if LLM_PROVIDER_QUOTA_AUTHORITATIVE else "bounded_queue_retries",
             "project_quota_assumption": MODEL_ROUTES.get("project_quota_assumption", "unspecified"),
             "assumed_project_count": MODEL_ROUTES.get("assumed_project_count"),
             "quota_max_attempts_per_model": LLM_QUOTA_MAX_ATTEMPTS_PER_MODEL,
@@ -202,9 +204,10 @@ def build_api_quota_payload(provider_summary_fetcher) -> dict:
                 daily_limit=RPD_LIMITS or None,
                 usage=gemini_usage,
                 notes=[
-                    (f"依使用者指定，按 {MODEL_ROUTES.get('assumed_project_count')} 個獨立免費專案規劃；每日預算逐 key/model 執行。"
+                    (f"依使用者指定，按 {MODEL_ROUTES.get('assumed_project_count')} 個獨立免費專案規劃；每日用量逐 key/model 記錄。"
                      if MODEL_ROUTES.get("project_quota_assumption") == "user_declared_independent_free_projects"
                      else "Gemini RPD 依 Google project 計算，不是依單支 API key 分開計算。"),
+                    ("本機每日數字僅供觀測；僅供應商明確回報每日額度耗盡時停用該 key/model，暫時錯誤持續退避重試。" if LLM_PROVIDER_QUOTA_AUTHORITATIVE else "本機每日預算會限制送出請求。"),
                     "本機預算納入已記錄請求；歷史漏記、其他程式用量無法完整扣帳，並非 Google 實際剩餘額度。",
                 ],
             ), "limit_basis": "local_configuration_not_verified_provider_quota"},

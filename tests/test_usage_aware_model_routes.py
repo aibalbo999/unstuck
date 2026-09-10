@@ -11,6 +11,7 @@ def test_usage_aware_profile_is_scoped_to_validated_roles():
     for agent in [7, 16, 19, 24]:
         assert profile["agents"][str(agent)] == "gemini-3.8-flash"
         assert "gemini-3-flash-preview" in profile["agent_fallbacks"][str(agent)]
+    assert profile["provider_quota_authoritative"] is True
     assert profile["default_analysis_model"] == "gemma-4-31b-it"
     assert profile["input_token_limits"]["gemma-4-31b-it"] < profile["tpm_limits"]["gemma-4-31b-it"]
     assert profile["embedding_model"] == "gemini-embedding-2"

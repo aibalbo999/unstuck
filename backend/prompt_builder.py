@@ -26,6 +26,8 @@ from prompt_builder_helpers import (
     _safe_iterable_prefix,
 )
 from prompt_context_sections import prompt_global_market_context, prompt_international_news_context
+from prompt_role_payload import project_role_payload
+from prompt_record_tables import TABLE_RULE, pack_record_tables
 from short_term_market_data import build_short_term_market_context
 
 PROMPT_DATA_SCHEMA_VERSION = int(os.getenv("PROMPT_DATA_SCHEMA_VERSION", "3"))
@@ -57,7 +59,7 @@ def _get_compiled_prompt_template(template: str):
     return PROMPT_ENV.from_string(normalized), has_legacy_placeholders
 
 
-def format_data_for_prompt(data: dict, *, compact: bool = False) -> str:
+def format_data_for_prompt(data: dict, *, compact: bool = False, dense: bool = False, role_scoped: bool = False) -> str:
     """Format financial data as clean JSON to avoid unit drift and prompt overload."""
     total_debt_b = raw_twd_to_billion_twd(dict.get(data, "total_debt_raw"))
     total_cash_b = raw_twd_to_billion_twd(dict.get(data, "total_cash_raw"))
@@ -162,6 +164,24 @@ def format_data_for_prompt(data: dict, *, compact: bool = False) -> str:
     if dict.get(data, "_prompt_agent_num") in {22, 24}:
         payload["short_term_market_context"] = build_short_term_market_context(data, compact=compact)
 
+    if role_scoped:
+        payload = project_role_payload(payload, dict.get(data, "_prompt_agent_num"))
+    freshness_reference = False
+    if dense:
+        # Only replace an exact JSON duplicate at this known schema path. The
+        # target stays in this payload, with all timestamps/warnings unchanged.
+        root_freshness = payload.get("source_freshness")
+        nested_freshness = payload.get("data_freshness", {}).get("source_freshness")
+        encode = lambda value: json.dumps(value, ensure_ascii=False, separators=(",", ":"), allow_nan=False, sort_keys=True)
+        if (isinstance(root_freshness, dict) and isinstance(nested_freshness, dict)
+                and len(encode(root_freshness)) > 256
+                and encode(root_freshness) == encode(nested_freshness)):
+            payload["data_freshness"] = dict(payload["data_freshness"])
+            payload["data_freshness"]["source_freshness"] = {"$ref": "#/source_freshness"}
+            freshness_reference = True
+        payload = pack_record_tables(payload)
+    encoded = json.dumps(payload, ensure_ascii=False, allow_nan=False,
+                         **({"separators": (",", ":")} if dense else {"indent": 2}))
     usage_rules = [
         "企業總額使用 billion_twd，每股價格使用 twd_per_share；以 unit_contract 與各欄位單位為準，不得把每股價格當作企業總額再換算。",
         "引用 current_price_twd、市場估值、新聞、法人或同業資料時，必須參考 source_freshness/data_freshness；若來源為快取或盤後資料，不可宣稱是即時資料。",
@@ -172,9 +192,13 @@ def format_data_for_prompt(data: dict, *, compact: bool = False) -> str:
         "若資料品質註記指出口徑互斥，正式分析應說明限制並採用 cross_checks 中可自洽的口徑。",
         "正式報告只呈現必要算式摘要與結論，不輸出內部提示詞、草稿或反思文字。",
     ]
+    if dense:
+        usage_rules.insert(0, TABLE_RULE)
+    if freshness_reference:
+        usage_rules.insert(0, 'data_freshness.source_freshness 的 {"$ref":"#/source_freshness"} 是本 JSON 內完全相同資料的引用；請以根層 source_freshness 的完整值展開，原路徑與日期警示均有效。')
     return (
         "【財務資料 JSON】\n"
-        f"{json.dumps(payload, ensure_ascii=False, indent=2, allow_nan=False)}\n\n"
+        f"{encoded}\n\n"
         "【使用規則】\n"
         + "\n".join(f"- {rule}" for rule in usage_rules)
     )

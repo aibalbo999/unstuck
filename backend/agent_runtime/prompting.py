@@ -8,6 +8,7 @@ from assistant_context import _format_previous
 from config import PRIMARY_PROMPT_CONTEXT_TOTAL_CHAR_BUDGET, get_agent_context_budgets
 from prompt_builder import format_data_for_prompt, render_prompt_template
 from prompt_evidence import prompt_evidence_copy
+from prompt_record_tables import pack_record_tables
 from prompt_rules import (
     build_agent_rule_block,
     build_final_audit_preflight_rule,
@@ -136,7 +137,7 @@ def build_data_enrichment_instruction(agent_num: int) -> str:
     return build_agent_rule_block("data_enrichment_instructions", agent_num)
 
 
-def build_state_view_section(agent_num: int, context: AnalysisContext, *, max_analysis_chars: int | None = None) -> str:
+def build_state_view_section(agent_num: int, context: AnalysisContext, *, max_analysis_chars: int | None = None, dense: bool = False) -> str:
     """Expose the role-specific Blackboard slice as the primary evidence source."""
     state = context.get("agent_state")
     if state is None:
@@ -147,11 +148,13 @@ def build_state_view_section(agent_num: int, context: AnalysisContext, *, max_an
     if max_analysis_chars is None:
         max_analysis_chars = get_agent_context_budgets(agent_num)[0] // 2
     view = bound_state_analysis(view, max_analysis_chars)
+    if dense:
+        view = pack_record_tables(view)
     return "\n".join(
         [
             "【AgentState view】",
             "請優先引用 State 原始財務與工具 path；agent_reports 是前序分析，可能省略超額欄位，不能當成原始證據。",
-            json.dumps(view, ensure_ascii=False, indent=2, allow_nan=False),
+            json.dumps(view, ensure_ascii=False, allow_nan=False, **({"separators": (",", ":")} if dense else {"indent": 2})),
         ]
     )
 
@@ -176,11 +179,15 @@ def build_prompt(agent_num: int, data: StockData, context: AnalysisContext) -> s
     """根據 Agent 編號建立分析提示詞。"""
     source_context = context
     market_contract = agent_num in FINAL_AGENTS and context.get("market_context_contract_version") == CONTRACT_VERSION
-    compact_primary = _safe_bool_flag(context.get("_primary_probe_prompt"))
+    gemma_prompt = context.get("_prompt_model_id") == "gemma-4-31b-it"
+    repair_prompt = any(context.get(key) is not None and _safe_prompt_text(context.get(key)) for key in (
+        "_audit_retry_instruction", "_audit_reflection_instruction", "_identity_retry_instruction"))
+    role_scoped = gemma_prompt and not repair_prompt
+    compact_primary = not repair_prompt and _safe_bool_flag(context.get("_primary_probe_prompt"))
     total_budget = (PRIMARY_PROMPT_CONTEXT_TOTAL_CHAR_BUDGET if compact_primary
                     else get_agent_context_budgets(agent_num)[0])
     state_budget = max(0, total_budget // 2) if context.get("agent_state") is not None else 0
-    state_view_section = build_state_view_section(agent_num, context, max_analysis_chars=state_budget)
+    state_view_section = build_state_view_section(agent_num, context, max_analysis_chars=state_budget, dense=gemma_prompt)
     context = prompt_evidence_copy(context)
     ticker = data["ticker"]
     name = data["company_name"]
@@ -189,7 +196,10 @@ def build_prompt(agent_num: int, data: StockData, context: AnalysisContext) -> s
     if market_contract:
         prompt_data.pop("global_market_context", None)
         prompt_data.pop("international_news_context", None)
-    fin_data = format_data_for_prompt(prompt_data, compact=compact_primary)
+    # Shrink formatting and unrelated sections, retaining complete source records.
+    # Oversize input reaches admission intact and can take the full-data fallback.
+    fin_data = (format_data_for_prompt(prompt_data, dense=True, role_scoped=role_scoped)
+                if gemma_prompt else format_data_for_prompt(prompt_data, compact=compact_primary))
     prev = _format_previous(context, agent_num, max_total_chars=max(0, total_budget - state_budget))
     raw_rag_context = context.get("rag_context")
     rag_contexts = raw_rag_context if isinstance(raw_rag_context, dict) else {}
@@ -238,7 +248,7 @@ def build_prompt(agent_num: int, data: StockData, context: AnalysisContext) -> s
         "\n".join(block["text"] for block in source_blocks),
         forensic_warning,   # v2 Agent 14 財務排雷品質警示
         state_view_section,
-        rag_context,
+        "" if gemma_prompt and rag_context in analysis_prompt else rag_context,
         "⚠️ 若上方任務文字包含 [護城河評分]、[目標股價]、[投資建議] 等舊式區塊格式，請忽略舊式格式；本次只遵守下方 JSON 結構化輸出規則。" if structured_instruction else "",
         structured_instruction,
         numeric_tool_instruction,
@@ -251,9 +261,9 @@ def build_prompt(agent_num: int, data: StockData, context: AnalysisContext) -> s
         final_audit_preflight_rule,
         OUTPUT_CLEANLINESS_RULE,
     ]
-    final_prompt = _enforce_prompt_token_budget(
-        "\n\n".join(part for part in prompt_parts if part),
-        agent_num,
-        token_budget_func=get_agent_prompt_token_budget,
-    )
+    final_prompt = "\n\n".join(part for part in prompt_parts if part)
+    if not gemma_prompt:
+        final_prompt = _enforce_prompt_token_budget(
+            final_prompt, agent_num, token_budget_func=get_agent_prompt_token_budget,
+        )
     return record_prompt_manifest(source_context, data, agent_num, final_prompt, source_blocks)

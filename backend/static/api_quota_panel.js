@@ -80,7 +80,7 @@
                             <em>${escapeHtml(quotaHealth(service).label)}</em>
                         </span>
                         <span class="provider-sla-detail">重置：${escapeHtml(service.reset_label || 'N/A')}</span>
-                        <span class="provider-sla-meta">台灣時間 ${escapeHtml(formatDateTime(service.next_reset_taipei))} · key ${escapeHtml(service.key_count ?? 0)} · ${service.limit_basis ? '每專案本機每日預算' : 'limit'} ${escapeHtml(limitLabel(service.daily_limit))}</span>
+                        <span class="provider-sla-meta">台灣時間 ${escapeHtml(formatDateTime(service.next_reset_taipei))} · key ${escapeHtml(service.key_count ?? 0)} · ${service.usage?.daily_budget?.enforced === false ? '每專案本機每日參考值（不攔截）' : service.limit_basis ? '每專案本機每日預算' : 'limit'} ${escapeHtml(limitLabel(service.daily_limit))}</span>
                         <span class="provider-sla-meta">${escapeHtml(usage)}</span>
                         ${budget ? `<span class="provider-sla-meta">${escapeHtml(budget)}</span>` : ''}
                         ${notes ? `<span class="provider-sla-detail">${escapeHtml(notes)}</span>` : ''}

@@ -197,7 +197,7 @@ def _raise_agent_call_error(exc: Exception, api_key: Optional[str], model_id: st
         key_slot, key_count = _key_slot(api_key, rotator)
         detail = str(exc)
         if isinstance(exc, ModelCircuitOpenError):
-            detail = f"模型 {exc.model} 的 quota circuit 已開啟，暫停送出 provider request"
+            detail = f"模型 {exc.model} 的 暫時冷卻已啟動，稍後再送出 provider request"
         elif isinstance(exc, AllKeysRpdDisabledError):
             detail = f"每日請求額度（RPD）：模型 {exc.model} 的所有 key 暫停至 Pacific Time 下一個午夜"
         retry_wait = max(float(exc.retry_wait_seconds), 1.0)

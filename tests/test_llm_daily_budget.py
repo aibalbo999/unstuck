@@ -117,6 +117,7 @@ def test_unavailable_database_fails_closed_without_leaking_path(tmp_path):
 @pytest.fixture
 def rotator(monkeypatch, tmp_path):
     import llm_rate_limits as limits
+    monkeypatch.setattr(limits, 'LLM_PROVIDER_QUOTA_AUTHORITATIVE', False)
     monkeypatch.setattr(limits, 'RPD_LIMITS', {'m': 1})
     monkeypatch.setattr(limits, 'RPM_LIMITS', {'*': 1000})
     monkeypatch.setattr(limits, 'TPM_LIMITS', {})
@@ -186,3 +187,58 @@ def test_tool_guard_contract_error_is_local_and_not_retried(rotator):
     assert type(exc).__name__ in LOCAL_BLOCK_KINDS
     with pytest.raises(AgentConfigurationError):
         _raise_agent_call_error(exc, None, 'm', rotator, 60)
+
+
+def test_reservation_settlement_is_idempotent_and_keeps_original_quota_day(tmp_path):
+    path = tmp_path / 'budget.sqlite3'
+    before = datetime.fromisoformat('2026-09-06T06:59:59+00:00').timestamp()
+    after = datetime.fromisoformat('2026-09-06T07:00:00+00:00').timestamp()
+    old = store_at(path, before)
+    receipt = old.reserve_with_receipt('a', 'm', 16, ['a'], request_units=6)
+    assert receipt
+    assert old.remaining(['a'], 'm', 16) == {'a': 10}
+    new = store_at(path, after)
+    assert new.reserve('a', 'm', 16, ['a'], request_units=4)
+    assert new.settle_reservation(receipt, accounted_units=2) == 4
+    assert new.settle_reservation(receipt, accounted_units=2) == 0
+    assert new.remaining(['a'], 'm', 16) == {'a': 12}
+    assert old.remaining(['a'], 'm', 16) == {'a': 14}
+
+
+def test_parallel_settlement_never_refunds_the_same_receipt_twice(tmp_path):
+    path = tmp_path / 'budget.sqlite3'
+    store = store_at(path)
+    receipt = store.reserve_with_receipt('a', 'm', 16, ['a'], request_units=6)
+    def settle(_):
+        local = store_at(path)
+        try:
+            return local.settle_reservation(receipt, accounted_units=1)
+        finally:
+            local.close_current_thread()
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        assert sum(pool.map(settle, range(8))) == 5
+    assert store.remaining(['a'], 'm', 16) == {'a': 15}
+
+
+@pytest.mark.parametrize('used', [-1, 7, True, 1.5])
+def test_invalid_settlement_never_changes_budget(tmp_path, used):
+    store = store_at(tmp_path / 'budget.sqlite3')
+    receipt = store.reserve_with_receipt('a', 'm', 16, ['a'], request_units=6)
+    with pytest.raises(ValueError):
+        store.settle_reservation(receipt, accounted_units=used)
+    assert store.remaining(['a'], 'm', 16) == {'a': 10}
+
+
+def test_failed_settlement_rolls_back_receipt_and_budget_together(tmp_path):
+    path = tmp_path / 'budget.sqlite3'
+    store = store_at(path)
+    receipt = store.reserve_with_receipt('a', 'm', 16, ['a'], request_units=6)
+    with closing(sqlite3.connect(path)) as conn:
+        conn.execute("CREATE TRIGGER block_refund BEFORE UPDATE ON llm_daily_budgets BEGIN SELECT RAISE(ABORT, 'offline failure'); END")
+    with pytest.raises(DailyBudgetBlockedError):
+        store.settle_reservation(receipt, accounted_units=1)
+    assert store.remaining(['a'], 'm', 16) == {'a': 10}
+    with closing(sqlite3.connect(path)) as conn:
+        assert conn.execute('SELECT accounted_units FROM llm_budget_reservations').fetchone()[0] is None
+        conn.execute('DROP TRIGGER block_refund')
+    assert store.settle_reservation(receipt, accounted_units=1) == 5

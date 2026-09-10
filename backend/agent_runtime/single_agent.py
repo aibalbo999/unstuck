@@ -40,6 +40,21 @@ from .step_cache import (
 )
 from .single_agent_events import emit_async_model_event, emit_sync_model_event
 from runtime_events import emit_log
+def _build_model_prompt(agent_num, data, context, model_id, compact_primary):
+    keys = ("_primary_probe_prompt", "_prompt_model_id")
+    previous = {key: context[key] for key in keys if key in context}
+    try:
+        context["_primary_probe_prompt"] = compact_primary
+        context["_prompt_model_id"] = model_id
+        return build_prompt(agent_num, data, context)
+    finally:
+        for key in keys:
+            if key in previous:
+                context[key] = previous[key]
+            else:
+                context.pop(key, None)
+
+
 def run_single_agent(
     agent_num: int,
     data: StockData,
@@ -81,11 +96,9 @@ def run_single_agent(
         has_fallback = len(model_sequence) > model_index + 1
         timeout_seconds = timeout_for_model_call(model_index, has_fallback)
         policy = model_attempt_policy(model_index, has_fallback, max_retries, model_key_count(rotator, model_id))
-        try:
-            context["_primary_probe_prompt"] = model_index == 0 and has_fallback
-            prompt = build_prompt(agent_num, data, context)
-        finally:
-            context.pop("_primary_probe_prompt", None)
+        prompt = _build_model_prompt(
+            agent_num, data, context, model_id, model_index == 0 and has_fallback,
+        )
         cache_key = build_agent_step_cache_key(agent_num, data, context, model_id, prompt)
         cached_step = get_cached_agent_step(cache_key)
         if cached_step is not None and cached_market_context_matches(context, agent_num, cached_step, prompt):
@@ -189,11 +202,9 @@ async def run_single_agent_async(
         has_fallback = len(model_sequence) > model_index + 1
         timeout_seconds = timeout_for_model_call(model_index, has_fallback)
         policy = model_attempt_policy(model_index, has_fallback, max_retries, model_key_count(rotator, model_id))
-        try:
-            context["_primary_probe_prompt"] = model_index == 0 and has_fallback
-            prompt = build_prompt(agent_num, data, context)
-        finally:
-            context.pop("_primary_probe_prompt", None)
+        prompt = _build_model_prompt(
+            agent_num, data, context, model_id, model_index == 0 and has_fallback,
+        )
         cache_key = build_agent_step_cache_key(agent_num, data, context, model_id, prompt)
         cached_step = get_cached_agent_step(cache_key)
         if cached_step is not None and cached_market_context_matches(context, agent_num, cached_step, prompt):

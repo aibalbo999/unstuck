@@ -52,7 +52,8 @@ def test_rq_retry_respects_model_recovery_time(retry_job):
     assert events[-1]["routes"][0]["reason_code"] == "daily_quota_disabled"
 
 
-def test_exhausted_rq_retry_budget_does_not_leave_waiting_job(retry_job):
+def test_exhausted_rq_retry_budget_does_not_leave_waiting_job(retry_job, monkeypatch):
+    monkeypatch.setattr("analysis_job_retry.LLM_PROVIDER_QUOTA_AUTHORITATIVE", False)
     job, events, updates, _ = retry_job
     job.retries_left = 0
     with pytest.raises(AgentDeferredError):
@@ -221,3 +222,23 @@ def test_retry_preparation_failure_keeps_callers_terminal_and_redacts_detail(mon
     assert "secret-fixture-token" not in json.dumps([events[-1], updates[-1]])
     assert "redis://" not in json.dumps([events[-1], updates[-1]])
     assert not any(event["type"] in {"done", "report_done"} for event in events)
+
+
+@pytest.mark.parametrize('caller', ['analysis', 'rerun'])
+def test_provider_authority_entrypoints_schedule_direct_transient_errors(monkeypatch, request, tmp_path, caller):
+    from agent_runtime.retry_policy import AgentTransientError
+    job, events, updates = request.getfixturevalue('retry_job' if caller == 'analysis' else 'rerun_retry_job')[:3]
+    job.retries_left=0
+    monkeypatch.setattr('analysis_job_retry.LLM_PROVIDER_QUOTA_AUTHORITATIVE',True)
+    async def unavailable(*args, **kwargs): raise AgentTransientError('503 temporary overload')
+    if caller == 'analysis':
+        monkeypatch.setattr(analysis_jobs,'PIPELINE_RUNNER',SimpleNamespace(run_async=unavailable))
+        invoke=analysis_jobs.run_stock_analysis_job_async('job-deferred','TEST','v4')
+    else:
+        monkeypatch.setattr(report_rerun_jobs.report_rerun_service,'rerun_report_analysis',unavailable)
+        invoke=report_rerun_jobs.run_report_rerun_job_async('rerun-deferred','sample.html',output_dir=str(tmp_path),storage=object())
+    with pytest.raises(AgentTransientError):asyncio.run(invoke)
+    assert updates[-1][0]=='waiting_retry'
+    assert events[-1]['retry_scheduled'] is True
+    assert events[-1]['provider_quota_confirmed'] is False
+    assert job.retries_left>0
