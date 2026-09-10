@@ -12,7 +12,7 @@ from oos_research.calendar import calendar_digest, first_session_after, validate
 from oos_research.canonical import canonical_bytes, content_hash, sha256_bytes
 from oos_research.dataset import validate_dataset
 from oos_research.evaluation import make_evaluation, select_latest_revisions, validate_evaluation
-from oos_research.inventory import validate_inventory
+from oos_research.inventory import validate_inventory, validate_inventory_scope
 from oos_research.manifest import build_manifest, manifest_hash, validate_manifest
 from oos_research.policies import DEFAULT_POLICIES, validate_policies
 from oos_research.prediction import evaluate_a_horizon, evaluate_prediction_oos
@@ -476,6 +476,229 @@ def test_oos_10_cli_replay_writes_complete_bundle(tmp_path):
                         inventory_input=str(inventory_path), dataset_input=str(dataset_path))
     assert output["summary"]["candidate_total"] == 1
     assert output["summary"]["evaluation_total"] == 3
+
+
+def test_registered_inventory_scope_requires_the_exact_manifest_cartesian_product(tmp_path):
+    manifest = _manifest()
+    manifest["policies"]["cohort_candidate_count"] = 4
+    manifest["manifest_sha256"] = manifest_hash(manifest)
+    inventory = {
+        "coverage_status": "closed",
+        "candidates": [{
+            **_candidate("v1"),
+            "ticker": "2330",
+            "pipeline_id": "v1",
+        }],
+    }
+
+    with pytest.raises(ValueError, match="registered candidate set"):
+        validate_inventory_scope(inventory, manifest=manifest)
+
+    manifest_path = tmp_path / "manifest.json"
+    inventory_path = tmp_path / "inventory.json"
+    dataset_path = tmp_path / "dataset.json"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    inventory_path.write_text(json.dumps(inventory), encoding="utf-8")
+    dataset_path.write_text(json.dumps(_dataset()), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="registered candidate set"):
+        run_replay(
+            root=str(tmp_path / "study"),
+            manifest_input=str(manifest_path),
+            inventory_input=str(inventory_path),
+            dataset_input=str(dataset_path),
+        )
+    assert not (tmp_path / "study").exists()
+
+
+def test_registered_inventory_scope_requires_an_external_final_inventory_pin(tmp_path):
+    manifest = _manifest()
+    manifest["pipelines"] = ["v1"]
+    manifest["horizons"] = {"v1": [3, 6, 12]}
+    manifest["policies"]["cohort_candidate_count"] = 1
+    manifest["manifest_sha256"] = manifest_hash(manifest)
+    inventory = {
+        "coverage_status": "closed",
+        "candidates": [{
+            **_candidate("v1"),
+            "ticker": "2330",
+            "pipeline_id": "v1",
+        }],
+    }
+    manifest_path = tmp_path / "manifest.json"
+    inventory_path = tmp_path / "inventory.json"
+    dataset_path = tmp_path / "dataset.json"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    inventory_path.write_text(json.dumps(inventory), encoding="utf-8")
+    dataset_path.write_text(json.dumps(_dataset()), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="expected inventory SHA-256 is required"):
+        run_replay(
+            root=str(tmp_path / "missing-pin"),
+            manifest_input=str(manifest_path),
+            inventory_input=str(inventory_path),
+            dataset_input=str(dataset_path),
+        )
+    with pytest.raises(ValueError, match="expected inventory SHA-256 does not match"):
+        run_replay(
+            root=str(tmp_path / "wrong-pin"),
+            manifest_input=str(manifest_path),
+            inventory_input=str(inventory_path),
+            dataset_input=str(dataset_path),
+            expected_inventory_sha256="f" * 64,
+        )
+
+
+def test_registered_prospective_replay_rejects_nonofficial_dataset_before_store_write(tmp_path):
+    fields = dict(_manifest("prospective-official-only"))
+    fields.pop("manifest_sha256")
+    fields["study_kind"] = "prospective"
+    fields["policies"] = {
+        **fields["policies"],
+        "calendar_policy": "explicit_official_twse_sessions",
+    }
+    manifest = build_manifest(**fields)
+    inventory = {
+        "coverage_status": "closed",
+        "candidates": [{
+            **_candidate("v1"),
+            "ticker": "2330",
+            "pipeline_id": "v1",
+        }],
+    }
+    manifest_path = tmp_path / "manifest.json"
+    inventory_path = tmp_path / "inventory.json"
+    dataset_path = tmp_path / "dataset.json"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    inventory_path.write_text(json.dumps(inventory), encoding="utf-8")
+    dataset_path.write_text(json.dumps(_dataset()), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="official reconstructed dataset"):
+        run_replay(
+            root=str(tmp_path / "study"),
+            manifest_input=str(manifest_path),
+            inventory_input=str(inventory_path),
+            dataset_input=str(dataset_path),
+        )
+    assert not (tmp_path / "study").exists()
+
+
+def test_official_replay_requires_independent_session_calendar_input(tmp_path):
+    manifest_path = tmp_path / "manifest.json"
+    inventory_path = tmp_path / "inventory.json"
+    dataset_path = tmp_path / "dataset.json"
+    manifest_path.write_text(json.dumps(_manifest()), encoding="utf-8")
+    inventory = {
+        "coverage_status": "closed",
+        "candidates": [{
+            **_candidate("v1"),
+            "ticker": "2330",
+            "pipeline_id": "v1",
+        }],
+    }
+    inventory_hash = validate_inventory(inventory)
+    inventory_path.write_text(json.dumps(inventory), encoding="utf-8")
+    dataset_path.write_text(json.dumps({
+        **_dataset(),
+        "provider": "TWSE_STOCK_DAY+TPEx_tradingStock",
+        "candidate_inventory_sha256": inventory_hash,
+    }), encoding="utf-8")
+
+    with pytest.raises(ValueError, match="session calendar input is required"):
+        run_replay(
+            root=str(tmp_path / "study"),
+            manifest_input=str(manifest_path),
+            inventory_input=str(inventory_path),
+            dataset_input=str(dataset_path),
+        )
+    assert not (tmp_path / "study").exists()
+
+
+def test_official_replay_requires_external_session_calendar_pin_before_store_write(tmp_path):
+    manifest_path = tmp_path / "manifest.json"
+    inventory_path = tmp_path / "inventory.json"
+    dataset_path = tmp_path / "dataset.json"
+    sessions_path = tmp_path / "sessions.json"
+    manifest_path.write_text(json.dumps(_manifest()), encoding="utf-8")
+    inventory = {
+        "coverage_status": "closed",
+        "candidates": [{**_candidate("v1"), "ticker": "2330", "pipeline_id": "v1"}],
+    }
+    inventory_hash = validate_inventory(inventory)
+    inventory_path.write_text(json.dumps(inventory), encoding="utf-8")
+    sessions = {
+        "schema_version": "oos.exchange-sessions.v1",
+        "market": "tw",
+        "timezone": "Asia/Taipei",
+        "session_open_local_time": "09:00:00",
+        "range": {"start": "2026-01-01", "end": "2026-01-02"},
+        "calendar_definition_sha256": "c" * 64,
+        "sessions": ["2026-01-01", "2026-01-02"],
+    }
+    sessions_path.write_text(json.dumps(sessions), encoding="utf-8")
+    dataset_path.write_text(json.dumps({
+        **_dataset(),
+        "provider": "TWSE_STOCK_DAY+TPEx_tradingStock",
+        "candidate_inventory_sha256": inventory_hash,
+    }), encoding="utf-8")
+
+    common = dict(
+        manifest_input=str(manifest_path),
+        inventory_input=str(inventory_path),
+        dataset_input=str(dataset_path),
+        session_calendar_input=str(sessions_path),
+    )
+    with pytest.raises(ValueError, match="expected session calendar SHA-256 is required"):
+        run_replay(root=str(tmp_path / "missing-pin"), **common)
+    with pytest.raises(ValueError, match="expected session calendar SHA-256 does not match"):
+        run_replay(
+            root=str(tmp_path / "wrong-pin"),
+            expected_session_calendar_sha256="f" * 64,
+            **common,
+        )
+    assert not (tmp_path / "missing-pin").exists()
+    assert not (tmp_path / "wrong-pin").exists()
+
+
+def test_prospective_replay_applies_manifest_prompt_and_route_identity_to_admission(tmp_path):
+    fields = dict(_manifest("prospective-runtime-identity"))
+    fields.pop("manifest_sha256")
+    fields["study_kind"] = "prospective"
+    fields["runtime_identity"] = {
+        "production_parent_commit": "e" * 40,
+        "prompt_fingerprint": "f" * 64,
+        "model_route_policy_sha256": "1" * 64,
+    }
+    manifest = build_manifest(**fields)
+    candidate = {
+        **_candidate("v1"),
+        "ticker": "2330",
+        "pipeline_id": "v1",
+    }
+    candidate["report"]["prompt_fingerprint"] = "a" * 64
+    candidate["report"]["model_route_policy_sha256"] = "b" * 64
+    manifest_path = tmp_path / "manifest.json"
+    inventory_path = tmp_path / "inventory.json"
+    dataset_path = tmp_path / "dataset.json"
+    manifest_path.write_text(json.dumps(manifest), encoding="utf-8")
+    inventory_path.write_text(json.dumps({
+        "coverage_status": "closed",
+        "candidates": [candidate],
+    }), encoding="utf-8")
+    dataset_path.write_text(json.dumps(_dataset()), encoding="utf-8")
+
+    result = run_replay(
+        root=str(tmp_path / "study"),
+        manifest_input=str(manifest_path),
+        inventory_input=str(inventory_path),
+        dataset_input=str(dataset_path),
+    )
+    admission = StudyStore(
+        tmp_path / "study", study_id=manifest["study_id"], create=False
+    ).read_record(f"admission-{candidate['candidate_id']}-{result['dataset_hash']}")
+
+    assert "prompt_fingerprint_mismatch" in admission["payload"]["reason_codes"]
+    assert "model_route_policy_sha256_mismatch" in admission["payload"]["reason_codes"]
 
 
 def test_cli_replay_does_not_count_missing_reports_as_report_identities(tmp_path):

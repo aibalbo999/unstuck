@@ -42,7 +42,7 @@ v1 的 `observed_at` 來自主機時鐘，`git ls-remote` 也不含遠端接收�
 
 ### 已核准的外部 attestation
 
-採用 GitHub Actions artifact attestation（Sigstore）：workflow 只給 `contents: read`、`id-token: write`、`attestations: write`，使用 GitHub-hosted `ubuntu-24.04`，且 `actions/checkout`、`actions/attest` 均 pin 到完整 commit SHA。因 workflow 尚未存在於 default branch 且本授權不含 merge，首次 push bootstrap 只允許一個 parent，且該提交只能新增 workflow 與 final manifest；日後以 `workflow_dispatch` 手動執行。
+採用 GitHub Actions artifact attestation（Sigstore）：workflow 只給 `contents: read`、`id-token: write`、`attestations: write`，使用 GitHub-hosted `ubuntu-24.04`，且 `actions/checkout`、`actions/attest` 均 pin 到完整 commit SHA。因 workflow 尚未存在於 default branch 且本授權不含 merge，首次 push bootstrap 只允許一個 parent，且該提交只能新增 workflow 與 final manifest。`workflow_dispatch` 也受同一 bootstrap parent／兩檔範圍保護；分支前進後不得在新 HEAD 重製登記，而應以既有 bundle 與 trusted-root 做離線重驗。
 
 正式 verifier 不只接受 `gh attestation verify` exit 0，還必須固定 `aibalbo999/unstuck`、signer workflow path、OIDC issuer、source commit/ref、SLSA predicate type，拒絕 self-hosted runner，並解析 `--format=json`：subject digest 必須等於 final manifest bytes，`signature.certificate` 身分必須符合固定 workflow，`verifiedTimestamps` 至少一筆且最早不可偽造時間早於所有 candidate cutoff。bundle 與當次 trusted-root snapshot 各自保存 SHA-256；verification 在 network-disabled 環境用 `--bundle` 與 `--custom-trusted-root` 重跑，不接受使用者自行填寫的 `verified=true` 或 timestamp。
 
@@ -98,6 +98,7 @@ OOS verifier 支援舊的 `oos.registration-receipt.v1` capture 與新的 v2 Git
 - [x] 產生 final machine-readable manifest，與 workflow 形成僅兩檔案的 bootstrap commit 並 push。
 - [x] GitHub Actions 成功產生 attestation；下載 bundle／trusted-root，離線驗證並保存非秘密 projection 與 hashes。
 - [x] 以 attested clean revision 重啟 API／Worker，驗證 runtime identity、health／ready，再按 28 組分批送件並封存正式 artifacts。最終 26 份報告 sealed，`3324.TWO` v1／v3 以 `missing_report` 留在固定 28 分母，沒有補送或替代。
+- [x] 實作官方行情 raw capture／重建、固定 cohort scope、manifest identity admission 與 dataset-scoped append-only maturity checkpoint；真實成熟日仍依下列時間執行。
 
 成熟日的正式執行入口與 append-only 命名規則見 [`oos-maturity-checkpoint-runbook.md`](./oos-maturity-checkpoint-runbook.md)。
 

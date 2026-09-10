@@ -9,6 +9,7 @@ from pathlib import Path
 import pytest
 
 import oos_research.cli as oos_cli
+from oos_research.cli_outputs import validate_new_outputs
 import oos_research.github_attestation as github_attestation
 from oos_research.github_attestation import (
     GitHubAttestationPolicy,
@@ -36,6 +37,10 @@ CERTIFICATE_IDENTITY = (
 OIDC_ISSUER = "https://token.actions.githubusercontent.com"
 PREDICATE_TYPE = "https://slsa.dev/provenance/v1"
 VERIFIED_AT = "2026-09-08T00:01:00Z"
+BUNDLE_BYTES = b'{"bundle":"bounded fixture"}\n'
+TRUSTED_ROOT_BYTES = b'{"trustedRoot":"bounded fixture"}\n'
+BUNDLE_SHA256 = hashlib.sha256(BUNDLE_BYTES).hexdigest()
+TRUSTED_ROOT_SHA256 = hashlib.sha256(TRUSTED_ROOT_BYTES).hexdigest()
 
 
 def _manifest() -> dict:
@@ -60,8 +65,8 @@ def _paths(tmp_path: Path) -> tuple[dict, Path, Path, Path]:
     bundle_path = tmp_path / "attestation.bundle.jsonl"
     trusted_root_path = tmp_path / "trusted-root.jsonl"
     manifest_path.write_text(json.dumps(manifest, sort_keys=True, indent=2), encoding="utf-8")
-    bundle_path.write_text('{"bundle":"bounded fixture"}\n', encoding="utf-8")
-    trusted_root_path.write_text('{"trustedRoot":"bounded fixture"}\n', encoding="utf-8")
+    bundle_path.write_bytes(BUNDLE_BYTES)
+    trusted_root_path.write_bytes(TRUSTED_ROOT_BYTES)
     return manifest, manifest_path, bundle_path, trusted_root_path
 
 
@@ -73,6 +78,8 @@ def _policy() -> GitHubAttestationPolicy:
         source_commit=SOURCE_COMMIT,
         source_ref=SOURCE_REF,
         predicate_type=PREDICATE_TYPE,
+        bundle_sha256=BUNDLE_SHA256,
+        trusted_root_sha256=TRUSTED_ROOT_SHA256,
     )
 
 
@@ -169,6 +176,24 @@ def test_factory_runs_one_locked_offline_gh_verification_and_returns_safe_runtim
     assert receipt["verified_at"] == VERIFIED_AT
 
 
+def test_factory_rejects_unpinned_bundle_before_running_gh(tmp_path):
+    manifest, manifest_path, bundle_path, trusted_root_path = _paths(tmp_path)
+    bundle_path.write_text('{"bundle":"replacement"}\n', encoding="utf-8")
+    calls = []
+
+    with pytest.raises(GitHubAttestationVerificationError, match="bundle hash"):
+        verify_github_registration_attestation(
+            manifest_path=manifest_path,
+            bundle_path=bundle_path,
+            trusted_root_path=trusted_root_path,
+            expected_manifest_sha256=manifest["manifest_sha256"],
+            policy=_policy(),
+            runner=lambda *args, **kwargs: calls.append((args, kwargs)),
+        )
+
+    assert calls == []
+
+
 def test_v1_stays_unattested_and_plain_json_v2_cannot_recreate_runtime_verification(tmp_path):
     evidence, manifest, *_ = _verified(tmp_path)
     plain_v2 = json.loads(json.dumps(github_registration_projection(evidence)))
@@ -229,6 +254,8 @@ def test_replay_cli_passes_fresh_runtime_attestation_capability_without_serializ
         "--dataset", str(dataset_path),
         "--attestation-bundle", str(bundle_path),
         "--trusted-root", str(trusted_root_path),
+        "--expected-bundle-sha256", BUNDLE_SHA256,
+        "--expected-trusted-root-sha256", TRUSTED_ROOT_SHA256,
         "--source-commit", SOURCE_COMMIT,
         "--source-ref", SOURCE_REF,
         "--output", str(output_path),
@@ -246,12 +273,28 @@ def test_replay_cli_passes_fresh_runtime_attestation_capability_without_serializ
             "--dataset", str(dataset_path),
             "--attestation-bundle", str(bundle_path),
             "--trusted-root", str(trusted_root_path),
+            "--expected-bundle-sha256", BUNDLE_SHA256,
+            "--expected-trusted-root-sha256", TRUSTED_ROOT_SHA256,
             "--source-commit", SOURCE_COMMIT,
             "--source-ref", SOURCE_REF,
             "--output", str(output_path),
         ])
     assert len(verification_calls) == 1
     assert len(replay_calls) == 1
+
+
+def test_replay_output_preflight_rejects_aliases_and_symlinked_parents(tmp_path):
+    real_parent = tmp_path / "real"
+    real_parent.mkdir()
+    alias = real_parent / ".." / "result.json"
+    direct = tmp_path / "result.json"
+    with pytest.raises(ValueError, match="normalized and distinct"):
+        validate_new_outputs(str(alias), str(direct))
+
+    linked_parent = tmp_path / "linked"
+    linked_parent.symlink_to(real_parent, target_is_directory=True)
+    with pytest.raises(ValueError, match="normalized and distinct"):
+        validate_new_outputs(str(linked_parent / "result.json"))
 
 
 def test_verified_timestamp_is_the_only_v2_cutoff_clock(tmp_path):

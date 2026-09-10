@@ -33,6 +33,36 @@ def validate_inventory(inventory: Mapping[str, Any]) -> str:
     return actual
 
 
+def validate_inventory_scope(
+    inventory: Mapping[str, Any], *, manifest: Mapping[str, Any]
+) -> str:
+    """Bind a registered fixed cohort to its exact ticker/pipeline product."""
+    inventory_hash = validate_inventory(inventory)
+    policies = manifest.get("policies")
+    declared_count = policies.get("cohort_candidate_count") if isinstance(policies, Mapping) else None
+    if declared_count is None:
+        return inventory_hash
+    if isinstance(declared_count, bool) or not isinstance(declared_count, int) or declared_count <= 0:
+        raise ValueError("registered candidate count is invalid")
+    tickers = manifest.get("ticker_universe")
+    pipelines = manifest.get("pipelines")
+    if not isinstance(tickers, list) or not isinstance(pipelines, list):
+        raise ValueError("registered candidate scope is invalid")
+    expected = {(ticker, pipeline) for ticker in tickers for pipeline in pipelines}
+    if declared_count != len(expected):
+        raise ValueError("registered candidate count does not match manifest scope")
+    pairs: list[tuple[str, str]] = []
+    for candidate in inventory["candidates"]:
+        ticker = candidate.get("ticker") if isinstance(candidate, Mapping) else None
+        pipeline = candidate.get("pipeline_id") if isinstance(candidate, Mapping) else None
+        if not isinstance(ticker, str) or not ticker or not isinstance(pipeline, str) or not pipeline:
+            raise ValueError("registered candidate set contains an invalid identity")
+        pairs.append((ticker, pipeline))
+    if len(pairs) != declared_count or len(set(pairs)) != len(pairs) or set(pairs) != expected:
+        raise ValueError("registered candidate set does not match manifest scope")
+    return inventory_hash
+
+
 def admission_record(candidate: Mapping[str, Any], *, status: str, reasons: list[str], validator_version: str = "oos.admission.v1") -> dict[str, Any]:
     if status not in ADMISSION_STATUSES:
         raise ValueError("unknown admission status")

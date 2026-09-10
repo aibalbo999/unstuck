@@ -3,14 +3,19 @@
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 import math
+import re
 from datetime import date, datetime
 from typing import Any
 
 
 class CanonicalizationError(ValueError):
     pass
+
+
+_SHA256_RE = re.compile(r"[0-9a-f]{64}")
 
 
 def _reject_nonfinite(value: Any) -> None:
@@ -48,3 +53,10 @@ def sha256_bytes(data: bytes) -> str:
 
 def content_hash(value: Any) -> str:
     return sha256_bytes(canonical_bytes(value))
+
+
+def require_sha256_pin(actual: str, expected: str | None, *, label: str) -> None:
+    if not isinstance(expected, str) or not _SHA256_RE.fullmatch(expected):
+        raise ValueError(f"expected {label} SHA-256 is required")
+    if not hmac.compare_digest(actual, expected):
+        raise ValueError(f"expected {label} SHA-256 does not match")

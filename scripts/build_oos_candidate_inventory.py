@@ -120,6 +120,8 @@ def main(argv=None) -> int:
     parser.add_argument("--registration")
     parser.add_argument("--attestation-bundle")
     parser.add_argument("--trusted-root")
+    parser.add_argument("--expected-bundle-sha256")
+    parser.add_argument("--expected-trusted-root-sha256")
     parser.add_argument("--source-commit")
     parser.add_argument("--source-ref", default="refs/heads/codex/analysis-credibility-spec")
     parser.add_argument("--registration-output")
@@ -150,7 +152,13 @@ def main(argv=None) -> int:
         if not args.output:
             raise ValueError("finalize requires --output")
         registration = None
-        attestation_values = (args.attestation_bundle, args.trusted_root, args.source_commit)
+        attestation_values = (
+            args.attestation_bundle,
+            args.trusted_root,
+            args.expected_bundle_sha256,
+            args.expected_trusted_root_sha256,
+            args.source_commit,
+        )
         if any(attestation_values):
             if not all(attestation_values) or args.registration:
                 raise ValueError("attestation verification requires bundle, trusted root and source commit only")
@@ -169,6 +177,8 @@ def main(argv=None) -> int:
                     oidc_issuer=GITHUB_ACTIONS_OIDC_ISSUER,
                     source_commit=args.source_commit,
                     source_ref=args.source_ref,
+                    bundle_sha256=args.expected_bundle_sha256,
+                    trusted_root_sha256=args.expected_trusted_root_sha256,
                 ),
             )
         elif args.registration:

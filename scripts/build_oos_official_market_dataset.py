@@ -9,7 +9,7 @@ import hashlib
 import json
 import os
 from pathlib import Path
-import re
+import secrets
 import ssl
 import sys
 import urllib.parse
@@ -19,14 +19,14 @@ import urllib.request
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 
-from oos_research.canonical import canonical_bytes, content_hash
-from oos_research.official_market_data import build_official_market_dataset
+from oos_research.canonical import canonical_bytes, content_hash, require_sha256_pin
+from oos_research.inventory import validate_inventory
+from oos_research.official_market_data import build_official_market_dataset, validate_session_calendar
+from oos_research.official_market_endpoints import official_url
 
 
 MAX_INPUT_BYTES = 32 * 1024 * 1024
 MAX_RESPONSE_BYTES = 8 * 1024 * 1024
-TICKER_RE = re.compile(r"([0-9A-Z]{4,8})\.(TW|TWO)")
-MONTH_RE = re.compile(r"[0-9]{4}-(?:0[1-9]|1[0-2])")
 
 
 def builder_identity() -> dict:
@@ -36,6 +36,7 @@ def builder_identity() -> dict:
         ROOT / "backend/oos_research/canonical.py",
         ROOT / "backend/oos_research/dataset.py",
         ROOT / "backend/oos_research/official_market_data.py",
+        ROOT / "backend/oos_research/official_market_endpoints.py",
     )
     files = {
         str(path.relative_to(ROOT)): hashlib.sha256(path.read_bytes()).hexdigest()
@@ -64,18 +65,29 @@ def _load_json(path: Path):
 
 
 def _write_exclusive(path: Path, data: bytes) -> None:
+    temporary = path.with_name(f".{path.name}.{os.getpid()}.{secrets.token_hex(6)}.tmp")
     flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | getattr(os, "O_NOFOLLOW", 0)
-    descriptor = os.open(path, flags, 0o600)
     try:
-        view = memoryview(data)
-        while view:
-            written = os.write(descriptor, view)
-            if written <= 0:
-                raise OSError("short official evidence write")
-            view = view[written:]
-        os.fsync(descriptor)
+        descriptor = os.open(temporary, flags, 0o600)
+        try:
+            view = memoryview(data)
+            while view:
+                written = os.write(descriptor, view)
+                if written <= 0:
+                    raise OSError("short official evidence write")
+                view = view[written:]
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
+        os.link(temporary, path, follow_symlinks=False)
+        directory_flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
+        directory_fd = os.open(path.parent, directory_flags)
+        try:
+            os.fsync(directory_fd)
+        finally:
+            os.close(directory_fd)
     finally:
-        os.close(descriptor)
+        temporary.unlink(missing_ok=True)
 
 
 def _new_output(path: Path) -> Path:
@@ -90,29 +102,6 @@ def _new_raw_dir(path: Path) -> Path:
     resolved = path.parent.resolve() / path.name
     os.mkdir(resolved, 0o700)
     return resolved
-
-
-def official_url(ticker: str, month: str) -> str:
-    match = TICKER_RE.fullmatch(ticker)
-    if match is None:
-        raise ValueError("official ticker is invalid")
-    if MONTH_RE.fullmatch(month) is None:
-        raise ValueError("official month is invalid")
-    symbol, market = match.groups()
-    year, month_number = month.split("-")
-    if market == "TW":
-        query = urllib.parse.urlencode([
-            ("response", "json"),
-            ("date", f"{year}{month_number}01"),
-            ("stockNo", symbol),
-        ])
-        return f"https://www.twse.com.tw/exchangeReport/STOCK_DAY?{query}"
-    query = urllib.parse.urlencode([
-        ("code", symbol),
-        ("date", f"{year}/{month_number}/01"),
-        ("response", "json"),
-    ])
-    return f"https://www.tpex.org.tw/www/zh-tw/afterTrading/tradingStock?{query}"
 
 
 def official_ssl_context() -> ssl.SSLContext:
@@ -163,7 +152,9 @@ def _capture_fetcher(*, raw_dir: Path, raw_prefix: str, opener, clock):
 def main(argv=None, *, opener=None, clock=None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--inventory", type=Path, required=True)
+    parser.add_argument("--expected-inventory-sha256", required=True)
     parser.add_argument("--sessions", type=Path, required=True)
+    parser.add_argument("--expected-session-calendar-sha256", required=True)
     parser.add_argument("--cutoff-session", required=True)
     parser.add_argument("--raw-dir", type=Path, required=True)
     parser.add_argument("--output", type=Path, required=True)
@@ -173,6 +164,14 @@ def main(argv=None, *, opener=None, clock=None) -> int:
         raise ValueError("raw output directory and dataset must share one parent")
     inventory = _load_json(args.inventory)
     sessions_payload = _load_json(args.sessions)
+    inventory_hash = validate_inventory(inventory)
+    _, session_calendar_hash = validate_session_calendar(sessions_payload)
+    require_sha256_pin(inventory_hash, args.expected_inventory_sha256, label="inventory")
+    require_sha256_pin(
+        session_calendar_hash,
+        args.expected_session_calendar_sha256,
+        label="session calendar",
+    )
     sessions = sessions_payload.get("sessions")
     if not isinstance(sessions, list):
         raise ValueError("session calendar is invalid")
@@ -185,7 +184,7 @@ def main(argv=None, *, opener=None, clock=None) -> int:
     )
     dataset = build_official_market_dataset(
         inventory=inventory,
-        sessions=sessions,
+        session_calendar=sessions_payload,
         cutoff_session=args.cutoff_session,
         fetch_month=fetch_month,
         builder_identity=builder_identity(),

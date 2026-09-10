@@ -47,18 +47,25 @@ def test_script_captures_official_raw_responses_and_writes_exclusive_dataset(tmp
     sessions_path = tmp_path / "sessions.json"
     raw_dir = tmp_path / "raw-20260910T150500+0800"
     output = tmp_path / "dataset-20260910T150500+0800.json"
-    inventory_path.write_text(json.dumps({
+    inventory = {
         "coverage_status": "closed",
-        "inventory_sha256": "a" * 64,
         "candidates": [
             {"candidate_id": "tw", "ticker": "1623.TW", "pipeline_id": "v1"},
             {"candidate_id": "two", "ticker": "3324.TWO", "pipeline_id": "v1"},
         ],
-    }), encoding="utf-8")
-    sessions_path.write_text(json.dumps({
+    }
+    inventory["inventory_sha256"] = content_hash(inventory)
+    inventory_path.write_text(json.dumps(inventory), encoding="utf-8")
+    sessions = {
         "schema_version": "oos.exchange-sessions.v1",
+        "market": "tw",
+        "timezone": "Asia/Taipei",
+        "session_open_local_time": "09:00:00",
+        "range": {"start": "2026-09-09", "end": "2026-09-11"},
+        "calendar_definition_sha256": "c" * 64,
         "sessions": ["2026-09-09", "2026-09-10", "2026-09-11"],
-    }), encoding="utf-8")
+    }
+    sessions_path.write_text(json.dumps(sessions), encoding="utf-8")
     twse = {"stat": "OK", "data": [
         ["115/09/09", "1", "1", "204.5", "220", "204.5", "218.5"],
         ["115/09/10", "1", "1", "216", "220", "216", "218.5"],
@@ -76,7 +83,9 @@ def test_script_captures_official_raw_responses_and_writes_exclusive_dataset(tmp
 
     argv = [
         "--inventory", str(inventory_path),
+        "--expected-inventory-sha256", inventory["inventory_sha256"],
         "--sessions", str(sessions_path),
+        "--expected-session-calendar-sha256", content_hash(sessions),
         "--cutoff-session", "2026-09-10",
         "--raw-dir", str(raw_dir),
         "--output", str(output),
@@ -85,7 +94,7 @@ def test_script_captures_official_raw_responses_and_writes_exclusive_dataset(tmp
     assert module.main(argv, opener=opener, clock=clock) == 0
 
     dataset = json.loads(output.read_text(encoding="utf-8"))
-    assert dataset["candidate_inventory_sha256"] == "a" * 64
+    assert dataset["candidate_inventory_sha256"] == inventory["inventory_sha256"]
     assert dataset["as_of"] == "2026-09-10T07:05:00Z"
     assert dataset["builder_identity"]["schema_version"] == "oos.dataset-builder-identity.v1"
     assert dataset["builder_identity"]["source_sha256"]
@@ -96,6 +105,7 @@ def test_script_captures_official_raw_responses_and_writes_exclusive_dataset(tmp
     assert verify_official_market_dataset(
         dataset,
         inventory=json.loads(inventory_path.read_text(encoding="utf-8")),
+        session_calendar=json.loads(sessions_path.read_text(encoding="utf-8")),
         dataset_path=str(output),
     ) == dataset["dataset_sha256"]
     assert calls == [
@@ -124,9 +134,76 @@ def test_script_captures_official_raw_responses_and_writes_exclusive_dataset(tmp
         verify_official_market_dataset(
             tampered,
             inventory=json.loads(inventory_path.read_text(encoding="utf-8")),
+            session_calendar=json.loads(sessions_path.read_text(encoding="utf-8")),
             dataset_path=str(output),
         )
 
+    tampered_calendar = json.loads(json.dumps(dataset))
+    tampered_calendar["calendar"] = ["2026-09-09"]
+    for rows in tampered_calendar["bars"].values():
+        rows[:] = [row for row in rows if row["date"] == "2026-09-09"]
+    tampered_calendar["dataset_sha256"] = content_hash({
+        key: value for key, value in tampered_calendar.items() if key != "dataset_sha256"
+    })
+    with pytest.raises(ValueError, match="calendar does not match"):
+        verify_official_market_dataset(
+            tampered_calendar,
+            inventory=json.loads(inventory_path.read_text(encoding="utf-8")),
+            session_calendar=json.loads(sessions_path.read_text(encoding="utf-8")),
+            dataset_path=str(output),
+        )
+
+
+@pytest.mark.parametrize(
+    ("pin_flag", "wrong_pin", "message"),
+    [
+        ("--expected-inventory-sha256", "f" * 64, "inventory SHA-256"),
+        ("--expected-session-calendar-sha256", "e" * 64, "session calendar SHA-256"),
+    ],
+)
+def test_builder_rejects_wrong_external_pins_before_raw_creation_or_network(
+    tmp_path, pin_flag, wrong_pin, message
+):
+    module = _module()
+    inventory_path = tmp_path / "inventory.json"
+    sessions_path = tmp_path / "sessions.json"
+    raw_dir = tmp_path / "raw"
+    output = tmp_path / "dataset.json"
+    inventory = {
+        "coverage_status": "closed",
+        "candidates": [{"candidate_id": "tw", "ticker": "1623.TW", "pipeline_id": "v1"}],
+    }
+    inventory["inventory_sha256"] = content_hash(inventory)
+    sessions = {
+        "schema_version": "oos.exchange-sessions.v1",
+        "market": "tw",
+        "timezone": "Asia/Taipei",
+        "session_open_local_time": "09:00:00",
+        "range": {"start": "2026-09-09", "end": "2026-09-10"},
+        "calendar_definition_sha256": "c" * 64,
+        "sessions": ["2026-09-09", "2026-09-10"],
+    }
+    inventory_path.write_text(json.dumps(inventory), encoding="utf-8")
+    sessions_path.write_text(json.dumps(sessions), encoding="utf-8")
+    calls = []
+
+    argv = [
+        "--inventory", str(inventory_path),
+        "--expected-inventory-sha256", inventory["inventory_sha256"],
+        "--sessions", str(sessions_path),
+        "--expected-session-calendar-sha256", content_hash(sessions),
+        "--cutoff-session", "2026-09-10",
+        "--raw-dir", str(raw_dir),
+        "--output", str(output),
+    ]
+    argv[argv.index(pin_flag) + 1] = wrong_pin
+
+    with pytest.raises(ValueError, match=message):
+        module.main(argv, opener=lambda *args, **kwargs: calls.append((args, kwargs)))
+
+    assert calls == []
+    assert not raw_dir.exists()
+    assert not output.exists()
 
 @pytest.mark.parametrize("ticker", ["../../etc/passwd.TW", "3324.TW%2FO"])
 def test_official_url_rejects_unsafe_ticker(ticker):
@@ -141,3 +218,14 @@ def test_official_ssl_context_keeps_ca_and_hostname_verification_enabled():
     assert context.check_hostname is True
     if hasattr(ssl, "VERIFY_X509_STRICT"):
         assert context.verify_flags & ssl.VERIFY_X509_STRICT == 0
+
+
+def test_evidence_writer_never_publishes_a_partial_final_file(tmp_path, monkeypatch):
+    module = _module()
+    output = tmp_path / "evidence.json"
+    monkeypatch.setattr(module.os, "write", lambda descriptor, data: 0)
+
+    with pytest.raises(OSError, match="short official evidence write"):
+        module._write_exclusive(output, b"valuable")
+
+    assert not output.exists()

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import importlib.util
+import hashlib
 import json
 from pathlib import Path
 
@@ -64,6 +65,8 @@ def test_verify_and_write_locks_policy_and_persists_only_projection(tmp_path):
         manifest=manifest_path,
         bundle=bundle,
         trusted_root=trusted_root,
+        expected_bundle_sha256=hashlib.sha256(bundle.read_bytes()).hexdigest(),
+        expected_trusted_root_sha256=hashlib.sha256(trusted_root.read_bytes()).hexdigest(),
         source_commit="a" * 40,
         source_ref=module.DEFAULT_SOURCE_REF,
         output=output,
@@ -97,6 +100,8 @@ def test_verify_and_write_never_overwrites_and_rejects_empty_projection(tmp_path
     with pytest.raises(ValueError, match="new absolute path"):
         module.verify_and_write(
             manifest=manifest_path, bundle=bundle, trusted_root=trusted_root,
+            expected_bundle_sha256=hashlib.sha256(bundle.read_bytes()).hexdigest(),
+            expected_trusted_root_sha256=hashlib.sha256(trusted_root.read_bytes()).hexdigest(),
             source_commit="a" * 40, source_ref=module.DEFAULT_SOURCE_REF,
             output=output, verifier=lambda **kwargs: {}, projector=lambda evidence: {},
         )
@@ -106,6 +111,8 @@ def test_verify_and_write_never_overwrites_and_rejects_empty_projection(tmp_path
     with pytest.raises(RuntimeError, match="no runtime-verified projection"):
         module.verify_and_write(
             manifest=manifest_path, bundle=bundle, trusted_root=trusted_root,
+            expected_bundle_sha256=hashlib.sha256(bundle.read_bytes()).hexdigest(),
+            expected_trusted_root_sha256=hashlib.sha256(trusted_root.read_bytes()).hexdigest(),
             source_commit="a" * 40, source_ref=module.DEFAULT_SOURCE_REF,
             output=output, verifier=lambda **kwargs: {}, projector=lambda evidence: {},
         )

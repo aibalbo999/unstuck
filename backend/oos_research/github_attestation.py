@@ -6,32 +6,33 @@ Serialized v2 projections are not portable proof; each process must rerun ``gh``
 from __future__ import annotations
 
 from collections.abc import Iterator
-from dataclasses import dataclass
 from datetime import datetime, timezone
 import hashlib
 import json
 import os
 from pathlib import Path
-import re
 import stat
 import subprocess
 from types import MappingProxyType
 from typing import Any, Callable, Mapping
 
+from .github_attestation_policy import (
+    COMMIT_RE,
+    EXPECTED_REPOSITORY,
+    EXPECTED_SIGNER_WORKFLOW,
+    GITHUB_ACTIONS_OIDC_ISSUER,
+    SAFE_REF_RE,
+    SHA256_RE,
+    SLSA_PROVENANCE_V1,
+    GitHubAttestationPolicy,
+)
 from .manifest import manifest_hash, validate_manifest
-SLSA_PROVENANCE_V1 = "https://slsa.dev/provenance/v1"
-GITHUB_ACTIONS_OIDC_ISSUER = "https://token.actions.githubusercontent.com"
-EXPECTED_REPOSITORY = "aibalbo999/unstuck"
-EXPECTED_SIGNER_WORKFLOW = ".github/workflows/oos-register.yml"
 MAX_MANIFEST_BYTES = 1_048_576
 MAX_BUNDLE_BYTES = 8_388_608
 MAX_TRUSTED_ROOT_BYTES = 8_388_608
 MAX_GH_STDOUT_BYTES = 4_194_304
 MAX_VERIFIED_ATTESTATIONS = 30
 GH_TIMEOUT_SECONDS = 30
-SHA256_RE = re.compile(r"[0-9a-f]{64}")
-COMMIT_RE = re.compile(r"[0-9a-f]{40}")
-SAFE_REF_RE = re.compile(r"refs/(?:heads|tags)/[A-Za-z0-9._/-]+")
 V2_RECEIPT_FIELDS = frozenset("""
 schema_version source repository certificate_identity oidc_issuer source_commit
 source_ref predicate_type manifest_file_sha256 manifest_sha256 bundle_sha256
@@ -40,14 +41,6 @@ trusted_root_sha256 verified_at
 _RUNTIME_TOKEN = object()
 class GitHubAttestationVerificationError(ValueError):
     """Raised when no bounded, policy-conforming attestation can be verified."""
-@dataclass(frozen=True)
-class GitHubAttestationPolicy:
-    repository: str
-    certificate_identity: str
-    oidc_issuer: str
-    source_commit: str
-    source_ref: str
-    predicate_type: str = SLSA_PROVENANCE_V1
 class _RuntimeVerifiedGitHubRegistration(Mapping[str, Any]):
     """Process-local capability proving that the offline verifier ran successfully."""
 
@@ -112,10 +105,15 @@ def _validate_policy(policy: GitHubAttestationPolicy) -> None:
         raise _fail("GitHub attestation OIDC issuer policy is invalid")
     if policy.predicate_type != SLSA_PROVENANCE_V1:
         raise _fail("GitHub attestation predicate policy is invalid")
-    if not COMMIT_RE.fullmatch(policy.source_commit):
+    if not isinstance(policy.source_commit, str) or not COMMIT_RE.fullmatch(policy.source_commit):
         raise _fail("GitHub attestation source commit policy is invalid")
+    if not isinstance(policy.bundle_sha256, str) or not SHA256_RE.fullmatch(policy.bundle_sha256):
+        raise _fail("GitHub attestation bundle hash policy is invalid")
+    if not isinstance(policy.trusted_root_sha256, str) or not SHA256_RE.fullmatch(policy.trusted_root_sha256):
+        raise _fail("GitHub attestation trusted root hash policy is invalid")
     invalid_ref = (
-        not SAFE_REF_RE.fullmatch(policy.source_ref)
+        not isinstance(policy.source_ref, str)
+        or not SAFE_REF_RE.fullmatch(policy.source_ref)
         or ".." in policy.source_ref
         or "//" in policy.source_ref
         or policy.source_ref.endswith(("/", ".", ".lock"))
@@ -255,6 +253,10 @@ def verify_github_registration_attestation(
     trusted_root_file, trusted_root_data = _read_bounded(
         trusted_root_path, maximum=MAX_TRUSTED_ROOT_BYTES, label="trusted root"
     )
+    if hashlib.sha256(bundle_data).hexdigest() != policy.bundle_sha256:
+        raise _fail("attestation bundle hash does not match pinned policy")
+    if hashlib.sha256(trusted_root_data).hexdigest() != policy.trusted_root_sha256:
+        raise _fail("trusted root hash does not match pinned policy")
     _parse_manifest(manifest_data, expected_manifest_sha256)
     manifest_file_sha256 = hashlib.sha256(manifest_data).hexdigest()
     argv = [
@@ -297,8 +299,8 @@ def verify_github_registration_attestation(
         "predicate_type": policy.predicate_type,
         "manifest_file_sha256": manifest_file_sha256,
         "manifest_sha256": expected_manifest_sha256,
-        "bundle_sha256": hashlib.sha256(bundle_data).hexdigest(),
-        "trusted_root_sha256": hashlib.sha256(trusted_root_data).hexdigest(),
+        "bundle_sha256": policy.bundle_sha256,
+        "trusted_root_sha256": policy.trusted_root_sha256,
         "verified_at": verified_at,
     }
     return _RuntimeVerifiedGitHubRegistration(receipt, token=_RUNTIME_TOKEN)

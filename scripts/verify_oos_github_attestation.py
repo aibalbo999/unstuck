@@ -51,7 +51,8 @@ def _write_exclusive(path: Path, payload: dict) -> None:
 
 def verify_and_write(
     *, manifest: Path, bundle: Path, trusted_root: Path, source_commit: str,
-    source_ref: str, output: Path,
+    source_ref: str, expected_bundle_sha256: str, expected_trusted_root_sha256: str,
+    output: Path,
     verifier: Callable = verify_github_registration_attestation,
     projector: Callable = github_registration_projection,
 ) -> dict:
@@ -72,6 +73,8 @@ def verify_and_write(
             oidc_issuer=GITHUB_ACTIONS_OIDC_ISSUER,
             source_commit=source_commit,
             source_ref=source_ref,
+            bundle_sha256=expected_bundle_sha256,
+            trusted_root_sha256=expected_trusted_root_sha256,
         ),
     )
     projection = projector(evidence)
@@ -86,6 +89,8 @@ def main(argv=None) -> int:
     parser.add_argument("--manifest", type=Path, required=True)
     parser.add_argument("--attestation-bundle", type=Path, required=True)
     parser.add_argument("--trusted-root", type=Path, required=True)
+    parser.add_argument("--expected-bundle-sha256", required=True)
+    parser.add_argument("--expected-trusted-root-sha256", required=True)
     parser.add_argument("--source-commit", required=True)
     parser.add_argument("--source-ref", default=DEFAULT_SOURCE_REF)
     parser.add_argument("--output", type=Path, required=True)
@@ -94,6 +99,8 @@ def main(argv=None) -> int:
         manifest=args.manifest,
         bundle=args.attestation_bundle,
         trusted_root=args.trusted_root,
+        expected_bundle_sha256=args.expected_bundle_sha256,
+        expected_trusted_root_sha256=args.expected_trusted_root_sha256,
         source_commit=args.source_commit,
         source_ref=args.source_ref,
         output=args.output,
