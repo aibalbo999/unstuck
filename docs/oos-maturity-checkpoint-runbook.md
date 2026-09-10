@@ -11,6 +11,7 @@
 - Final inventory content hash：`007370b69653c7a6ad3cfc382a31b4c542377991bb1244c40bf4497088844158`
 - Session calendar content hash：`87bce6c60c2e159a938e5cf0b7ad5f5d3d433b0a9f9fc4c04446dfb25286d775`
 - Calendar definition hash：`9a321ac85cba6940d654fba63c6120e509990ba0ca8256c56171ad5f4a1cdb37`
+- Maturity schedule content hash：`deb484beae83b19438e6e12d3b21b0c467ba2fd9330c594341ee725e9841be43`
 - Attestation bundle raw SHA-256：`38aa7ba407b442afd774b981870a3f444c11b04bc587f2c43786daa76bbc23f6`
 - Trusted root raw SHA-256：`65ca537f6ed8a47fd0e560c421baa1f6c1efb8b25fc200d8c5c02c0e92eb2b9c`
 - 固定分母：28 candidates；26 `insufficient_provenance`、2 `missing_report`。除非同一份固定 evidence 經新版 validator 查出真實分類錯誤，否則不得升格為 `admitted`。
@@ -24,7 +25,7 @@
 | 2026-12-09、12-10 | v1 的 3 個曆月 endpoint；依正式 report availability date 加 3 個月後取當日／下一個 session |
 | v1 6／12 個月 | 取得覆蓋 2027 年的明確官方 session calendar 後另算，不得猜日期 |
 
-固定 inventory 與 session calendar 的逐批映射如下；runner 每次仍讀取完整 28 組分母，不建立子 cohort：
+固定 inventory 與 session calendar 的逐批映射如下；相同資料亦固定於 [`oos-maturity-schedule-2026-09-10.json`](./oos-maturity-schedule-2026-09-10.json)，runner 以其 content hash 決定最早未完成 cutoff，每次仍讀取完整 28 組分母，不建立子 cohort：
 
 | Cutoff | 本次新到期的 report／horizon | 數量 |
 | --- | --- | ---: |
@@ -45,7 +46,7 @@
 
 在任何網路存取或寫入前先執行唯讀 preflight：
 
-1. `CUTOFF_SESSION` 必須精確取自上表目前已到期的一列，不以當天日期猜測；`RUN_ID` 必須包含相同 cutoff、實際執行時間及新的 `rN`。
+1. `CUTOFF_SESSION` 必須由已 pin 的 machine-readable schedule 選出最早未完成列，不以當天日期猜測；若操作環境另給 `OOS_CUTOFF_SESSION`，必須與 planner 結果完全相同。`RUN_ID` 必須包含相同 cutoff、實際執行時間及新的 `rN`。
 2. 先檢查 `checkpoints/` 是否已有相同 `cutoff_session` 的完整 checkpoint。完整代表 `dataset.json`、`replay-result.json`、`summary.md` 都是非 symlink 一般檔，dataset 自身 hash 等於 replay 的 `dataset_hash`，且 study store 已有同 dataset hash 的 checkpoint record。
 3. 若已有完整同 cutoff checkpoint，不再呼叫 TWSE／TPEx、不建立新 revision，只重驗既有 hashes 並把 heartbeat 移到下一個實際成熟日。
 4. 若只有失敗或不完整 revision，原目錄保持不動；行情確已完整後使用新的 `rN` 重試。不得重用舊目錄，也不得把半成品升格為完成。
@@ -56,15 +57,61 @@
 PROJECT_PYTHON="/Volumes/X10 Pro Mac/stock-agent/.venv/bin/python"
 PROJECT_ROOT="$(pwd -P)"
 EVIDENCE_ROOT="/Volumes/X10 Pro Mac/stock-agent-oos-evidence/four-mode-credibility-prospective-r1"
-CUTOFF_SESSION="${OOS_CUTOFF_SESSION:?set one exact matured cutoff from the table}"
-RUN_ID="${OOS_RUN_ID:?set a new cutoff-time-rN identifier}"
+MATURITY_SCHEDULE="$PROJECT_ROOT/docs/oos-maturity-schedule-2026-09-10.json"
+MATURITY_SCHEDULE_SHA256="deb484beae83b19438e6e12d3b21b0c467ba2fd9330c594341ee725e9841be43"
+REQUESTED_CUTOFF_SESSION="${OOS_CUTOFF_SESSION:-}"
 CHECKPOINTS_ROOT="$EVIDENCE_ROOT/checkpoints"
-CHECKPOINT_DIR="$CHECKPOINTS_ROOT/$RUN_ID"
 umask 077
 if [[ -L "$CHECKPOINTS_ROOT" || ! -d "$CHECKPOINTS_ROOT" ]]; then
   echo "checkpoint root must be an existing non-symlink directory" >&2
   exit 1
 fi
+
+if ! MATURITY_PLAN="$(
+  "$PROJECT_PYTHON" -B "$PROJECT_ROOT/scripts/plan_oos_maturity_checkpoint.py" \
+    --schedule "$MATURITY_SCHEDULE" \
+    --expected-schedule-sha256 "$MATURITY_SCHEDULE_SHA256" \
+    --checkpoints-root "$CHECKPOINTS_ROOT" \
+    --study-root "$EVIDENCE_ROOT/study" \
+    --study-id four-mode-credibility-prospective-r1
+)"; then
+  printf '%s\n' "$MATURITY_PLAN" >&2
+  echo "maturity planner denied capture" >&2
+  exit 1
+fi
+MATURITY_FIELDS="$(
+  printf '%s' "$MATURITY_PLAN" | "$PROJECT_PYTHON" -c \
+    'import json, sys; p = json.load(sys.stdin); print("{}:{}:{}".format(p["status"], str(p["should_capture"]).lower(), p.get("cutoff_session", "")))'
+)" || exit 1
+MATURITY_STATUS="${MATURITY_FIELDS%%:*}"
+MATURITY_REST="${MATURITY_FIELDS#*:}"
+MATURITY_SHOULD_CAPTURE="${MATURITY_REST%%:*}"
+PLANNED_CUTOFF_SESSION="${MATURITY_REST#*:}"
+case "$MATURITY_STATUS:$MATURITY_SHOULD_CAPTURE" in
+  waiting:false)
+    printf '%s\n' "$MATURITY_PLAN"
+    exit 0
+    ;;
+  schedule_exhausted:false)
+    printf '%s\n' "$MATURITY_PLAN" >&2
+    echo "known maturity schedule is exhausted; resolve deferred calendar requirements" >&2
+    exit 1
+    ;;
+  ready:true)
+    CUTOFF_SESSION="$PLANNED_CUTOFF_SESSION"
+    ;;
+  *)
+    printf '%s\n' "$MATURITY_PLAN" >&2
+    echo "maturity planner returned an unsafe decision" >&2
+    exit 1
+    ;;
+esac
+if [[ -n "$REQUESTED_CUTOFF_SESSION" && "$REQUESTED_CUTOFF_SESSION" != "$CUTOFF_SESSION" ]]; then
+  echo "requested cutoff does not match the pinned maturity plan" >&2
+  exit 1
+fi
+RUN_ID="${OOS_RUN_ID:?set a new cutoff-time-rN identifier}"
+CHECKPOINT_DIR="$CHECKPOINTS_ROOT/$RUN_ID"
 
 if ! PREFLIGHT_RESULT="$(
   "$PROJECT_PYTHON" -B "$PROJECT_ROOT/scripts/inspect_oos_maturity_checkpoints.py" \

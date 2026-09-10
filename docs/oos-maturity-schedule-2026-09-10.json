@@ -1,0 +1,63 @@
+{
+  "schema_version": "oos.maturity-schedule.v1",
+  "study_id": "four-mode-credibility-prospective-r1",
+  "timezone": "Asia/Taipei",
+  "capture_local_time": "15:05:00",
+  "fixed_candidate_denominator": 28,
+  "known_report_horizon_total": 33,
+  "inventory_sha256": "007370b69653c7a6ad3cfc382a31b4c542377991bb1244c40bf4497088844158",
+  "session_calendar_sha256": "87bce6c60c2e159a938e5cf0b7ad5f5d3d433b0a9f9fc4c04446dfb25286d775",
+  "checkpoints": [
+    {
+      "cutoff_session": "2026-09-15",
+      "newly_mature_report_horizons": 7,
+      "scope": "first session 2026-09-09; v2/v3/v4 5 trading sessions"
+    },
+    {
+      "cutoff_session": "2026-09-16",
+      "newly_mature_report_horizons": 7,
+      "scope": "first session 2026-09-10; v2/v3/v4 5 trading sessions"
+    },
+    {
+      "cutoff_session": "2026-09-17",
+      "newly_mature_report_horizons": 6,
+      "scope": "first session 2026-09-11; v2/v3/v4 5 trading sessions"
+    },
+    {
+      "cutoff_session": "2026-09-22",
+      "newly_mature_report_horizons": 3,
+      "scope": "first session 2026-09-09; v4 10 trading sessions"
+    },
+    {
+      "cutoff_session": "2026-09-23",
+      "newly_mature_report_horizons": 2,
+      "scope": "first session 2026-09-10; v4 10 trading sessions"
+    },
+    {
+      "cutoff_session": "2026-09-24",
+      "newly_mature_report_horizons": 2,
+      "scope": "first session 2026-09-11; v4 10 trading sessions"
+    },
+    {
+      "cutoff_session": "2026-12-09",
+      "newly_mature_report_horizons": 4,
+      "scope": "report availability local date 2026-09-09; v1 3 calendar months"
+    },
+    {
+      "cutoff_session": "2026-12-10",
+      "newly_mature_report_horizons": 2,
+      "scope": "report availability local date 2026-09-10; v1 3 calendar months"
+    }
+  ],
+  "deferred": [
+    {
+      "pipeline_id": "v1",
+      "horizon_months": [
+        6,
+        12
+      ],
+      "reason_code": "official_2027_session_calendar_required"
+    }
+  ],
+  "schedule_sha256": "deb484beae83b19438e6e12d3b21b0c467ba2fd9330c594341ee725e9841be43"
+}
