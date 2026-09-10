@@ -1,6 +1,6 @@
 # 四模式完整後續優化計畫
 
-日期：2026-09-07。狀態：總計畫已核准執行；F1.1、F1.2、F1.3、F2.1～F2.5、F3.1、F3.2 工程／artifact／瀏覽器證據與 G1、G2、G3 已完成。2026-09-08 使用者另核准 F4 的 28 組正式重建、API／Worker reload、push／PR，以及 F5 的 GitHub Actions／Sigstore attestation 與同一 28 組 prospective cohort；merge 未授權。實際 attestation、runtime identity、Job 與 artifact 仍須用執行結果完成勾選；F5 成熟績效仍受市場時間約束。
+日期：2026-09-07。狀態（2026-09-10 同步）：總計畫已核准執行；F1～F3 與 G1～G3 已完成。F4 已完成核定 28 組送件流程並封閉為 26 份 completed／sealed、2 份 final `missing_report`，沒有 pending 或 unconfirmed；PR #15 已 push 且保持未合併。F5 的 GitHub Actions／Sigstore attestation、固定 cohort、正式收樣與成熟日 runner 已完成，研究狀態為 `selection_closed_waiting_maturity`；真實成熟績效仍受市場時間約束。F6 是證據觸發的條件階段，目前沒有可支持調參或另改策略的成熟結果。
 
 查驗基線：`codex/analysis-credibility-spec`，`32711c4838521816ba565c4acbee13029f7eb4a9`。實際 checkout 為 `/Volumes/X10 Pro Mac/stock-agent`；撰寫前工作樹乾淨。Runtime doctor 指向既有 canonical SQLite、Redis 與 `backend/output`，不能據此推論執行中 API／Worker 已載入此 commit。
 
@@ -172,52 +172,54 @@ G3：工程與保存 artifact 驗收完成；代表案例 `ReportArtifactLocator
 
 目前狀態（2026-09-07）：已完成唯讀前置盤點，但尚未送件。`/healthz`／`/readyz`、`/api/reports`、`/api/observability/active-jobs` 與 `/api/decision-tracking` 均可讀；decision-tracking 在較寬的 10 秒界線內約 4.03 秒回應，active jobs 為 `0`（回傳 10 筆歷史均 `done`），tracking items 為 `7` 且 enabled `7`。本分支新增 `/api/runtime-identity` 與 3 個回歸測試，但目前 2026-09-06 啟動的程序對該路徑仍回 `404`，所以重啟前沒有可驗證的 API／Worker revision 或核定歷史範圍；故不送件、不重啟、不改寫正式 output。這是可定位的外部 runtime／範圍前置條件，不把未確認當完成。
 
-更新：`/healthz`、`/readyz`、`/api/observability/active-jobs`、`/api/decision-tracking` 與 `/api/reports` 已可讀；新增唯讀工具並完成兩頁盤點，完整 indexed reports `148`、`current=109`、`needs_rerun=39`，清單 hash `0e870f7451506bdcccfd7753191a6661766d4db4774102aca5bf5c5d8c2417cd`。active jobs=0、tracking=7／7。仍未核定送件範圍，亦未送 Job／重啟／改寫正式 artifacts。
+2026-09-07 更新：`/healthz`、`/readyz`、`/api/observability/active-jobs`、`/api/decision-tracking` 與 `/api/reports` 已可讀；新增唯讀工具並完成兩頁盤點，完整 indexed reports `148`、`current=109`、`needs_rerun=39`，清單 hash `0e870f7451506bdcccfd7753191a6661766d4db4774102aca5bf5c5d8c2417cd`。active jobs=0、tracking=7／7。當時尚未核定送件範圍，亦未送 Job／重啟／改寫正式 artifacts。
+
+2026-09-10 最終更新：外部 attestation 綁定的 `65a1af14f5cb2e55f9bc93614905c209eeff0b24` 曾以 clean runtime 完成 reload，保存的 after-restart baseline 證明 API／Worker identity、health／ready 與 process cwd。授權 manifest 固定 28 個 jobs；最終為 `completed=26`、`failed=2`、`pending=0`、`unconfirmed=0`，26 份報告已封存，`3324.TWO` v1／v3 以 `missing_report` 留在固定分母且不得重送或替換。後續 runner 位於專用乾淨 checkout，不要求把目前開發 HEAD 重載到正式 API／Worker。
 
 - [x] 重新唯讀盤點 indexed reports 的全部版本與每 ticker／模式狀態；產生有時間與 hash 的候選清單，區分 `current`／`needs_rerun`，並保留 148 筆完整分母與 39 筆候選的理由。追蹤清單現可在 10 秒界線內讀取（7／7 enabled），但仍未冒稱已核定送件範圍。
-- [ ] 建議預設更新「核定每組最新版」，保留原歷史。102 份歷史回放若被選定，另建版本並標 retrospective，不冒稱原日期的前瞻分析。先前 49／102 只是舊盤點，不是固定配額。
+- [x] 已核定並執行 7 ticker × 4 mode 的 28 組最新版，保留原歷史。未選擇 102 份歷史回放；先前 49／102 僅是舊盤點，不是本次固定配額。
 - [x] 新增 `scripts/rebuild_tracked_reports.py prepare-indexed` 與 `tests/test_rebuild_tracked_reports.py` 回歸；以 `/api/reports` 全分頁建立 `prepare_only` manifest，實際 148 筆／57 個 ticker-mode 最新群組／28 個最新重跑候選。`submit` 明確拒絕 prepare-only manifest，未把追蹤 28 組冒稱全量完成。
-- [x] 將 28 組候選以 live index 固定至 `docs/report-update-candidates-2026-09-08.json`，範圍為 7 檔 ticker 各 v1～v4，SHA-256 `f9d697eacc525ba8c0bbd7d8d4dde0d8619982ee96da6076f2af3c7d2fce0af2`；全部維持 `not_submitted`，因此範圍已可審核但尚未被視為核定。
-- [x] 新增 `authorize-indexed` 明示授權接縫：只有來源 manifest SHA-256、候選數與全體候選 schema 都吻合時，才以 exclusive create 產生另一份 submission manifest；送件前會重驗 scope fingerprint，任何 ticker／mode／來源檔／理由變動均在網路請求前拒絕，來源 symlink 亦拒絕。隔離 lane `36 passed`；本輪沒有實際產生授權檔或送件。
-- [x] 已核對本分支 scoped diff、驗證證據並建立本地提交（前序實作提交亦保留）；未推送／建立 PR／merge，因本輪未重新核定外部發布授權。
-- [x] 唯讀核對 remote／base：`origin` 預設分支為 `main`，遠端 `main` 為 `5f44bce0`，本分支以該 revision 為 merge-base、領先 45 commits，遠端尚無 `codex/analysis-credibility-spec`；未執行 push。
-- [ ] 在適用授權內完成 push／PR／merge 與必要 CI；整合後若程式變動，對實際整合 revision 補必要回歸，再進入 runtime 載入。
-- [x] 新增 `/api/runtime-identity` 唯讀 revision endpoint，schema 為 `stock-agent.runtime-identity.v1`；受影響的 runtime／API／文件／維護流程 lane 共 `255 passed`。現有程序尚未重啟，live endpoint 仍 `404`，不把 checkout 測試當成 runtime 載入證據。
-- [x] 已以 [`capture_runtime_release_baseline.py`](../../scripts/capture_runtime_release_baseline.py) 完成發布前唯讀 baseline：3 個 process 的 PID/cwd/command、health／ready、active jobs、tracking、148 份報告與 DB 大小均保存；`.env` 僅記 presence，不讀取值。
-- [ ] 用現有正式啟動入口載入指定版本並驗證 health／ready、API／Worker 版本及四模式路由；重啟前的 live identity `404` 與 baseline 已保留，不能提前勾選。
-- [ ] 先送具體代表工作，核對實際 Job 與產物的 code／prompt／input fingerprint，確認有新結論；不能把 resume 舊完成工作或 metadata refresh 當新版重建。
-- [ ] 再按核定清單小批新增報告，尊重原 provider quota／deferred 政策。每批保存送件前 pending、返回 Job ID、完成／失敗／未確認與新舊 artifact 對照；回應不明先查既有 Job，不自動重送。
-- [ ] 歷史失敗與舊報告保留；失敗不算更新完成。逐份核對最新內容、final gate、可見 warning 與 provenance，並確認新報告可由正式 API／頁面讀取。
+- [x] 將 28 組候選以 live index 固定至 `docs/report-update-candidates-2026-09-08.json`，範圍為 7 檔 ticker 各 v1～v4，SHA-256 `f9d697eacc525ba8c0bbd7d8d4dde0d8619982ee96da6076f2af3c7d2fce0af2`；最初的 `not_submitted` 清單後續已依明示授權轉為固定 submission manifest。
+- [x] 新增並使用 `authorize-indexed` 明示授權接縫：來源 manifest SHA-256、候選數、全體候選 schema 與 scope fingerprint 均在網路請求前重驗；授權檔以 exclusive create 產生，正式送件維持 `force=false`、`resume=true` 與每批最多 4 組。
+- [x] 已核對 scoped diff、驗證證據並保存全部實作提交；既有工作與正式 evidence 未被後續 runner 開發覆寫。
+- [x] 已唯讀核對 remote／base，建立遠端 `codex/analysis-credibility-spec`，並以一般 fast-forward push 持續更新；未 force push。
+- [x] 在適用授權內完成 push、PR #15、GitHub Actions／Sigstore attestation 與必要回歸；merge 明確未獲授權且未執行，PR 保持 OPEN。
+- [x] 新增 `/api/runtime-identity` 唯讀 revision endpoint，schema 為 `stock-agent.runtime-identity.v1`；受影響的 runtime／API／文件／維護流程 lane 共 `255 passed`。原程序在重啟前回 `404`，後續以 after-restart baseline 另證明正式 runtime 載入，沒有把 checkout 測試當成 runtime 證據。
+- [x] 已以 [`capture_runtime_release_baseline.py`](../../../scripts/capture_runtime_release_baseline.py) 完成發布前唯讀 baseline：3 個 process 的 PID/cwd/command、health／ready、active jobs、tracking、148 份報告與 DB 大小均保存；`.env` 僅記 presence，不讀取值。
+- [x] 已用正式啟動入口載入 attested revision，保存重啟前後 baseline；after-restart evidence 證明 `/healthz`、`/readyz`、`/api/runtime-identity`、API／Worker process cwd 與 clean code identity。
+- [x] 已先送代表工作並核對 Job／artifact identity，再繼續批次；沒有把一鍵 metadata refresh 當成新版重建。
+- [x] 已按核定清單分批送件，尊重 provider quota／deferred 政策；28 個 Job 均保存最終狀態，回應不明時先查既有 Job，沒有自動重送。
+- [x] 歷史失敗與舊報告均保留；26 份 completed 報告逐份封存，2 份失敗保留為 `missing_report`，沒有把失敗算成更新完成或補造 provenance。
 
-G4：核定清單 `completed + failed + pending + unconfirmed = total`，可逐份查證；宣稱「全部更新」時 failed／pending／unconfirmed 必須為 0，且每份確為核定版本的新結論。
+G4：執行流程已封閉，`26 completed + 2 failed + 0 pending + 0 unconfirmed = 28` 可逐份查證。因 final failed 不為 0，本計畫不宣稱「28 組全部更新」；研究以 26 份 sealed 與 2 份 `missing_report` 的固定分母繼續。
 
 停止／回復：錯誤發布、來源身分漂移或健康檢查退化時，停止後續送件並恢復前一個已驗證程式版本；已建立的新 Job／artifact 不以刪除掩蓋，保留其狀態與修復記錄。除非另有精確刪除範圍，本流程不使用 purge。
 
 ## 8. F5：真實前瞻 protocol 與到期評估
 
-目前狀態：啟用已核准、工程與固定政策已完成，正在等待 final manifest bootstrap、Sigstore attestation、正式 runtime reload 與 28 組送件執行證據。即使立即啟用，A 的 3／6／12 個月及 D 的 5／10 交易日仍須等待資料成熟；合成 OOS 只證明工具行為，不可替代這些外部證據。
+目前狀態（2026-09-10）：final manifest bootstrap、Sigstore attestation、正式 runtime reload、28 組送件、26 份 artifact seal、2 份 `missing_report` 固定分母與 append-only maturity runner 均已取得執行證據。研究為 `selection_closed_waiting_maturity`；A 的 3／6／12 個月、B／C 的 5 交易日及 D 的 5／10 交易日仍須等待資料成熟，合成或提前行情不能替代外部證據。
 
-2026-09-08 已新增並核准 [`oos-prospective-protocol-draft-2026-09-08.md`](../../oos-prospective-protocol-draft-2026-09-08.md)，將 F4 的 7 ticker × 4 mode 共 28 組候選直接安排為第一個 cohort，固定研究問題、分母、版本、期限、成本／benchmark／企業行動、Sigstore receipt 與成熟規則；目前為 `approved_activation_pending_attestation`，在外部 attestation 與正式收樣執行前仍不宣稱 prospective 效果。
+2026-09-08 已新增並核准 [`oos-prospective-protocol-draft-2026-09-08.md`](../../oos-prospective-protocol-draft-2026-09-08.md)，將 F4 的 7 ticker × 4 mode 共 28 組候選直接安排為第一個 cohort，固定研究問題、分母、版本、期限、成本／benchmark／企業行動、Sigstore receipt 與成熟規則；外部 attestation 與正式收樣已完成，目前等待成熟，仍不宣稱 prospective 效果。
 
 ### F5.1 在收樣前固定研究內容
 
-- [ ] 先根據 G2 工具能力產出具體 protocol：ticker universe、四模式、收樣起訖、產製頻率、版本選擇規則、模型／prompt／code 政策、每模式主要期限與指標、缺樣／排除規則、成本／benchmark／企業行動／calendar 政策。
-- [ ] 建議 universe 使用核定當下的追蹤清單快照；實際 ticker 列表、開始日、生成預算及模型成本在啟用前明列。不能用結果挑股票或預先填勝率／最小樣本已足夠的結論。
-- [ ] 明定可查的事前登記與 artifact 封存 receipt 來源、時間、hash 及驗證方式。本機 timestamp 不能單獨自證；若現有工具無此證據，保持未驗證 prospective 或 retrospective 身分，先完成有用的離線研究。
-- [x] 已完成外部 attestation 選項的唯讀可行性盤點：public repository 可使用 GitHub Actions/Sigstore artifact attestation；正式契約需 pin workflow/action/source identity，離線驗 subject digest、certificate 與不可由 workflow 回填的 `verifiedTimestamps`，並拒絕 self-hosted runner。具有 `id-token: write`／`attestations: write` 的 workflow 尚未獲准加入或執行，因此不把建議方案當成上一項已完成。
-- [x] 已完成 Git capture evidence 的工程接縫但未啟用：`capture_oos_registration_receipt.py` 只接受乾淨 HEAD、commit 內同 bytes manifest、精確 remote ref 與 repository 外 exclusive output；OOS provenance/admission/CLI 驗證 schema、manifest hash、remote evidence、URL 與所有 candidate cutoff。v1 本機觀測時間不可作外部公證，固定回報 `registration_time_not_externally_attested`，因此仍維持 `prospective_unverified`／`insufficient_provenance`。隔離 OOS／capture lane `24 passed`；不可回填的 external receipt 仍屬上一項未完成條件。
-- [ ] 盤點並補真正需要的時間 provenance／事件 ledger 接線：資料首次可得、分析 input cutoff、report available、實際模型／fallback、生成失敗與未產製事件。從 `report_reproducibility.py`、資料來源 audit 與 job telemetry 接入，不把 `fetched_at` 重新命名成公布時間。
-- [ ] 凍結未來評估資料的取得／匯入流程與 allowed inputs；完整收樣與企業行動／成本缺口若無法取得，明確保留 insufficient 狀態，不暗增資料訂閱。
+- [x] 已根據 G2 工具能力固定具體 protocol：ticker universe、四模式、selection period、版本選擇、模型／prompt／code 政策、每模式主要期限與指標、缺樣／排除、成本／benchmark／企業行動與 calendar 政策。
+- [x] 已使用核定當下的 7 ticker 追蹤清單快照，固定 7 × 4 共 28 組、開始日與現有模型配額；沒有用結果挑股票，也沒有預填勝率或最小樣本結論。
+- [x] 已明定並執行可查的 GitHub Actions／Sigstore 事前登記與 artifact seal receipt，保存 manifest、bundle、trusted-root、source commit/ref、certificate identity、verified timestamp 與 hashes；本機 timestamp 未被當成外部公證。
+- [x] 已完成並執行外部 attestation：workflow/action/source identity 均固定，離線驗證 subject digest、certificate、OIDC issuer、predicate、source commit/ref 與 `verifiedTimestamps`，並拒絕 self-hosted runner。
+- [x] 已完成 Git capture evidence 的工程接縫：`capture_oos_registration_receipt.py` 只接受乾淨 HEAD、commit 內同 bytes manifest、精確 remote ref 與 repository 外 exclusive output；OOS provenance/admission/CLI 驗證 schema、manifest hash、remote evidence、URL 與所有 candidate cutoff。v1 本機觀測時間仍不可作外部公證並固定回報 `registration_time_not_externally_attested`；正式 prospective 身分由上一項獨立完成的 v2 Sigstore receipt 提供，未升格 v1 證據。
+- [x] 已接入必要的時間 provenance／事件 ledger：保存 analysis input cutoff、唯一 `report_done`／available 時間、實際 model／fallback、Job 失敗與未產製狀態；缺資料首次可得或來源公布時間時維持 `insufficient_provenance`，未把 `fetched_at` 改名冒充。
+- [x] 已凍結未來評估資料的取得／匯入流程與 allowed inputs：只接受固定 session calendar 與官方 TWSE／TPEx HTTPS raw captures；企業行動、成本或 benchmark 缺口維持 insufficient/null，不新增資料訂閱。
 
 ### F5.2 收集、成熟與比較
 
-- [ ] 依固定生成清單登記全部成功／缺報告／失敗／排除候選，封存原始版本。進行中的規則變更另開 study；保留原 study 的分母與結果。
+- [x] 已依固定生成清單登記 28 組，封存 26 份原始 artifact，2 組保留 `missing_report`；進行中的 runner 改善不改 attested cohort 或原 study 分母。
 - [ ] 到期後匯入帶來源與完成時間的完整 sessions；D 5／10 日、A 3／6／12 月、B／C 明示期限各自評估。未成熟原樣 pending，不前移日期。
 - [ ] 提供完整候選、可評分、成本可用、benchmark 可用分母，分開四模式與期限；不把多期限／重疊持有期當獨立樣本。沒有淨成本證據不能報 net 改善。
-- [ ] 若要比較兩個分析版本，必須事前固定同候選、同資料可得時間、模型／prompt 政策與指標，保存實際版本差異；改策略與改模型的效果不能混為單一因果結論。
+- [x] 第一個 study 不做兩版本因果比較；若未來另做比較，必須另行事前固定同候選、資料可得時間、模型／prompt 政策與指標，不能把改策略與改模型混為單一效果。
 - [ ] 首輪只給與資料量相稱的描述結果；顯著性／樣本量設計、調參與策略選擇是另個明示研究切片，不從少量樣本推導可靠勝率。
 
-G5：取得有可驗證 provenance 與完整分母的結果，或清楚列出成熟時間／資料不足。若需跨日觀察，再依使用者要求建立持續監測；本計畫不自動建立排程。
+G5：完整 28 組分母、attestation 與目前資料不足已可驗證；成熟結果尚未到期。持續監測已依使用者明示要求建立為 ACTIVE heartbeat，首個正式 checkpoint 為 2026-09-15 15:05 Asia/Taipei；只在實際成熟且官方行情完整後追加 revision。
 
 ## 9. F6：依證據安排第二輪模式優化
 
@@ -284,4 +286,4 @@ OOS 新增單元測試由上述 runner 逐一明列，並納入既有：
 
 本計畫已完成 PG／OOS 與可信度交付的獨立交叉審查，結果 Approved；審查建議的精確 admission enum 與第一批原始價格政策已納入。文件審查不等於上述工作已實作或通過測試。
 
-本次計畫目前的下一個外部關卡是 **F4：在核定 ticker／mode 範圍與重啟授權後，載入目前 revision 並逐批更新報告**。F2／F3 工程驗收與 F4 唯讀準備已完成；F4 submit、正式 runtime reload、歷史 artifact 重建與 F5 真實 prospective 收樣仍未執行。本次交付不會將合成 OOS、舊程序或唯讀盤點誤當成正式發布／研究效果。
+本計畫目前的下一個外部關卡是 **F5：在各固定期限成熟後，以官方完整行情建立 append-only checkpoint**。F1～F4、F5 的 attestation／正式收樣／runner 工程均已完成；尚未完成的是 2026-09-15 起的真實到期評估與其後 10 交易日、3／6／12 個月結果。不得將 smoke、合成 OOS、未成熟行情或目前 0 evaluations 誤當成研究效果。

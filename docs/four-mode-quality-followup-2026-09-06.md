@@ -1,8 +1,10 @@
 # 四模式品質缺口：後續根因調查
 
-狀態：**根因調查完成，第一批修正方向已獲同意；書面規格待檢視，尚未修改正式程式。**
+原始狀態（2026-09-06）：**根因調查完成，第一批修正方向已獲同意；當時尚未修改正式程式。**
 
-使用者已同意先處理「缺資料不產出 DCF、上游更正後重跑下游、補齊新聞與證據契約」。具體設計收斂於 `docs/superpowers/specs/2026-09-06-analysis-credibility-followup-design.md`；歷史重建範圍仍待選擇。
+目前狀態（2026-09-10）：本文件保留當時的根因快照；內容可信度實作、PostgreSQL 隔離 live 驗收、核定 28 組正式送件、Sigstore attestation 與 prospective cohort 收樣均已完成。26 份報告已 sealed，2 份保留 `missing_report`；真實 OOS 研究為 `selection_closed_waiting_maturity`。最新關卡與限制以[四模式完整後續優化計畫](superpowers/plans/2026-09-07-four-mode-followup-optimization-plan.md)及[前瞻研究 Protocol](oos-prospective-protocol-draft-2026-09-08.md)為準。
+
+使用者已同意先處理「缺資料不產出 DCF、上游更正後重跑下游、補齊新聞與證據契約」。具體設計收斂於 `docs/superpowers/specs/2026-09-06-analysis-credibility-followup-design.md`；本段所稱歷史重建範圍待選擇是當時狀態，後續已核定 7 ticker × 4 mode 的 28 組最新版並保留原歷史。
 
 本紀錄延續 `remaining-analysis-delivery-2026-09-06.md` 的保留問題，不取代前一輪交付紀錄，也不表示舊報告已修復。查驗 checkout 為 `/Volumes/X10 Pro Mac/stock-agent`，基準為 `main` 的 `5f44bce0`。
 

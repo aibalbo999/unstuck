@@ -10,10 +10,11 @@
 
 ---
 
-狀態（2026-09-07）：**Task 1～8 的實作與離線 contract 已提交；Task 9 文件與
-scoped offline regression 已完成。真實 PostgreSQL image build／live PG-01～08／
-cleanup 尚未完成，不能宣稱本計畫 live 驗收通過。** 設計來源：[PG 規格](../specs/2026-09-06-postgres-isolated-verification-design.md)。
-OOS 規格雖已核准，仍是下一個獨立計畫，不在本計畫偷偷實作。
+狀態（2026-09-10 同步）：**Task 1～9、真實 PostgreSQL image build、live
+PG-00～08 與精確 cleanup 均已完成。正式驗收為 17/17 cases、51/51 phases、
+`status=passed`、`server_stop_status=stopped`、`cleanup_status=removed`。**
+這只完成隔離驗證，不代表正式 runtime 已切換至 PostgreSQL。設計來源：[PG 規格](../specs/2026-09-06-postgres-isolated-verification-design.md)。
+OOS 後續已依獨立計畫完成工程與收樣啟用，仍不屬於本 PG 計畫的驗收範圍。
 
 ## 執行邊界與命令約定
 
@@ -421,7 +422,7 @@ subprocess.run([
 
 stdout／stderr 只留容器內本次私有 log，不直接匯出；主機只取插件產生的 structured result。entrypoint 成功／失敗／中斷都在 finally `pg_ctl -D <exact data_dir> -w -t 30 stop`；停止失敗需記錄，不能覆蓋成成功。不可 `--rm` 自動移除後才取結果。
 
-- [ ] **Step 5：完成 unit 綠燈，再首次準備 image。** image build 是核准執行階段才做；這份計畫撰寫時尚未 build。建置後檢查實際 Python 3.13、PG 17.11、套件版本與 `psycopg.pq.__impl__ == 'binary'`，保存實際 libpq 版本。
+- [x] **Step 5：完成 unit 綠燈，再首次準備 image。** 已建置並驗證派生 image `sha256:9816a7d97b354827d9bc281974a8b90d81b1733d630657256499677cd601ec3a`；實際 runtime 為 Python 3.13.5、PostgreSQL 17.11、psycopg 3.3.4、libpq 180000、saver 3.1.0 與 binary implementation。
 - [x] **Step 6：提交 image／bootstrap／runner scoped changes。** commit message：`test: provision pinned offline PostgreSQL runtime`。若 PG readiness 或 driver 不可用，只回報 preparation failure，不進 PG 成功結論。
 
 ### Task 4：共用 fixtures 與真 PG 讀寫 helper
@@ -546,7 +547,7 @@ PG helper 中 builder 可顯式注入此版本；不改既有 SQLite assertions�
 
 首次 smoke 只驗證 PG-01，不宣稱完整 PG suite 通過；entrypoint 若只收集到 PG-01，整體 result 必須標 `incomplete_suite`。測試 fixture 可以在單一 case 階段執行 debug，但正式交付的 mandatory ID 檢查不移除。
 
-- [ ] **Step 6：跑 SQLite 回歸與隔離 PG-01，提交 helper。** 預期 PG 真連線／migration／app setup 成功、未生成 SQLite checkpoint file；若 app setup 因 schema 權限失敗，只補 dedicated schema grant，不改 production adapter 去跳過 setup。commit message：`test: add real PostgreSQL workflow fixtures`。
+- [x] **Step 6：跑 SQLite 回歸與隔離 PG-01，提交 helper。** PG 真連線、migration、app setup 與未生成 SQLite checkpoint file 均由後續完整 live registry 覆蓋；helper 已以 `test: add real PostgreSQL workflow fixtures` 提交。
 
 ### Task 5：原稿、中間稿與跨 instance 恢復（PG-02／03／04／08）
 
@@ -700,8 +701,8 @@ def test_pg04_cancel_after_draft_resumes_without_partial_adoption(
     assert calls["initial"] == [4] and calls["prerequisite"] == 1
 ```
 
-- [ ] **Step 4：先觀察新 live cases 的正確失敗，再補直接相關 helper／adapter 缺陷到綠燈。** 不為達到綠燈刪除原稿、gate 重驗、完整 payload、version 或成功節點 assertions；既有可用 adapter 可直接綠燈，這是補驗證，不捏造 production bug。
-- [ ] **Step 5：SQLite＋新增 live subset 通過後提交。** commit message：`test: verify PostgreSQL draft and graph recovery`。
+- [x] **Step 4：先觀察新 live cases 的正確失敗，再補直接相關 helper／adapter 缺陷到綠燈。** 完整 live registry 保留原稿、gate 重驗、完整 payload、version 與成功節點 assertions，並已通過。
+- [x] **Step 5：SQLite＋新增 live subset 通過後提交。** 已以 `test: verify PostgreSQL draft and graph recovery` 提交。
 
 ### Task 6：thread／agent 隔離與真依賴失效（PG-05／06）
 
@@ -799,7 +800,7 @@ async with open_postgres_checkpointer(pg_case.app_endpoint.conninfo()) as saver:
 
 新增名為 `test_pg06_dependency_repair_resumes_atomic_invalidated_round`；最終必須保留 `prior == ['already successful']` 與 `visits == [4,6,21,4,6,21,7]`。只替換生成與 audit fixture，不 monkeypatch 依賴圖、atomic transaction、provenance 或 reducer。
 
-- [ ] **Step 4：跑新 cases 與原 `test_repair_dependencies.py`，提交。** 正反例都要明確觸及不同 namespace／upstream；commit message：`test: verify PostgreSQL isolation and dependency invalidation`。
+- [x] **Step 4：跑新 cases 與原 `test_repair_dependencies.py`，提交。** 正反例均觸及不同 namespace／upstream，並已以 `test: verify PostgreSQL isolation and dependency invalidation` 提交。
 
 ### Task 7：真草稿拒寫與舊 checkpoint 保留（PG-07）
 
@@ -907,7 +908,7 @@ def test_pg07_intermediate_draft_permission_denied_preserves_original(
     assert not snapshot.values.get("analyses") and not snapshot.values.get("agent_reports")
 ```
 
-- [ ] **Step 4：跑權限故障與恢復後讀回，再跑原 SQLite failure cases。** 新 PG cases 都必須觀察到真 42501 且 namespace 正確；若只是 setup／graph 初始寫入失敗則不合格。commit message：`test: prove PostgreSQL draft persistence fails closed`。
+- [x] **Step 4：跑權限故障與恢復後讀回，再跑原 SQLite failure cases。** PG-07 已觀察真 `42501` 與正確 namespace，恢復路徑及既有 SQLite failure cases 通過；已以 `test: prove PostgreSQL draft persistence fails closed` 提交。
 
 ### Task 8：native 負面檢查、完整結果與安全匯出
 
@@ -980,7 +981,7 @@ def accepted_result(expected, collected, reports, *, exit_code):
 
 PGData、socket、SQLite 位於 tmpfs，容器停止即不可作持久 evidence；因此 `/results` 使用本次 container writable layer 而非 tmpfs，停止後 `docker cp` 只取 `result.json`。取回前驗證它是一般檔且有大小上限 1 MiB；主機解析 JSON 確認 run ID／image／manifest 一致、已知 schema／欄位，否則不當驗收證據。不匯出 PG log 或整個 `/tmp`／PGData。
 
-- [ ] **Step 5：完整 live run 與清理 failure injection 都通過後提交。** commit message：`test: require complete isolated PostgreSQL evidence`。首次完整 live 結果只屬此 image／commit，不回填過往 fake 測試為 live。
+- [x] **Step 5：完整 live run 與清理 failure injection 都通過後提交。** 已以 `test: require complete isolated PostgreSQL evidence` 提交；首次完整 live 結果只歸屬已記錄的 image／commit，未回填過往 fake 測試。
 
 ### Task 9：回歸、文件與交付
 
@@ -1002,7 +1003,7 @@ PGData、socket、SQLite 位於 tmpfs，容器停止即不可作持久 evidence�
 
 預期 0 failure；計數讀實際輸出，不複製前輪數字。若改 runner guard，補一次全 suite collection 與按既有隔離 runner 的分組回歸，確保普通 tests 不被新 live policy 污染；全部 group 的覆蓋集合不得重複或遺漏。
 
-- [ ] **Step 2：從已 commit 的實作工作樹做完整 live run。** 由啟動工具驗證結果目錄為新建位置：
+- [x] **Step 2：從已 commit 的實作工作樹做完整 live run。** 啟動工具使用新建結果目錄；結果為 17/17 cases、51/51 phases、0 collection errors、exit code 0、PG stopped、container removed：
 
 ```sh
 "/Volumes/X10 Pro Mac/stock-agent/.venv/bin/python" -B scripts/run_postgres_validation.py \
@@ -1011,14 +1012,14 @@ PGData、socket、SQLite 位於 tmpfs，容器停止即不可作持久 evidence�
 
 若上述精確目錄已存在，CLI 必須拒絕覆寫，人工選新的 task-specific 名稱；不刪舊結果換取通過。驗收預期：mandatory PG cases 全部通過、0 skip、禁止連線反例成立、PG stopped、container removed、無 anonymous volume、正式設定未改。派生 image 留作 cache，列出精確 ID 與用途。
 
-- [ ] **Step 3：主 agent 親自逐項查證。** 對照規格 PG-01～08 與隔離章；核對完整 case registry、class／SQLSTATE、cold reopen、原稿／中稿 payload、namespace／thread、取消／defer、真依賴失效及 cleanup。不能只看 exit code。可要求獨立 code review，但規格 coverage 自我檢核不委派。
+- [x] **Step 3：主 agent 親自逐項查證。** 已對照 PG-00～08 與隔離章核對完整 registry、class／SQLSTATE、cold reopen、原稿／中稿 payload、namespace／thread、取消／defer、真依賴失效、server stop 與 cleanup，不只採用 exit code。
 - [x] **Step 4：寫操作文件。** 已新增 `docs/postgres-isolated-verification.md`，分開
   Docker build／offline validation，並記錄 fixed identity、non-root local-only trust、
   result schema、skip 與 cleanup_failed 語意。
 - [x] **Step 5：寫交付紀錄。** 已新增本次實際 command／counts、commit／dirty、live
-  preparation limitation 與 unavailable image／runtime 欄位；明示未改 `.env`／正式
-  `.venv`、未切換 production SQLite adapter、未 push／merge／restart／rebuild，OOS
-  尚未實作。
+  image／runtime identity 與 cleanup 結果；明示未改 `.env`／正式
+  `.venv`、未切換 production SQLite adapter、未 push／merge／restart／rebuild；OOS
+  在這份 PG 交付完成後另依獨立計畫實作。
 - [x] **Step 6：文件格式檢查與 scoped commit。** 文件與架構圖／spec／plan 狀態均已
   scoped 更新；提交前後執行 `git diff --check`，commit message：
   `docs: record isolated PostgreSQL verification evidence`。
