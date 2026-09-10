@@ -22,7 +22,7 @@ from .official_market_endpoints import TICKER_RE, official_url
 
 _SHA256_RE = re.compile(r"[0-9a-f]{64}")
 _OFFICIAL_HOSTS = {"www.twse.com.tw", "www.tpex.org.tw"}
-_DATA_READY_LOCAL_TIME = time(15, 0)
+DATA_READY_LOCAL_TIME = time(15, 0)
 
 
 def _read_relative_regular(base: Path, relative: Path) -> bytes:
@@ -254,7 +254,7 @@ def build_official_market_dataset(
         raise ValueError("dataset as_of must include timezone")
     if cutoff not in validated_sessions:
         raise ValueError("cutoff session is not in the official calendar")
-    cutoff_ready_at = datetime.combine(cutoff, _DATA_READY_LOCAL_TIME, ZoneInfo("Asia/Taipei"))
+    cutoff_ready_at = datetime.combine(cutoff, DATA_READY_LOCAL_TIME, ZoneInfo("Asia/Taipei"))
     bounded_sessions = tuple(session for session in validated_sessions if session <= cutoff)
     months = sorted({session.strftime("%Y-%m") for session in bounded_sessions})
     allowed_dates = {session.isoformat() for session in bounded_sessions}

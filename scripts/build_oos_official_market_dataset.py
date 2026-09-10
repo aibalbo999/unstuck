@@ -4,7 +4,7 @@
 from __future__ import annotations
 
 import argparse
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 import hashlib
 import json
 import os
@@ -14,6 +14,7 @@ import ssl
 import sys
 import urllib.parse
 import urllib.request
+from zoneinfo import ZoneInfo
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -21,7 +22,11 @@ sys.path.insert(0, str(ROOT / "backend"))
 
 from oos_research.canonical import canonical_bytes, content_hash, require_sha256_pin
 from oos_research.inventory import validate_inventory
-from oos_research.official_market_data import build_official_market_dataset, validate_session_calendar
+from oos_research.official_market_data import (
+    DATA_READY_LOCAL_TIME,
+    build_official_market_dataset,
+    validate_session_calendar,
+)
 from oos_research.official_market_endpoints import official_url
 
 
@@ -175,12 +180,25 @@ def main(argv=None, *, opener=None, clock=None) -> int:
     sessions = sessions_payload.get("sessions")
     if not isinstance(sessions, list):
         raise ValueError("session calendar is invalid")
+    if args.cutoff_session not in sessions:
+        raise ValueError("cutoff session is not in the official calendar")
+    capture_clock = clock or (lambda: datetime.now(timezone.utc))
+    observed_at = capture_clock()
+    if not isinstance(observed_at, datetime) or observed_at.tzinfo is None or observed_at.utcoffset() is None:
+        raise ValueError("capture clock must return a timezone-aware datetime")
+    capture_not_before = datetime.combine(
+        date.fromisoformat(args.cutoff_session),
+        DATA_READY_LOCAL_TIME,
+        ZoneInfo("Asia/Taipei"),
+    )
+    if observed_at < capture_not_before:
+        raise ValueError("official response predates the cutoff data-ready boundary")
     raw_dir = _new_raw_dir(args.raw_dir)
     fetch_month = _capture_fetcher(
         raw_dir=raw_dir,
         raw_prefix=raw_dir.name,
         opener=opener or _default_open,
-        clock=clock or (lambda: datetime.now(timezone.utc)),
+        clock=capture_clock,
     )
     dataset = build_official_market_dataset(
         inventory=inventory,

@@ -205,6 +205,100 @@ def test_builder_rejects_wrong_external_pins_before_raw_creation_or_network(
     assert not raw_dir.exists()
     assert not output.exists()
 
+
+def test_builder_rejects_non_session_cutoff_before_raw_creation_or_network(tmp_path):
+    module = _module()
+    inventory_path = tmp_path / "inventory.json"
+    sessions_path = tmp_path / "sessions.json"
+    raw_dir = tmp_path / "raw"
+    output = tmp_path / "dataset.json"
+    inventory = {
+        "coverage_status": "closed",
+        "candidates": [{"candidate_id": "tw", "ticker": "1623.TW", "pipeline_id": "v1"}],
+    }
+    inventory["inventory_sha256"] = content_hash(inventory)
+    sessions = {
+        "schema_version": "oos.exchange-sessions.v1",
+        "market": "tw",
+        "timezone": "Asia/Taipei",
+        "session_open_local_time": "09:00:00",
+        "range": {"start": "2026-09-09", "end": "2026-09-10"},
+        "calendar_definition_sha256": "c" * 64,
+        "sessions": ["2026-09-09", "2026-09-10"],
+    }
+    inventory_path.write_text(json.dumps(inventory), encoding="utf-8")
+    sessions_path.write_text(json.dumps(sessions), encoding="utf-8")
+    calls = []
+    argv = [
+        "--inventory", str(inventory_path),
+        "--expected-inventory-sha256", inventory["inventory_sha256"],
+        "--sessions", str(sessions_path),
+        "--expected-session-calendar-sha256", content_hash(sessions),
+        "--cutoff-session", "2026-09-08",
+        "--raw-dir", str(raw_dir),
+        "--output", str(output),
+    ]
+
+    with pytest.raises(ValueError, match="cutoff session is not in the official calendar"):
+        module.main(argv, opener=lambda *args, **kwargs: calls.append((args, kwargs)))
+
+    assert calls == []
+    assert not raw_dir.exists()
+    assert not output.exists()
+
+
+def test_builder_rejects_premature_capture_before_raw_creation_or_network(tmp_path):
+    module = _module()
+    inventory_path = tmp_path / "inventory.json"
+    sessions_path = tmp_path / "sessions.json"
+    raw_dir = tmp_path / "raw"
+    output = tmp_path / "dataset.json"
+    inventory = {
+        "coverage_status": "closed",
+        "candidates": [{"candidate_id": "tw", "ticker": "1623.TW", "pipeline_id": "v1"}],
+    }
+    inventory["inventory_sha256"] = content_hash(inventory)
+    sessions = {
+        "schema_version": "oos.exchange-sessions.v1",
+        "market": "tw",
+        "timezone": "Asia/Taipei",
+        "session_open_local_time": "09:00:00",
+        "range": {"start": "2026-09-09", "end": "2026-09-10"},
+        "calendar_definition_sha256": "c" * 64,
+        "sessions": ["2026-09-09", "2026-09-10"],
+    }
+    inventory_path.write_text(json.dumps(inventory), encoding="utf-8")
+    sessions_path.write_text(json.dumps(sessions), encoding="utf-8")
+    response = {"stat": "OK", "data": [
+        ["115/09/10", "1", "1", "216", "220", "216", "218.5"],
+    ]}
+    calls = []
+
+    def opener(request, timeout):
+        calls.append((request.full_url, timeout))
+        return FakeResponse(request.full_url, response)
+
+    argv = [
+        "--inventory", str(inventory_path),
+        "--expected-inventory-sha256", inventory["inventory_sha256"],
+        "--sessions", str(sessions_path),
+        "--expected-session-calendar-sha256", content_hash(sessions),
+        "--cutoff-session", "2026-09-10",
+        "--raw-dir", str(raw_dir),
+        "--output", str(output),
+    ]
+
+    with pytest.raises(ValueError, match="predates the cutoff data-ready boundary"):
+        module.main(
+            argv,
+            opener=opener,
+            clock=lambda: datetime(2026, 9, 10, 6, 59, tzinfo=timezone.utc),
+        )
+
+    assert calls == []
+    assert not raw_dir.exists()
+    assert not output.exists()
+
 @pytest.mark.parametrize("ticker", ["../../etc/passwd.TW", "3324.TW%2FO"])
 def test_official_url_rejects_unsafe_ticker(ticker):
     with pytest.raises(ValueError, match="ticker"):

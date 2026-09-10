@@ -129,7 +129,7 @@ PYTHONPATH="$PROJECT_ROOT/backend" "$PROJECT_PYTHON" -m oos_research.cli \
   --markdown-output "$CHECKPOINT_DIR/summary.md"
 ```
 
-行情 builder 只呼叫 TWSE `STOCK_DAY` 與 TPEx `tradingStock` 官方 HTTPS endpoints，保存每次 raw JSON、精確 ticker/month URL、capture time 與 SHA-256，並在所有回應完成後由程序產生 dataset `as_of`。每份 capture 必須晚於 cutoff 日 15:00（Asia/Taipei）的資料可用邊界；若任一 ticker 的 cutoff row 尚未發布，整個 dataset fail closed，不得把盤中 row 當成完成資料，也不得手填完成時間。Python 對 TPEx 憑證只關閉 `VERIFY_X509_STRICT` 相容旗標，CA 與 hostname 驗證仍維持啟用。
+行情 builder 只呼叫 TWSE `STOCK_DAY` 與 TPEx `tradingStock` 官方 HTTPS endpoints，保存每次 raw JSON、精確 ticker/month URL、capture time 與 SHA-256，並在所有回應完成後由程序產生 dataset `as_of`。builder 會在建立 raw 目錄或送出網路請求前，先拒絕不在固定 calendar 的 cutoff 與早於 cutoff 日 15:00（Asia/Taipei）的執行時間；每份實際 capture 也必須晚於相同資料可用邊界。若任一 ticker 的 cutoff row 尚未發布，整個 dataset fail closed，不得把盤中 row 當成完成資料，也不得手填完成時間。Python 對 TPEx 憑證只關閉 `VERIFY_X509_STRICT` 相容旗標，CA 與 hostname 驗證仍維持啟用。
 
 Replay 會在同一程序重新執行離線 GitHub/Sigstore verification，不接受序列化 projection 取代 capability；也會由 raw captures 重建 dataset，再核對 OHLC、calendar、inventory hash 與 dataset hash。inventory、session calendar、attestation bundle 與 trusted root 均先比對本手冊固定的外部 hash，再允許抓取或寫入 study；dataset `as_of` 必須等於最後一次 official capture time。每個 checkpoint 以 dataset hash 產生獨立的 registration、admission、dataset、evaluation、summary 與 checkpoint record，並保存 runner source hashes。
 
