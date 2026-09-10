@@ -50,7 +50,7 @@
 3. 若已有完整同 cutoff checkpoint，不再呼叫 TWSE／TPEx、不建立新 revision，只重驗既有 hashes 並把 heartbeat 移到下一個實際成熟日。
 4. 若只有失敗或不完整 revision，原目錄保持不動；行情確已完整後使用新的 `rN` 重試。不得重用舊目錄，也不得把半成品升格為完成。
 
-以下 preflight 是實際 capture gate，不只是人工檢查清單。它只讀取符合 `<cutoff>T<HHMMSS><offset>-rN` 的目錄、三份 checkpoint 投影與 study checkpoint record；`complete` 會正常結束而不送網路請求，`conflict`／設定或 evidence 錯誤會 fail closed，只有 `not_found` 或 `incomplete` 才能進入新的 capture revision。
+以下 preflight 是實際 capture gate，不只是人工檢查清單。它只讀取符合 `<cutoff>T<HHMMSS><offset>-rN` 的目錄、三份 checkpoint 投影與 study checkpoint record；cutoff 當日 15:05（Asia/Taipei）前固定回傳 `not_due`，`complete`／`not_due` 都會正常結束而不送網路請求，`conflict`／設定或 evidence 錯誤會 fail closed，只有已到期的 `not_found` 或 `incomplete` 才能進入新的 capture revision。
 
 ```bash
 PROJECT_PYTHON="/Volumes/X10 Pro Mac/stock-agent/.venv/bin/python"
@@ -84,6 +84,11 @@ PREFLIGHT_DECISION="$(
 case "$PREFLIGHT_DECISION" in
   complete:false)
     echo "cutoff already has one complete checkpoint; no capture needed"
+    exit 0
+    ;;
+  not_due:false)
+    printf '%s\n' "$PREFLIGHT_RESULT"
+    echo "cutoff has not reached the 15:05 Asia/Taipei capture boundary"
     exit 0
     ;;
   not_found:true|incomplete:true)

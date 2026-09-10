@@ -6,9 +6,10 @@ import json
 import os
 import re
 import stat
-from datetime import date, datetime
+from datetime import date, datetime, time
 from pathlib import Path
 from typing import Any
+from zoneinfo import ZoneInfo
 
 from .dataset import validate_dataset
 from .store import StoreError, StudyStore
@@ -18,6 +19,8 @@ from .summary import summary_markdown
 _DATASET_LIMIT = 64 * 1024 * 1024
 _REPLAY_LIMIT = 16 * 1024 * 1024
 _SUMMARY_LIMIT = 2 * 1024 * 1024
+_MARKET_TIMEZONE = ZoneInfo("Asia/Taipei")
+_CAPTURE_NOT_BEFORE = time(15, 5)
 
 
 def _existing_root(value: str | os.PathLike[str], *, label: str) -> Path:
@@ -191,6 +194,7 @@ def inspect_checkpoint_cutoff(
     study_root: str | os.PathLike[str],
     study_id: str,
     cutoff_session: str,
+    current_time: datetime | None = None,
 ) -> dict[str, Any]:
     """Return whether an official capture is needed for one exact cutoff."""
     try:
@@ -199,6 +203,10 @@ def inspect_checkpoint_cutoff(
         raise ValueError("cutoff_session must be an ISO date") from exc
     if cutoff.isoformat() != cutoff_session:
         raise ValueError("cutoff_session must be an ISO date")
+    observed_at = current_time or datetime.now(_MARKET_TIMEZONE)
+    if observed_at.tzinfo is None or observed_at.utcoffset() is None:
+        raise ValueError("current_time must include a timezone")
+    capture_not_before = datetime.combine(cutoff, _CAPTURE_NOT_BEFORE, _MARKET_TIMEZONE)
 
     root = _existing_root(checkpoints_root, label="checkpoints_root")
     store = StudyStore(study_root, study_id=study_id, create=False)
@@ -233,7 +241,7 @@ def inspect_checkpoint_cutoff(
         status, should_capture = "incomplete", True
     else:
         status, should_capture = "not_found", True
-    return {
+    result = {
         "schema_version": "oos.checkpoint-preflight.v1",
         "cutoff_session": cutoff_session,
         "status": status,
@@ -242,3 +250,10 @@ def inspect_checkpoint_cutoff(
         "incomplete_count": incomplete_count,
         "checkpoints": checkpoints,
     }
+    if should_capture and observed_at.astimezone(_MARKET_TIMEZONE) < capture_not_before:
+        result.update({
+            "status": "not_due",
+            "should_capture": False,
+            "capture_not_before": capture_not_before.isoformat(),
+        })
+    return result

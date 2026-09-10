@@ -3,9 +3,11 @@ from __future__ import annotations
 import json
 import hashlib
 import os
+from datetime import datetime
 from pathlib import Path
 import subprocess
 import sys
+from zoneinfo import ZoneInfo
 
 from oos_research.canonical import content_hash
 from oos_research.checkpoint_preflight import inspect_checkpoint_cutoff
@@ -15,6 +17,26 @@ from oos_research.summary import summary_markdown
 
 
 ROOT = Path(__file__).resolve().parents[1]
+AT_DATA_READY_BOUNDARY = datetime(2026, 9, 15, 15, 5, tzinfo=ZoneInfo("Asia/Taipei"))
+
+
+def test_preflight_blocks_capture_before_market_data_ready_boundary(tmp_path):
+    checkpoints = tmp_path / "checkpoints"
+    checkpoints.mkdir()
+    study = tmp_path / "study"
+    StudyStore(study, study_id="study")
+
+    result = inspect_checkpoint_cutoff(
+        checkpoints_root=checkpoints,
+        study_root=study,
+        study_id="study",
+        cutoff_session="2026-09-15",
+        current_time=datetime(2026, 9, 15, 15, 4, 59, tzinfo=ZoneInfo("Asia/Taipei")),
+    )
+
+    assert result["status"] == "not_due"
+    assert result["should_capture"] is False
+    assert result["capture_not_before"] == "2026-09-15T15:05:00+08:00"
 
 
 def _dataset(cutoff: str = "2026-09-15") -> dict:
@@ -71,6 +93,7 @@ def test_preflight_detects_complete_cutoff_and_blocks_recapture(tmp_path):
         study_root=study,
         study_id="study",
         cutoff_session="2026-09-15",
+        current_time=AT_DATA_READY_BOUNDARY,
     )
 
     assert result == {
@@ -100,6 +123,7 @@ def test_preflight_allows_capture_when_cutoff_has_no_revision(tmp_path):
         study_root=study,
         study_id="study",
         cutoff_session="2026-09-15",
+        current_time=AT_DATA_READY_BOUNDARY,
     )
 
     assert result["status"] == "not_found"
@@ -121,6 +145,7 @@ def test_preflight_preserves_incomplete_revision_and_allows_new_revision(tmp_pat
         study_root=study,
         study_id="study",
         cutoff_session="2026-09-15",
+        current_time=AT_DATA_READY_BOUNDARY,
     )
 
     assert result["status"] == "incomplete"
@@ -151,6 +176,7 @@ def test_preflight_does_not_follow_symlink_checkpoint_or_evidence(tmp_path):
         study_root=study,
         study_id="study",
         cutoff_session="2026-09-15",
+        current_time=AT_DATA_READY_BOUNDARY,
     )
 
     assert result["status"] == "incomplete"
@@ -171,6 +197,7 @@ def test_preflight_rejects_replay_identity_mismatch(tmp_path):
         study_root=study,
         study_id="study",
         cutoff_session="2026-09-15",
+        current_time=AT_DATA_READY_BOUNDARY,
     )
 
     assert result["status"] == "incomplete"
@@ -192,6 +219,7 @@ def test_preflight_rejects_dataset_hash_and_summary_mismatches(tmp_path):
         study_root=study,
         study_id="study",
         cutoff_session="2026-09-15",
+        current_time=AT_DATA_READY_BOUNDARY,
     )
 
     assert result["status"] == "incomplete"
