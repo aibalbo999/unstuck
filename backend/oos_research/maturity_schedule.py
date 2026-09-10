@@ -93,6 +93,22 @@ def _capture_not_before(cutoff_session: str) -> str:
     ).isoformat()
 
 
+def _recommended_run_id(
+    cutoff_session: str,
+    inspection: Mapping[str, Any],
+    observed_at: datetime,
+) -> str:
+    revisions = [
+        int(checkpoint["run_id"].rsplit("-r", 1)[1])
+        for checkpoint in inspection["checkpoints"]
+    ]
+    local_time = observed_at.astimezone(ZoneInfo(_TIMEZONE_NAME))
+    return (
+        f"{cutoff_session}T{local_time:%H%M%S}{local_time:%z}"
+        f"-r{max(revisions, default=0) + 1}"
+    )
+
+
 def plan_next_checkpoint(
     *,
     schedule: Mapping[str, Any],
@@ -146,7 +162,16 @@ def plan_next_checkpoint(
             "complete_cutoffs": complete_cutoffs,
         }
         if inspection["should_capture"]:
-            return {**common, "status": "ready", "should_capture": True}
+            return {
+                **common,
+                "status": "ready",
+                "should_capture": True,
+                "recommended_run_id": _recommended_run_id(
+                    entry["cutoff_session"],
+                    inspection,
+                    observed_at,
+                ),
+            }
         if inspection["status"] == "not_due":
             return {**common, "status": "waiting", "should_capture": False}
         raise ValueError("maturity checkpoint inspection returned an unsafe decision")

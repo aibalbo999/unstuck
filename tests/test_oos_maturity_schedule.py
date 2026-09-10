@@ -128,8 +128,30 @@ def test_plan_selects_earliest_due_unfinished_cutoff(tmp_path):
         "checkpoint_status": "not_found",
         "newly_mature_report_horizons": 7,
         "scope": "first session 2026-09-09; v2/v3/v4 5 trading sessions",
+        "recommended_run_id": "2026-09-15T150500+0800-r1",
         "complete_cutoffs": [],
     }
+
+
+def test_plan_recommends_next_exclusive_run_revision(tmp_path):
+    checkpoints = tmp_path / "checkpoints"
+    checkpoints.mkdir()
+    (checkpoints / "2026-09-15T150500+0800-r1").mkdir()
+    (checkpoints / "2026-09-15T150600+0800-r2").mkdir()
+    study = tmp_path / "study"
+    StudyStore(study, study_id="study")
+
+    result = plan_next_checkpoint(
+        schedule=_schedule(),
+        checkpoints_root=checkpoints,
+        study_root=study,
+        study_id="study",
+        current_time=datetime(2026, 9, 15, 15, 7, 8, tzinfo=ZoneInfo("Asia/Taipei")),
+    )
+
+    assert result["status"] == "ready"
+    assert result["checkpoint_status"] == "incomplete"
+    assert result["recommended_run_id"] == "2026-09-15T150708+0800-r3"
 
 
 def test_plan_waits_for_earliest_registered_cutoff(tmp_path):
