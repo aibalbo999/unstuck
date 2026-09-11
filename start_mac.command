@@ -90,6 +90,32 @@ raise_file_descriptor_limit() {
 
 raise_file_descriptor_limit
 
+wait_for_project_workers_to_stop() {
+    local attempt pid remaining
+    if ! declare -F project_worker_pids >/dev/null 2>&1; then
+        return 0
+    fi
+    for attempt in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20; do
+        remaining="$(project_worker_pids || true)"
+        if [ -z "$remaining" ]; then
+            return 0
+        fi
+        sleep 0.25
+    done
+    echo "Worker 子程序仍在關閉，送出停止訊號後再等待..."
+    for pid in $remaining; do
+        kill -TERM "$pid" 2>/dev/null || true
+    done
+    for attempt in 1 2 3 4 5 6 7 8; do
+        remaining="$(project_worker_pids || true)"
+        if [ -z "$remaining" ]; then
+            return 0
+        fi
+        sleep 0.25
+    done
+    echo "提醒：部分 Worker 子程序尚未退出；即將繼續關閉本次啟動的 Redis。"
+}
+
 cleanup() {
     if [ -n "${SERVER_PID:-}" ]; then
         kill "$SERVER_PID" 2>/dev/null || true
@@ -100,6 +126,7 @@ cleanup() {
         wait "$WORKER_PID" 2>/dev/null || true
         rm -f "$WORKER_PID_FILE" 2>/dev/null || true
     fi
+    wait_for_project_workers_to_stop
     if [ -n "${REDIS_PID:-}" ]; then
         kill "$REDIS_PID" 2>/dev/null || true
         wait "$REDIS_PID" 2>/dev/null || true
