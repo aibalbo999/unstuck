@@ -12,6 +12,7 @@ from context_digest_payload import (
     _normalize_digest_text,
 )
 from context_digest_runtime import (
+    CONTEXT_DIGEST_MAX_OUTPUT_TOKENS,
     _agent_event_kwargs,
     _build_digest_generation_config,
     _context_digest_cache_key,
@@ -90,7 +91,8 @@ def ensure_context_digest(agent_num: int, context: dict, rotator: KeyRotator, pr
                 ),
                 progress_callback,
             )
-            api_key = rotator.get_key(model_id, estimate_text_tokens(prompt, response_budget=4096))
+            request_tokens = estimate_text_tokens(prompt, response_budget=CONTEXT_DIGEST_MAX_OUTPUT_TOKENS)
+            api_key = rotator.get_key(model_id, request_tokens)
             response = _generate_context_digest_content(api_key, model_id, prompt)
             digest = _normalize_digest_text(response_text(response), agent_num, context)
             digests[agent_num] = digest
@@ -198,7 +200,8 @@ async def ensure_context_digest_async(agent_num: int, context: dict, rotator: Ke
                 ),
                 progress_callback,
             )
-            api_key = await rotator.async_get_key(model_id, estimate_text_tokens(prompt, response_budget=4096))
+            request_tokens = estimate_text_tokens(prompt, response_budget=CONTEXT_DIGEST_MAX_OUTPUT_TOKENS)
+            api_key = await rotator.async_get_key(model_id, request_tokens)
             response = await _generate_context_digest_content_async(api_key, model_id, prompt)
             digest = _normalize_digest_text(response_text(response), agent_num, context)
             digests[agent_num] = digest

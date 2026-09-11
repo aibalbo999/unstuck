@@ -16,8 +16,18 @@ from short_term_market_data import build_short_term_market_context
 
 
 STATE_VIEW_POLICY: dict[str, dict[str, list[str] | dict[str, list[str]]]] = {
+    "3": {
+        "normalized_financials": ["gross_margin_raw", "profit_margin_raw", "revenue_history", "net_income_history"],
+        "peer_context": ["selected_peers", "selection_policy", "dynamic_peer_metrics"],
+        "root": ["validation_issues", "risk_flags", "source_audit"],
+    },
     "11": {
         "root": ["validation_issues", "risk_flags", "macro_context", "taiwan_open_data"],
+    },
+    "12": {
+        "normalized_financials": ["gross_margin_raw", "profit_margin_raw", "revenue_history", "net_income_history"],
+        "peer_context": ["selected_peers", "selection_policy", "dynamic_peer_metrics"],
+        "root": ["validation_issues", "risk_flags", "source_audit"],
     },
     "13": {
         "normalized_financials": ["revenue_history", "net_income_history", "fcf_history", "cash_flow"],
@@ -182,7 +192,10 @@ def state_view_for(role: str | int, state: AgentState) -> dict[str, Any]:
             continue
         value = getattr(state, section)
         if isinstance(value, dict):
-            view[section] = _pick(value, list(keys))
+            selected_keys = list(keys)
+            if section == "quant_metrics":
+                selected_keys.extend(("contract_version", "metric_status", "input_provenance", "calculation_methods", "assumptions"))
+            view[section] = _pick(value, selected_keys)
     return _jsonable(prompt_evidence_copy(view))
 
 

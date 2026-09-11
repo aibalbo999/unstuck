@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
@@ -9,6 +10,7 @@ from typing import Any
 from fastapi import APIRouter, Query
 
 import api_observability_service
+from provider_acquisition import get_provider_acquisition_summary
 
 
 @dataclass(frozen=True)
@@ -26,12 +28,16 @@ def create_observability_router(deps: ObservabilityRouteDeps) -> APIRouter:
         limit: int = Query(100, ge=1, le=1000),
         window: str = Query("all", max_length=24),
     ):
-        return await api_observability_service.build_provider_sla_payload(
-            deps.get_provider_sla_summary,
-            deps.get_provider_sla_alerts,
-            limit,
-            window=window,
+        payload, acquisition = await asyncio.gather(
+            api_observability_service.build_provider_sla_payload(
+                deps.get_provider_sla_summary,
+                deps.get_provider_sla_alerts,
+                limit,
+                window=window,
+            ),
+            asyncio.to_thread(get_provider_acquisition_summary, window),
         )
+        return dict(payload, acquisition=acquisition)
 
     @router.get("/active-jobs")
     async def active_jobs(

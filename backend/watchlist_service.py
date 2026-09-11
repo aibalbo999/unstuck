@@ -6,7 +6,7 @@ import time
 import inspect
 from datetime import datetime
 
-from data_fetch import FetchRequest
+from watchlist_radar_data import fetch_radar_data
 from pipeline_modes import normalize_pipeline_run_id
 from report_freshness_summary import safe_bool
 import watchlist_claim_store
@@ -123,11 +123,7 @@ async def monitor_watchlist_triggers(
             continue
         ticker = str(item.get("ticker") or "").strip().upper()
         try:
-            if _triggers_need_market_data(triggers):
-                result = await data_service.fetch_async(FetchRequest.from_ticker(ticker, force_refresh=True))
-                data = result.data if isinstance(getattr(result, "data", None), dict) else {}
-            else:
-                data = {"ticker": ticker}
+            data = await fetch_radar_data(data_service, ticker, triggers, evaluation_date)
             events = evaluate_watchlist_triggers(item, data, evaluation_date=evaluation_date)
         except Exception as exc:
             errors.append({"ticker": ticker, "error": str(exc)[:240]})

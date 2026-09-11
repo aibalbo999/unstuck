@@ -1,6 +1,7 @@
 """Maintenance CLI safety using temporary report storage and fake HTTP only."""
 
 import importlib.util
+import hashlib
 import json
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
@@ -91,6 +92,24 @@ def test_rebuild_submission_preserves_history_and_batches_existing_modes(rebuild
 def test_submit_uses_non_destructive_active_attach_contract(rebuild):
     rebuild.run("submit")
     assert all(row["force"] is False and row["resume"] is True for row in rebuild.state["posts"])
+
+
+def test_submit_batch_size_limits_each_invocation_without_resending(rebuild):
+    rebuild.run("submit", "--batch-size", "1")
+    assert [row["pipeline_id"] for row in rebuild.state["posts"]] == ["v1"]
+    saved = json.loads(rebuild.manifest.read_text())
+    assert saved["jobs"][0]["submission_state"] == "accepted"
+    assert not saved["jobs"][1].get("job_id")
+
+    rebuild.run("submit", "--batch-size", "1")
+    assert [row["pipeline_id"] for row in rebuild.state["posts"]] == ["v1", "v2"]
+
+
+@pytest.mark.parametrize("value", ["0", "-1"])
+def test_submit_rejects_non_positive_batch_size_before_network_access(rebuild, value):
+    with pytest.raises(ValueError, match="batch-size"):
+        rebuild.run("submit", "--batch-size", value)
+    assert rebuild.state["posts"] == []
 
 
 def test_accepted_request_timeout_stays_pending_and_cannot_be_resubmitted(rebuild):
@@ -318,6 +337,274 @@ def test_submission_stops_on_quota_rejection_and_never_retries_or_changes_routes
         rebuild.run("submit")
     assert len(rebuild.state["posts"]) == 1
     assert rebuild.storage.exists(TARGET) and rebuild.storage.exists(OTHER)
+
+
+def test_indexed_prepare_is_latest_per_group_and_prepare_only(tmp_path, monkeypatch):
+    spec = importlib.util.spec_from_file_location("rebuild_indexed_test", ROOT / "scripts/rebuild_tracked_reports.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    output = tmp_path / "output"
+    module.LocalFileStorage(output)
+    pages = {
+        1: {"reports": [
+            {"filename": "A_old.html", "ticker": "AAA.TW", "pipeline_id": "v1", "timestamp": 10, "decision_freshness": {"status": "needs_rerun", "requires_rerun": True, "requires_rerun_reason": "snapshot_refreshed"}},
+            {"filename": "A_new.html", "ticker": "AAA.TW", "pipeline_id": "v1", "timestamp": 20, "decision_freshness": {"status": "current", "requires_rerun": False}},
+            {"filename": "B_new.html", "ticker": "BBB.TW", "pipeline_id": "v4", "timestamp": 30, "decision_freshness": {"status": "needs_rerun", "requires_rerun": True, "requires_rerun_reason": "missing_conclusion"}},
+        ], "pagination": {"total": 3, "has_next": False}},
+    }
+    state = {"posts": []}
+
+    class Response:
+        def __init__(self, body):
+            self.body = body
+
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return self.body
+
+    class Session:
+        headers = {}
+
+        def get(self, url, **kwargs):
+            assert "/api/reports?" in url
+            page = int(url.split("page=", 1)[1].split("&", 1)[0])
+            return Response(pages[page])
+
+        def post(self, *args, **kwargs):
+            state["posts"].append(kwargs)
+            return Response({"job_id": "unexpected"})
+
+    monkeypatch.setattr(module, "current_runtime_paths", lambda: SimpleNamespace(output_dir=output))
+    monkeypatch.setattr(module.requests, "Session", Session)
+    manifest_path = tmp_path / "indexed.json"
+    monkeypatch.setattr(sys, "argv", ["rebuild_tracked_reports.py", "prepare-indexed", "--manifest", str(manifest_path), "--base-url", "http://fixture"])
+    module.main()
+    manifest = json.loads(manifest_path.read_text())
+    assert manifest["prepare_only"] is True
+    assert manifest["indexed_report_count"] == 3
+    assert manifest["latest_group_count"] == 2
+    assert manifest["refresh_candidate_count"] == 1
+    assert manifest["jobs"] == [{
+        "ticker": "BBB.TW", "pipeline_id": "v4", "source_filename": "B_new.html",
+        "status": "not_submitted", "requires_rerun": True, "requires_rerun_reason": "missing_conclusion",
+    }]
+
+
+def test_prepare_only_indexed_manifest_cannot_submit(tmp_path, monkeypatch):
+    spec = importlib.util.spec_from_file_location("rebuild_prepare_only_test", ROOT / "scripts/rebuild_tracked_reports.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    manifest = tmp_path / "indexed.json"
+    manifest.write_text(json.dumps({"prepare_only": True, "jobs": [{"ticker": "AAA.TW", "pipeline_id": "v1"}]}))
+    monkeypatch.setattr(module, "current_runtime_paths", lambda: SimpleNamespace(output_dir=tmp_path / "output"))
+    (tmp_path / "output").mkdir()
+    class Session:
+        headers = {}
+        def get(self, *args, **kwargs):
+            raise AssertionError("prepare-only submit must fail before network access")
+    monkeypatch.setattr(module.requests, "Session", Session)
+    monkeypatch.setattr(sys, "argv", ["rebuild_tracked_reports.py", "submit", "--manifest", str(manifest)])
+    with pytest.raises(RuntimeError, match="prepare-only"):
+        module.main()
+
+
+def test_authorize_indexed_requires_exact_scope_confirmation_and_creates_new_manifest(tmp_path, monkeypatch):
+    spec = importlib.util.spec_from_file_location("rebuild_authorize_indexed_test", ROOT / "scripts/rebuild_tracked_reports.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    output = tmp_path / "output"
+    output.mkdir()
+    source = tmp_path / "indexed.json"
+    source.write_text(json.dumps({
+        "schema_version": "stock-agent.report-rebuild-prepare-indexed.v1",
+        "prepare_only": True,
+        "refresh_candidate_count": 2,
+        "source": {"kind": "indexed_reports", "base_url": "http://fixture"},
+        "jobs": [
+            {"ticker": "AAA.TW", "pipeline_id": "v1", "source_filename": "A.html", "status": "not_submitted", "requires_rerun": True, "requires_rerun_reason": "stale"},
+            {"ticker": "BBB.TW", "pipeline_id": "v4", "source_filename": "B.html", "status": "not_submitted", "requires_rerun": True, "requires_rerun_reason": "stale"},
+        ],
+    }))
+    source_hash = hashlib.sha256(source.read_bytes()).hexdigest()
+    submission = tmp_path / "authorized.json"
+
+    class Session:
+        headers = {}
+
+        def get(self, *args, **kwargs):
+            raise AssertionError("authorization must not access the network")
+
+        def post(self, *args, **kwargs):
+            raise AssertionError("authorization must not submit jobs")
+
+    monkeypatch.setattr(module, "current_runtime_paths", lambda: SimpleNamespace(output_dir=output))
+    monkeypatch.setattr(module.requests, "Session", Session)
+    monkeypatch.setattr(sys, "argv", [
+        "rebuild_tracked_reports.py", "authorize-indexed", "--manifest", str(source),
+        "--submission-manifest", str(submission), "--confirm-source-sha256", source_hash,
+        "--confirm-candidate-count", "2",
+    ])
+
+    module.main()
+
+    authorized = json.loads(submission.read_text())
+    assert authorized["schema_version"] == "stock-agent.report-rebuild-authorized.v1"
+    assert authorized["prepare_only"] is False
+    assert authorized["authorization"]["source_manifest_sha256"] == source_hash
+    assert authorized["authorization"]["candidate_count"] == 2
+    assert len(authorized["authorization"]["scope_sha256"]) == 64
+    assert authorized["jobs"] == json.loads(source.read_text())["jobs"]
+    assert json.loads(source.read_text())["prepare_only"] is True
+
+
+def test_submit_rejects_tampering_after_indexed_scope_authorization(rebuild):
+    manifest = json.loads(rebuild.manifest.read_text())
+    for index, item in enumerate(manifest["jobs"], start=1):
+        item.update(
+            source_filename=f"source-{index}.html",
+            status="not_submitted",
+            requires_rerun=True,
+            requires_rerun_reason="stale",
+        )
+    manifest["schema_version"] = "stock-agent.report-rebuild-authorized.v1"
+    manifest["prepare_only"] = False
+    manifest["authorization"] = {
+        "source_manifest_sha256": "a" * 64,
+        "candidate_count": len(manifest["jobs"]),
+        "scope_sha256": rebuild.module._scope_sha256(manifest["jobs"]),
+    }
+    manifest["jobs"][0]["ticker"] = "UNAPPROVED.TW"
+    rebuild.module.save(rebuild.manifest, manifest)
+
+    with pytest.raises(RuntimeError, match="[Aa]uthorized scope|核定範圍"):
+        rebuild.run("submit")
+
+    assert rebuild.state["posts"] == []
+
+
+def test_submit_accepts_unchanged_authorized_indexed_scope_without_resending(rebuild):
+    manifest = json.loads(rebuild.manifest.read_text())
+    for index, item in enumerate(manifest["jobs"], start=1):
+        item.update(
+            source_filename=f"source-{index}.html",
+            status="not_submitted",
+            requires_rerun=True,
+            requires_rerun_reason="stale",
+        )
+    manifest["schema_version"] = "stock-agent.report-rebuild-authorized.v1"
+    manifest["prepare_only"] = False
+    manifest["authorization"] = {
+        "source_manifest_sha256": "a" * 64,
+        "candidate_count": len(manifest["jobs"]),
+        "scope_sha256": rebuild.module._scope_sha256(manifest["jobs"]),
+    }
+    rebuild.module.save(rebuild.manifest, manifest)
+
+    rebuild.run("submit")
+    rebuild.run("submit")
+
+    assert len(rebuild.state["posts"]) == 2
+
+
+@pytest.mark.parametrize(
+    ("confirmed_hash", "confirmed_count", "message"),
+    [("0" * 64, 2, "SHA-256"), (None, 3, "candidate count")],
+)
+def test_authorize_indexed_rejects_confirmation_mismatch_without_output(
+    tmp_path, monkeypatch, confirmed_hash, confirmed_count, message
+):
+    spec = importlib.util.spec_from_file_location("rebuild_authorize_mismatch_test", ROOT / "scripts/rebuild_tracked_reports.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    output = tmp_path / "output"
+    output.mkdir()
+    source = tmp_path / "indexed.json"
+    source.write_text(json.dumps({
+        "schema_version": "stock-agent.report-rebuild-prepare-indexed.v1",
+        "prepare_only": True,
+        "refresh_candidate_count": 2,
+        "jobs": [
+            {"ticker": "AAA.TW", "pipeline_id": "v1", "source_filename": "A.html", "status": "not_submitted", "requires_rerun": True},
+            {"ticker": "BBB.TW", "pipeline_id": "v4", "source_filename": "B.html", "status": "not_submitted", "requires_rerun": True},
+        ],
+    }))
+    actual_hash = hashlib.sha256(source.read_bytes()).hexdigest()
+    submission = tmp_path / "authorized.json"
+
+    class Session:
+        headers = {}
+
+        def get(self, *args, **kwargs):
+            raise AssertionError("rejected authorization must not access the network")
+
+    monkeypatch.setattr(module, "current_runtime_paths", lambda: SimpleNamespace(output_dir=output))
+    monkeypatch.setattr(module.requests, "Session", Session)
+    monkeypatch.setattr(sys, "argv", [
+        "rebuild_tracked_reports.py", "authorize-indexed", "--manifest", str(source),
+        "--submission-manifest", str(submission),
+        "--confirm-source-sha256", confirmed_hash or actual_hash,
+        "--confirm-candidate-count", str(confirmed_count),
+    ])
+
+    with pytest.raises(ValueError, match=message):
+        module.main()
+
+    assert not submission.exists()
+
+
+def test_authorize_indexed_rejects_symlink_source(tmp_path, monkeypatch):
+    spec = importlib.util.spec_from_file_location("rebuild_authorize_symlink_test", ROOT / "scripts/rebuild_tracked_reports.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    output = tmp_path / "output"
+    output.mkdir()
+    real_source = tmp_path / "real-indexed.json"
+    real_source.write_text(json.dumps({
+        "schema_version": "stock-agent.report-rebuild-prepare-indexed.v1",
+        "prepare_only": True,
+        "refresh_candidate_count": 1,
+        "jobs": [{
+            "ticker": "AAA.TW", "pipeline_id": "v1", "source_filename": "A.html",
+            "status": "not_submitted", "requires_rerun": True,
+        }],
+    }))
+    source = tmp_path / "indexed.json"
+    source.symlink_to(real_source)
+    submission = tmp_path / "authorized.json"
+
+    class Session:
+        headers = {}
+
+    monkeypatch.setattr(module, "current_runtime_paths", lambda: SimpleNamespace(output_dir=output))
+    monkeypatch.setattr(module.requests, "Session", Session)
+    monkeypatch.setattr(sys, "argv", [
+        "rebuild_tracked_reports.py", "authorize-indexed", "--manifest", str(source),
+        "--submission-manifest", str(submission),
+        "--confirm-source-sha256", hashlib.sha256(real_source.read_bytes()).hexdigest(),
+        "--confirm-candidate-count", "1",
+    ])
+
+    with pytest.raises(ValueError, match="symlink"):
+        module.main()
+
+    assert not submission.exists()
+
+
+def test_indexed_prepare_keeps_missing_timestamp_unverifiable(tmp_path):
+    spec = importlib.util.spec_from_file_location("rebuild_indexed_timestamp_test", ROOT / "scripts/rebuild_tracked_reports.py")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    manifest = module._indexed_prepare_manifest([{
+        "filename": "A.html", "ticker": "AAA.TW", "pipeline_id": "v1", "timestamp": "unknown",
+        "decision_freshness": {"status": "needs_rerun", "requires_rerun": True},
+    }], base_url="http://fixture", generated_at="2026-09-07T00:00:00+00:00")
+    assert manifest["refresh_candidate_count"] == 0
+    assert manifest["latest_groups"] == [{
+        "ticker": "AAA.TW", "pipeline_id": "v1", "status": "unverifiable",
+        "reason": "missing_or_invalid_timestamp", "version_count": 1, "latest": None,
+    }]
 
 
 def test_backup_directory_created_concurrently_is_not_reused_or_overwritten(rebuild, monkeypatch):

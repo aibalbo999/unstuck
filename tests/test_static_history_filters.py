@@ -83,6 +83,7 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert operator_summary_helpers_path.exists()
     operator_summary_helpers_js = operator_summary_helpers_path.read_text(encoding="utf-8")
     operator_summary_js = (STATIC_DIR / "operator_summary_panel.js").read_text(encoding="utf-8")
+    api_quota_observations_js = (STATIC_DIR / "api_quota_observations.js").read_text(encoding="utf-8")
     api_quota_panel_js = (STATIC_DIR / "api_quota_panel.js").read_text(encoding="utf-8")
     performance_panel_js = (STATIC_DIR / "performance_panel.js").read_text(encoding="utf-8")
     api_client_extensions_js = (STATIC_DIR / "api_client_extensions.js").read_text(encoding="utf-8")
@@ -234,6 +235,7 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "/static/provider_sla_helpers.js" in index_html
     assert "/static/provider_sla_panel.js" in index_html
     assert index_html.index("/static/provider_sla_helpers.js") < index_html.index("/static/provider_sla_panel.js")
+    assert "/static/api_quota_observations.js" in index_html
     assert "/static/api_quota_panel.js" in index_html
     assert "/static/active_jobs_panel.js" in index_html
     assert "/static/operator_dashboard_actions.js" in index_html
@@ -491,24 +493,21 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "產生模式 B 報告" in report_preview_rerun_helpers_js
     assert "產生模式 B 報告" in index_html
     assert "history-item" not in app_js
-    assert "providerSlaStatsForWindow" in provider_sla_js
     assert "StockAgentProviderSlaHelpers" in provider_sla_js
     assert "StockAgentProviderSlaHelpers" in provider_sla_helpers_js
     assert "groupedProviderRows" in provider_sla_helpers_js
     assert "股價與基本資料" in provider_sla_helpers_js
     assert "同業指標" in provider_sla_helpers_js
-    assert "可安心使用" in provider_sla_helpers_js
+    assert "可安心使用" not in provider_sla_helpers_js
     assert "provider-sla-insight" in provider_sla_js
-    assert "正式分析流程" in provider_sla_helpers_js
-    assert "有效快取或備援來源" in provider_sla_helpers_js
-    assert "degraded_enrichment_count" in provider_sla_helpers_js
-    assert "降級可用" in provider_sla_helpers_js
-    assert "availabilityAttemptsForStats" in provider_sla_helpers_js
-    assert "not_configured" in provider_sla_helpers_js
+    assert "資料來源觀測" in provider_sla_helpers_js
+    assert "fresh_cache_count" in provider_sla_helpers_js
+    assert "empty_count" in provider_sla_helpers_js
+    assert "stale_cache_count" in provider_sla_helpers_js
+    assert "not_configured_count" in provider_sla_helpers_js
     assert "選用來源略過" in provider_sla_helpers_js
-    assert "先使用仍有效的快取" in provider_sla_helpers_js
-    assert "系統會優先補快取" not in provider_sla_helpers_js
-    assert "資料取得率" in provider_sla_js
+    assert "acquisition" in provider_sla_js
+    assert "取得資料率" in provider_sla_js
 
     assert "來源明細" in provider_sla_js
     assert "provider-sla-provider-list" in provider_sla_js
@@ -657,8 +656,10 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "LLM/API 本機觀測" in api_quota_panel_js
     assert "observed_model_quota_errors" in api_quota_panel_js
     assert "模型" in api_quota_panel_js
-    assert "api_quota_panel.js?v=20260905-daily-budget" in index_html
+    assert "api_quota_panel.js?v=20260911-plain-route-observations" in index_html
+    assert index_html.index("api_quota_observations.js") < index_html.index("api_quota_panel.js")
     assert index_html.index("api_quota_usage_helpers.js") < index_html.index("api_quota_panel.js")
+    assert "模型額度或頻率曾受限" in api_quota_observations_js
     assert "LLM/API 本機觀測" in operator_summary_helpers_js
     assert "LLM/API 健康" not in api_quota_panel_js
     assert "LLM 健康" not in operator_summary_helpers_js
@@ -4429,10 +4430,14 @@ process.stdout.write(JSON.stringify({ html }));
     assert " ERROR  →  FRESH " not in payload["html"]
 
 
-def test_api_quota_panel_projects_model_route_warnings():
+def test_api_quota_panel_groups_route_observations_and_explains_operator_action():
     panel_path = STATIC_DIR / "api_quota_panel.js"
+    observations_path = STATIC_DIR / "api_quota_observations.js"
+    usage_path = STATIC_DIR / "api_quota_usage_helpers.js"
     script = """
 global.window = {};
+require(__USAGE_PATH__);
+require(__OBSERVATIONS_PATH__);
 require(__PANEL_PATH__);
 const summaryEl = { textContent: '' };
 const listEl = { innerHTML: '' };
@@ -4440,33 +4445,45 @@ window.StockAgentApiQuotaPanel.render({
   services: [{ service: 'Gemini / Google AI', configured: true, usage: {
     observed_calls_since_reset: 100,
     observed_model_calls: { 'gemma-4-31b-it': 80, 'gemini-3.6-flash': 20 },
-    observed_model_quota_errors: { 'gemma-4-31b-it': 72, 'gemini-3.6-flash': 1 }
+    observed_model_quota_errors: { 'gemma-4-31b-it': 72, 'gemini-3.6-flash': 1 },
+    quota_day_profile: { today: { provider_quota_errors: 2, other_errors: 110 } }
   } }],
   model_route_budget: {
-    summary: { sample_size: 12, warning_count: 4 },
+    summary: { sample_size: 12, warning_count: 5 },
     warnings: [
       { id: 'slow_route', route: 'v4/gemma-4-31b-it', message: 'p95_latency_ms=181619' },
       { id: 'retry_storm', route: 'v2/gemini-2.5-pro', message: 'retry_count=8' },
       { id: 'quality_gate_failures', route: 'v3/gemini-3.5-flash', message: 'quality_gate_failures=1' },
-      { id: 'provider_quota_errors', route: 'v4/gemma-4-31b-it', message: 'provider_error_count=2' }
+      { id: 'provider_quota_errors', route: 'v4/gemma-4-31b-it', message: 'provider_quota_error_count=1 provider_status_codes=429:1' },
+      { id: 'provider_errors', route: 'v4/gemma-4-31b-it', message: 'provider_non_quota_error_count=1 provider_status_codes=504:1' }
     ]
   }
 }, { summaryEl, listEl, escapeHtml: value => String(value ?? '') });
 process.stdout.write(JSON.stringify({ summary: summaryEl.textContent, html: listEl.innerHTML }));
-""".replace("__PANEL_PATH__", json.dumps(str(panel_path)))
+""".replace("__USAGE_PATH__", json.dumps(str(usage_path))).replace("__OBSERVATIONS_PATH__", json.dumps(str(observations_path))).replace("__PANEL_PATH__", json.dumps(str(panel_path)))
     result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
     payload = json.loads(result.stdout)
 
-    assert "4 個路由警示" in payload["summary"]
-    assert "路由延遲偏高" in payload["html"]
-    assert "模型重試過多" in payload["html"]
-    assert "品質檢查失敗" in payload["html"]
-    assert "Provider 配額錯誤" in payload["html"]
+    assert "目前配額日 112 次請求事件需留意" in payload["summary"]
+    assert "不等於 112 份報告失敗" in payload["summary"]
+    assert "最近 12 筆執行紀錄整理出 5 類提醒" in payload["summary"]
+    assert "目前配額日記錄 2 次額度或頻率事件、110 次其他請求異常" in payload["html"]
+    assert "模型回應較慢" in payload["html"]
+    assert "模型重試次數偏多" in payload["html"]
+    assert "模型輸出曾被品質檢查擋下" in payload["html"]
+    assert "模型額度或頻率曾受限" in payload["html"]
+    assert "模型供應商曾回傳錯誤" in payload["html"]
+    assert "provider_status_codes=504:1" in payload["html"]
+    assert "系統會自動處理" in payload["html"]
+    assert "若今日工作台沒有失敗任務，現在不用處理" in payload["html"]
+    assert payload["html"].count("provider-sla-route-group") == 5
+    assert "<details" in payload["html"]
+    assert "技術明細（1 條路由）" in payload["html"]
     assert "v4/gemma-4-31b-it" in payload["html"]
     assert "模型 gemma-4-31b-it 80 次" in payload["html"]
     assert "額度錯誤 72 次" in payload["html"]
     assert "90%" in payload["html"]
-    assert "維運觀測" in payload["html"]
+    assert "最近執行紀錄" in payload["html"]
 
 
 def test_report_compare_decision_status_uses_report_quality_policy():
@@ -6120,7 +6137,7 @@ def test_candidate_next_actions_assets_use_shared_cache_buster():
     index_html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
     style_css = (STATIC_DIR / "style.css").read_text(encoding="utf-8")
 
-    assert "/static/style.css?v=20260816-historical-quality-target-context" in index_html
+    assert "/static/style.css?v=20260911-provider-acquisition" in index_html
     assert "/static/watchlist_freshness_helpers.js?v=20260902-integer-quality-counts" in index_html
     assert "/static/watchlist_current_quality_helpers.js?v=20260902-target-item-scope" in index_html
     assert "/static/report_quality_evidence_freshness_helpers.js?v=20260902-integer-summary-counts" in index_html
@@ -7073,6 +7090,7 @@ def test_report_actions_can_add_report_catalysts_to_watchlist_radar():
 def test_operator_signals_avoid_misleading_health_and_tracking_copy():
     index_html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
     provider_sla_helpers_js = (STATIC_DIR / "provider_sla_helpers.js").read_text(encoding="utf-8")
+    api_quota_observations_js = (STATIC_DIR / "api_quota_observations.js").read_text(encoding="utf-8")
     api_quota_js = (STATIC_DIR / "api_quota_panel.js").read_text(encoding="utf-8")
     operator_summary_helpers_js = (STATIC_DIR / "operator_summary_helpers.js").read_text(encoding="utf-8")
     history_panel_helpers_js = (STATIC_DIR / "history_panel_helpers.js").read_text(encoding="utf-8")
@@ -7081,18 +7099,19 @@ def test_operator_signals_avoid_misleading_health_and_tracking_copy():
 
     assert "<span>近期資料信任</span>" in index_html
     assert "無檢查樣本" in provider_sla_helpers_js
-    assert "尚無檢查樣本，請查看 24 小時或全部紀錄" in provider_sla_helpers_js
+    assert "無檢查樣本，請查看 24 小時或已保留紀錄" in provider_sla_helpers_js
     assert "全球市場脈絡" in provider_sla_helpers_js
     assert "國際新聞脈絡" in provider_sla_helpers_js
     assert "總經、匯率、利率與美股風險偏好" in provider_sla_helpers_js
     assert "國際重大新聞與供應鏈事件" in provider_sla_helpers_js
     assert "rowStateLabel" in provider_sla_helpers_js
-    assert "row.level === 'ok' && !row.attempts" in provider_sla_helpers_js
+    assert "原始觀測不足" in provider_sla_helpers_js
     assert "quotaHealth" in api_quota_js
     assert "quotaHealth" in operator_summary_helpers_js
-    assert "LLM/API 本機觀測需留意" in api_quota_js
+    assert "這是請求事件，不等於同樣數量的報告失敗" in api_quota_observations_js
+    assert "最近 ${Number.isFinite(sampleSize) ? sampleSize : '一批'} 筆執行紀錄整理出" in api_quota_observations_js
     assert "LLM/API 健康警示" not in api_quota_js
-    assert "LLM/API 本機觀測：" in api_quota_js
+    assert "LLM/API：${configured}/${services.length} 組服務已設定" in api_quota_observations_js
     assert "LLM/API 健康：" not in api_quota_js
     assert "LLM/API 本機觀測正常" in operator_summary_helpers_js
     assert "LLM/API 本機觀測需留意" in operator_summary_helpers_js
@@ -7116,149 +7135,28 @@ def test_provider_sla_shows_global_context_sources_before_first_sample():
     assert "尚未建立檢查樣本" in provider_sla_helpers_js
 
 
-def test_provider_sla_copy_distinguishes_core_and_enrichment_critical_sources():
-    provider_sla_helpers_js = (STATIC_DIR / "provider_sla_helpers.js").read_text(encoding="utf-8")
-
-    assert "CORE_ANALYSIS_SOURCES" in provider_sla_helpers_js
-    assert "sourceIsCore" in provider_sla_helpers_js
-    assert "核心資料可能影響分析" in provider_sla_helpers_js
-    assert "系統來源提醒" in provider_sla_helpers_js
-    assert "報告資料可信度與今日工作台" in provider_sla_helpers_js
-    assert "補充資料不穩" in provider_sla_helpers_js
-    assert "核心分析仍可進行" in provider_sla_helpers_js
+def test_provider_sla_copy_keeps_source_observations_separate_from_report_quality():
+    js = (STATIC_DIR / "provider_sla_helpers.js").read_text(encoding="utf-8")
+    assert "CORE_ANALYSIS_SOURCES" in js
+    assert "核心資料可能影響分析" in js
+    assert "報告資料可信度與今日工作台" in js
+    assert "可放心分析" not in js
 
 
-def test_provider_sla_helpers_group_rows_and_copy_without_panel():
-    provider_sla_helpers_path = STATIC_DIR / "provider_sla_helpers.js"
+def test_provider_sla_legacy_payload_requires_new_observation_service():
     script = """
 global.window = {};
-require(__PROVIDER_SLA_HELPERS_PATH__);
-const helpers = window.StockAgentProviderSlaHelpers;
-const providers = [{
-  source: 'market_data',
-  provider: 'primary',
-  attempts: 4,
-  availability_attempts: 4,
-  success_count: 1,
-  skipped_fresh_cache_count: 0,
-  degraded_enrichment_count: 0,
-  total_records: 1,
-  alert_level: 'critical',
-  last_status: 'error'
-}];
-const rows = helpers.mergeExpectedContextRows(helpers.groupedProviderRows(providers, 'last_24h'));
-const market = rows.find(row => row.source === 'market_data');
-const globalContext = rows.find(row => row.source === 'global_market_context');
-process.stdout.write(JSON.stringify({
-  marketLevel: market.level,
-  marketState: helpers.rowStateLabel(market),
-  marketInsight: helpers.insightText(market),
-  summary: helpers.summaryText(rows, '近 24 小時', providers),
-  visibleSources: helpers.visibleProviderRows(rows).map(row => row.source),
-  globalState: helpers.rowStateLabel(globalContext),
-  globalInsight: helpers.insightText(globalContext)
-}));
-""".replace("__PROVIDER_SLA_HELPERS_PATH__", json.dumps(str(provider_sla_helpers_path)))
-    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+require('./backend/static/provider_sla_helpers.js');
+require('./backend/static/provider_sla_panel.js');
+const summaryEl = {}, listEl = {};
+window.StockAgentProviderSlaPanel.render({providers: [{success_rate: 1, source: 'earnings_call'}]}, {summaryEl, listEl});
+process.stdout.write(JSON.stringify({summary: summaryEl.textContent, html: listEl.innerHTML}));
+"""
+    result = subprocess.run(["node", "-e", script], cwd=STATIC_DIR.parent.parent, check=True, capture_output=True, text=True)
     payload = json.loads(result.stdout)
-
-    assert payload["marketLevel"] == "critical"
-    assert payload["marketState"] == "核心資料可能影響分析"
-    assert "系統來源提醒" in payload["marketInsight"]
-    assert "單份報告是否需要重跑" in payload["marketInsight"]
-    assert "以報告資料可信度與今日工作台為準" in payload["summary"]
-    assert "可能需要稍後重跑" not in payload["marketInsight"]
-    assert "global_market_context" in payload["visibleSources"]
-    assert payload["globalState"] == "無檢查樣本"
-    assert "尚未建立檢查樣本" in payload["globalInsight"]
-
-
-def test_provider_sla_groups_do_not_escalate_healthy_fallbacks_to_critical():
-    provider_sla_helpers_path = STATIC_DIR / "provider_sla_helpers.js"
-    provider_sla_path = STATIC_DIR / "provider_sla_panel.js"
-    script = """
-global.window = {};
-require(__PROVIDER_SLA_HELPERS_PATH__);
-require(__PROVIDER_SLA_PANEL_PATH__);
-const providers = [
-  {
-    source: 'market_data',
-    provider: 'taiwan_yfinance_finmind',
-    attempts: 20,
-    availability_attempts: 20,
-    success_count: 20,
-    skipped_fresh_cache_count: 0,
-    degraded_enrichment_count: 0,
-    total_records: 20,
-    alert_level: 'ok',
-    last_status: 'success'
-  },
-  {
-    source: 'market_data',
-    provider: 'FMP stable quote',
-    attempts: 20,
-    availability_attempts: 20,
-    success_count: 0,
-    skipped_fresh_cache_count: 0,
-    degraded_enrichment_count: 0,
-    total_records: 0,
-    alert_level: 'critical',
-    last_status: 'unavailable'
-  },
-  {
-    source: 'recent_catalysts',
-    provider: 'Recent catalysts providers',
-    attempts: 10,
-    availability_attempts: 10,
-    success_count: 10,
-    skipped_fresh_cache_count: 0,
-    degraded_enrichment_count: 0,
-    total_records: 10,
-    alert_level: 'ok',
-    last_status: 'success'
-  },
-  {
-    source: 'recent_catalysts',
-    provider: 'PTT Stock',
-    attempts: 10,
-    availability_attempts: 10,
-    success_count: 0,
-    skipped_fresh_cache_count: 0,
-    degraded_enrichment_count: 0,
-    total_records: 0,
-    alert_level: 'critical',
-    last_status: 'unavailable'
-  },
-  {
-    source: 'dynamic_peer_metrics',
-    provider: 'FinMind/yfinance',
-    attempts: 100,
-    availability_attempts: 100,
-    success_count: 60,
-    skipped_fresh_cache_count: 0,
-    degraded_enrichment_count: 0,
-    total_records: 120,
-    alert_level: 'warning',
-    last_status: 'success'
-  }
-];
-const rows = window.StockAgentProviderSlaPanel.groupedProviderRows(providers, 'last_24h');
-const listEl = { innerHTML: '' };
-window.StockAgentProviderSlaPanel.render(
-  { providers },
-  { summaryEl: { textContent: '' }, listEl, windowEl: { value: 'last_24h' }, escapeHtml: value => String(value ?? '') }
-);
-process.stdout.write(JSON.stringify({ rows: rows.map(row => ({ source: row.source, level: row.level })), html: listEl.innerHTML }));
-""".replace("__PROVIDER_SLA_HELPERS_PATH__", json.dumps(str(provider_sla_helpers_path))).replace("__PROVIDER_SLA_PANEL_PATH__", json.dumps(str(provider_sla_path)))
-    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
-    payload = json.loads(result.stdout)
-    rows = {row["source"]: row["level"] for row in payload["rows"]}
-
-    assert rows["market_data"] == "ok"
-    assert rows["recent_catalysts"] == "ok"
-    assert rows["dynamic_peer_metrics"] == "ok"
-    assert "不可用" not in payload["html"]
-    assert "尚無紀錄 · 未設定" not in payload["html"]
+    assert "無法" in payload["summary"]
+    assert "100%" not in payload["html"]
+    assert "統計服務已更新" in payload["html"]
 
 
 def test_ops_provider_sla_loads_enough_rows_for_whole_system_status():
@@ -7907,8 +7805,8 @@ def test_decision_tracking_dense_layout_uses_workspace_efficiently():
     history_panel_renderers_js = (STATIC_DIR / "history_panel_renderers.js").read_text(encoding="utf-8")
     style_css = (STATIC_DIR / "style.css").read_text(encoding="utf-8")
 
-    assert "style.css?v=20260816-historical-quality-target-context" in index_html
-    assert "/static/provider_sla_panel.js?v=20260708-provider-waterfall-health" in index_html
+    assert "style.css?v=20260911-provider-acquisition" in index_html
+    assert "/static/provider_sla_panel.js?v=20260911-acquisition-evidence" in index_html
     assert "/static/ops_workspace.js?v=20260708-provider-group-health" in index_html
     assert "/static/history_panel.js?v=20260708-tracking-action-notes" in index_html
     assert "/static/decision_tracking_panel.js?v=20260708-tracking-action-notes" in index_html
@@ -7959,7 +7857,7 @@ def test_home_commercial_tab_is_a_restart_safe_product_launchpad():
     index_html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
     entry_css = (STATIC_DIR / "commercial" / "styles" / "home_entry.css").read_text(encoding="utf-8")
 
-    assert "style.css?v=20260816-historical-quality-target-context" in index_html
+    assert "style.css?v=20260911-provider-acquisition" in index_html
     assert "/static/commercial/styles/home_entry.css?v=20260711-simple" in index_html
     assert 'id="home-panel-commercial"' in index_html
     assert 'class="commercial-entry-launchpad"' in index_html
@@ -8152,6 +8050,7 @@ def test_frontend_static_modules_are_sized():
         "styles/preview_panel_actions.css": 100,
         "styles/report_compare.css": 90,
         "styles/provider_sla.css": 160,
+        "styles/api_quota_panel.css": 60,
         "styles/provider_sla_controls.css": 100,
         "styles/watchlist.css": 80,
         "styles/market_screener.css": 90,
@@ -8162,6 +8061,7 @@ def test_frontend_static_modules_are_sized():
         "ops_workspace_panels.js": 130,
         "market_screener_panel.js": 120,
         "market_screener_helpers.js": 90,
+        "api_quota_observations.js": 100,
         "api_quota_panel.js": 100,
         "performance_panel.js": 100,
         "watchlist_trigger_form.js": 90,

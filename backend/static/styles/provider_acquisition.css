@@ -1,0 +1,39 @@
+/* Acquisition panel only; shared operational cards keep their existing layout. */
+#provider-sla-panel .provider-sla-insight { flex: 1 1 300px; min-width: 0; }
+#provider-sla-panel .provider-sla-insight-top { flex-wrap: wrap; }
+#provider-sla-panel .provider-sla-provider-title {
+    cursor: pointer;
+    min-height: 44px;
+    align-content: center;
+}
+#provider-sla-panel .provider-sla-provider strong,
+#provider-sla-panel .provider-sla-provider em {
+    overflow-wrap: anywhere;
+    white-space: normal;
+    overflow: visible;
+}
+.provider-sla-explanation {
+    flex-basis: 100%;
+    margin: 0 0 4px;
+    color: var(--text-secondary);
+    font-size: 0.76rem;
+    line-height: 1.6;
+}
+.provider-sla-rate { color: var(--text-primary); font-size: 1.15rem; font-weight: 800; }
+.provider-sla-provider-breakdown {
+    grid-column: 1 / -1;
+    font-size: 0.7rem;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+}
+#provider-sla-panel .provider-sla-insight.is-neutral {
+    background: rgba(148, 163, 184, 0.08);
+    border-color: rgba(148, 163, 184, 0.3);
+}
+#provider-sla-panel .provider-sla-provider-list > .provider-sla-provider { margin-top: 5px; }
+#provider-sla-panel .provider-sla-provider.is-warning,
+#provider-sla-panel .provider-sla-provider.is-critical { border-color: rgba(245, 158, 11, 0.55); }
+#provider-sla-panel .provider-sla-provider-title:focus-visible {
+    outline: 2px solid var(--text-primary);
+    outline-offset: 2px;
+}

@@ -12,7 +12,7 @@ from company_display import company_display_name
 from pipeline_modes import get_pipeline_definition, normalize_pipeline_id
 from prompt_loader import load_agent_prompt_config
 from runtime_events import RUNTIME_EVENT_CALLBACK_KEY
-from workflow_state import AgentGraphState, agent_state_from_graph, rag_index_from_payload
+from workflow_state import AgentGraphState, agent_state_from_graph, rag_index_from_payload, rag_index_to_payload, replace_state_value
 
 
 def legacy_context_from_graph(state: AgentGraphState, services: Any) -> AnalysisContext:
@@ -30,11 +30,16 @@ def legacy_context_from_graph(state: AgentGraphState, services: Any) -> Analysis
         "parsed": copy_json(state.get("parsed") or {}),
         "circuit_breaker": copy_json(state.get("circuit_breaker") or {}),
         "context_digests": _legacy_agent_mapping(state.get("context_digests") or {}),
+        "analysis_provenance": _legacy_agent_mapping(state.get("analysis_provenance") or {}),
+        "market_context_contract_version": str(state.get("market_context_contract_version") or ""),
+        "market_context_manifests": _legacy_agent_mapping(state.get("market_context_manifests") or {}),
+        "invalidated_agents": list(state.get("invalidated_agents") or []),
         "rag_context": _legacy_agent_mapping(state.get("rag_context") or {}),
         "llm_token_usage": _legacy_agent_mapping(state.get("llm_token_usage") or {}),
         MODEL_CIRCUITS_KEY: copy_json(state.get("llm_model_circuits") or {}),
         "rag_status": copy_json(state.get("rag_status") or {}),
         "blocking_issues": list(state.get("blocking_issues") or []),
+        "status": str(state.get("status") or ""),
         "audit_repair_log": list(state.get("audit_repair_log") or []),
         "repair_attempt_counts": copy_json(state.get("repair_attempt_counts") or {}),
         "agent_quality_retry_counts": _legacy_agent_mapping(state.get("agent_quality_retry_counts") or {}),
@@ -66,6 +71,8 @@ def legacy_context_from_graph(state: AgentGraphState, services: Any) -> Analysis
     if services.progress_callback:
         context[RUNTIME_EVENT_CALLBACK_KEY] = services.progress_callback
     attach_cancel_check(context, services.cancel_check)
+    from analysis_dependencies import invalidate_analysis_results, stale_agent_numbers
+    invalidate_analysis_results(context, stale_agent_numbers(context))
     return context
 
 
@@ -75,6 +82,10 @@ def graph_delta_from_legacy_context(context: AnalysisContext) -> dict[str, Any]:
         "structured_outputs": graph_agent_mapping(context.get("structured_outputs") or {}),
         "parsed": copy_json(context.get("parsed") or {}),
         "context_digests": graph_agent_mapping(context.get("context_digests") or {}),
+        "analysis_provenance": graph_agent_mapping(context.get("analysis_provenance") or {}),
+        "market_context_contract_version": str(context.get("market_context_contract_version") or ""),
+        "market_context_manifests": graph_agent_mapping(context.get("market_context_manifests") or {}),
+        "invalidated_agents": list(context.get("invalidated_agents") or []),
         "rag_context": graph_agent_mapping(context.get("rag_context") or {}),
         "llm_token_usage": graph_agent_mapping(context.get("llm_token_usage") or {}),
         "llm_model_circuits": copy_json(context.get(MODEL_CIRCUITS_KEY) or {}),
@@ -107,6 +118,13 @@ def graph_delta_from_legacy_context(context: AnalysisContext) -> dict[str, Any]:
         if domain_state.next_catalysts:
             delta["next_catalysts"] = copy_json(domain_state.next_catalysts)
         delta["risk_flags"] = [flag.model_dump(mode="json") for flag in domain_state.risk_flags]
+    if context.get("_replace_analysis_state"):
+        for key in ("analyses", "structured_outputs", "parsed", "context_digests", "rag_context",
+                    "analysis_provenance", "market_context_manifests", "agent_reports", "risk_flags", "blocking_issues", "next_catalysts"):
+            if key in delta:
+                delta[key] = replace_state_value(delta[key])
+        if context.get("rag_index") is not None:
+            delta["tool_results"] = {"rag_index": rag_index_to_payload(context["rag_index"])}
     return delta
 
 

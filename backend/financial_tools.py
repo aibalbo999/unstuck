@@ -8,6 +8,8 @@ from config import WACC_COST_OF_DEBT_DEFAULT_PCT, WACC_COST_OF_EQUITY_DEFAULT_PC
 from financial_dcf_scenarios import build_dcf_scenarios
 from financial_tool_utils import latest_numeric, pct_from_ratio, raw_twd_to_billion_twd, safe_float, safe_sequence
 from financial_valuation_tools import calculate_ddm, calculate_implied_revenue_growth
+from quant_metric_contract import calculate_quant_contract
+from quant_input_contract import finite_number
 
 
 def calculate_cagr(start_value: float, end_value: float, periods: int) -> dict:
@@ -15,6 +17,8 @@ def calculate_cagr(start_value: float, end_value: float, periods: int) -> dict:
     if start_value <= 0 or end_value <= 0 or periods <= 0:
         return {"error": "start_value, end_value, and periods must be positive"}
     cagr_pct = ((end_value / start_value) ** (1 / periods) - 1) * 100
+    if finite_number(cagr_pct) is None:
+        return {"error": "CAGR calculation is non-finite"}
     return {
         "start_value": round(start_value, 4),
         "end_value": round(end_value, 4),
@@ -129,14 +133,10 @@ def build_financial_tool_context(data: dict) -> dict:
     sector = str(dict.get(data, "sector", "") or "")
     industry = str(dict.get(data, "industry", "") or "")
 
-    tool_context: dict[str, Any] = {
-        "unit_contract": {
-            "money": "billion_twd",
-            "percent": "percentage_points",
-            "price": "twd_per_share",
-        },
-        "calculations": {},
-    }
+    tool_context: dict[str, Any] = calculate_quant_contract(
+        data, wacc_calculator=calculate_wacc, scenario_builder=build_dcf_scenarios,
+        dcf_calculator=calculate_dcf,
+    )
 
     valid_revenue = [safe_float(v) for v in revenue_history if safe_float(v) is not None and safe_float(v) > 0]
     if len(valid_revenue) >= 2:
@@ -151,9 +151,9 @@ def build_financial_tool_context(data: dict) -> dict:
         prev_revenue = safe_float(revenue_history[-2])
         latest_revenue = safe_float(revenue_history[-1])
         if prev_revenue and latest_revenue:
-            latest_revenue_growth_pct = (latest_revenue / prev_revenue - 1) * 100
+            latest_revenue_growth_pct = finite_number((latest_revenue / prev_revenue - 1) * 100)
             tool_context["calculations"]["latest_annual_revenue_growth"] = {
-                "growth_pct": round(latest_revenue_growth_pct, 4),
+                "growth_pct": round(latest_revenue_growth_pct, 4) if latest_revenue_growth_pct is not None else None,
                 "formula": "latest annual revenue / prior annual revenue - 1",
             }
 
@@ -165,48 +165,6 @@ def build_financial_tool_context(data: dict) -> dict:
             "fcf_conversion_pct": round(fcf_conversion_pct, 4),
             "formula": "latest annual FCF / latest annual net income",
         }
-
-    market_cap = safe_float(dict.get(data, "market_cap_raw"))
-    total_debt = safe_float(dict.get(data, "total_debt_raw"))
-    total_cash = safe_float(dict.get(data, "total_cash_raw"))
-    shares = safe_float(dict.get(data, "shares_raw"))
-    if market_cap is not None and total_debt is not None:
-        wacc = calculate_wacc(market_cap, total_debt)
-        tool_context["calculations"]["market_value_wacc_default"] = wacc
-    else:
-        wacc = {}
-
-    base_fcf = raw_twd_to_billion_twd(dict.get(data, "free_cash_flow_raw"))
-    if base_fcf is None:
-        base_fcf = latest_fcf
-    base_note = "latest available FCF"
-    fcf_conversion = tool_context["calculations"].get("latest_fcf_conversion", {}).get("fcf_conversion_pct")
-    if (
-        base_fcf is not None
-        and latest_net_income
-        and latest_revenue_growth_pct is not None
-        and latest_revenue_growth_pct > 50
-        and fcf_conversion is not None
-        and fcf_conversion > 100
-    ):
-        base_fcf = max(min(base_fcf, latest_net_income * 0.8), 0.01)
-        base_note = "normalized to 80% of latest annual net income because high growth plus FCF/net income > 100% is not treated as steady state"
-
-    wacc_pct = safe_float(wacc.get("wacc_pct"))
-    net_debt = None
-    if total_debt is not None or total_cash is not None:
-        net_debt = (total_debt or 0) / 1e9 - (total_cash or 0) / 1e9
-
-    if base_fcf and shares and wacc_pct:
-        tool_context["calculations"]["dcf_scenarios_default"] = build_dcf_scenarios(
-            base_fcf_billion_twd=base_fcf,
-            base_fcf_note=base_note,
-            latest_revenue_growth_pct=latest_revenue_growth_pct,
-            wacc_pct=wacc_pct,
-            shares_outstanding=shares,
-            net_debt_billion_twd=net_debt or 0,
-            dcf_calculator=calculate_dcf,
-        )
 
     dividend_rate = safe_float(dict.get(data, "dividend_rate_raw"))
     dividend_yield = safe_float(dict.get(data, "dividend_yield_raw"))

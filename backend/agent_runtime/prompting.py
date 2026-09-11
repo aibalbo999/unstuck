@@ -8,6 +8,7 @@ from assistant_context import _format_previous
 from config import PRIMARY_PROMPT_CONTEXT_TOTAL_CHAR_BUDGET, get_agent_context_budgets
 from prompt_builder import format_data_for_prompt, render_prompt_template
 from prompt_evidence import prompt_evidence_copy
+from prompt_record_tables import pack_record_tables
 from prompt_rules import (
     build_agent_rule_block,
     build_final_audit_preflight_rule,
@@ -17,13 +18,15 @@ from prompt_rules import (
 from state_memory import state_view_for
 from structured_output_models import build_structured_output_instruction
 from temporal_memory_service import build_valuation_memory_slice
+from market_context_manifest import CONTRACT_VERSION, FINAL_AGENTS, build_source_blocks, record_prompt_manifest
 
 from .prompt_budget import (
     bound_agent_rag_context,
     enforce_prompt_token_budget as _enforce_prompt_token_budget,
-    get_agent_prompt_token_budget as _base_agent_prompt_token_budget,
+    get_agent_prompt_token_budget,
 )
 from .prompt_config import ANALYSIS_PROMPTS
+from .prompt_routing_policy import AGENT_HISTORY_YEARS, ROUTED_EXTERNAL_CONTEXT_KEYS
 from .state_prompt_projection import bound_state_analysis, restrict_state_reports
 from .prompt_safety import (
     _safe_bool_flag,
@@ -34,53 +37,6 @@ from .prompt_safety import (
 )
 
 OUTPUT_CLEANLINESS_RULE = build_output_cleanliness_rule()
-
-ROUTED_EXTERNAL_CONTEXT_KEYS = {
-    "macro_indicators": {11},
-    "macro_context": {11},
-    "chip_data": {15, 18, 23, 24},
-    "tdcc_shareholder_distribution": {15, 18, 23, 24},
-    "twse_margin_short_sales": {15, 18, 23, 24},
-    "alternative_data": {13, 14},
-    "sentiment_context": {17},
-    "social_sentiment": {17},
-    "sec_edgar": {13, 14, 21},
-    "taiwan_open_data": {11},
-    "earnings_call": {20},
-    "dcard_sentiment": {17},
-    "ptt_sentiment": {17},
-    "temporal_memory": {7, 16, 19, 21, 24},
-    "valuation_memory": {4, 14},
-}
-
-AGENT_HISTORY_YEARS = {
-    11: 3,
-    1: 5,
-    2: 5,
-    3: 5,
-    4: 10,
-    5: 5,
-    6: 5,
-    7: 5,
-    12: 5,
-    13: 5,
-    14: 10,
-    15: 5,
-    16: 5,
-    17: 3,
-    18: 5,
-    19: 5,
-    20: 3,
-    21: 5,
-    22: 3,
-    23: 3,
-    24: 3,
-}
-
-
-def get_agent_prompt_token_budget(agent_num: int) -> int:
-    return _base_agent_prompt_token_budget(agent_num)
-
 
 def data_for_agent_prompt(agent_num: int, data: StockData) -> StockData:
     """Return prompt data with newly added external contexts routed by agent role."""
@@ -99,21 +55,25 @@ def data_for_agent_prompt(agent_num: int, data: StockData) -> StockData:
     return prompt_data
 
 
-def build_company_identity_guard(data: StockData) -> str:
+def build_company_identity_guard(data: StockData, *, agent_num: int | None = None) -> str:
     """Build a hard identity lock so agents do not assign peer facts to the target company."""
     identity = raw_identity if isinstance(raw_identity := dict.get(data, "company_identity"), dict) else {}
-    try:
-        if len(identity) == 0:
-            return ""
-    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
-        pass
 
-    identity_ticker = _safe_prompt_text(dict.get(identity, "ticker"), "N/A")
-    ticker = _safe_prompt_text(dict.get(data, "ticker"), identity_ticker)
-    stock_id = _safe_prompt_text(dict.get(identity, "stock_id"), ticker)
-    company_name = _safe_prompt_text(dict.get(data, "company_name"), ticker)
-    official_name = _safe_prompt_text(dict.get(identity, "official_name"), company_name)
-    legal_name = _safe_prompt_text(dict.get(identity, "legal_name"))
+    data_ticker = dict.get(data, "ticker")
+    identity_ticker_value = dict.get(identity, "ticker")
+    identity_ticker = _safe_prompt_text(
+        "" if identity_ticker_value is None else identity_ticker_value,
+        _safe_prompt_text("" if data_ticker is None else data_ticker, "N/A"),
+    )
+    ticker = _safe_prompt_text("" if data_ticker is None else data_ticker, identity_ticker)
+    stock_id_value = dict.get(identity, "stock_id")
+    company_name_value = dict.get(data, "company_name")
+    official_name_value = dict.get(identity, "official_name")
+    legal_name_value = dict.get(identity, "legal_name")
+    stock_id = _safe_prompt_text("" if stock_id_value is None else stock_id_value, ticker)
+    company_name = _safe_prompt_text("" if company_name_value is None else company_name_value, ticker)
+    official_name = _safe_prompt_text("" if official_name_value is None else official_name_value, company_name)
+    legal_name = _safe_prompt_text("" if legal_name_value is None else legal_name_value)
     english_names = _safe_prompt_text_list(dict.get(identity, "english_names", []), limit=3)
     forbidden_aliases = _safe_prompt_text_list(dict.get(identity, "forbidden_aliases", []))
 
@@ -125,6 +85,11 @@ def build_company_identity_guard(data: StockData) -> str:
         "english_names": ", ".join(english_names),
         "forbidden_aliases": ", ".join(forbidden_aliases),
     })
+    if agent_num in {22, 23, 24}:
+        lines.append(
+            "- 技術、籌碼與交易角色的唯一主體仍是上述標的；同業名稱只能出現在明確標示「同業」的比較句，"
+            "不得把同業名稱、代號、法人流向或價位寫成本次標的。"
+        )
 
     return "\n".join(lines)
 
@@ -139,7 +104,7 @@ def build_data_enrichment_instruction(agent_num: int) -> str:
     return build_agent_rule_block("data_enrichment_instructions", agent_num)
 
 
-def build_state_view_section(agent_num: int, context: AnalysisContext, *, max_analysis_chars: int | None = None) -> str:
+def build_state_view_section(agent_num: int, context: AnalysisContext, *, max_analysis_chars: int | None = None, dense: bool = False) -> str:
     """Expose the role-specific Blackboard slice as the primary evidence source."""
     state = context.get("agent_state")
     if state is None:
@@ -150,11 +115,13 @@ def build_state_view_section(agent_num: int, context: AnalysisContext, *, max_an
     if max_analysis_chars is None:
         max_analysis_chars = get_agent_context_budgets(agent_num)[0] // 2
     view = bound_state_analysis(view, max_analysis_chars)
+    if dense:
+        view = pack_record_tables(view)
     return "\n".join(
         [
             "【AgentState view】",
             "請優先引用 State 原始財務與工具 path；agent_reports 是前序分析，可能省略超額欄位，不能當成原始證據。",
-            json.dumps(view, ensure_ascii=False, indent=2, allow_nan=False),
+            json.dumps(view, ensure_ascii=False, allow_nan=False, **({"separators": (",", ":")} if dense else {"indent": 2})),
         ]
     )
 
@@ -177,16 +144,29 @@ def build_temporal_memory_section(agent_num: int, data: StockData) -> str:
 
 def build_prompt(agent_num: int, data: StockData, context: AnalysisContext) -> str:
     """根據 Agent 編號建立分析提示詞。"""
-    compact_primary = _safe_bool_flag(context.get("_primary_probe_prompt"))
+    source_context = context
+    market_contract = agent_num in FINAL_AGENTS and context.get("market_context_contract_version") == CONTRACT_VERSION
+    gemma_prompt = context.get("_prompt_model_id") == "gemma-4-31b-it"
+    repair_prompt = any(context.get(key) is not None and _safe_prompt_text(context.get(key)) for key in (
+        "_audit_retry_instruction", "_audit_reflection_instruction", "_identity_retry_instruction"))
+    role_scoped = gemma_prompt and not repair_prompt
+    compact_primary = not repair_prompt and _safe_bool_flag(context.get("_primary_probe_prompt"))
     total_budget = (PRIMARY_PROMPT_CONTEXT_TOTAL_CHAR_BUDGET if compact_primary
                     else get_agent_context_budgets(agent_num)[0])
     state_budget = max(0, total_budget // 2) if context.get("agent_state") is not None else 0
-    state_view_section = build_state_view_section(agent_num, context, max_analysis_chars=state_budget)
+    state_view_section = build_state_view_section(agent_num, context, max_analysis_chars=state_budget, dense=gemma_prompt)
     context = prompt_evidence_copy(context)
     ticker = data["ticker"]
     name = data["company_name"]
     prompt_data = data_for_agent_prompt(agent_num, data)
-    fin_data = format_data_for_prompt(prompt_data, compact=compact_primary)
+    source_blocks = build_source_blocks(data, agent_num=agent_num, compact=compact_primary) if market_contract else []
+    if market_contract:
+        prompt_data.pop("global_market_context", None)
+        prompt_data.pop("international_news_context", None)
+    # Shrink formatting and unrelated sections, retaining complete source records.
+    # Oversize input reaches admission intact and can take the full-data fallback.
+    fin_data = (format_data_for_prompt(prompt_data, dense=True, role_scoped=role_scoped)
+                if gemma_prompt else format_data_for_prompt(prompt_data, compact=compact_primary))
     prev = _format_previous(context, agent_num, max_total_chars=max(0, total_budget - state_budget))
     raw_rag_context = context.get("rag_context")
     rag_contexts = raw_rag_context if isinstance(raw_rag_context, dict) else {}
@@ -197,7 +177,7 @@ def build_prompt(agent_num: int, data: StockData, context: AnalysisContext) -> s
         token_budget_func=get_agent_prompt_token_budget,
     )
     context["rag_context"] = {agent_num: rag_context}
-    identity_guard = build_company_identity_guard(data)
+    identity_guard = build_company_identity_guard(data, agent_num=agent_num)
     numeric_tool_instruction = build_numeric_tool_instruction(agent_num)
     enrichment_instruction = build_data_enrichment_instruction(agent_num)
     retry_instruction = _safe_prompt_text(context.get("_identity_retry_instruction", ""))
@@ -232,9 +212,10 @@ def build_prompt(agent_num: int, data: StockData, context: AnalysisContext) -> s
     structured_instruction = build_structured_output_instruction(agent_num)
     prompt_parts = [
         analysis_prompt,
+        "\n".join(block["text"] for block in source_blocks),
         forensic_warning,   # v2 Agent 14 財務排雷品質警示
         state_view_section,
-        rag_context,
+        "" if gemma_prompt and rag_context in analysis_prompt else rag_context,
         "⚠️ 若上方任務文字包含 [護城河評分]、[目標股價]、[投資建議] 等舊式區塊格式，請忽略舊式格式；本次只遵守下方 JSON 結構化輸出規則。" if structured_instruction else "",
         structured_instruction,
         numeric_tool_instruction,
@@ -247,12 +228,9 @@ def build_prompt(agent_num: int, data: StockData, context: AnalysisContext) -> s
         final_audit_preflight_rule,
         OUTPUT_CLEANLINESS_RULE,
     ]
-    return _enforce_prompt_token_budget(
-        "\n\n".join(part for part in prompt_parts if part),
-        agent_num,
-        token_budget_func=get_agent_prompt_token_budget,
-    )
-
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-# 核心 Agent 執行函數
-# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+    final_prompt = "\n\n".join(part for part in prompt_parts if part)
+    if not gemma_prompt:
+        final_prompt = _enforce_prompt_token_budget(
+            final_prompt, agent_num, token_budget_func=get_agent_prompt_token_budget,
+        )
+    return record_prompt_manifest(source_context, data, agent_num, final_prompt, source_blocks)

@@ -2208,7 +2208,7 @@ def test_ops_dashboard_separates_provider_errors_from_node_failures(monkeypatch,
         model_id="gemma-4-31b-it",
         status="quota_error",
         units=0,
-        metadata={"job_id": job_id, "key_slot": "key-01", "message": "quota exhausted"},
+        metadata={"job_id": job_id, "key_slot": "key-01", "message": "quota exhausted", "provider_status_code": 429},
         db_path=db_path,
     )
     record_api_usage(
@@ -2218,7 +2218,7 @@ def test_ops_dashboard_separates_provider_errors_from_node_failures(monkeypatch,
         model_id="gemma-4-31b-it",
         status="error",
         units=0,
-        metadata={"job_id": job_id, "key_slot": "key-02", "message": "provider failed"},
+        metadata={"job_id": job_id, "key_slot": "key-02", "message": "provider failed", "provider_status_code": 504},
         db_path=db_path,
     )
 
@@ -2229,6 +2229,8 @@ def test_ops_dashboard_separates_provider_errors_from_node_failures(monkeypatch,
     assert route["failures"] == 0
     assert route["provider_error_count"] == 2
     assert route["provider_quota_error_count"] == 1
+    assert route["provider_non_quota_error_count"] == 1
+    assert route["provider_status_code_counts"] == {"429": 1, "504": 1}
     assert payload["model_route_budget"]["summary"]["provider_error_sample_size"] == 2
     assert any(
         warning["id"] == "provider_quota_errors"
@@ -4398,6 +4400,28 @@ def test_healthz_and_readyz_routes(monkeypatch):
     assert health.json()["status"] == "ok"
     assert ready.status_code == 200
     assert ready.json()["status"] == "ready"
+
+
+def test_runtime_identity_route_is_read_only_and_versioned():
+    client = TestClient(api.app)
+    response = client.get("/api/runtime-identity")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["schema_version"] == "stock-agent.runtime-identity.v1"
+    assert payload["commit"] is None or len(payload["commit"]) == 40
+    assert payload["dirty"] is None or isinstance(payload["dirty"], bool)
+
+
+def test_runtime_identity_payload_does_not_leak_untrusted_values():
+    payload = runtime_health.build_runtime_identity_payload(
+        lambda: {"commit": 123, "dirty": "false", "path": "/private/secret"},
+    )
+    assert payload == {
+        "schema_version": "stock-agent.runtime-identity.v1",
+        "commit": None,
+        "dirty": None,
+    }
 
 
 def test_basic_auth_protects_read_endpoints_when_configured(monkeypatch):

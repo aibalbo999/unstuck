@@ -16,6 +16,7 @@ from .common import build_agent_model_labels
 from .structured_intro import build_structured_intro_block, strip_legacy_structured_tags
 from .text_tokens import is_missing_text_token
 from .tear_sheet_summary import build_tear_sheet_summary
+from .market_context import final_market_report_text
 from .utils import (
     clean_markdown,
     format_debate_text,
@@ -73,6 +74,7 @@ def build_agent_sections(context: AnalysisContext, *, html: bool = True) -> list
             structured_map = safe_mapping_dict(structured)
             if structured_map is not None:
                 raw_source = structured_output_to_report_text(agent_num, structured_map, str(raw_source))
+        raw_source = final_market_report_text(context, agent_num, str(raw_source))
         raw = strip_structured_blocks(sanitize_report_text(raw_source))
         raw = strip_legacy_structured_tags(raw)
         if structured_intro:

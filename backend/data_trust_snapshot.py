@@ -72,7 +72,22 @@ def sanitize_rerun_context(context: dict) -> dict:
         "pipeline_id": _context_value("pipeline_id"),
         "pipeline_label": _context_value("pipeline_label"),
         "agent_sequence": _context_value("agent_sequence"),
+        **{key: _context_value(key) for key in ("market_context_contract_version", "market_context_manifests")
+           if key in context_map or key in rerun_context},
     })
+
+
+def oos_evaluation_inputs(context: dict, pipeline_id: str | None = None) -> dict:
+    """Preserve the small decision contract even when rerun context is trimmed."""
+
+    context_map = safe_mapping_dict(context) or {}
+    parsed = safe_mapping_dict(dict.get(context_map, "parsed")) or {}
+    result = {"pipeline_id": _first_text(pipeline_id, dict.get(context_map, "pipeline_id"))}
+    for key in ("recommendation", "price_targets", "position_plan", "short_setup", "trade_setup"):
+        value = safe_mapping_dict(dict.get(parsed, key))
+        if value:
+            result[key] = value
+    return sanitize_for_snapshot(result)
 
 
 def build_data_snapshot(
@@ -154,10 +169,14 @@ def build_data_snapshot(
         "content_credibility": sanitize_for_snapshot(dict.get(context, "content_credibility", {})),
         "report_conformance": sanitize_for_snapshot(dict.get(context, "report_conformance", {})),
         "final_audit": sanitize_for_snapshot(dict.get(context, "final_audit", {})),
+        "oos_evaluation_inputs": oos_evaluation_inputs(context, pipeline_id),
         "rerun_context": sanitize_rerun_context(context),
         "data": sanitize_for_snapshot(data),
     }
     quality_metadata_refresh_provenance = dict.get(context, "quality_metadata_refresh_provenance", {})
+    from market_context_snapshot import snapshot_market_fields
+
+    snapshot.update(snapshot_market_fields(snapshot["rerun_context"], data, context=context))
     if quality_metadata_refresh_provenance:
         snapshot["quality_metadata_refresh_provenance"] = sanitize_for_snapshot(
             quality_metadata_refresh_provenance

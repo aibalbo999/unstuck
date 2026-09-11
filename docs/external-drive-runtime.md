@@ -45,12 +45,30 @@ scripts/setup_visual_regression.sh
 
 ## 追蹤報告重建
 
-`scripts/rebuild_tracked_reports.py` 的正常流程是 `prepare` → `submit` → `status`。
+`scripts/rebuild_tracked_reports.py` 的一般追蹤清單流程是 `prepare` → `submit` → `status`。
 `prepare` 建立新的 manifest，記錄已啟用追蹤股票、模式及既有 artifact 的內容雜湊；
 `submit` 經一般分析 API 批次提交，保留歷史報告，已有 `job_id` 的項目不重複提交。
 提交使用 `force=false, resume=true`：若同股票／模式已有執行中工作，沿用該工作而不取消；
 沒有執行中工作時仍建立新 ID 與新分析。這不是跨工作生命週期的冪等保證。
 請先確認 manifest 列出的股票與模式符合本次意圖。
+
+從完整報告 index 挑選重跑候選時，流程是 `prepare-indexed` → 人工核定精確範圍 →
+`authorize-indexed` → `submit` → `status`。`prepare-indexed` 產生的來源檔固定為
+`prepare_only=true`，不能直接送件。核定後須以來源檔的完整 SHA-256、候選數量與一個尚不存在的
+絕對輸出路徑建立新的 submission manifest；這個動作不連線 API，也不送 Job。例如本批 28 組
+候選在獲得明示核定後才可執行：
+
+```bash
+"$(scripts/project_python.sh)" scripts/rebuild_tracked_reports.py authorize-indexed \
+  --manifest "/Volumes/X10 Pro Mac/stock-agent/docs/report-update-candidates-2026-09-08.json" \
+  --submission-manifest "/Volumes/X10 Pro Mac/stock-agent/backend/cache/report-rebuild-authorized-2026-09-08.json" \
+  --confirm-source-sha256 f9d697eacc525ba8c0bbd7d8d4dde0d8619982ee96da6076f2af3c7d2fce0af2 \
+  --confirm-candidate-count 28
+```
+
+授權檔保存候選 scope fingerprint。後續若增刪候選，或修改 ticker、mode、來源檔及重跑理由，
+`submit` 會在任何網路請求前停止；必須回到原始唯讀盤點重新核定，不能直接改 fingerprint。
+來源檔與新授權檔均不接受 symlink，避免核定後由路徑替換到不同內容。
 
 重建不會更換模型路由、重置額度或恢復暫停的佇列。API 拒絕請求時立即停止該次提交；
 已接受的工作仍由既有 Worker 並行設定、配額檢核及延後重試機制處理。

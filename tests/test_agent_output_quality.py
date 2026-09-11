@@ -53,9 +53,9 @@ def test_final_agent_prompts_preserve_risk_and_quality_contracts():
 def test_agent_prompt_config_validates_schema_and_exposes_prompt_version(tmp_path):
     config = load_agent_prompt_config()
 
-    assert config["version"] == 3
+    assert config["version"] == 4
     assert len(config["prompt_fingerprint"]) == 64
-    assert config["prompt_version"] == f"agents:v3:{config['prompt_fingerprint'][:16]}"
+    assert config["prompt_version"] == f"agents:v4:{config['prompt_fingerprint'][:16]}"
 
     invalid = tmp_path / "bad_agents.json"
     invalid.write_text(

@@ -17,6 +17,9 @@ from prompt_rules import get_task_system_instruction
 from runtime_events import emit_context_event, emit_context_event_async, make_runtime_event
 
 
+CONTEXT_DIGEST_MAX_OUTPUT_TOKENS = 2048
+
+
 def _context_digest_model_sequence() -> list[str]:
     return [CONTEXT_DIGEST_MODEL]
 
@@ -25,7 +28,7 @@ def _build_digest_generation_config():
     return types.GenerateContentConfig(
         temperature=0.2,
         top_p=0.9,
-        max_output_tokens=4096,
+        max_output_tokens=CONTEXT_DIGEST_MAX_OUTPUT_TOKENS,
         response_mime_type="application/json",
         system_instruction=get_task_system_instruction("context_digest"),
     )

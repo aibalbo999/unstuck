@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 import re
 
-from mapping_fields import safe_mapping_dict
+from mapping_fields import safe_mapping_dict, safe_sequence_items, safe_text
 
 
 MOAT_FIELDS = {
@@ -42,6 +42,39 @@ def normalize_moat_evidence(value) -> dict[str, float | None]:
         if not any(type(key) is str and key == label for key in scores):
             raw = next((item for key, item in scores.items() if type(key) is str and key == alias), None)
         result[label] = moat_score(raw)
+    return result
+
+
+def normalize_moat_dimension_evidence(value) -> dict[str, dict[str, object]]:
+    """Keep only known moat dimensions and auditable text/source references."""
+    evidence = safe_mapping_dict(value) or {}
+    result = {}
+    for label in MOAT_FIELDS:
+        raw = next(
+            (item for key, item in evidence.items() if type(key) is str and key == label),
+            None,
+        )
+        row = safe_mapping_dict(raw)
+        if row is None:
+            continue
+        finding = safe_text(row.get("finding")).strip() if isinstance(row.get("finding"), str) else ""
+        counterevidence = (
+            safe_text(row.get("counterevidence")).strip()
+            if isinstance(row.get("counterevidence"), str)
+            else ""
+        )
+        refs = []
+        if isinstance(row.get("source_refs"), (list, tuple)):
+            for item in safe_sequence_items(row.get("source_refs")):
+                ref = safe_text(item).strip() if isinstance(item, str) else ""
+                if ref and ref not in refs:
+                    refs.append(ref)
+        if finding or counterevidence or refs:
+            result[label] = {
+                "finding": finding or "資料不足",
+                "source_refs": refs,
+                "counterevidence": counterevidence or "資料不足",
+            }
     return result
 
 

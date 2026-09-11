@@ -7,6 +7,7 @@ from typing import Optional
 from json_utils import extract_json_payload
 from prompt_rules import build_structured_agent_instructions
 from structured_output_model_base import AnalysisMarkdownMixin, StructuredModel
+from structured_output_evidence_models import DatedEvidenceItem, DatedEvidenceMemoStructuredOutput
 from structured_output_recommendation_outputs import (
     BubbleSniperRecommendationFields,
     BubbleSniperStructuredOutput,
@@ -26,6 +27,8 @@ from structured_output_risk_models import (
 )
 from structured_output_valuation_models import (
     DcfScenarioOutput,
+    MoatDimensionEvidence,
+    MoatEvidence,
     MoatScores,
     MoatStructuredOutput,
     PriceTargets,
@@ -42,10 +45,14 @@ __all__ = [
     "Catalyst",
     "ConfidenceBasis",
     "DcfScenarioOutput",
+    "DatedEvidenceItem",
+    "DatedEvidenceMemoStructuredOutput",
     "DownsideRisk",
     "ExecutiveThesisOutput",
     "ManagementHighlight",
     "ManagementSentimentStructuredOutput",
+    "MoatDimensionEvidence",
+    "MoatEvidence",
     "MoatScores",
     "MoatStructuredOutput",
     "PositionPlan",
@@ -68,15 +75,19 @@ __all__ = [
 STRUCTURED_AGENT_INSTRUCTIONS = build_structured_agent_instructions()
 
 STRUCTURED_AGENT_RESPONSE_SCHEMAS: dict[int, type[StructuredModel]] = {
+    11: DatedEvidenceMemoStructuredOutput,
     3: MoatStructuredOutput,
     4: PriceTargetStructuredOutput,
     7: RecommendationStructuredOutput,
     12: MoatStructuredOutput,
     14: PriceTargetStructuredOutput,
+    15: DatedEvidenceMemoStructuredOutput,
     16: TradingDecisionStructuredOutput,
     19: BubbleSniperStructuredOutput,
     20: ManagementSentimentStructuredOutput,
     21: BearAdvocateStructuredOutput,
+    22: DatedEvidenceMemoStructuredOutput,
+    23: DatedEvidenceMemoStructuredOutput,
     24: SwingTradeSetup,
 }
 

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from analysis_types import AnalysisContext, AuditResult, StockData
+from analysis_dependencies import stale_agent_numbers
 from agent_catalog import AGENT_NAMES
 from final_audit import run_final_report_audit
 from llm_client import KeyRotator
@@ -16,6 +17,7 @@ from .deterministic_fallbacks import (
 )
 from .prompt_config import FINAL_AUDIT_REPAIR_PASSES
 from .repair_circuit_breaker import clear_repair_429_circuit
+from .repair_transaction import RepairRound, atomic_final_audit, repair_requests
 from .single_agent import run_single_agent, run_single_agent_async
 
 
@@ -47,8 +49,10 @@ async def _repair_agent_output_async(agent_num: int, data: StockData, context: A
 
 
 def attempt_final_audit_repair(context: AnalysisContext, audit: AuditResult, rotator: KeyRotator, progress_callback=None):
-    repair_requests = audit.get("repair_agent_issues", {}) or {}
-    if not repair_requests:
+    repair_round = RepairRound(context, audit)
+    context = repair_round.context
+    requests = repair_round.requests
+    if not repair_round.pending:
         context.setdefault("audit_repair_log", []).append("最終稽核發現問題，但沒有可定位到單一 Agent 的自動重寫項目；報告會保留並標示異常。")
         return
 
@@ -66,20 +70,24 @@ def attempt_final_audit_repair(context: AnalysisContext, audit: AuditResult, rot
             name="最終稽核",
             pipeline_id=context.get("pipeline_id"),
             pipeline_label=context.get("pipeline_label"),
-            metadata={"repair_agents": sorted(repair_requests)},
+            metadata={"repair_agents": list(requests)},
         ),
         progress_callback,
     )
     data = context.get("data", {})
-    for agent_num in sorted(repair_requests):
+    for agent_num, issues, candidate in repair_round.steps():
         agent_name = AGENT_NAMES.get(agent_num, f"Agent {agent_num}")
-        ok, message = _repair_agent_output(agent_num, data, context, rotator, repair_requests[agent_num])
-        _record_repair_result(context, progress_callback, agent_num, agent_name, ok, message)
+        ok, message = _repair_agent_output(agent_num, data, candidate, rotator, issues)
+        repair_round.accept(agent_num, candidate, ok, message)
+        _record_repair_result(repair_round.context, progress_callback, agent_num, agent_name, ok, message)
+    return repair_round.finish()
 
 
 async def attempt_final_audit_repair_async(context: AnalysisContext, audit: AuditResult, rotator: KeyRotator, progress_callback=None):
-    repair_requests = audit.get("repair_agent_issues", {}) or {}
-    if not repair_requests:
+    repair_round = RepairRound(context, audit)
+    context = repair_round.context
+    requests = repair_round.requests
+    if not repair_round.pending:
         context.setdefault("audit_repair_log", []).append("最終稽核發現問題，但沒有可定位到單一 Agent 的自動重寫項目；報告會保留並標示異常。")
         return
 
@@ -97,15 +105,17 @@ async def attempt_final_audit_repair_async(context: AnalysisContext, audit: Audi
             name="最終稽核",
             pipeline_id=context.get("pipeline_id"),
             pipeline_label=context.get("pipeline_label"),
-            metadata={"repair_agents": sorted(repair_requests)},
+            metadata={"repair_agents": list(requests)},
         ),
         progress_callback,
     )
     data = context.get("data", {})
-    for agent_num in sorted(repair_requests):
+    for agent_num, issues, candidate in repair_round.steps():
         agent_name = AGENT_NAMES.get(agent_num, f"Agent {agent_num}")
-        ok, message = await _repair_agent_output_async(agent_num, data, context, rotator, repair_requests[agent_num])
-        await _record_repair_result_async(context, progress_callback, agent_num, agent_name, ok, message)
+        ok, message = await _repair_agent_output_async(agent_num, data, candidate, rotator, issues)
+        repair_round.accept(agent_num, candidate, ok, message)
+        await _record_repair_result_async(repair_round.context, progress_callback, agent_num, agent_name, ok, message)
+    return repair_round.finish()
 
 
 def _record_repair_result(context: AnalysisContext, progress_callback, agent_num: int, agent_name: str, ok: bool, message: str) -> None:
@@ -153,6 +163,17 @@ def _summarize_audit_issues(audit: AuditResult, limit: int = 3) -> str:
     return "；".join(issues) if issues else "無可列示異常"
 
 
+def _audit_current_context(context: AnalysisContext, *, append_section: bool) -> AuditResult:
+    stale = stale_agent_numbers(context)
+    if stale:
+        return {"status": "needs_attention", "critical": [f"分析依賴版本尚未重建：{stale}"],
+                "warnings": [], "corrections": [], "report_preserved": False,
+                "repair_agent_issues": {agent: ["請以目前上游重新產生分析。"] for agent in stale}}
+    context["parsed"] = parse_structured_data(context)
+    return run_final_report_audit(context, append_section=append_section)
+
+
+@atomic_final_audit
 def finalize_final_audit(
     context: AnalysisContext,
     rotator: KeyRotator,
@@ -162,10 +183,9 @@ def finalize_final_audit(
     """Run final audit, repair repairable failures, re-audit, then preserve report state."""
     last_audit = None
     for repair_pass in range(max_repair_passes + 1):
-        context["parsed"] = parse_structured_data(context)
-        last_audit = run_final_report_audit(context, append_section=False)
-        if not last_audit.get("critical"):
-            context["final_audit"] = run_final_report_audit(context, append_section=True)
+        last_audit = _audit_current_context(context, append_section=False)
+        if not last_audit.get("critical") and not stale_agent_numbers(context) and (not repair_requests(last_audit) or repair_pass >= max_repair_passes):
+            context["final_audit"] = _audit_current_context(context, append_section=True)
             return context["final_audit"]
 
         if repair_pass >= max_repair_passes:
@@ -175,14 +195,14 @@ def finalize_final_audit(
         context["repair_iteration_count"] = repair_pass + 1
         _emit_repair_pass(context, progress_callback, repair_pass, max_repair_passes, is_async=False)
         attempt_final_audit_repair(context, last_audit, rotator, progress_callback=progress_callback)
-        if not last_audit.get("repair_agent_issues"):
+        if not repair_requests(last_audit):
             break
 
-    context["parsed"] = parse_structured_data(context)
-    context["final_audit"] = run_final_report_audit(context, append_section=True)
+    context["final_audit"] = _audit_current_context(context, append_section=True)
     return context["final_audit"]
 
 
+@atomic_final_audit
 async def finalize_final_audit_async(
     context: AnalysisContext,
     rotator: KeyRotator,
@@ -192,10 +212,9 @@ async def finalize_final_audit_async(
     """Async final audit flow with repair and mandatory re-audit before rendering."""
     last_audit = None
     for repair_pass in range(max_repair_passes + 1):
-        context["parsed"] = parse_structured_data(context)
-        last_audit = run_final_report_audit(context, append_section=False)
-        if not last_audit.get("critical"):
-            context["final_audit"] = run_final_report_audit(context, append_section=True)
+        last_audit = _audit_current_context(context, append_section=False)
+        if not last_audit.get("critical") and not stale_agent_numbers(context) and (not repair_requests(last_audit) or repair_pass >= max_repair_passes):
+            context["final_audit"] = _audit_current_context(context, append_section=True)
             return context["final_audit"]
 
         if repair_pass >= max_repair_passes:
@@ -205,11 +224,10 @@ async def finalize_final_audit_async(
         context["repair_iteration_count"] = repair_pass + 1
         await _emit_repair_pass_async(context, progress_callback, repair_pass, max_repair_passes)
         await attempt_final_audit_repair_async(context, last_audit, rotator, progress_callback=progress_callback)
-        if not last_audit.get("repair_agent_issues"):
+        if not repair_requests(last_audit):
             break
 
-    context["parsed"] = parse_structured_data(context)
-    context["final_audit"] = run_final_report_audit(context, append_section=True)
+    context["final_audit"] = _audit_current_context(context, append_section=True)
     return context["final_audit"]
 
 

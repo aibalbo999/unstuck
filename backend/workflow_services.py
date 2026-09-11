@@ -129,6 +129,9 @@ def initialize_graph_state(data: dict[str, Any], *, pipeline_id: str) -> AgentGr
     load_provider_values_from_payload(domain_state, data)
     validate_state_provider_values(domain_state)
     graph_state = agent_state_to_graph(domain_state, pipeline_id=normalize_pipeline_id(pipeline_id))
+    if graph_state["pipeline_id"] in {"v1", "v2", "v3"}:
+        graph_state["market_context_contract_version"] = "market_context.v1"
+        graph_state["market_context_manifests"] = {}
     prompt_config = load_agent_prompt_config()
     code_identity = runtime_code_identity()
     graph_state["prompt_version"] = str(prompt_config.get("prompt_version") or "agents:unversioned")
@@ -195,14 +198,22 @@ async def run_agent_node_adapter(agent_num: int, state: AgentGraphState, service
     structured_output = structured_outputs.get(completed_agent_num, structured_outputs.get(str(completed_agent_num)))
     domain_state = context.get("agent_state")
     record_agent_state_report(domain_state, completed_agent_num, markdown, structured_output)
+    from analysis_dependencies import record_result_provenance
+    context.setdefault("analyses", {})[completed_agent_num] = markdown
+    record_result_provenance(completed_agent_num, context)
     report = domain_state.agent_reports.get(str(completed_agent_num)) if domain_state else None
 
     delta: dict[str, Any] = {
         "analyses": {str(completed_agent_num): markdown},
+        "analysis_provenance": {str(completed_agent_num): copy_json(context["analysis_provenance"][completed_agent_num])},
         "execution_trace": [{"id": f"agent:{completed_agent_num}", "node": f"agent_{completed_agent_num}", "agent_num": completed_agent_num}],
     }
     if structured_output is not None:
         delta["structured_outputs"] = {str(completed_agent_num): copy_json(structured_output)}
+    manifests = context.get("market_context_manifests") or {}
+    manifest = manifests.get(completed_agent_num, manifests.get(str(completed_agent_num)))
+    if manifest is not None:
+        delta["market_context_manifests"] = {str(completed_agent_num): copy_json(manifest)}
     token_usage = (context.get("llm_token_usage") or {}).get(
         completed_agent_num,
         (context.get("llm_token_usage") or {}).get(str(completed_agent_num)),

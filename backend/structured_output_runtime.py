@@ -12,6 +12,7 @@ from structured_output_normalizer import (
     structured_output_to_report_text,
     warn_high_confidence_with_low_trust,
 )
+from valuation_output_contract import canonicalize_valuation_output
 
 
 def _sanitize_text(text: str) -> str:
@@ -43,6 +44,7 @@ def process_agent_response(agent_num: int, raw_text: str, context: AnalysisConte
         return _sanitize_text(raw_text or "")
 
     if agent_num in {4, 14}:
+        structured = canonicalize_valuation_output(structured, context.get("data", {}))
         current_price = context.get("data", {}).get("current_price")
         targets = structured.get("price_targets", {})
         if price_targets_have_unit_error(targets, current_price):

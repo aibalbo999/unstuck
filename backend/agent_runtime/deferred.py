@@ -16,6 +16,7 @@ class AgentDeferredError(AgentRateLimitError):
     def __init__(self, agent_num: int, routes: list[dict]):
         self.agent_num = agent_num
         self.routes = routes
+        self.provider_quota_confirmed = bool(routes) and all(route.get("provider_quota_confirmed") is True for route in routes)
         wait = max(1, math.ceil(min(route["retry_wait_seconds"] for route in routes)))
         names = ", ".join(route["model_id"] for route in routes)
         super().__init__(f"Agent {agent_num} 模型暫時不可用（{names}），至少 {wait} 秒後重試。", wait, wait)
@@ -38,7 +39,11 @@ def unavailable_model(context: dict, rotator, model_id: str) -> dict | None:
                 wait = max(wait, value)
         if wait <= 0:
             wait = float(LLM_MODEL_CIRCUIT_COOLDOWN_SECONDS or 60)
-        return {"model_id": model_id, "reason_code": "daily_quota_disabled" if slots == set() else "model_cooldown", "retry_wait_seconds": wait}
+        confirmed = getattr(rotator, "provider_quota_exhausted", None)
+        quota_confirmed = callable(confirmed) and confirmed(model_id) is True
+        return {"model_id": model_id,
+                "reason_code": "provider_daily_quota_exhausted" if quota_confirmed else "model_cooldown",
+                "provider_quota_confirmed": quota_confirmed, "retry_wait_seconds": wait}
     except RuntimeError as exc:
         raise AgentConfigurationError(str(exc)) from exc
 

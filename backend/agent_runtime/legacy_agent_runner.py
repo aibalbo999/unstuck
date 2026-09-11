@@ -30,6 +30,8 @@ from .prompting import *  # noqa: F401,F403
 from .routing import *  # noqa: F401,F403
 from .single_agent import *  # noqa: F401,F403
 
+_CANONICAL_REPAIR_AGENT_OUTPUT = _audit_repair._repair_agent_output
+
 
 def _clear_agent_blocking_issues(context, agent_num):
     agent_name = AGENT_NAMES.get(agent_num, f"Agent {agent_num}")
@@ -46,26 +48,13 @@ def _repair_agent_output(agent_num, data, context, rotator, issues):
     previous = _audit_repair.run_single_agent
     _audit_repair.run_single_agent = run_single_agent
     try:
-        return _audit_repair._repair_agent_output(agent_num, data, context, rotator, issues)
+        return _CANONICAL_REPAIR_AGENT_OUTPUT(agent_num, data, context, rotator, issues)
     finally:
         _audit_repair.run_single_agent = previous
 
 
 def attempt_final_audit_repair(context, audit, rotator):
-    repair_requests = audit.get("repair_agent_issues", {}) or {}
-    if not repair_requests:
-        context.setdefault("audit_repair_log", []).append("最終稽核發現問題，但沒有可定位到單一 Agent 的自動重寫項目；報告會保留並標示異常。")
-        return
-
-    emit_log("  🛠️  最終稽核發現異常，嘗試請相關 Agent 自動重寫修復...")
-    data = context.get("data", {})
-    for agent_num in sorted(repair_requests):
-        agent_name = AGENT_NAMES.get(agent_num, f"Agent {agent_num}")
-        ok, message = _repair_agent_output(agent_num, data, context, rotator, repair_requests[agent_num])
-        status = "成功" if ok else "失敗"
-        log = f"{agent_name} AI 修復{status}：{message}"
-        context.setdefault("audit_repair_log", []).append(log)
-        emit_log(f"     - {log}")
+    return _call_canonical_repair("attempt_final_audit_repair", context, audit, rotator)
 
 
 def _summarize_audit_issues(audit, limit: int = 3) -> str:
@@ -74,26 +63,21 @@ def _summarize_audit_issues(audit, limit: int = 3) -> str:
 
 
 def finalize_final_audit(context, rotator, max_repair_passes=FINAL_AUDIT_REPAIR_PASSES):
-    last_audit = None
-    for repair_pass in range(max_repair_passes + 1):
-        context["parsed"] = parse_structured_data(context)
-        last_audit = run_final_report_audit(context, append_section=False)
-        if not last_audit.get("critical"):
-            context["final_audit"] = run_final_report_audit(context, append_section=True)
-            return context["final_audit"]
+    return _call_canonical_repair("finalize_final_audit", context, rotator, max_repair_passes=max_repair_passes)
 
-        if repair_pass >= max_repair_passes:
-            remaining = _summarize_audit_issues(last_audit)
-            context.setdefault("audit_repair_log", []).append(
-                f"最終稽核自動修復已達 {max_repair_passes} 輪上限；報告會保留並標示剩餘異常：{remaining}"
-            )
-            break
 
-        emit_log(f"  🧭 最終稽核第 {repair_pass + 1}/{max_repair_passes} 輪修復，完成後會重新稽核。")
-        attempt_final_audit_repair(context, last_audit, rotator)
-        if not last_audit.get("repair_agent_issues"):
-            break
-
-    context["parsed"] = parse_structured_data(context)
-    context["final_audit"] = run_final_report_audit(context, append_section=True)
-    return context["final_audit"]
+def _call_canonical_repair(name, *args, **kwargs):
+    """Preserve legacy monkeypatch seams while sharing the atomic implementation."""
+    overrides = {"_repair_agent_output": _repair_agent_output, "run_single_agent": run_single_agent,
+                 "run_final_report_audit": run_final_report_audit, "parse_structured_data": parse_structured_data}
+    previous = {key: getattr(_audit_repair, key) for key in overrides}
+    try:
+        for key, value in overrides.items():
+            setattr(_audit_repair, key, value)
+        result = getattr(_audit_repair, name)(*args, **kwargs)
+        if args and isinstance(args[0], dict) and "audit_repair_log" in args[0]:
+            args[0]["audit_repair_log"] = [str(item).replace(" 自動修復", " AI 修復") for item in args[0]["audit_repair_log"]]
+        return result
+    finally:
+        for key, value in previous.items():
+            setattr(_audit_repair, key, value)

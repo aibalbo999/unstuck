@@ -15,6 +15,8 @@ def record_runtime_event_usage(
     db_path: str | Path | None = None,
 ) -> None:
     phase = str(payload.get("phase") or "")
+    phase = {"gemma_evidence_call": "llm_model_call", "gemma_evidence_request": "llm_provider_request",
+             "gemma_evidence_response": "llm_model_response", "gemma_evidence_error": "llm_model_error"}.get(phase, phase)
     if phase not in {"llm_model_call", "llm_provider_request", "llm_model_error", "llm_model_response"}:
         return
     metadata = payload.get("metadata") if isinstance(payload.get("metadata"), dict) else {}

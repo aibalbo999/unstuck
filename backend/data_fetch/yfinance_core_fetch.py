@@ -258,7 +258,7 @@ def fetch_stock_data(ticker: str, skip_optional_http: bool = False, market_data_
             finmind_financial_fallback_audit=finmind_financial_fallback_audit,
         )
 
-        emit_log(f"  ✅ {company_name} 數據獲取完成")
+        emit_log(f"  ✅ {company_name} 核心財務資料完成（後續補充資料另行處理）")
         return data
         
     except Exception as e:

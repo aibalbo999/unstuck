@@ -9,10 +9,10 @@ from config import LLM_MODEL_CIRCUIT_COOLDOWN_SECONDS
 
 
 class ModelCircuitOpenError(RuntimeError):
-    """Raised before a provider call while the model quota circuit is open."""
+    """Raised before a provider call while the temporary model circuit is open."""
 
     def __init__(self, model: str, retry_wait_seconds: float):
-        super().__init__(f"模型 {model} 的 quota circuit 已開啟，約 {retry_wait_seconds:.1f} 秒後再試。")
+        super().__init__(f"模型 {model} 的 暫時冷卻已啟動，約 {retry_wait_seconds:.1f} 秒後再試。")
         self.model = model
         self.retry_wait_seconds = retry_wait_seconds
 

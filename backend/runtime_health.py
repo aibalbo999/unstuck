@@ -6,12 +6,28 @@ from typing import Any, Callable
 
 from queue_observability import snapshot_task_queue
 from report_freshness_summary import safe_bool
+from runtime_code_identity import runtime_code_identity
 from security_sanitizer import sanitize_error_message
 from storage_inventory import ensure_runtime_storage
 
 
 def build_health_payload() -> dict:
     return {"status": "ok"}
+
+
+def build_runtime_identity_payload(
+    identity_provider: Callable[[], dict[str, Any] | None] = runtime_code_identity,
+) -> dict:
+    """Expose only process-stable code provenance for read-only release checks."""
+    identity = identity_provider()
+    identity = identity if isinstance(identity, dict) else {}
+    commit = identity.get("commit")
+    dirty = identity.get("dirty")
+    return {
+        "schema_version": "stock-agent.runtime-identity.v1",
+        "commit": commit if isinstance(commit, str) and commit.strip() else None,
+        "dirty": dirty if isinstance(dirty, bool) else None,
+    }
 
 
 def build_readiness_payload(

@@ -16,6 +16,7 @@ from structured_output_model_base import (
     _safe_mapping_value,
     _safe_number,
     _safe_required_text_list,
+    _safe_string_text_list,
     _safe_string_text,
     AnalysisMarkdownMixin,
     StructuredModel,
@@ -36,6 +37,35 @@ class MoatScores(StructuredModel):
         return normalize_moat_evidence(payload)
 
 
+class MoatDimensionEvidence(StructuredModel):
+    finding: str = "資料不足"
+    source_refs: list[str] = Field(default_factory=list)
+    counterevidence: str = "資料不足"
+
+    @model_validator(mode="before")
+    @classmethod
+    def sanitize_evidence_fields(cls, payload):
+        evidence = safe_mapping_dict(payload) or {}
+        return {
+            **evidence,
+            "finding": _safe_string_text(evidence.get("finding"), "資料不足"),
+            "source_refs": _safe_string_text_list(evidence.get("source_refs")),
+            "counterevidence": _safe_string_text(
+                evidence.get("counterevidence"),
+                "資料不足",
+            ),
+        }
+
+
+class MoatEvidence(StructuredModel):
+    brand_influence: MoatDimensionEvidence = Field(default_factory=MoatDimensionEvidence, alias="品牌影響力")
+    network_effect: MoatDimensionEvidence = Field(default_factory=MoatDimensionEvidence, alias="網路效應")
+    switching_cost: MoatDimensionEvidence = Field(default_factory=MoatDimensionEvidence, alias="轉換成本")
+    cost_advantage: MoatDimensionEvidence = Field(default_factory=MoatDimensionEvidence, alias="成本優勢")
+    patent_technology: MoatDimensionEvidence = Field(default_factory=MoatDimensionEvidence, alias="專利技術")
+    overall_moat: MoatDimensionEvidence = Field(default_factory=MoatDimensionEvidence, alias="整體護城河")
+
+
 class MoatStructuredOutput(AnalysisMarkdownMixin):
     reasoning_steps: list[str] = Field(
         ...,
@@ -43,6 +73,7 @@ class MoatStructuredOutput(AnalysisMarkdownMixin):
         description="先列出 3-6 個可稽核推論步驟，逐步連結證據、反證與評分邏輯。",
     )
     moat_scores: MoatScores
+    moat_evidence: MoatEvidence = Field(default_factory=MoatEvidence)
     analysis_markdown: str = Field(..., min_length=1)
 
     @model_validator(mode="before")
@@ -53,6 +84,7 @@ class MoatStructuredOutput(AnalysisMarkdownMixin):
             return {
                 "reasoning_steps": ["待補推論步驟", "待補推論步驟", "待補推論步驟"],
                 "moat_scores": {},
+                "moat_evidence": {},
                 "analysis_markdown": _ANALYSIS_MARKDOWN_FALLBACK,
             }
         normalized = root if "moat_scores" in root else {**root, "moat_scores": {}}
@@ -117,6 +149,9 @@ class ValuationSummary(StructuredModel):
 
 class DcfScenarioOutput(StructuredModel):
     scenario: Literal["bear", "base", "bull"]
+    method: str = "fcf_dcf"
+    unit: str = "twd_per_share"
+    source_ref: str | None = None
     revenue_growth_bias_pct: float
     margin_bias_pct: float
     wacc_pct: float = Field(..., gt=0)
@@ -138,6 +173,9 @@ class DcfScenarioOutput(StructuredModel):
         return {
             **scenario,
             "scenario": scenario_name if scenario_name in _DCF_SCENARIOS else "base",
+            "method": _safe_string_text(_safe_mapping_value(scenario, "method"), "fcf_dcf"),
+            "unit": _safe_string_text(_safe_mapping_value(scenario, "unit"), "twd_per_share"),
+            "source_ref": _safe_string_text(_safe_mapping_value(scenario, "source_ref")) or None,
             "revenue_growth_bias_pct": _safe_number(_safe_mapping_value(scenario, "revenue_growth_bias_pct")),
             "margin_bias_pct": _safe_number(_safe_mapping_value(scenario, "margin_bias_pct")),
             "wacc_pct": _safe_number(_safe_mapping_value(scenario, "wacc_pct"), default=1.0, minimum=0.01),

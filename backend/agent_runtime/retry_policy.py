@@ -28,6 +28,7 @@ from .retry_error_classification import (
     _is_server_5xx_error,
     _is_transient_provider_error,
     _key_slot,
+    provider_status_code,
 )
 
 
@@ -197,7 +198,7 @@ def _raise_agent_call_error(exc: Exception, api_key: Optional[str], model_id: st
         key_slot, key_count = _key_slot(api_key, rotator)
         detail = str(exc)
         if isinstance(exc, ModelCircuitOpenError):
-            detail = f"模型 {exc.model} 的 quota circuit 已開啟，暫停送出 provider request"
+            detail = f"模型 {exc.model} 的 暫時冷卻已啟動，稍後再送出 provider request"
         elif isinstance(exc, AllKeysRpdDisabledError):
             detail = f"每日請求額度（RPD）：模型 {exc.model} 的所有 key 暫停至 Pacific Time 下一個午夜"
         retry_wait = max(float(exc.retry_wait_seconds), 1.0)
@@ -244,9 +245,14 @@ def _raise_agent_call_error(exc: Exception, api_key: Optional[str], model_id: st
     if _is_invalid_argument_error(error_msg):
         raise AgentConfigurationError(f"[schema_error] {error_msg}") from exc
 
+    status_code = provider_status_code(exc)
+    if status_code is not None and 500 <= status_code <= 599:
+        raise AgentServerError(error_msg) from exc
     if _is_server_5xx_error(error_msg):
         raise AgentServerError(error_msg) from exc
 
+    if isinstance(exc, TimeoutError):
+        raise AgentTransientError("provider request timeout") from exc
     if _is_transient_provider_error(error_msg):
         raise AgentTransientError(error_msg) from exc
 

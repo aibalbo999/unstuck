@@ -1,0 +1,49 @@
+{
+  "coverage_status": "closed",
+  "candidates": [
+    {
+      "candidate_id": "cand-v1",
+      "sealed_at": "2025-01-02T09:30:00+08:00",
+      "first_session_date": "2025-01-03",
+      "report": {
+        "ticker": "2330", "pipeline_id": "v1", "prompt_fingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+        "code_commit": "abc123", "code_dirty": false, "model_id": "model-x",
+        "quality_metadata": {"score": 80, "status": "sufficient"}, "quality_metadata_hash": "ea08cd760c38919e15fea74aca21c68a98efe2c392162e0b01a56a77f403ed2a",
+        "analysis_input_cutoff": "2025-01-01T18:00:00+08:00", "input_first_available_at": "2025-01-01T17:00:00+08:00",
+        "conclusion_generated_at": "2025-01-02T08:00:00+08:00", "report_available_at": "2025-01-02T09:00:00+08:00",
+        "source_publication_at": "2025-01-01T16:00:00+08:00", "data_snapshot_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+        "recommendation": "買入", "target_price": 110
+      },
+      "artifacts": {
+        "html": {"content": "v1-html", "sha256": "4bc14409505990327c4631e48c5b2630842255d86fb4b243660b05628c8c06e0"},
+        "markdown": {"content": "v1-markdown", "sha256": "47d71b1a7b504cae93e2c5019426fd235e65d3d95c13a3c26557f62d2873b42a"},
+        "snapshot": {"content": "v1-snapshot", "sha256": "9ec630706045db6f4872e3276f346b9d3842a9388e2fa7d62994d74992e4647d"},
+        "parsed_plan": {"content": "v1-parsed_plan", "sha256": "65c4313c70afc6638f63b5c73277a565f1d977aa3174fb0132ae0d1c0b5df1f1"}
+      }
+    },
+    {
+      "candidate_id": "cand-v2",
+      "sealed_at": "2025-01-02T09:30:00+08:00", "first_session_date": "2025-01-03",
+      "report": {
+        "ticker": "2330", "pipeline_id": "v2", "prompt_fingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "code_commit": "abc123", "code_dirty": false, "model_id": "model-x", "quality_metadata": {"score": 80, "status": "sufficient"}, "quality_metadata_hash": "ea08cd760c38919e15fea74aca21c68a98efe2c392162e0b01a56a77f403ed2a", "analysis_input_cutoff": "2025-01-01T18:00:00+08:00", "input_first_available_at": "2025-01-01T17:00:00+08:00", "conclusion_generated_at": "2025-01-02T08:00:00+08:00", "report_available_at": "2025-01-02T09:00:00+08:00", "source_publication_at": "2025-01-01T16:00:00+08:00", "data_snapshot_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "direction": "Long", "plan": {"entry_zone": "100-102", "target_price": "110", "stop_loss": "95", "horizon_trading_days": 5}
+      },
+      "artifacts": {"html": {"content": "v2-html", "sha256": "09a5279f1eeaac1076ea14a6a6288e7db20fafdde16b2616c5663eb29df92007"}, "markdown": {"content": "v2-markdown", "sha256": "2678918595e434913bed5968afbef8e03efe078db623483d076196c524ed87dc"}, "snapshot": {"content": "v2-snapshot", "sha256": "c0d557073074e109ea21348dd336a3814fdc79edb497158526ece19d4e259aec"}, "parsed_plan": {"content": "v2-parsed_plan", "sha256": "b9397047772de92ecc9e8fdab295f78e378f23ffa3bdf428a6fc874002f37b47"}}
+    },
+    {
+      "candidate_id": "cand-v3",
+      "sealed_at": "2025-01-02T09:30:00+08:00", "first_session_date": "2025-01-03",
+      "report": {
+        "ticker": "2330", "pipeline_id": "v3", "prompt_fingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "code_commit": "abc123", "code_dirty": false, "model_id": "model-x", "quality_metadata": {"score": 80, "status": "sufficient"}, "quality_metadata_hash": "ea08cd760c38919e15fea74aca21c68a98efe2c392162e0b01a56a77f403ed2a", "analysis_input_cutoff": "2025-01-01T18:00:00+08:00", "input_first_available_at": "2025-01-01T17:00:00+08:00", "conclusion_generated_at": "2025-01-02T08:00:00+08:00", "report_available_at": "2025-01-02T09:00:00+08:00", "source_publication_at": "2025-01-01T16:00:00+08:00", "data_snapshot_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "direction": "Short", "plan": {"entry_zone": "100", "target_price": "90", "stop_loss": "105", "horizon_trading_days": 5}
+      },
+      "artifacts": {"html": {"content": "v3-html", "sha256": "6c26837826af392c9147c8925d17d3f0c1076925c2bdacd6aecf19fd0225dd26"}, "markdown": {"content": "v3-markdown", "sha256": "dad54cbb5c173179ddfba832315e9341337f4ab1de6cbc819a9079da9d74bd51"}, "snapshot": {"content": "v3-snapshot", "sha256": "d8ad604ca37706f5aa32651149add9f4f47cd2a9ead17eb73657b2a678ecfaec"}, "parsed_plan": {"content": "v3-parsed_plan", "sha256": "59c4c3f895975f8e44b12b45075f32b0151aad485f34f7e739437f1784f88d03"}}
+    },
+    {
+      "candidate_id": "cand-v4",
+      "sealed_at": "2025-01-02T09:30:00+08:00", "first_session_date": "2025-01-03",
+      "report": {
+        "ticker": "2330", "pipeline_id": "v4", "prompt_fingerprint": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "code_commit": "abc123", "code_dirty": false, "model_id": "model-x", "quality_metadata": {"score": 80, "status": "sufficient"}, "quality_metadata_hash": "ea08cd760c38919e15fea74aca21c68a98efe2c392162e0b01a56a77f403ed2a", "analysis_input_cutoff": "2025-01-01T18:00:00+08:00", "input_first_available_at": "2025-01-01T17:00:00+08:00", "conclusion_generated_at": "2025-01-02T08:00:00+08:00", "report_available_at": "2025-01-02T09:00:00+08:00", "source_publication_at": "2025-01-01T16:00:00+08:00", "data_snapshot_hash": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "direction": "Long", "plan": {"entry_zone": "100", "target_price": "110", "stop_loss": "95"}
+      },
+      "artifacts": {"html": {"content": "v4-html", "sha256": "c7be3205546efacf368963b5a3851cba4b41929a5bf4c4efb14567da33ec87bd"}, "markdown": {"content": "v4-markdown", "sha256": "f521477a8e5979b708b591042adca1ac21240feaf3e74ccb56b64060766c0a75"}, "snapshot": {"content": "v4-snapshot", "sha256": "b138ec0b91f103ad7f55a203fa7d73f9a4604f371d124e6449a5528fd05257dd"}, "parsed_plan": {"content": "v4-parsed_plan", "sha256": "3cf5277524188cfbf4ab649b9f6c27211e3a8910c8e41cc9c29109cd0ba8408a"}}
+    }
+  ]
+}

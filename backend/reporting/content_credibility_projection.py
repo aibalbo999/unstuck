@@ -40,7 +40,8 @@ def project_content_credibility(snapshot: Any) -> dict[str, Any] | None:
     parsed = safe_mapping_dict(rerun_context.get("parsed")) or {}
     data = safe_mapping_dict(snapshot_map.get("data")) or {}
     pipeline_id = first_non_missing_text(rerun_context.get("pipeline_id"), snapshot_map.get("pipeline")).lower()
-    if not parsed or not data or not pipeline_id:
+    market_contract = snapshot_map.get("market_context_contract_version") == "market_context.v1"
+    if not data or not pipeline_id or (not parsed and not market_contract):
         return None
 
     context = dict(rerun_context)

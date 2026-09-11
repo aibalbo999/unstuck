@@ -4,7 +4,7 @@ import asyncio
 
 from config import API_KEY_SETUP_MESSAGE, OUTPUT_DIR, has_api_keys
 from agent_runtime import AnalysisPipelineRunner, AnalysisRequest
-from agent_runtime.retry_policy import AgentRateLimitError
+from agent_runtime.retry_policy import AgentRateLimitError, AgentTransientError
 from analysis_job_helpers import (
     build_data_fetch_blocking_notice,
     build_operator_audit_notice,
@@ -14,8 +14,9 @@ from analysis_job_progress import make_pipeline_progress_callback
 from analysis_job_reports import render_and_persist_report
 from analysis_job_telemetry import make_analysis_job_telemetry_callback
 from analysis_job_retry import build_analysis_retry_event, prepare_analysis_retry
+from analysis_job_provenance import attach_model_executions, freeze_and_record_analysis_inputs
 from data_fetch import FetchRequest, StockDataService
-from job_store import append_event, is_job_cancel_requested, update_job
+from job_store import append_event, get_events_since, is_job_cancel_requested, update_job
 from pipeline_modes import (
     get_pipeline_definition,
     get_pipeline_run_agent_total,
@@ -25,6 +26,7 @@ from pipeline_modes import (
 )
 from reporting import ReportRenderer
 from reporting.lint import ReportLintError
+from report_publication_gate import ReportPublicationBlockedError, publication_blocked_event
 from quant_engine import QuantEngine
 from runtime_dependencies import create_report_storage_for_output_dir, runtime_settings_for_output_dir
 from temporal_memory_service import build_temporal_memory
@@ -126,6 +128,7 @@ async def run_stock_analysis_job_async(
                 mode_data["temporal_memory"] = temporal_memory
                 append_event(job_id, {"type": "status", "pipeline_id": current_pipeline_id,
                     "message": "已載入同模式上一期報告記憶，最終 Agent 將反思先前假設。"})
+            freeze_and_record_analysis_inputs(job_id, current_pipeline_id, mode_data, append_event)
             pipeline_def = get_pipeline_definition(current_pipeline_id)
             current_thread_id = f"{job_id}:{current_pipeline_id}"
             current_pipeline_label = pipeline_def["label"]
@@ -179,16 +182,10 @@ async def run_stock_analysis_job_async(
             )
             _raise_if_cancelled(job_id)
             context = analysis_result.context
+            attach_model_executions(context, get_events_since(job_id), current_pipeline_id)
             audit_notice = build_operator_audit_notice(context)
 
-            if audit_notice["status"] == "needs_attention":
-                append_event(job_id, {
-                    "type": "status",
-                    "message": audit_notice["message"],
-                    "pipeline_id": current_pipeline_id,
-                    "pipeline_label": pipeline_def["label"],
-                })
-            elif audit_notice["status"] == "passed_with_notes":
+            if audit_notice["status"] == "passed_with_notes":
                 append_event(job_id, {
                     "type": "status",
                     "message": audit_notice["message"],
@@ -241,12 +238,15 @@ async def run_stock_analysis_job_async(
         update_job(job_id, "cancelled", error=message)
         append_event(job_id, {"type": "error", "phase": "cancelled", "level": "warning", "message": message})
         return ""
-    except ReportLintError as e:
-        message = f"錯誤：{str(e)}"
-        update_job(job_id, "error", error=message)
-        append_event(job_id, {"type": "error", "message": message})
+    except (ReportPublicationBlockedError, ReportLintError) as e:
+        event = publication_blocked_event(
+            e, thread_id=current_thread_id, pipeline_label=current_pipeline_label,
+            pipeline_id=current_thread_id.rsplit(":", 1)[-1] if current_thread_id else run_id,
+        )
+        update_job(job_id, "error", error=event["message"])
+        append_event(job_id, event)
         return ""
-    except AgentRateLimitError as e:
+    except (AgentRateLimitError, AgentTransientError) as e:
         retry = prepare_analysis_retry(job_id, e)
         event = build_analysis_retry_event(e, retry)
         update_job(job_id, "waiting_retry" if retry["retry_scheduled"] else "error", error=event["error"])

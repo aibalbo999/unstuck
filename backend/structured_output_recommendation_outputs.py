@@ -37,9 +37,10 @@ class PositionPlan(StructuredModel):
     def sanitize_fields(cls, payload):
         plan = safe_mapping_dict(payload) or {}
         action = _safe_string_text(plan.get("action"))
-        return {
+        action = action if action in {"進場", "續抱", "減碼", "等待"} else "資料不足"
+        normalized = {
             **plan,
-            "action": action if action in {"進場", "續抱", "減碼", "等待"} else "資料不足",
+            "action": action,
             "entry_zone": _safe_string_text(plan.get("entry_zone"), "資料不足，等待可驗證進場條件"),
             "position_size": _safe_string_text(plan.get("position_size"), "資料不足"),
             "stop_loss": _safe_string_text(plan.get("stop_loss"), "資料不足，暫不建立部位"),
@@ -49,6 +50,16 @@ class PositionPlan(StructuredModel):
             "transaction_cost": optional_execution_text(plan.get("transaction_cost")),
             "horizon_trading_days": plan.get("horizon_trading_days"),
         }
+        if action == "等待":
+            normalized.update({
+                "entry_zone": "N/A",
+                "position_size": "0%",
+                "stop_loss": "N/A",
+                "risk_reward": "N/A",
+                "target_price": None,
+                "transaction_cost": None,
+            })
+        return normalized
 
 
 class ShortSetup(StructuredModel):
@@ -99,7 +110,19 @@ class RecommendationFields(StructuredModel):
         return _normalize_recommendation_field(payload, "持有")
 
 
+class MarketSourceAssessment(StructuredModel):
+    impact: Literal["affects_conclusion", "no_material_impact", "not_assessed"]
+    reason: str = Field(..., min_length=1, description="對此次投資結論的具體影響理由或未評估限制。")
+    source_refs: list[str] = Field(..., description="僅引用此次完整 market-source 區塊的系統 source_ref，禁止自行提供網址。")
+
+
+class MarketContextAssessment(StructuredModel):
+    global_market_context: MarketSourceAssessment | None = None
+    international_news_context: MarketSourceAssessment | None = None
+
+
 class RecommendationStructuredOutput(NextCatalystsMixin):
+    market_context_assessment: MarketContextAssessment | None = None
     reasoning_steps: list[str] = Field(
         ...,
         min_length=3,
@@ -179,6 +202,7 @@ class BubbleSniperRecommendationFields(StructuredModel):
 
 
 class BubbleSniperStructuredOutput(ReasoningStepsMixin):
+    market_context_assessment: MarketContextAssessment | None = None
     reasoning_steps: list[str] = Field(
         ...,
         min_length=3,

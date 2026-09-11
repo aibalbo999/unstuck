@@ -29,7 +29,9 @@ def quality_retry_model_sequence(agent_num: int, context: AnalysisContext) -> li
     models = get_runtime_model_sequence(agent_num, context)
     if not models:
         raise AgentConfigurationError(f"Agent {agent_num} 品質重寫未設定可用模型路由。")
-    return list(dict.fromkeys(models))
+    # A failed Gemma draft should use the configured alternatives for repair.
+    alternatives = [model for model in models if model != "gemma-4-31b-it"]
+    return list(dict.fromkeys(alternatives or models))
 
 
 def install_quality_retry_context(context: AnalysisContext, agent_num: int, issues: list[str]) -> dict[str, object]:

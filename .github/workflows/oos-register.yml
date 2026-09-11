@@ -1,0 +1,177 @@
+name: Attest prospective OOS manifest
+
+"on":
+  workflow_dispatch: {}
+  push:
+    branches:
+      - codex/analysis-credibility-spec
+    paths:
+      - .github/workflows/oos-register.yml
+      - docs/oos-prospective-manifest-2026-09-08.json
+
+permissions:
+  contents: read
+  id-token: write
+  attestations: write
+
+jobs:
+  attest-oos-manifest:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout attested revision
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+
+      - name: Verify source revision and one-time bootstrap scope
+        id: verify-source
+        shell: bash
+        run: |
+          set -euo pipefail
+          actual_sha="$(git rev-parse HEAD)"
+          if [[ "${actual_sha}" != "${GITHUB_SHA}" ]]; then
+            echo "Checkout SHA does not match GITHUB_SHA" >&2
+            exit 1
+          fi
+
+          if [[ "${GITHUB_REF}" != "refs/heads/codex/analysis-credibility-spec" ]]; then
+            echo "Registration came from an unauthorized ref" >&2
+            exit 1
+          fi
+          case "${GITHUB_EVENT_NAME}" in
+            workflow_dispatch|push)
+              ;;
+            *)
+              echo "Unsupported event: ${GITHUB_EVENT_NAME}" >&2
+              exit 1
+              ;;
+          esac
+          read -r -a revision_line <<<"$(git rev-list --parents -n 1 "${GITHUB_SHA}")"
+          if [[ "${#revision_line[@]}" -ne 2 ]]; then
+            echo "Bootstrap revision must have exactly one parent" >&2
+            exit 1
+          fi
+          parent_sha="${revision_line[1]}"
+          if git cat-file -e "${parent_sha}:.github/workflows/oos-register.yml" 2>/dev/null; then
+            echo "Registration is allowed only when the parent has no registration workflow" >&2
+            exit 1
+          fi
+          git diff --name-only -z "${parent_sha}" "${GITHUB_SHA}" > "${RUNNER_TEMP}/oos-bootstrap-paths"
+          python3 - <<'PY'
+          import os
+          from pathlib import Path
+
+          changed_path = Path(os.environ["RUNNER_TEMP"]) / "oos-bootstrap-paths"
+          changed = changed_path.read_bytes().split(b"\0")
+          changed = sorted(path.decode("utf-8") for path in changed if path)
+          expected = sorted([
+              ".github/workflows/oos-register.yml",
+              "docs/oos-prospective-manifest-2026-09-08.json",
+          ])
+          if changed != expected:
+              raise SystemExit(f"bootstrap revision has unexpected paths: {changed!r}")
+          PY
+          echo "parent_sha=${parent_sha}" >> "${GITHUB_OUTPUT}"
+
+      - name: Verify fixed prospective cohort manifest
+        id: verify-manifest
+        shell: bash
+        env:
+          PRODUCTION_PARENT_COMMIT: ${{ steps.verify-source.outputs.parent_sha }}
+        run: |
+          set -euo pipefail
+          PYTHONPATH=backend python3 - <<'PY'
+          import json
+          import os
+          from pathlib import Path
+
+          from oos_research.manifest import manifest_hash, validate_manifest
+
+
+          def unique_object(pairs):
+              value = {}
+              for key, child in pairs:
+                  if key in value:
+                      raise ValueError(f"duplicate JSON key: {key}")
+                  value[key] = child
+              return value
+
+
+          manifest_path = Path("docs/oos-prospective-manifest-2026-09-08.json")
+          manifest = json.loads(
+              manifest_path.read_text(encoding="utf-8"),
+              object_pairs_hook=unique_object,
+              parse_constant=lambda value: (_ for _ in ()).throw(
+                  ValueError(f"non-finite JSON number: {value}")
+              ),
+          )
+          validate_manifest(manifest)
+
+          expected_universe = [
+              "1623.TW",
+              "2308.TW",
+              "2367.TW",
+              "3017.TW",
+              "3324.TWO",
+              "3653.TW",
+              "6282.TW",
+          ]
+          expected_pipelines = ["v1", "v2", "v3", "v4"]
+          expected_horizons = {
+              "v1": [3, 6, 12],
+              "v2": [5],
+              "v3": [5],
+              "v4": [5, 10],
+          }
+          expected_runtime = {
+              "production_parent_commit": os.environ["PRODUCTION_PARENT_COMMIT"],
+              "prompt_fingerprint": "989c7d14adc206cd1d37a1e8ee8976b9383bc8d57e7d3b37f8e293064a043359",
+              "model_route_policy_sha256": "e0a14c8450d78653e4cc1908f515c4132ed20e2313bdddbfb55349d312119822",
+          }
+          expected_policy_values = {
+              "cohort_source_manifest_sha256": "f9d697eacc525ba8c0bbd7d8d4dde0d8619982ee96da6076f2af3c7d2fce0af2",
+              "cohort_candidate_count": 28,
+              "v2_primary_horizon_trading_days": 5,
+              "v3_primary_horizon_trading_days": 5,
+              "candidate_selection": "first_eligible_post_attestation_report_per_ticker_pipeline",
+              "selection_window_inclusive": True,
+              "session_open_local_time": "09:00:00",
+          }
+          if manifest["schema_version"] != "oos.manifest.v1":
+              raise SystemExit("unexpected manifest schema_version")
+          if manifest["study_kind"] != "prospective":
+              raise SystemExit("study_kind must be prospective")
+          if manifest["study_id"] != "four-mode-credibility-prospective-r1":
+              raise SystemExit("study_id does not match the approved protocol")
+          if manifest["timezone"] != "Asia/Taipei":
+              raise SystemExit("timezone does not match the approved protocol")
+          if manifest["selection_period"] != {"start": "2026-09-09", "end": "2026-09-11"}:
+              raise SystemExit("selection_period does not match the approved protocol")
+          if manifest["ticker_universe"] != expected_universe:
+              raise SystemExit("ticker_universe does not match the registered cohort")
+          if manifest["pipelines"] != expected_pipelines:
+              raise SystemExit("pipelines do not match the four registered modes")
+          if len(expected_universe) * len(expected_pipelines) != 28:
+              raise SystemExit("registered cohort must contain 7 x 4 candidates")
+          if manifest["horizons"] != expected_horizons:
+              raise SystemExit("horizons do not match the registered protocol")
+          if manifest["evaluator_version"] != "oos.evaluator.v1":
+              raise SystemExit("evaluator_version does not match the approved protocol")
+          if manifest.get("runtime_identity") != expected_runtime:
+              raise SystemExit("runtime_identity does not match the attested parent and policies")
+          policies = manifest.get("policies")
+          if not isinstance(policies, dict) or any(
+              policies.get(key) != value for key, value in expected_policy_values.items()
+          ):
+              raise SystemExit("policies do not match the approved cohort boundary")
+          if manifest["manifest_sha256"] != manifest_hash(manifest):
+              raise SystemExit("manifest_sha256 is not the canonical manifest hash")
+          PY
+
+      - name: Attest fixed manifest bytes
+        id: attest
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6
+        with:
+          subject-path: docs/oos-prospective-manifest-2026-09-08.json

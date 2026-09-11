@@ -39,6 +39,8 @@ def provider_error_rows(conn: sqlite3.Connection, limit: int) -> list[dict]:
             "pipeline_id": pipeline_by_job.get(job_id) or str(metadata.get("pipeline_id") or "unknown"),
             "model": str(row["model_id"] or metadata.get("model_id") or "unknown"),
             "status": str(row["status"] or "error"),
+            "error_category": str(metadata.get("error_category") or "unknown"),
+            "provider_status_code": _safe_status_code(metadata.get("provider_status_code")),
         }
         for row, metadata, job_id in metadata_rows
     ]
@@ -67,6 +69,14 @@ def _safe_metadata(value: Any) -> dict:
     except (TypeError, json.JSONDecodeError):
         return {}
     return parsed if isinstance(parsed, dict) else {}
+
+
+def _safe_status_code(value: Any) -> int | None:
+    try:
+        code = int(value)
+    except (TypeError, ValueError, ArithmeticError):
+        return None
+    return code if 400 <= code <= 599 else None
 
 
 __all__ = ["provider_error_rows"]

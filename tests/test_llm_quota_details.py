@@ -53,3 +53,5 @@ def test_error_event_retains_safe_quota_details():
     result = llm_model_error_fields({}, 1, "gemma-4-31b-it", "prompt", SimpleNamespace(keys=["key"]), "key",
                                    timeout_seconds=10, error=quota_error())
     assert result["metadata"]["provider_quota"]["violations"][0]["limit"] == 16000
+    assert result["metadata"]["provider_status_code"] == 429
+    assert result["metadata"]["error_message"] == "LLM call failed."

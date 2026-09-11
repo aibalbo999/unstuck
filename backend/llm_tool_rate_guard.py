@@ -16,6 +16,7 @@ from google.genai import types
 import llm_rate_limits as limits
 from llm_input_capacity import ensure_input_capacity, estimate_input_tokens
 from llm_provider_routes import split_model_provider
+from runtime_events import emit_log
 
 
 _scope = ContextVar("llm_tool_request_scope", default=None)
@@ -98,6 +99,9 @@ class _ToolRequestScope:
         self._client = self._transport = None
         self._counter_lock = threading.Lock()
         self.active = False
+        take = getattr(rotator, "take_daily_reservation", None)
+        self._receipt = take(api_key, model_id, maximum) if maximum and callable(take) else None
+        self._settled = False
 
     def __enter__(self):
         self.active = True
@@ -108,7 +112,8 @@ class _ToolRequestScope:
         return self.__enter__()
 
     def _reset(self):
-        self.active = False
+        with self._counter_lock:
+            self.active = False
         _scope.reset(self._token)
 
     async def _aclose(self):
@@ -130,6 +135,20 @@ class _ToolRequestScope:
         except Exception:
             if error is None:
                 raise
+        finally:
+            self._settle_budget()
+
+    def _settle_budget(self):
+        if self._settled or not self._receipt:
+            return
+        self._settled = True
+        # Count every claimed HTTP attempt, even failed/uncertain sends or a
+        # cancelled admission wait. With no hook evidence, keep the full charge.
+        accounted = self.sent if self.sent > 0 else self.maximum
+        try:
+            self.rotator.settle_daily_reservation(self._receipt, accounted)
+        except Exception:
+            emit_log("工具呼叫預留額度結算失敗，保留原扣帳，不影響既有分析結果。")
 
     def _close_sync(self):
         if self._client is None and self._transport is None:
@@ -152,6 +171,8 @@ class _ToolRequestScope:
         except Exception:
             if error is None:
                 raise
+        finally:
+            self._settle_budget()
 
     def client(self, factory, options):
         if not self.active:
@@ -177,6 +198,8 @@ class _ToolRequestScope:
                 or request.headers.get("x-goog-api-key", self.api_key) != self.api_key):
             raise ToolRequestGuardError("Tool request does not match its scope")
         with self._counter_lock:
+            if not self.active:
+                raise ToolRequestGuardError("Tool request scope is closed")
             if self.sent >= self.maximum:
                 raise ToolRequestGuardError("Tool request budget exhausted")
             self.sent += 1

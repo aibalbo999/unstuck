@@ -22,7 +22,31 @@
 
 Agent 可用性與品質失敗分流：`agent_runtime/deferred.py` 將耗盡的暫時性模型失敗交給 `analysis_job_retry.py`，由 RQ 按實際恢復時間延後；本機 circuit 攔截不重新延長 provider 冷卻。`agent_runtime/quality_drafts.py` 的未通過草稿例外阻止正式發布，不能將草稿當作成功分析。`workflow_quality_drafts.py` 在同一個 checkpointer 的獨立 namespace 保存未驗證原稿，恢復後仍須重新通過品質檢查，不會推進成功節點。
 
-提示資料邊界在 `prompt_evidence.py`：內部 RAG 索引與向量不進入 prompt，checkpoint 與檢索證據保持原樣。`llm_response_diagnostics.py` 保存有界的回應結束原因、阻擋原因、工具呼叫觀察與 usage，不保存 key、工具參數或思考內容；未取得 metadata 時不得猜測空白回應的原因。
+目前 usage-aware profile 的一般分析路由以 Gemma 為主，依角色在 Preview／3.6 後接續 3.8／Lite；估值 4／14 分別以 3.6／Preview 為主，audit 與最終決策以 3.8 為主，這些角色的備援限於 Preview／3.6／3.8。`agent_runtime/routing.py` 仍以設定的順序為準，`single_agent.py` 保留同步／非同步 retry orchestration，`single_agent_prompt.py` 只管理單次模型嘗試的暫時 prompt context；輸入容量與可用性檢查後才自動嘗試下一候選，品質重寫和 audit override 不跨越角色邊界。路由更新需重載 runtime，不提前執行已排定的 RQ retry。
+
+工具迴圈的每日預留結算由 `llm_daily_budget.py`／`llm_budget_settlement.py` 管理，canonical operational DB 的 `llm_budget_reservations` 以 receipt 綁原 Pacific 日與 key-model；`llm_tool_rate_guard.py` 在 scope 結束後僅歸還未 claim 的預留，重複結算、跨日或失敗不得擴大預算。已 claim 的失敗／不確定請求仍扣帳，無 hook 證據與 legacy 扣帳不回補。
+
+提示資料邊界在 `prompt_evidence.py`：內部 RAG 索引與向量不進入 prompt，checkpoint 與檢索證據保持原樣。`agent_runtime/prompt_routing_policy.py` 宣告角色可見的外部 context 與歷史年限，`agent_runtime/prompting.py` 負責安全投影及模板組裝。`llm_response_diagnostics.py` 保存有界的回應結束原因、阻擋原因、工具呼叫觀察與 usage，不保存 key、工具參數或思考內容；未取得 metadata 時不得猜測空白回應的原因。
+
+量化來源邊界在 `quant_input_contract.py`／`quant_metric_contract.py`：`quant_metrics.v2` 分別記錄 DCF、WACC、本益比可用性、raw facts provenance、單位及政策假設。`QuantEngine` 和 prompt 的 `financial_tools` 共用計算，缺事實不補示範值，負 FCF 不被舊正歷史覆蓋。`final_audit_dcf.py` 只比同方法、情境和每股單位；不可用來源主張為 critical。歷史無契約值只能以未驗證狀態讀取，不能從圖表 fallback 變回 canonical。
+
+分析修復的依賴版本在 `analysis_dependencies.py`，以 pipeline groups 而非 Agent 編號排序；同群不互相依賴，accepted 正文或 structured output 改變才使下游失效。`agent_runtime/repair_transaction.py` 將完整 final-audit node 作為原子採用單位，同步／非同步／公開 legacy 入口共用。失敗、取消或 deferred 不採用半套結果；workflow 的局部 replacement reducer 防止舊 analyses／typed reports／parsed／分析 RAG 復活，外部來源和無關風險保留。成功 node、step cache 與未驗證 quality draft 綁目前上游 fingerprint。
+
+模式 A7／B16／C19 的市場新聞來源在 `market_context_manifest.py`：runtime 發出含 canonical path、index、item hash 的 refs，只有最後 token-budget prompt 中完整保留的來源區塊可被引用，primary／fallback／cache／draft 只恢復成功 attempt 的 manifest。`market_context_assessment.py` 共用純驗證：缺來源或全部省略是 warning；可見來源缺評估走 bounded coverage repair；偽造或不可見引用是 critical。`final_audit_credibility.py` 分流兩類 repair，`reporting/market_context.py` 使用同一投影顯示限制而不覆寫 raw assertions。D 與無新契約的歷史結果不補造記錄。
+
+`market_context_snapshot.py` 分開保存原始評估主張與顯示投影；快照裁切使用綁定原 manifest、原始主張及裁切資料的保存憑據，仍重新核對來源項目，runtime 公開 validator 不接受此覆寫。`reporting/content_credibility_market.py` 和 renderer 共用目前驗證；`report_refresh_service.py` 刷新時保留原始主張／輸入身分，不沿用舊裁切憑據，防止更新資料後將舊引用當成本次證據。
+
+`report_rerun_audit.py` 對「只重跑最終建議」使用同一有界 repair API，但只允許最終 Agent；若必須更正完整群組中的前序分析，回覆 409 要求完整重跑。未解決 critical、生成失敗、取消或 deferred 不進入 renderer／儲存；可選 coverage 耗盡仍明示 warning。Graph 的 `status` 往返與 managed blockers 同步，成功解除本輪阻擋時才恢復 running，外部阻擋不被清除。
+
+`evidence_technical_claims.py` 僅將明確且唯一的 SMA 依據映射到有來源／日期／可用值的 `data.technical_indicators.sma_N`，不借用 volume SMA、其他期間或風險價；歧義、缺欄與混合依據保持 unverifiable。`evidence_recommendation_claims.py` 將明確最終建議列的 compact 3／6／12 個月數字綁自身 parsed 欄位，僅證明與保存結論一致，不驗證未來價格。兩種過熱評分仍是分析 metadata，既有抽樣及容差不變。
+
+背景雷達的資料節流在 `watchlist_radar_data.py`：同一 data service 內按 ticker／來源組合／交易日共用快取和進行中的請求。股價／VIX 5 分鐘、法人／自由文字完整資料 15 分鐘、月營收／事件日曆 60 分鐘；混合條件採最短期限。`data_fetch/radar.py` 經 provider registry 只取得型別條件所需來源；自由文字保留完整資料，僅在雷達快取過期後強制刷新，避免 canonical 長效快取遮住條件變化。抓取失敗冷卻 60 秒且不判定條件，不把未取得的日曆或過期 fallback 當成功；同日 false→true 的 trigger store 規則保持不變。`runtime_logging.runtime_log_scope` 將 `[背景雷達 TICKER]` 傳入 async/thread 抓取日誌；核心財務完成與整體補充資料完成分開標示。
+
+Gemma dense 編碼的相容稀疏表在 `prompt_record_tables.py`：`absent` 區分缺欄與 null；`prompt_builder.py` 將完整同值的時效資料副本改為 payload 內部引用，保留原值與來源路徑。僅屬輸入表示法，不修改原始 snapshot、角色資料範圍、admission 或品質 gate。
+
+正式 usage-aware profile 的 `provider_quota_authoritative` 在 `settings/models.py` 載入，`llm_rate_limits.py` 保留同步／非同步 RPM/TPM 與 daily reservation orchestration，`llm_rate_limit_routes.py` 承接 provider key availability、RPD key+model 停用及 model-circuit 查詢；本機每日限制則切為可超過參考值的用量記錄。`llm_daily_budget.py` 的觀測模式仍保有交易式累計和 receipt 結算。`analysis_job_retry.py` 僅為模型可用性例外持續補足 RQ 延後重試；`analysis_jobs.py`／`report_rerun_jobs.py` 共用入口，真實 provider 日額度回饋與暫時 cooldown 分開標示。取消與品質阻擋不被此策略覆寫。API／面板的每日計數不再顯示為停止依據。
+
+來源狀態面板的取得資料率在 `provider_acquisition.py`：唯讀掃描 canonical operational DB 的 `provider_sla_events`，分開計算非空成功、空結果、降級資料、有效／空／過期快取與失敗。既有 provider SLA 的 availability 欄位保留相容用途，面板只讀 `/api/observability/provider-sla` 的 `acquisition` projection；缺少 projection 時明示無法判定，不回退到舊成功率。以既有 workflow provider 名稱及 audit message 識別並排除彙總／合併列，保留真實重試；沒有原始觀測的來源不產生成功率。這些是供應商觀測數，不是 HTTP 請求數、唯一資料筆數或內容正確率；全部期間只包含目前保留的事件。UI 列出全部來源，明細完整且失敗優先，綠色不覆蓋期間失敗；時間範圍與更新時間取自同一份 projection。原始紀錄、報告資料可信度與發布閘門不由此面板改寫。
 
 ## 目前 Runtime 真相
 
@@ -38,6 +62,23 @@ Agent 可用性與品質失敗分流：`agent_runtime/deferred.py` 將耗盡的�
 | Report artifacts | `backend/output/**/<ticker>/*.{html,md,data.json,review.json}` | `backend/report_history_storage.py`, `backend/report_paths.py`, `storage.report_storage` | 不要手動假設 `backend/output/<filename>`；報告可能在月份和 ticker 子資料夾。 |
 | Data fetch cache | Redis 或 `CACHE_DB_PATH` | `backend/cache_store.py`, `backend/cache_backends.py` | 依 `CACHE_BACKEND` 切換，目前本機常用 Redis。 |
 | Legacy tracking DB | `backend/cache/decision_tracking.sqlite3` | legacy migration only | 不要用它判斷畫面狀態；目前 canonical 是 `operational.sqlite3`。 |
+
+## PostgreSQL 隔離驗證邊界
+
+PostgreSQL checkpoint／quality-draft 的驗證不是目前 production runtime truth。
+它只由 `scripts/run_postgres_validation.py` 建立一次性 `linux/arm64` 容器，
+使用 `network=none`、容器內 Unix socket、`USER 999:999`、tmpfs PG data，並由
+`tests/pg_validation/{policy,guard,launcher,entrypoint,result}.py` 驗證 endpoint
+identity、非 root、mount／network／resource bounds、固定 17-case registry 與
+精確 container cleanup。主機只接受與本次 manifest／image／run ID 一致的 structured
+result；cleanup 失敗是 `cleanup_failed`，不可投影成 passed。
+
+這條驗證路徑不讀 `.env`、正式 `.venv`、`backend/cache/*.sqlite3`、Redis 或
+`backend/output`，也不切換 `LANGGRAPH_CHECKPOINT_BACKEND`。一般 runner 沒有
+live policy 時只保留 PostgreSQL module-level skip；skip 不等於 live pass。固定
+image／derived image、Python／PG／psycopg／libpq 版本與實際 migration／checkpoint
+結果，只有在容器建置及完整 live run 後才是可引用證據；本批離線 contract 回歸
+不能取代 PostgreSQL live 驗收。OOS 是另一條獨立驗證批次。
 
 快速確認目前 runtime path：
 
@@ -435,3 +476,5 @@ Free notification identity uses the shared pipeline resolver for report-bearing 
 2. 建立 `backend/report_artifacts.py`，把 HTML/Markdown/data snapshot locator 變成明確 Interface。
 3. 將追蹤刷新收斂為 `tracking_refresh_workflow`，讓 route 和 scheduler 共用同一條工作流。
 4. 加架構測試：禁止新程式直接引用 legacy tracking DB、禁止 API route 直接拼 output path、禁止 tracking refresh 對同 ticker 重複 fetch。
+
+- Gemma 輸入效率：`prompt_record_tables.py` 無損資料列表示、`prompt_role_payload.py` 六個證據角色投影，由 `agent_runtime/single_agent.py` 按實際模型啟用；超限保留完整資料備援，修復流程停用角色省略。驗證與分工詳見 `docs/usage-aware-model-routing-2026-09-05.md` 的 2026-09-09 Gemma 節。

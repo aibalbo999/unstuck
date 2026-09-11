@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from mapping_fields import safe_dict_list, safe_mapping_dict, safe_sequence_items, safe_text
+from quant_metric_contract import CONTRACT_VERSION, dcf_availability, trusted_dcf_scenarios
 
 from .analysis_structured_overlays import build_downside_view, build_management_sentiment
 from .numeric_text import first_finite_number
@@ -21,7 +22,16 @@ SCENARIO_META = {
 def build_dcf_scenario_rows(data: dict) -> list[dict]:
     data = safe_mapping_dict(data) or {}
     quant = safe_mapping_dict(data.get("quant_metrics")) or {}
-    raw = safe_mapping_dict(quant.get("dcf_scenarios"))
+    if not quant:
+        quant = safe_mapping_dict(data.get("deterministic_financial_tool_results")) or {}
+    if quant.get("contract_version") == CONTRACT_VERSION:
+        raw = trusted_dcf_scenarios(quant)
+    elif dcf_availability(quant)["reason_codes"] == ["legacy_fact_fallback"]:
+        return []
+    elif quant.get("contract_version"):
+        return []
+    else:
+        raw = safe_mapping_dict(quant.get("dcf_scenarios"))
     if raw is None:
         tools = safe_mapping_dict(data.get("deterministic_financial_tool_results")) or {}
         calculations = safe_mapping_dict(tools.get("calculations")) or {}
@@ -45,6 +55,7 @@ def build_dcf_scenario_rows(data: dict) -> list[dict]:
             "margin_bias_pct": _number(item.get("margin_bias_pct")),
             "wacc_pct": wacc,
             "intrinsic_value": price,
+            "availability": "available" if quant.get("contract_version") == CONTRACT_VERSION else "legacy_unverified",
         })
     return rows
 

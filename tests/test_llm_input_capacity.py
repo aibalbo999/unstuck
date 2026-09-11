@@ -99,6 +99,8 @@ def test_oversize_route_falls_back_once_without_opening_circuit(monkeypatch, asy
     monkeypatch.setattr(llm_rate_limits, "create_shared_llm_limiter", lambda: None)
     monkeypatch.setattr(llm_rate_limits, "TPM_LIMITS", {})
     monkeypatch.setattr(llm_rate_limits, "MODEL_INPUT_TOKEN_LIMITS", {"small": 1})
+    monkeypatch.setattr(single_agent.config, "MODEL_INPUT_TOKEN_LIMITS", {"small": 1})
+    monkeypatch.setattr(single_agent.config, "TPM_LIMITS", {})
     monkeypatch.setattr(single_agent, "get_runtime_model_sequence", lambda *_: ["small", "large"])
     monkeypatch.setattr(single_agent, "build_prompt", lambda *_: "Full evidence remains unchanged. " * 100)
     monkeypatch.setattr(single_agent, "get_cached_agent_step", lambda *_: None)
@@ -124,6 +126,12 @@ def test_oversize_route_falls_back_once_without_opening_circuit(monkeypatch, asy
     assert [model for model, _ in sent] == ["large"]
     assert sent[0][1] == "Full evidence remains unchanged. " * 100
     assert not context.get(MODEL_CIRCUITS_KEY)
+    small_phases = [
+        event["phase"] for event in context.get("_runtime_events", [])
+        if event.get("metadata", {}).get("model_id") == "small"
+    ]
+    assert "model_input_capacity" in small_phases
+    assert "llm_model_call" not in small_phases
 def test_request_units_include_automatic_function_calling_bound():
     from agent_runtime.generation_config import agent_request_budget_options
     assert agent_request_budget_options(2) == {"request_units": 6}

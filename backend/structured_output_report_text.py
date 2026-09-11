@@ -14,11 +14,13 @@ from structured_output_normalizer_basic import (
 from structured_output_normalizer_text import (
     _coerce_number,
     _dcf_scenarios_text,
+    _dated_evidence_memo_text,
     _display_line,
     _display_price_target,
     _downside_risk_line,
     _management_highlight_line,
     _moat_reasoning_steps_text,
+    _moat_evidence_text,
     _moat_score_line,
     _next_catalyst_text,
     _reasoning_steps_text,
@@ -28,12 +30,17 @@ from structured_output_normalizer_text import (
     _valuation_summary_line,
 )
 from structured_output_rendering import ensure_agent19_required_sections, format_recommendation_block
+from market_context_assessment import market_assessment_text
 
 
 def structured_output_to_report_text(agent_num: int, structured: dict, fallback_text: str = "") -> str:
     """Convert parsed JSON into the legacy report text expected by renderers."""
     structured = safe_mapping_dict(structured) or {}
     body = _report_body_text(structured.get("analysis_markdown"), fallback_text)
+
+    if agent_num in {11, 15, 22, 23}:
+        body_text = "資料不足" if body and len(body) < 2 else body
+        return f"{_dated_evidence_memo_text(structured)}\n\n{body_text}".strip()
 
     if agent_num in {3, 12}:
         body = _legacy_body_text(body)
@@ -44,9 +51,10 @@ def structured_output_to_report_text(agent_num: int, structured: dict, fallback_
         if not score_lines:
             score_lines = "護城河指標: N/A"
         reasoning_text = _moat_reasoning_steps_text(structured.get("reasoning_steps"))
+        evidence_text = _moat_evidence_text(structured.get("moat_evidence"))
         if moat_assessment(scores)["unassessed_fields"]:
             reasoning_text += "\n護城河評估狀態：部分或全部項目未評估，缺少證據不代表低分。"
-        return f"[護城河評分]\n{score_lines}\n[/護城河評分]{reasoning_text}\n\n{body}".strip()
+        return f"[護城河評分]\n{score_lines}\n[/護城河評分]{reasoning_text}{evidence_text}\n\n{body}".strip()
 
     if agent_num in {4, 14}:
         body = _legacy_body_text(body)
@@ -126,6 +134,7 @@ def structured_output_to_report_text(agent_num: int, structured: dict, fallback_
 
     if agent_num in {7, 16, 19}:
         body = _legacy_body_text(body)
+        market_text = market_assessment_text(structured.get("market_context_assessment"))
         rec = safe_mapping_dict(structured.get("recommendation")) or {}
 
         basis = safe_mapping_dict(rec.get("confidence_basis")) or {}
@@ -167,7 +176,7 @@ def structured_output_to_report_text(agent_num: int, structured: dict, fallback_
         recommendation_block = format_recommendation_block(agent_num, rec)
         if agent_num == 19:
             body = ensure_agent19_required_sections(body, structured)
-            return f"{body}{reasoning_text}{basis_text}{trigger_text}{catalyst_text}\n\n{recommendation_block}".strip()
+            return f"{body}{reasoning_text}{basis_text}{trigger_text}{catalyst_text}{market_text}\n\n{recommendation_block}".strip()
         if agent_num == 16:
             plan = safe_mapping_dict(structured.get("position_plan")) or {}
             position_text = "\n".join([
@@ -181,7 +190,7 @@ def structured_output_to_report_text(agent_num: int, structured: dict, fallback_
                 f"- 風險報酬：{_display_line(plan.get('risk_reward'), '資料不足')}",
                 f"- 失效條件：{_display_line(plan.get('invalidation_condition'), '資料不足')}",
             ])
-            return f"{recommendation_block}{reasoning_text}\n\n{position_text}\n\n{body}{basis_text}{trigger_text}{catalyst_text}".strip()
-        return f"{recommendation_block}{reasoning_text}\n\n{body}{basis_text}{trigger_text}{catalyst_text}".strip()
+            return f"{recommendation_block}{reasoning_text}\n\n{position_text}\n\n{body}{basis_text}{trigger_text}{catalyst_text}{market_text}".strip()
+        return f"{recommendation_block}{reasoning_text}\n\n{body}{basis_text}{trigger_text}{catalyst_text}{market_text}".strip()
 
     return fallback_text

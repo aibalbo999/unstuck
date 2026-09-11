@@ -17,6 +17,8 @@ from typing import Any
 LOGGER_NAME = "stock_agent.runtime"
 TRACE_ID_CONTEXT_KEY = "runtime.trace_id"
 
+_log_scope_var = contextvars.ContextVar("runtime.log_scope", default="")
+
 _trace_id_var: contextvars.ContextVar[str] = contextvars.ContextVar(TRACE_ID_CONTEXT_KEY, default="")
 
 try:  # pragma: no cover - exercised only when optional dependency is installed
@@ -42,7 +44,18 @@ def get_runtime_logger() -> logging.Logger:
 def log_runtime_message(message: str, *, level: str = "info") -> None:
     logger = get_runtime_logger()
     log_method = getattr(logger, str(level or "info").lower(), logger.info)
-    log_method(str(message)[:500])
+    scope = _log_scope_var.get()
+    prefix = f"[{scope}] " if scope else ""
+    log_method((prefix + str(message))[:500])
+
+
+@contextmanager
+def runtime_log_scope(label: str) -> Iterator[None]:
+    token = _log_scope_var.set(str(label))
+    try:
+        yield
+    finally:
+        _log_scope_var.reset(token)
 
 
 def get_current_trace_id() -> str:

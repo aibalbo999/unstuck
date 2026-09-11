@@ -10,6 +10,7 @@ from typing import Any
 from data_trust import data_snapshot_filename_for_report, sanitize_for_snapshot
 from report_paths import report_markdown_filename_for_report, report_storage_key_for_filename
 from report_repository import DEFAULT_REPORT_REPOSITORY, ReportRepository
+from report_publication_gate import assert_report_publishable
 from storage.report_storage import ReportStorage
 
 
@@ -57,6 +58,7 @@ def persist_report_bundle(
 ) -> dict[str, Any]:
     """Save report content first, then index metadata after all content is durable."""
 
+    assert_report_publishable(data_snapshot)
     keys = report_bundle_keys_for_filename(filename)
     data_snapshot_payload = sanitize_for_snapshot(data_snapshot)
     if not isinstance(data_snapshot_payload, dict):

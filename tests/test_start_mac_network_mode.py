@@ -10,12 +10,22 @@ def test_start_mac_supports_explicit_lan_access_mode():
 
     assert 'SERVER_HOST="127.0.0.1"' in script
     assert 'LAN_ACCESS="${LAN_ACCESS:-0}"' in script
-    assert 'SERVER_HOST="0.0.0.0"' in script
     assert 'ipconfig getifaddr en0' in script
+    assert 'SERVER_HOST="$LAN_IP"' in script
+    assert 'APP_HOST="$LAN_IP"' in script
+    assert 'SERVER_HOST="0.0.0.0"' not in script
     assert '--host "$SERVER_HOST"' in script
     assert '手機請開啟' in script
     assert 'LAN_ACCESS=1' in lan_script
     assert 'exec "$DIR/start_mac.command"' in lan_script
+
+
+def test_start_mac_checks_the_selected_interface_before_starting_services():
+    script = (ROOT / "start_mac.command").read_text(encoding="utf-8")
+
+    assert "check_server_bind_available()" in script
+    assert 'sock.bind((host, port))' in script
+    assert script.index("check_server_bind_available") < script.index('echo "啟動 Worker..."')
 
 
 def test_start_mac_lan_launches_full_local_runtime_stack():
@@ -71,11 +81,14 @@ def test_start_mac_prints_redis_install_guide_when_missing():
 
 def test_start_mac_children_ignore_terminal_ctrl_c_and_are_cleaned_up_by_parent():
     script = (ROOT / "start_mac.command").read_text(encoding="utf-8")
+    cleanup = script[script.index("cleanup() {") : script.index("trap cleanup")]
 
     assert '(trap \'\' INT; exec "$REDIS_SERVER_BIN"' in script
     assert '(trap \'\' INT; exec "$PYTHON_BIN" -u worker_main.py --role all)' in script
     assert '(trap \'\' INT; exec "$PYTHON_BIN" -u -m uvicorn api:app --host "$SERVER_HOST" --port 8080)' in script
-    assert script.index('kill "$WORKER_PID"') < script.index('kill "$REDIS_PID"')
+    assert "wait_for_project_workers_to_stop" in cleanup
+    assert cleanup.index('kill "$WORKER_PID"') < cleanup.index("wait_for_project_workers_to_stop")
+    assert cleanup.index("wait_for_project_workers_to_stop") < cleanup.index('kill "$REDIS_PID"')
 
 
 def test_start_mac_redis_uses_quoted_project_cache_directory():

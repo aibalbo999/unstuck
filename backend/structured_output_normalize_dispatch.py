@@ -3,9 +3,10 @@
 from __future__ import annotations
 
 from typing import Any, Optional
+import copy
 
 from mapping_fields import safe_dict_list, safe_mapping_dict, safe_sequence_items, safe_text
-from moat_assessment import moat_assessment, normalize_moat_evidence
+from moat_assessment import moat_assessment, normalize_moat_dimension_evidence, normalize_moat_evidence
 from recommendation_labels import normalize_recommendation_label
 from structured_output_normalizer_basic import (
     _MANAGEMENT_GUIDANCE_TONES,
@@ -74,13 +75,23 @@ def normalize_structured_output(agent_num: int, payload: Any) -> Optional[dict]:
         if agent_num == 16:
             payload = {**payload, "position_plan": _coerce_position_plan_payload(payload.get("position_plan"))}
         if agent_num == 19:
-            payload = {**payload, "short_setup": _coerce_short_setup_payload(payload.get("short_setup"))}
+            payload = {
+                **payload,
+                "short_setup": _coerce_short_setup_payload(
+                    payload.get("short_setup"), payload.get("recommendation")
+                ),
+            }
         if agent_num == 20:
             payload = _coerce_management_sentiment_payload(payload)
         if agent_num == 21:
             payload = _coerce_bear_advocate_payload(payload)
         if agent_num == 24:
             payload = _coerce_trade_setup_payload(payload)
+    # Keep malformed evidence assertions for the pure validator; dropping them
+    # during schema coercion would hide fabricated references as missing coverage.
+    market_assessment = copy.deepcopy(raw_payload.get("market_context_assessment")) if agent_num in {7, 16, 19} else None
+    if agent_num in {7, 16, 19} and isinstance(payload, dict):
+        payload = {**payload, "market_context_assessment": None}
     payload = validated_structured_payload(agent_num, payload)
     if payload is None:
         return None
@@ -92,7 +103,16 @@ def normalize_structured_output(agent_num: int, payload: Any) -> Optional[dict]:
         return {
             "reasoning_steps": reasoning_steps,
             "moat_scores": scores,
+            "moat_evidence": normalize_moat_dimension_evidence(raw_payload.get("moat_evidence")),
             "moat_assessment": moat_assessment(scores),
+            "analysis_markdown": _normalized_analysis_markdown(raw_payload, payload),
+        }
+
+    if agent_num in {11, 15, 22, 23}:
+        return {
+            "as_of_date": _string_field_text(payload.get("as_of_date"), "資料時點未提供"),
+            "confidence": _string_field_text(payload.get("confidence"), "unassessed"),
+            "evidence_items": safe_dict_list(payload.get("evidence_items"))[:8],
             "analysis_markdown": _normalized_analysis_markdown(raw_payload, payload),
         }
 
@@ -232,6 +252,7 @@ def normalize_structured_output(agent_num: int, payload: Any) -> Optional[dict]:
             normalized_rec["confidence_basis"] = confidence_basis
 
         normalized = {
+            "market_context_assessment": market_assessment,
             "reasoning_steps": reasoning_steps,
             "recommendation": normalized_rec,
             "scenario_triggers": payload.get("scenario_triggers", []),
@@ -241,7 +262,9 @@ def normalize_structured_output(agent_num: int, payload: Any) -> Optional[dict]:
         if agent_num == 16:
             normalized["position_plan"] = _coerce_position_plan_payload(payload.get("position_plan"))
         if agent_num == 19:
-            normalized["short_setup"] = _coerce_short_setup_payload(payload.get("short_setup"))
+            normalized["short_setup"] = _coerce_short_setup_payload(
+                payload.get("short_setup"), normalized_rec
+            )
         return normalized
 
     return None

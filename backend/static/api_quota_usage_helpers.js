@@ -28,7 +28,13 @@
     }
     function budgetLabel(budget) {
         if (!budget) return '';
-        if (budget.available === false) return '本機每日預算暫時無法讀取，請求已暫停';
+        if (budget.available === false) return '本機每日用量暫時無法讀取';
+        if (budget.enforced === false) {
+            const observed = Object.entries(budget.models || {})
+                .filter(([, value]) => count(value.observed_requests) !== null)
+                .map(([model, value]) => `${model} ${value.observed_requests} 次`);
+            return `供應商回饋決定每日額度是否耗盡；本機用量僅供觀測${observed.length ? '：' + observed.join('；') : ''}`;
+        }
         const models = Object.entries(budget.models || {})
             .filter(([, value]) => count(value.remaining) !== null && count(value.total_budget) !== null)
             .map(([model, value]) => `${model} ${value.remaining}/${value.total_budget}`);

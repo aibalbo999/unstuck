@@ -40,6 +40,7 @@ def upstream_agent_numbers(current_agent: int, context: dict | None = None) -> t
 
 def upstream_context_inputs(current_agent: int, context: dict) -> dict:
     """Copy just upstream evidence, dropping internal fields before traversal."""
+    from analysis_dependencies import is_agent_result_current
     context = _mapping(context)
     upstream = upstream_agent_numbers(current_agent, context)
     result = {}
@@ -47,6 +48,8 @@ def upstream_context_inputs(current_agent: int, context: dict) -> dict:
         values = _mapping(context.get(section))
         selected = {}
         for agent in upstream:
+            if not is_agent_result_current(agent, context):
+                continue
             value = values.get(agent, values.get(str(agent)))
             if value is not None:
                 selected[agent] = prompt_evidence_copy(value)

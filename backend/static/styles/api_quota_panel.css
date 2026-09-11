@@ -1,0 +1,40 @@
+.provider-sla-technical {
+    width: 100%;
+    border-top: 1px solid rgba(255, 255, 255, 0.12);
+    margin-top: 3px;
+    padding-top: 6px;
+    color: var(--text-secondary);
+    font-size: 0.68rem;
+    font-weight: 650;
+    line-height: 1.45;
+}
+.provider-sla-technical summary {
+    width: fit-content;
+    cursor: pointer;
+    color: var(--text-primary);
+    font-weight: 800;
+    user-select: none;
+}
+.provider-sla-technical[open] summary {
+    margin-bottom: 6px;
+}
+.provider-sla-technical div + div {
+    margin-top: 4px;
+}
+.provider-sla-technical ul {
+    display: grid;
+    gap: 6px;
+    margin: 0;
+    padding-left: 18px;
+}
+.provider-sla-technical li strong,
+.provider-sla-technical li span {
+    display: block;
+    overflow-wrap: anywhere;
+}
+.provider-sla-technical li strong {
+    color: var(--text-primary);
+}
+.provider-sla-route-group {
+    flex-basis: min(100%, 320px);
+}

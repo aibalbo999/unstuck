@@ -8,11 +8,17 @@ from llm_response_diagnostics import response_diagnostics, response_kind
 from llm_errors import extract_quota_details
 from llm_input_capacity import InputCapacityExceededError
 from runtime_events import RUNTIME_EVENT_CALLBACK_KEY, make_runtime_event
-from .generation_config import estimate_agent_input_tokens
+from .generation_config import (
+    GENERATION_POLICY_VERSION,
+    estimate_agent_input_tokens,
+    generation_event_metadata,
+)
 from .llm_call_metadata import _key_slot_fields, _record_llm_token_usage
+from .retry_error_classification import provider_status_code
 
 
 def _model_event_fields(context: AnalysisContext, agent_num: int, model_id: str, prompt: str, **metadata) -> dict:
+    generation_config = generation_event_metadata(agent_num, model_id)
     return {
         "current": (context.get("agent_positions", {}) or {}).get(agent_num, agent_num),
         "total": context.get("agent_total"),
@@ -22,9 +28,14 @@ def _model_event_fields(context: AnalysisContext, agent_num: int, model_id: str,
         "pipeline_label": context.get("pipeline_label"),
         "metadata": {
             "model_id": model_id,
-            "estimated_tokens": estimate_text_tokens(prompt, response_budget=8192),
+            "estimated_tokens": estimate_text_tokens(
+                prompt,
+                response_budget=int(generation_config["max_output_tokens"]),
+            ),
             "estimated_input_tokens": estimate_agent_input_tokens(agent_num, model_id, prompt),
             "input_estimate_basis": "mixed_language_with_system_and_schema",
+            "generation_policy_version": GENERATION_POLICY_VERSION,
+            "generation_config": generation_config,
             **{key: value for key, value in metadata.items() if value is not None},
         },
     }
@@ -78,6 +89,7 @@ def llm_model_error_fields(
         output_chars=len(result) if result is not None else None,
         # Provider exception strings can embed request bodies and credentials.
         error_message="LLM call failed." if error is not None else None,
+        provider_status_code=provider_status_code(error),
         provider_quota=extract_quota_details(error) if error is not None else None,
         input_capacity={"estimated_input_tokens": error.estimated_input_tokens, "limit": error.limit, "basis": error.basis}
         if isinstance(error, InputCapacityExceededError) else None,

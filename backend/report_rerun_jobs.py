@@ -9,8 +9,11 @@ from typing import Any
 from fastapi import HTTPException
 
 from agent_runtime import AnalysisPipelineRunner
-from agent_runtime.retry_policy import AgentRateLimitError
+from agent_runtime.retry_policy import AgentRateLimitError, AgentTransientError
 from analysis_job_retry import build_analysis_retry_event, prepare_analysis_retry
+from report_publication_gate import ReportPublicationBlockedError, publication_blocked_event
+from report_rerun_audit import FinalRerunQualityBlockedError
+from reporting.lint import ReportLintError
 from config import API_KEY_SETUP_MESSAGE, OUTPUT_DIR, has_api_keys
 from data_trust import sanitize_for_snapshot
 from data_fetch import StockDataService
@@ -225,6 +228,13 @@ async def run_report_rerun_job_async(
             "source_filename": event_source_filename,
         })
         return ""
+    except (ReportPublicationBlockedError, FinalRerunQualityBlockedError, ReportLintError) as exc:
+        event = publication_blocked_event(
+            exc, rerun_scope=normalized_scope, source_filename=event_source_filename,
+        )
+        update_job(job_id, "error", error=event["message"])
+        append_event(job_id, event)
+        return ""
     except HTTPException as exc:
         message = _error_message(exc.detail, "報告重跑失敗")
         update_job(job_id, "error", error=message)
@@ -236,7 +246,7 @@ async def run_report_rerun_job_async(
             "source_filename": event_source_filename,
         })
         return ""
-    except AgentRateLimitError as exc:
+    except (AgentRateLimitError, AgentTransientError) as exc:
         retry = prepare_analysis_retry(job_id, exc, task_id=f"report-rerun:{job_id}")
         event = build_analysis_retry_event(exc, retry, rerun=True)
         update_job(job_id, "waiting_retry" if retry["retry_scheduled"] else "error", error=event["error"])

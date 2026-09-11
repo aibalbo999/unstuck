@@ -6,7 +6,7 @@ from analysis_types import AnalysisContext, AuditResult
 from agent_catalog import AGENT_NAMES
 from confidence_calibration import build_confidence_calibration, confidence_downgrade_warning, has_unresolved_cross_source_conflict
 from final_audit_context_coverage import missing_final_context_labels
-from final_audit_dcf import dcf_conflict_warnings
+from final_audit_credibility import merge_credibility_findings
 from final_audit_helpers import (
     add_unique_issue as _add_unique_issue,
     extract_first_price as _extract_first_price,
@@ -144,7 +144,7 @@ def run_final_report_audit(context: AnalysisContext, append_section: bool = True
                 _add_unique_issue(critical, f"Agent {recommendation_agent} 缺少 {label} 欄位。")
                 add_agent_repair_issue(recommendation_agent, f"缺少 {label} 欄位。")
 
-        missing_context_labels = missing_final_context_labels(data, str(analyses.get(recommendation_agent, "")))
+        missing_context_labels = missing_final_context_labels(data, str(analyses.get(recommendation_agent, ""))) if not context.get("market_context_contract_version") else []
         if missing_context_labels:
             _add_unique_issue(warnings, f"Agent {recommendation_agent} 最終建議未說明可用的{'、'.join(missing_context_labels)}是否影響結論。")
 
@@ -212,8 +212,7 @@ def run_final_report_audit(context: AnalysisContext, append_section: bool = True
     for warning in context.get("structured_quality_warnings", []) or []:
         _add_unique_issue(warnings, str(warning))
 
-    for warning in dcf_conflict_warnings(analyses, data):
-        _add_unique_issue(warnings, warning)
+    market_context = merge_credibility_findings(context, valuation_agent, critical, warnings, add_agent_repair_issue)
 
     price_history = data.get("price_history", {}) or {}
     _add_unique_issue(corrections, future_price_history_correction(price_history))
@@ -232,6 +231,8 @@ def run_final_report_audit(context: AnalysisContext, append_section: bool = True
         "warnings": warnings,
         "corrections": corrections,
         "repair_agent_issues": repair_agent_issues,
+        "coverage_repair_agent_issues": market_context["coverage_repair_agent_issues"],
+        "market_context": market_context,
         "confidence_calibration": confidence_calibration,
         "report_preserved": True,
     }
