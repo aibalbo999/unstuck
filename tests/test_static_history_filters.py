@@ -493,24 +493,21 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "產生模式 B 報告" in report_preview_rerun_helpers_js
     assert "產生模式 B 報告" in index_html
     assert "history-item" not in app_js
-    assert "providerSlaStatsForWindow" in provider_sla_js
     assert "StockAgentProviderSlaHelpers" in provider_sla_js
     assert "StockAgentProviderSlaHelpers" in provider_sla_helpers_js
     assert "groupedProviderRows" in provider_sla_helpers_js
     assert "股價與基本資料" in provider_sla_helpers_js
     assert "同業指標" in provider_sla_helpers_js
-    assert "可安心使用" in provider_sla_helpers_js
+    assert "可安心使用" not in provider_sla_helpers_js
     assert "provider-sla-insight" in provider_sla_js
-    assert "正式分析流程" in provider_sla_helpers_js
-    assert "有效快取或備援來源" in provider_sla_helpers_js
-    assert "degraded_enrichment_count" in provider_sla_helpers_js
-    assert "降級可用" in provider_sla_helpers_js
-    assert "availabilityAttemptsForStats" in provider_sla_helpers_js
-    assert "not_configured" in provider_sla_helpers_js
+    assert "資料來源觀測" in provider_sla_helpers_js
+    assert "fresh_cache_count" in provider_sla_helpers_js
+    assert "empty_count" in provider_sla_helpers_js
+    assert "stale_cache_count" in provider_sla_helpers_js
+    assert "not_configured_count" in provider_sla_helpers_js
     assert "選用來源略過" in provider_sla_helpers_js
-    assert "先使用仍有效的快取" in provider_sla_helpers_js
-    assert "系統會優先補快取" not in provider_sla_helpers_js
-    assert "資料取得率" in provider_sla_js
+    assert "acquisition" in provider_sla_js
+    assert "取得資料率" in provider_sla_js
 
     assert "來源明細" in provider_sla_js
     assert "provider-sla-provider-list" in provider_sla_js
@@ -6137,7 +6134,7 @@ def test_candidate_next_actions_assets_use_shared_cache_buster():
     index_html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
     style_css = (STATIC_DIR / "style.css").read_text(encoding="utf-8")
 
-    assert "/static/style.css?v=20260911-plain-route-observations" in index_html
+    assert "/static/style.css?v=20260911-provider-acquisition" in index_html
     assert "/static/watchlist_freshness_helpers.js?v=20260902-integer-quality-counts" in index_html
     assert "/static/watchlist_current_quality_helpers.js?v=20260902-target-item-scope" in index_html
     assert "/static/report_quality_evidence_freshness_helpers.js?v=20260902-integer-summary-counts" in index_html
@@ -7099,13 +7096,13 @@ def test_operator_signals_avoid_misleading_health_and_tracking_copy():
 
     assert "<span>近期資料信任</span>" in index_html
     assert "無檢查樣本" in provider_sla_helpers_js
-    assert "尚無檢查樣本，請查看 24 小時或全部紀錄" in provider_sla_helpers_js
+    assert "無檢查樣本，請查看 24 小時或已保留紀錄" in provider_sla_helpers_js
     assert "全球市場脈絡" in provider_sla_helpers_js
     assert "國際新聞脈絡" in provider_sla_helpers_js
     assert "總經、匯率、利率與美股風險偏好" in provider_sla_helpers_js
     assert "國際重大新聞與供應鏈事件" in provider_sla_helpers_js
     assert "rowStateLabel" in provider_sla_helpers_js
-    assert "row.level === 'ok' && !row.attempts" in provider_sla_helpers_js
+    assert "原始觀測不足" in provider_sla_helpers_js
     assert "quotaHealth" in api_quota_js
     assert "quotaHealth" in operator_summary_helpers_js
     assert "這是請求事件，不等於同樣數量的報告失敗" in api_quota_observations_js
@@ -7135,149 +7132,28 @@ def test_provider_sla_shows_global_context_sources_before_first_sample():
     assert "尚未建立檢查樣本" in provider_sla_helpers_js
 
 
-def test_provider_sla_copy_distinguishes_core_and_enrichment_critical_sources():
-    provider_sla_helpers_js = (STATIC_DIR / "provider_sla_helpers.js").read_text(encoding="utf-8")
-
-    assert "CORE_ANALYSIS_SOURCES" in provider_sla_helpers_js
-    assert "sourceIsCore" in provider_sla_helpers_js
-    assert "核心資料可能影響分析" in provider_sla_helpers_js
-    assert "系統來源提醒" in provider_sla_helpers_js
-    assert "報告資料可信度與今日工作台" in provider_sla_helpers_js
-    assert "補充資料不穩" in provider_sla_helpers_js
-    assert "核心分析仍可進行" in provider_sla_helpers_js
+def test_provider_sla_copy_keeps_source_observations_separate_from_report_quality():
+    js = (STATIC_DIR / "provider_sla_helpers.js").read_text(encoding="utf-8")
+    assert "CORE_ANALYSIS_SOURCES" in js
+    assert "核心資料可能影響分析" in js
+    assert "報告資料可信度與今日工作台" in js
+    assert "可放心分析" not in js
 
 
-def test_provider_sla_helpers_group_rows_and_copy_without_panel():
-    provider_sla_helpers_path = STATIC_DIR / "provider_sla_helpers.js"
+def test_provider_sla_legacy_payload_requires_new_observation_service():
     script = """
 global.window = {};
-require(__PROVIDER_SLA_HELPERS_PATH__);
-const helpers = window.StockAgentProviderSlaHelpers;
-const providers = [{
-  source: 'market_data',
-  provider: 'primary',
-  attempts: 4,
-  availability_attempts: 4,
-  success_count: 1,
-  skipped_fresh_cache_count: 0,
-  degraded_enrichment_count: 0,
-  total_records: 1,
-  alert_level: 'critical',
-  last_status: 'error'
-}];
-const rows = helpers.mergeExpectedContextRows(helpers.groupedProviderRows(providers, 'last_24h'));
-const market = rows.find(row => row.source === 'market_data');
-const globalContext = rows.find(row => row.source === 'global_market_context');
-process.stdout.write(JSON.stringify({
-  marketLevel: market.level,
-  marketState: helpers.rowStateLabel(market),
-  marketInsight: helpers.insightText(market),
-  summary: helpers.summaryText(rows, '近 24 小時', providers),
-  visibleSources: helpers.visibleProviderRows(rows).map(row => row.source),
-  globalState: helpers.rowStateLabel(globalContext),
-  globalInsight: helpers.insightText(globalContext)
-}));
-""".replace("__PROVIDER_SLA_HELPERS_PATH__", json.dumps(str(provider_sla_helpers_path)))
-    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+require('./backend/static/provider_sla_helpers.js');
+require('./backend/static/provider_sla_panel.js');
+const summaryEl = {}, listEl = {};
+window.StockAgentProviderSlaPanel.render({providers: [{success_rate: 1, source: 'earnings_call'}]}, {summaryEl, listEl});
+process.stdout.write(JSON.stringify({summary: summaryEl.textContent, html: listEl.innerHTML}));
+"""
+    result = subprocess.run(["node", "-e", script], cwd=STATIC_DIR.parent.parent, check=True, capture_output=True, text=True)
     payload = json.loads(result.stdout)
-
-    assert payload["marketLevel"] == "critical"
-    assert payload["marketState"] == "核心資料可能影響分析"
-    assert "系統來源提醒" in payload["marketInsight"]
-    assert "單份報告是否需要重跑" in payload["marketInsight"]
-    assert "以報告資料可信度與今日工作台為準" in payload["summary"]
-    assert "可能需要稍後重跑" not in payload["marketInsight"]
-    assert "global_market_context" in payload["visibleSources"]
-    assert payload["globalState"] == "無檢查樣本"
-    assert "尚未建立檢查樣本" in payload["globalInsight"]
-
-
-def test_provider_sla_groups_do_not_escalate_healthy_fallbacks_to_critical():
-    provider_sla_helpers_path = STATIC_DIR / "provider_sla_helpers.js"
-    provider_sla_path = STATIC_DIR / "provider_sla_panel.js"
-    script = """
-global.window = {};
-require(__PROVIDER_SLA_HELPERS_PATH__);
-require(__PROVIDER_SLA_PANEL_PATH__);
-const providers = [
-  {
-    source: 'market_data',
-    provider: 'taiwan_yfinance_finmind',
-    attempts: 20,
-    availability_attempts: 20,
-    success_count: 20,
-    skipped_fresh_cache_count: 0,
-    degraded_enrichment_count: 0,
-    total_records: 20,
-    alert_level: 'ok',
-    last_status: 'success'
-  },
-  {
-    source: 'market_data',
-    provider: 'FMP stable quote',
-    attempts: 20,
-    availability_attempts: 20,
-    success_count: 0,
-    skipped_fresh_cache_count: 0,
-    degraded_enrichment_count: 0,
-    total_records: 0,
-    alert_level: 'critical',
-    last_status: 'unavailable'
-  },
-  {
-    source: 'recent_catalysts',
-    provider: 'Recent catalysts providers',
-    attempts: 10,
-    availability_attempts: 10,
-    success_count: 10,
-    skipped_fresh_cache_count: 0,
-    degraded_enrichment_count: 0,
-    total_records: 10,
-    alert_level: 'ok',
-    last_status: 'success'
-  },
-  {
-    source: 'recent_catalysts',
-    provider: 'PTT Stock',
-    attempts: 10,
-    availability_attempts: 10,
-    success_count: 0,
-    skipped_fresh_cache_count: 0,
-    degraded_enrichment_count: 0,
-    total_records: 0,
-    alert_level: 'critical',
-    last_status: 'unavailable'
-  },
-  {
-    source: 'dynamic_peer_metrics',
-    provider: 'FinMind/yfinance',
-    attempts: 100,
-    availability_attempts: 100,
-    success_count: 60,
-    skipped_fresh_cache_count: 0,
-    degraded_enrichment_count: 0,
-    total_records: 120,
-    alert_level: 'warning',
-    last_status: 'success'
-  }
-];
-const rows = window.StockAgentProviderSlaPanel.groupedProviderRows(providers, 'last_24h');
-const listEl = { innerHTML: '' };
-window.StockAgentProviderSlaPanel.render(
-  { providers },
-  { summaryEl: { textContent: '' }, listEl, windowEl: { value: 'last_24h' }, escapeHtml: value => String(value ?? '') }
-);
-process.stdout.write(JSON.stringify({ rows: rows.map(row => ({ source: row.source, level: row.level })), html: listEl.innerHTML }));
-""".replace("__PROVIDER_SLA_HELPERS_PATH__", json.dumps(str(provider_sla_helpers_path))).replace("__PROVIDER_SLA_PANEL_PATH__", json.dumps(str(provider_sla_path)))
-    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
-    payload = json.loads(result.stdout)
-    rows = {row["source"]: row["level"] for row in payload["rows"]}
-
-    assert rows["market_data"] == "ok"
-    assert rows["recent_catalysts"] == "ok"
-    assert rows["dynamic_peer_metrics"] == "ok"
-    assert "不可用" not in payload["html"]
-    assert "尚無紀錄 · 未設定" not in payload["html"]
+    assert "無法" in payload["summary"]
+    assert "100%" not in payload["html"]
+    assert "統計服務已更新" in payload["html"]
 
 
 def test_ops_provider_sla_loads_enough_rows_for_whole_system_status():
@@ -7926,8 +7802,8 @@ def test_decision_tracking_dense_layout_uses_workspace_efficiently():
     history_panel_renderers_js = (STATIC_DIR / "history_panel_renderers.js").read_text(encoding="utf-8")
     style_css = (STATIC_DIR / "style.css").read_text(encoding="utf-8")
 
-    assert "style.css?v=20260911-plain-route-observations" in index_html
-    assert "/static/provider_sla_panel.js?v=20260708-provider-waterfall-health" in index_html
+    assert "style.css?v=20260911-provider-acquisition" in index_html
+    assert "/static/provider_sla_panel.js?v=20260911-acquisition-evidence" in index_html
     assert "/static/ops_workspace.js?v=20260708-provider-group-health" in index_html
     assert "/static/history_panel.js?v=20260708-tracking-action-notes" in index_html
     assert "/static/decision_tracking_panel.js?v=20260708-tracking-action-notes" in index_html
@@ -7978,7 +7854,7 @@ def test_home_commercial_tab_is_a_restart_safe_product_launchpad():
     index_html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
     entry_css = (STATIC_DIR / "commercial" / "styles" / "home_entry.css").read_text(encoding="utf-8")
 
-    assert "style.css?v=20260911-plain-route-observations" in index_html
+    assert "style.css?v=20260911-provider-acquisition" in index_html
     assert "/static/commercial/styles/home_entry.css?v=20260711-simple" in index_html
     assert 'id="home-panel-commercial"' in index_html
     assert 'class="commercial-entry-launchpad"' in index_html

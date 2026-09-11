@@ -46,6 +46,8 @@ Gemma dense 編碼的相容稀疏表在 `prompt_record_tables.py`：`absent` 區
 
 正式 usage-aware profile 的 `provider_quota_authoritative` 在 `settings/models.py` 載入，`llm_rate_limits.py` 保留同步／非同步 RPM/TPM 與 daily reservation orchestration，`llm_rate_limit_routes.py` 承接 provider key availability、RPD key+model 停用及 model-circuit 查詢；本機每日限制則切為可超過參考值的用量記錄。`llm_daily_budget.py` 的觀測模式仍保有交易式累計和 receipt 結算。`analysis_job_retry.py` 僅為模型可用性例外持續補足 RQ 延後重試；`analysis_jobs.py`／`report_rerun_jobs.py` 共用入口，真實 provider 日額度回饋與暫時 cooldown 分開標示。取消與品質阻擋不被此策略覆寫。API／面板的每日計數不再顯示為停止依據。
 
+來源狀態面板的取得資料率在 `provider_acquisition.py`：唯讀掃描 canonical operational DB 的 `provider_sla_events`，分開計算非空成功、空結果、降級資料、有效／空／過期快取與失敗。既有 provider SLA 的 availability 欄位保留相容用途，面板只讀 `/api/observability/provider-sla` 的 `acquisition` projection；缺少 projection 時明示無法判定，不回退到舊成功率。以既有 workflow provider 名稱及 audit message 識別並排除彙總／合併列，保留真實重試；沒有原始觀測的來源不產生成功率。這些是供應商觀測數，不是 HTTP 請求數、唯一資料筆數或內容正確率；全部期間只包含目前保留的事件。UI 列出全部來源，明細完整且失敗優先，綠色不覆蓋期間失敗；時間範圍與更新時間取自同一份 projection。原始紀錄、報告資料可信度與發布閘門不由此面板改寫。
+
 ## 目前 Runtime 真相
 
 以下為本機預設設定。若環境變數覆寫，請以 `config` 實際輸出為準。
