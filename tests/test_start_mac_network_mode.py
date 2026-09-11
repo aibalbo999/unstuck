@@ -10,12 +10,22 @@ def test_start_mac_supports_explicit_lan_access_mode():
 
     assert 'SERVER_HOST="127.0.0.1"' in script
     assert 'LAN_ACCESS="${LAN_ACCESS:-0}"' in script
-    assert 'SERVER_HOST="0.0.0.0"' in script
     assert 'ipconfig getifaddr en0' in script
+    assert 'SERVER_HOST="$LAN_IP"' in script
+    assert 'APP_HOST="$LAN_IP"' in script
+    assert 'SERVER_HOST="0.0.0.0"' not in script
     assert '--host "$SERVER_HOST"' in script
     assert '手機請開啟' in script
     assert 'LAN_ACCESS=1' in lan_script
     assert 'exec "$DIR/start_mac.command"' in lan_script
+
+
+def test_start_mac_checks_the_selected_interface_before_starting_services():
+    script = (ROOT / "start_mac.command").read_text(encoding="utf-8")
+
+    assert "check_server_bind_available()" in script
+    assert 'sock.bind((host, port))' in script
+    assert script.index("check_server_bind_available") < script.index('echo "啟動 Worker..."')
 
 
 def test_start_mac_lan_launches_full_local_runtime_stack():

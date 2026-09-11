@@ -134,6 +134,8 @@ def test_default_server_binding_is_localhost_only():
     assert 'SERVER_HOST="127.0.0.1"' in launcher
     assert 'LAN_ACCESS="${LAN_ACCESS:-0}"' in launcher
     assert '--host "$SERVER_HOST"' in launcher
+    assert 'SERVER_HOST="$LAN_IP"' in launcher
+    assert 'SERVER_HOST="0.0.0.0"' not in launcher
     assert "--host 127.0.0.1" in readme
     assert "LAN_ACCESS=1" in readme
     assert "--host 0.0.0.0" not in readme

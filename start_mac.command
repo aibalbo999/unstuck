@@ -7,15 +7,19 @@ set -e
 export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
 
 LAN_ACCESS="${LAN_ACCESS:-0}"
+LAN_ACCESS_ENABLED=0
 SERVER_HOST="127.0.0.1"
 APP_HOST="127.0.0.1"
 if [ "$LAN_ACCESS" = "1" ] || [ "$LAN_ACCESS" = "true" ] || [ "$LAN_ACCESS" = "yes" ]; then
-    SERVER_HOST="0.0.0.0"
+    LAN_ACCESS_ENABLED=1
     LAN_IP="$(ipconfig getifaddr en0 2>/dev/null || ipconfig getifaddr en1 2>/dev/null || true)"
     if [ -n "$LAN_IP" ]; then
+        SERVER_HOST="$LAN_IP"
         APP_HOST="$LAN_IP"
     else
-        APP_HOST="$(hostname)"
+        echo "找不到 en0/en1 的區網 IP，無法安全啟用手機存取。" >&2
+        echo "請先連上 Wi-Fi／乙太網路，或使用預設本機模式：./start_mac.command" >&2
+        exit 1
     fi
 fi
 APP_URL="http://$APP_HOST:8080"
@@ -288,6 +292,26 @@ start_redis_if_needed() {
     echo "Redis 已啟動。"
 }
 
+check_server_bind_available() {
+    if "$PYTHON_BIN" - "$SERVER_HOST" 8080 <<'PY'
+import socket
+import sys
+
+host = sys.argv[1]
+port = int(sys.argv[2])
+family = socket.AF_INET6 if ":" in host else socket.AF_INET
+with socket.socket(family, socket.SOCK_STREAM) as sock:
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    sock.bind((host, port))
+PY
+    then
+        return 0
+    fi
+    echo "無法綁定 $SERVER_HOST:8080；該介面或連接埠已被其他服務占用。" >&2
+    echo "本次不啟動 Redis、Worker 或 API，請先處理衝突後再重試。" >&2
+    return 1
+}
+
 project_process_matches() {
     local pid="$1" role="$2" command owner_cwd
     case "$pid" in ""|*[!0-9]*|0|1) return 1;; esac
@@ -404,6 +428,7 @@ stop_existing_project_workers() {
 
 stop_pidfile_worker
 stop_existing_project_workers
+check_server_bind_available
 start_redis_if_needed
 
 echo "啟動 Worker..."
@@ -445,7 +470,7 @@ open "$APP_URL"
 echo ""
 echo "============================================================"
 echo "伺服器已啟動：$APP_URL"
-if [ "$SERVER_HOST" = "0.0.0.0" ]; then
+if [ "$LAN_ACCESS_ENABLED" = "1" ]; then
     echo "區網存取已啟用，手機請開啟：$APP_URL"
     echo "提醒：僅在可信任 Wi-Fi 使用 LAN_ACCESS=1。"
 fi

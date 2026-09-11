@@ -340,7 +340,7 @@ start_mac_lan.command
 LAN_ACCESS=1 ./start_mac.command
 ```
 
-`start_mac_lan.command` 只是設定 `LAN_ACCESS=1` 後執行同一份 `start_mac.command`，因此會套用相同的 Redis、Worker、排程器與殘留 worker 清理流程。
+`start_mac_lan.command` 只是設定 `LAN_ACCESS=1` 後執行同一份 `start_mac.command`，因此會套用相同的 Redis、Worker、排程器與殘留 worker 清理流程。區網模式只綁定 Mac 的 Wi-Fi／乙太網路 IP，不會綁定 Tailscale 等其他介面；啟動器也會在建立 Worker 前先確認該 IP 的 8080 可用，避免 API 啟動失敗後留下半套服務。
 
 啟動後終端機會顯示手機可開啟的區網網址，例如：
 
@@ -579,7 +579,7 @@ GEMINI_API_KEYS=...
 
 ### 4. 8080 port 被占用
 
-`start_mac.command` 會嘗試停止舊的 8080 服務。若手動處理：
+`start_mac.command` 會嘗試停止可確認屬於本專案的舊 8080 服務；若是 Tailscale 或其他程式占用，會保留該程序並停止啟動。若手動檢查：
 
 ```bash
 lsof -ti tcp:8080
