@@ -83,6 +83,7 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert operator_summary_helpers_path.exists()
     operator_summary_helpers_js = operator_summary_helpers_path.read_text(encoding="utf-8")
     operator_summary_js = (STATIC_DIR / "operator_summary_panel.js").read_text(encoding="utf-8")
+    api_quota_observations_js = (STATIC_DIR / "api_quota_observations.js").read_text(encoding="utf-8")
     api_quota_panel_js = (STATIC_DIR / "api_quota_panel.js").read_text(encoding="utf-8")
     performance_panel_js = (STATIC_DIR / "performance_panel.js").read_text(encoding="utf-8")
     api_client_extensions_js = (STATIC_DIR / "api_client_extensions.js").read_text(encoding="utf-8")
@@ -234,6 +235,7 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "/static/provider_sla_helpers.js" in index_html
     assert "/static/provider_sla_panel.js" in index_html
     assert index_html.index("/static/provider_sla_helpers.js") < index_html.index("/static/provider_sla_panel.js")
+    assert "/static/api_quota_observations.js" in index_html
     assert "/static/api_quota_panel.js" in index_html
     assert "/static/active_jobs_panel.js" in index_html
     assert "/static/operator_dashboard_actions.js" in index_html
@@ -657,8 +659,10 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "LLM/API 本機觀測" in api_quota_panel_js
     assert "observed_model_quota_errors" in api_quota_panel_js
     assert "模型" in api_quota_panel_js
-    assert "api_quota_panel.js?v=20260905-daily-budget" in index_html
+    assert "api_quota_panel.js?v=20260911-plain-route-observations" in index_html
+    assert index_html.index("api_quota_observations.js") < index_html.index("api_quota_panel.js")
     assert index_html.index("api_quota_usage_helpers.js") < index_html.index("api_quota_panel.js")
+    assert "模型額度或頻率曾受限" in api_quota_observations_js
     assert "LLM/API 本機觀測" in operator_summary_helpers_js
     assert "LLM/API 健康" not in api_quota_panel_js
     assert "LLM 健康" not in operator_summary_helpers_js
@@ -4429,10 +4433,14 @@ process.stdout.write(JSON.stringify({ html }));
     assert " ERROR  →  FRESH " not in payload["html"]
 
 
-def test_api_quota_panel_projects_model_route_warnings():
+def test_api_quota_panel_groups_route_observations_and_explains_operator_action():
     panel_path = STATIC_DIR / "api_quota_panel.js"
+    observations_path = STATIC_DIR / "api_quota_observations.js"
+    usage_path = STATIC_DIR / "api_quota_usage_helpers.js"
     script = """
 global.window = {};
+require(__USAGE_PATH__);
+require(__OBSERVATIONS_PATH__);
 require(__PANEL_PATH__);
 const summaryEl = { textContent: '' };
 const listEl = { innerHTML: '' };
@@ -4440,7 +4448,8 @@ window.StockAgentApiQuotaPanel.render({
   services: [{ service: 'Gemini / Google AI', configured: true, usage: {
     observed_calls_since_reset: 100,
     observed_model_calls: { 'gemma-4-31b-it': 80, 'gemini-3.6-flash': 20 },
-    observed_model_quota_errors: { 'gemma-4-31b-it': 72, 'gemini-3.6-flash': 1 }
+    observed_model_quota_errors: { 'gemma-4-31b-it': 72, 'gemini-3.6-flash': 1 },
+    quota_day_profile: { today: { provider_quota_errors: 2, other_errors: 110 } }
   } }],
   model_route_budget: {
     summary: { sample_size: 12, warning_count: 4 },
@@ -4453,20 +4462,28 @@ window.StockAgentApiQuotaPanel.render({
   }
 }, { summaryEl, listEl, escapeHtml: value => String(value ?? '') });
 process.stdout.write(JSON.stringify({ summary: summaryEl.textContent, html: listEl.innerHTML }));
-""".replace("__PANEL_PATH__", json.dumps(str(panel_path)))
+""".replace("__USAGE_PATH__", json.dumps(str(usage_path))).replace("__OBSERVATIONS_PATH__", json.dumps(str(observations_path))).replace("__PANEL_PATH__", json.dumps(str(panel_path)))
     result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
     payload = json.loads(result.stdout)
 
-    assert "4 個路由警示" in payload["summary"]
-    assert "路由延遲偏高" in payload["html"]
-    assert "模型重試過多" in payload["html"]
-    assert "品質檢查失敗" in payload["html"]
-    assert "Provider 配額錯誤" in payload["html"]
+    assert "目前配額日 112 次請求事件需留意" in payload["summary"]
+    assert "不等於 112 份報告失敗" in payload["summary"]
+    assert "最近 12 筆執行紀錄整理出 4 類提醒" in payload["summary"]
+    assert "目前配額日記錄 2 次額度或頻率事件、110 次其他請求異常" in payload["html"]
+    assert "模型回應較慢" in payload["html"]
+    assert "模型重試次數偏多" in payload["html"]
+    assert "模型輸出曾被品質檢查擋下" in payload["html"]
+    assert "模型額度或頻率曾受限" in payload["html"]
+    assert "系統會自動處理" in payload["html"]
+    assert "若今日工作台沒有失敗任務，現在不用處理" in payload["html"]
+    assert payload["html"].count("provider-sla-route-group") == 4
+    assert "<details" in payload["html"]
+    assert "技術明細（1 條路由）" in payload["html"]
     assert "v4/gemma-4-31b-it" in payload["html"]
     assert "模型 gemma-4-31b-it 80 次" in payload["html"]
     assert "額度錯誤 72 次" in payload["html"]
     assert "90%" in payload["html"]
-    assert "維運觀測" in payload["html"]
+    assert "最近執行紀錄" in payload["html"]
 
 
 def test_report_compare_decision_status_uses_report_quality_policy():
@@ -6120,7 +6137,7 @@ def test_candidate_next_actions_assets_use_shared_cache_buster():
     index_html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
     style_css = (STATIC_DIR / "style.css").read_text(encoding="utf-8")
 
-    assert "/static/style.css?v=20260816-historical-quality-target-context" in index_html
+    assert "/static/style.css?v=20260911-plain-route-observations" in index_html
     assert "/static/watchlist_freshness_helpers.js?v=20260902-integer-quality-counts" in index_html
     assert "/static/watchlist_current_quality_helpers.js?v=20260902-target-item-scope" in index_html
     assert "/static/report_quality_evidence_freshness_helpers.js?v=20260902-integer-summary-counts" in index_html
@@ -7073,6 +7090,7 @@ def test_report_actions_can_add_report_catalysts_to_watchlist_radar():
 def test_operator_signals_avoid_misleading_health_and_tracking_copy():
     index_html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
     provider_sla_helpers_js = (STATIC_DIR / "provider_sla_helpers.js").read_text(encoding="utf-8")
+    api_quota_observations_js = (STATIC_DIR / "api_quota_observations.js").read_text(encoding="utf-8")
     api_quota_js = (STATIC_DIR / "api_quota_panel.js").read_text(encoding="utf-8")
     operator_summary_helpers_js = (STATIC_DIR / "operator_summary_helpers.js").read_text(encoding="utf-8")
     history_panel_helpers_js = (STATIC_DIR / "history_panel_helpers.js").read_text(encoding="utf-8")
@@ -7090,9 +7108,10 @@ def test_operator_signals_avoid_misleading_health_and_tracking_copy():
     assert "row.level === 'ok' && !row.attempts" in provider_sla_helpers_js
     assert "quotaHealth" in api_quota_js
     assert "quotaHealth" in operator_summary_helpers_js
-    assert "LLM/API 本機觀測需留意" in api_quota_js
+    assert "這是請求事件，不等於同樣數量的報告失敗" in api_quota_observations_js
+    assert "最近 ${Number.isFinite(sampleSize) ? sampleSize : '一批'} 筆執行紀錄整理出" in api_quota_observations_js
     assert "LLM/API 健康警示" not in api_quota_js
-    assert "LLM/API 本機觀測：" in api_quota_js
+    assert "LLM/API：${configured}/${services.length} 組服務已設定" in api_quota_observations_js
     assert "LLM/API 健康：" not in api_quota_js
     assert "LLM/API 本機觀測正常" in operator_summary_helpers_js
     assert "LLM/API 本機觀測需留意" in operator_summary_helpers_js
@@ -7907,7 +7926,7 @@ def test_decision_tracking_dense_layout_uses_workspace_efficiently():
     history_panel_renderers_js = (STATIC_DIR / "history_panel_renderers.js").read_text(encoding="utf-8")
     style_css = (STATIC_DIR / "style.css").read_text(encoding="utf-8")
 
-    assert "style.css?v=20260816-historical-quality-target-context" in index_html
+    assert "style.css?v=20260911-plain-route-observations" in index_html
     assert "/static/provider_sla_panel.js?v=20260708-provider-waterfall-health" in index_html
     assert "/static/ops_workspace.js?v=20260708-provider-group-health" in index_html
     assert "/static/history_panel.js?v=20260708-tracking-action-notes" in index_html
@@ -7959,7 +7978,7 @@ def test_home_commercial_tab_is_a_restart_safe_product_launchpad():
     index_html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
     entry_css = (STATIC_DIR / "commercial" / "styles" / "home_entry.css").read_text(encoding="utf-8")
 
-    assert "style.css?v=20260816-historical-quality-target-context" in index_html
+    assert "style.css?v=20260911-plain-route-observations" in index_html
     assert "/static/commercial/styles/home_entry.css?v=20260711-simple" in index_html
     assert 'id="home-panel-commercial"' in index_html
     assert 'class="commercial-entry-launchpad"' in index_html
@@ -8152,6 +8171,7 @@ def test_frontend_static_modules_are_sized():
         "styles/preview_panel_actions.css": 100,
         "styles/report_compare.css": 90,
         "styles/provider_sla.css": 160,
+        "styles/api_quota_panel.css": 60,
         "styles/provider_sla_controls.css": 100,
         "styles/watchlist.css": 80,
         "styles/market_screener.css": 90,
@@ -8162,6 +8182,7 @@ def test_frontend_static_modules_are_sized():
         "ops_workspace_panels.js": 130,
         "market_screener_panel.js": 120,
         "market_screener_helpers.js": 90,
+        "api_quota_observations.js": 100,
         "api_quota_panel.js": 100,
         "performance_panel.js": 100,
         "watchlist_trigger_form.js": 90,
