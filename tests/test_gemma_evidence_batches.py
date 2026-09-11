@@ -89,6 +89,80 @@ def test_failed_batch_resumes_from_validated_cache(monkeypatch):
     assert "僅供定位" in appendix
 
 
+@pytest.mark.parametrize("entry", ["async", "sync"])
+def test_transient_batch_failure_retries_once_without_sdk_hidden_retries(monkeypatch, entry):
+    from agent_runtime import gemma_evidence_runtime as runtime
+    from agent_runtime.retry_policy import AgentServerError
+
+    prompt = prompt_fixture()
+    batches = plan_batches(22, prompt)
+    calls, sleeps = [], []
+    monkeypatch.setattr(runtime, "get_cache_json", lambda *a: None)
+    monkeypatch.setattr(runtime, "set_cache_json", lambda *a: None)
+
+    def send(batch, context, rotator):
+        calls.append(batch["batch_id"])
+        if calls.count(batch["batch_id"]) == 1 and batch["batch_id"] == batches[0]["batch_id"]:
+            raise AgentServerError("504 UNAVAILABLE")
+        return answer(batch)
+
+    async def send_async(*args):
+        return send(*args)
+
+    monkeypatch.setattr(runtime, "call_batch", send)
+    monkeypatch.setattr(runtime, "call_batch_async", send_async)
+    monkeypatch.setattr(runtime.time, "sleep", lambda seconds: sleeps.append(seconds))
+
+    async def no_sleep(seconds):
+        sleeps.append(seconds)
+
+    monkeypatch.setattr(runtime.asyncio, "sleep", no_sleep)
+    context = {}
+    appendix = (
+        asyncio.run(runtime.collect_evidence_async(22, prompt, context, object()))
+        if entry == "async"
+        else runtime.collect_evidence(22, prompt, context, object())
+    )
+    assert "僅供定位" in appendix
+    assert calls.count(batches[0]["batch_id"]) == 2
+    assert len(calls) == len(batches) + 1
+    assert sleeps == [runtime.RETRY_DELAY_SECONDS]
+    retry = next(event for event in context["_runtime_events"] if event["phase"] == "gemma_evidence_retry")
+    assert retry["metadata"]["attempt"] == 2
+    assert retry["metadata"]["max_attempts"] == 2
+
+
+@pytest.mark.parametrize("entry", ["async", "sync"])
+def test_transient_batch_failure_stops_after_bounded_attempts(monkeypatch, entry):
+    from agent_runtime import gemma_evidence_runtime as runtime
+    from agent_runtime.retry_policy import AgentServerError
+
+    calls = []
+    monkeypatch.setattr(runtime, "get_cache_json", lambda *a: None)
+    monkeypatch.setattr(runtime.time, "sleep", lambda *a: None)
+
+    async def no_sleep(*args):
+        return None
+
+    monkeypatch.setattr(runtime.asyncio, "sleep", no_sleep)
+
+    def fail(*args):
+        calls.append("send")
+        raise AgentServerError("500 INTERNAL")
+
+    async def fail_async(*args):
+        return fail(*args)
+
+    monkeypatch.setattr(runtime, "call_batch", fail)
+    monkeypatch.setattr(runtime, "call_batch_async", fail_async)
+    with pytest.raises(AgentServerError):
+        if entry == "async":
+            asyncio.run(runtime.collect_evidence_async(22, prompt_fixture(), {}, object()))
+        else:
+            runtime.collect_evidence(22, prompt_fixture(), {}, object())
+    assert calls == ["send"] * runtime.TRANSIENT_MAX_ATTEMPTS
+
+
 @pytest.mark.parametrize("entry", ["async", "sync_in_loop"])
 @pytest.mark.parametrize("valid", [True, False])
 def test_oversize_gemma_batches_then_integrates_with_full_fallback_prompt(monkeypatch, entry, valid):
@@ -140,6 +214,7 @@ def test_real_transport_bypasses_unverified_cache_and_preserves_source(monkeypat
         assert is_evidence_request()
         assert "買進 100 張，short exposure" in kw["contents"]
         assert kw["config"].http_options.timeout == 60000
+        assert kw["config"].http_options.retry_options.attempts == 1
         calls.append(kw)
         return SimpleNamespace(text=json.dumps(answer(batch), ensure_ascii=False))
     async def generate_async(**kw):return generate(**kw)
@@ -233,3 +308,74 @@ def test_batch_phases_record_planning_quota_and_no_new_usage_for_cache(monkeypat
             "model_id": "gemma-4-31b-it", "call_purpose": "evidence_batch", "error_category": "quota"}})
     assert [(row["status"], row["units"]) for row in recorded] == [("planned", 0), ("quota_error", 0)]
     assert all(row["metadata"]["call_purpose"] == "evidence_batch" for row in recorded)
+
+
+def test_provider_error_records_safe_http_status_without_raw_error(monkeypatch):
+    from agent_runtime import gemma_evidence_runtime as runtime
+    from agent_runtime.retry_policy import AgentServerError
+
+    class ProviderFailure(Exception):
+        code = 504
+
+    class Rotator:
+        keys = ["secret-key-value"]
+
+    context = {}
+    batch = plan_batches(22, prompt_fixture())[0]
+    with pytest.raises(AgentServerError):
+        runtime.provider_error(batch, context, Rotator(), "secret-key-value", ProviderFailure("secret-key-value must not leak"))
+    metadata = context["_runtime_events"][-1]["metadata"]
+    assert metadata["provider_status_code"] == 504
+    assert "error_message" not in metadata
+    assert "secret-key-value" not in json.dumps(context["_runtime_events"], ensure_ascii=False)
+
+
+def test_local_timeout_is_classified_and_returns_useful_retry_reason():
+    from agent_runtime import gemma_evidence_runtime as runtime
+    from agent_runtime.retry_policy import AgentTransientError
+
+    context = {}
+    batch = plan_batches(22, prompt_fixture())[0]
+    with pytest.raises(AgentTransientError, match="timeout"):
+        runtime.provider_error(batch, context, SimpleNamespace(keys=[]), None, TimeoutError())
+    metadata = context["_runtime_events"][-1]["metadata"]
+    assert metadata["error_category"] == "timeout"
+    assert metadata["provider_status_code"] is None
+
+
+def test_installed_sdk_does_not_hide_multiple_http_attempts(monkeypatch):
+    import httpx
+    from google import genai
+    from google.genai import types
+    import llm_transport as transport
+    from agent_runtime import gemma_evidence_runtime as runtime
+    from agent_runtime.retry_policy import AgentServerError
+
+    observed = []
+
+    def unavailable(request):
+        observed.append(request.url.path)
+        return httpx.Response(504, json={"error": {"code": 504, "message": "offline unavailable", "status": "UNAVAILABLE"}})
+
+    client = genai.Client(
+        api_key="fake-provider-credential",
+        http_options=types.HttpOptions(
+            base_url="https://sdk.invalid",
+            client_args={"transport": httpx.MockTransport(unavailable)},
+        ),
+    )
+    monkeypatch.setattr(transport, "generation_client", lambda *args: client)
+    monkeypatch.setattr(transport, "get_cached_llm_response", lambda *a: pytest.fail("unvalidated cache read"))
+
+    class Rotator:
+        keys = ["fake-provider-credential"]
+
+        def get_key(self, *args):
+            return self.keys[0]
+
+    try:
+        with pytest.raises(AgentServerError):
+            runtime.call_batch(plan_batches(22, prompt_fixture())[0], {}, Rotator())
+    finally:
+        client.close()
+    assert len(observed) == 1

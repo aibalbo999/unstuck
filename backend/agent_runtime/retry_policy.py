@@ -28,6 +28,7 @@ from .retry_error_classification import (
     _is_server_5xx_error,
     _is_transient_provider_error,
     _key_slot,
+    provider_status_code,
 )
 
 
@@ -244,9 +245,14 @@ def _raise_agent_call_error(exc: Exception, api_key: Optional[str], model_id: st
     if _is_invalid_argument_error(error_msg):
         raise AgentConfigurationError(f"[schema_error] {error_msg}") from exc
 
+    status_code = provider_status_code(exc)
+    if status_code is not None and 500 <= status_code <= 599:
+        raise AgentServerError(error_msg) from exc
     if _is_server_5xx_error(error_msg):
         raise AgentServerError(error_msg) from exc
 
+    if isinstance(exc, TimeoutError):
+        raise AgentTransientError("provider request timeout") from exc
     if _is_transient_provider_error(error_msg):
         raise AgentTransientError(error_msg) from exc
 

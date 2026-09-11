@@ -2208,7 +2208,7 @@ def test_ops_dashboard_separates_provider_errors_from_node_failures(monkeypatch,
         model_id="gemma-4-31b-it",
         status="quota_error",
         units=0,
-        metadata={"job_id": job_id, "key_slot": "key-01", "message": "quota exhausted"},
+        metadata={"job_id": job_id, "key_slot": "key-01", "message": "quota exhausted", "provider_status_code": 429},
         db_path=db_path,
     )
     record_api_usage(
@@ -2218,7 +2218,7 @@ def test_ops_dashboard_separates_provider_errors_from_node_failures(monkeypatch,
         model_id="gemma-4-31b-it",
         status="error",
         units=0,
-        metadata={"job_id": job_id, "key_slot": "key-02", "message": "provider failed"},
+        metadata={"job_id": job_id, "key_slot": "key-02", "message": "provider failed", "provider_status_code": 504},
         db_path=db_path,
     )
 
@@ -2229,6 +2229,8 @@ def test_ops_dashboard_separates_provider_errors_from_node_failures(monkeypatch,
     assert route["failures"] == 0
     assert route["provider_error_count"] == 2
     assert route["provider_quota_error_count"] == 1
+    assert route["provider_non_quota_error_count"] == 1
+    assert route["provider_status_code_counts"] == {"429": 1, "504": 1}
     assert payload["model_route_budget"]["summary"]["provider_error_sample_size"] == 2
     assert any(
         warning["id"] == "provider_quota_errors"

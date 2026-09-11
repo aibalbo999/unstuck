@@ -26,6 +26,29 @@ def _is_server_5xx_error(error_msg: str) -> bool:
     )
 
 
+def provider_status_code(exc: BaseException | None) -> int | None:
+    """Extract only a safe HTTP status code, never a provider response body."""
+    if exc is None:
+        return None
+    response = getattr(exc, "response", None)
+    for value in (
+        getattr(exc, "code", None),
+        getattr(exc, "status_code", None),
+        getattr(response, "status_code", None),
+    ):
+        try:
+            code = int(value)
+        except (TypeError, ValueError, ArithmeticError):
+            continue
+        if 400 <= code <= 599:
+            return code
+    try:
+        match = re.search(r"\b([45]\d{2})\b", str(exc))
+    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
+        return None
+    return int(match.group(1)) if match else None
+
+
 def _is_invalid_argument_error(error_msg: str) -> bool:
     """Return True for permanent 400 INVALID_ARGUMENT provider contract errors."""
     normalized = (error_msg or "").lower()
@@ -65,7 +88,10 @@ def _agent_error_category(exc: Exception) -> str:
         return "local_daily_budget"
     if isinstance(exc, InputCapacityExceededError):
         return "input_capacity"
+    if isinstance(exc, TimeoutError):
+        return "timeout"
     error_msg = str(exc)
+    status_code = provider_status_code(exc)
     if isinstance(exc, AllKeysRpdDisabledError):
         return "quota"
     if is_auth_error(error_msg):
@@ -76,6 +102,8 @@ def _agent_error_category(exc: Exception) -> str:
         return "missing_model"
     if _is_invalid_argument_error(error_msg):
         return "schema_error"
+    if status_code is not None and 500 <= status_code <= 599:
+        return "server_5xx"
     if _is_server_5xx_error(error_msg):
         return "server_5xx"
     if _is_transient_provider_error(error_msg):

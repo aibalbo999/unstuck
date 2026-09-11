@@ -2,7 +2,7 @@
 
 ## 交付狀態
 
-實作完成，採 **dark launch，預設 OFF**。本輪沒有修改正式路由開關、重啟、提交或推送。
+實作完成，採 **dark launch，預設 OFF**。
 `GEMMA_EVIDENCE_BATCHING_ENABLED=true` 或路由 JSON 的 `gemma_evidence_batching: true` 才會啟用；環境變數優先。
 目前正式 profile 沒有啟用此欄位。套用或撤回開關均需要正常重載 runtime。
 
@@ -23,11 +23,13 @@
 
 每批逐一經既有 KeyRotator、共享 RPM/TPM、provider quota 控制。429/RPD 沿用 key+model 停用及恢復規則；500/504 為暫時錯誤，不視為額度耗盡。分批失敗轉入既有備援／延後恢復處理。
 
-每批 provider 呼叫上限 60 秒（async 另有外層期限）；等待 key 前後及回應後都檢查取消。僅通過驗證的批次快取一小時；cache key 綁模型、角色、完整提示、摘錄規約、角色任務與分批上限。資料或規約改變不共用舊結果。部分成功可供下一次重試使用，但未完成附錄不得採用。
+每次 provider 呼叫上限 60 秒（async 另有外層期限）；SDK 內建重試明確關閉，確保每個 HTTP send 都由本系統計數。500／504／timeout 最多只再試一次、間隔 2 秒，第二次仍失敗就立刻切換既有備援模型，不做無上限等待。等待 key 前後及回應後都檢查取消。僅通過驗證的批次快取一小時；cache key 綁模型、角色、完整提示、摘錄規約、角色任務與分批上限。資料或規約改變不共用舊結果。部分成功可供下一次重試使用，但未完成附錄不得採用。
 
 分批請求使用 request-local ContextVar 繞過一般 semantic cache，避免未驗證回應被重複採用。保留正常研究 framing，但不把來源中的「買進」等詞改寫，確保能逐字核對。
 
-`gemma_evidence_call/request/response/error` 寫入既有使用量 ledger，保留 `call_purpose=evidence_batch` 與匿名 key slot；cache hit 不算新請求。分批 request 納入曾呼叫模型清單，只有正常最終 response 或 Agent step cache 才決定 Agent 模型身分。`gemma_evidence_appendix_prepared` 只說明提示是否附上摘錄，不等於供應商已成功整合。
+`gemma_evidence_call/request/response/error` 寫入既有使用量 ledger，保留 `call_purpose=evidence_batch`、匿名 key slot 與安全的 `provider_status_code`；不保存可能含 request body 或 credential 的原始 provider exception。cache hit 不算新請求。分批 request 納入曾呼叫模型清單，只有正常最終 response 或 Agent step cache 才決定 Agent 模型身分。`gemma_evidence_appendix_prepared` 只說明提示是否附上摘錄，不等於供應商已成功整合。
+
+操作面板把 quota／rate-limit 與非 quota 的 provider 錯誤分開統計；混合事件不再全部顯示成「額度錯誤」。新事件可在技術明細看到 HTTP 狀態碼計數，例如 429 與 500／504，不需暴露原始錯誤內容。
 
 此方法增加前處理呼叫和等待時間，不保證減少總 tokens 或其他模型用量。上線評估應分開看批次成功、摘錄採用、最終角色通過、完整報告品質及總呼叫成本。
 
@@ -52,5 +54,7 @@
 | 縮小的診斷批，8 records | 1,900 | HTTP 500 / AgentServerError |
 
 兩次均匿名 slot 1，不代表已測試所有 key；均未取得有效摘錄、沒有 RPD 耗盡回饋。小批也失敗表示這兩次結果不能只用 12,000-token 超量解釋。測試後補上角色焦點說明，所以最終離線容量與上述 provider 請求大小略有差異；沒有把早期請求當成最終協定成功驗證。
+
+2026-09-11 後續優化沒有再送出 provider 請求：以本機安裝的 Google SDK 加 mock transport 驗證單次 evidence attempt 遇 504 時只產生一個 HTTP send，再由應用層執行最多一次可觀測重試。既有 504／500 結果仍是啟用判斷依據，正式開關維持 OFF。
 
 啟用前仍需供應商在最終協定下完成全部分批及代表性角色的備援整合，並通過原品質檢查。完整報告品質與正式成功率留待實際產物驗證。

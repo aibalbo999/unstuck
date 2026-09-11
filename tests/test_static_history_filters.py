@@ -4449,12 +4449,13 @@ window.StockAgentApiQuotaPanel.render({
     quota_day_profile: { today: { provider_quota_errors: 2, other_errors: 110 } }
   } }],
   model_route_budget: {
-    summary: { sample_size: 12, warning_count: 4 },
+    summary: { sample_size: 12, warning_count: 5 },
     warnings: [
       { id: 'slow_route', route: 'v4/gemma-4-31b-it', message: 'p95_latency_ms=181619' },
       { id: 'retry_storm', route: 'v2/gemini-2.5-pro', message: 'retry_count=8' },
       { id: 'quality_gate_failures', route: 'v3/gemini-3.5-flash', message: 'quality_gate_failures=1' },
-      { id: 'provider_quota_errors', route: 'v4/gemma-4-31b-it', message: 'provider_error_count=2' }
+      { id: 'provider_quota_errors', route: 'v4/gemma-4-31b-it', message: 'provider_quota_error_count=1 provider_status_codes=429:1' },
+      { id: 'provider_errors', route: 'v4/gemma-4-31b-it', message: 'provider_non_quota_error_count=1 provider_status_codes=504:1' }
     ]
   }
 }, { summaryEl, listEl, escapeHtml: value => String(value ?? '') });
@@ -4465,15 +4466,17 @@ process.stdout.write(JSON.stringify({ summary: summaryEl.textContent, html: list
 
     assert "目前配額日 112 次請求事件需留意" in payload["summary"]
     assert "不等於 112 份報告失敗" in payload["summary"]
-    assert "最近 12 筆執行紀錄整理出 4 類提醒" in payload["summary"]
+    assert "最近 12 筆執行紀錄整理出 5 類提醒" in payload["summary"]
     assert "目前配額日記錄 2 次額度或頻率事件、110 次其他請求異常" in payload["html"]
     assert "模型回應較慢" in payload["html"]
     assert "模型重試次數偏多" in payload["html"]
     assert "模型輸出曾被品質檢查擋下" in payload["html"]
     assert "模型額度或頻率曾受限" in payload["html"]
+    assert "模型供應商曾回傳錯誤" in payload["html"]
+    assert "provider_status_codes=504:1" in payload["html"]
     assert "系統會自動處理" in payload["html"]
     assert "若今日工作台沒有失敗任務，現在不用處理" in payload["html"]
-    assert payload["html"].count("provider-sla-route-group") == 4
+    assert payload["html"].count("provider-sla-route-group") == 5
     assert "<details" in payload["html"]
     assert "技術明細（1 條路由）" in payload["html"]
     assert "v4/gemma-4-31b-it" in payload["html"]

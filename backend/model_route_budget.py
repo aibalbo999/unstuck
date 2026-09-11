@@ -68,6 +68,10 @@ def _blank_bucket() -> dict[str, Any]:
         "quality_gate_failures": 0,
         "provider_error_count": 0,
         "provider_quota_error_count": 0,
+        "provider_non_quota_error_count": 0,
+        "provider_status_code_counts": {},
+        "provider_quota_status_code_counts": {},
+        "provider_non_quota_status_code_counts": {},
         "latencies": [],
     }
 
@@ -96,8 +100,17 @@ def _add_row(bucket: dict[str, Any], row: dict[str, Any]) -> None:
 
 def _add_provider_error(bucket: dict[str, Any], row: dict[str, Any]) -> None:
     bucket["provider_error_count"] += 1
-    if str(row.get("status") or "").lower() in {"quota_error", "rate_limited"}:
+    is_quota = str(row.get("status") or "").lower() in {"quota_error", "rate_limited"}
+    if is_quota:
         bucket["provider_quota_error_count"] += 1
+    else:
+        bucket["provider_non_quota_error_count"] += 1
+    status_code = _status_code(row.get("provider_status_code"))
+    if status_code is not None:
+        key = str(status_code)
+        bucket["provider_status_code_counts"][key] = int(bucket["provider_status_code_counts"].get(key) or 0) + 1
+        target = bucket["provider_quota_status_code_counts"] if is_quota else bucket["provider_non_quota_status_code_counts"]
+        target[key] = int(target.get(key) or 0) + 1
 
 
 def _finalize_bucket(bucket: dict[str, Any]) -> dict[str, Any]:
@@ -122,6 +135,10 @@ def _finalize_bucket(bucket: dict[str, Any]) -> dict[str, Any]:
         "quality_gate_failures": int(bucket["quality_gate_failures"]),
         "provider_error_count": int(bucket["provider_error_count"]),
         "provider_quota_error_count": int(bucket["provider_quota_error_count"]),
+        "provider_non_quota_error_count": int(bucket["provider_non_quota_error_count"]),
+        "provider_status_code_counts": _sorted_counts(bucket["provider_status_code_counts"]),
+        "provider_quota_status_code_counts": _sorted_counts(bucket["provider_quota_status_code_counts"]),
+        "provider_non_quota_status_code_counts": _sorted_counts(bucket["provider_non_quota_status_code_counts"]),
         "avg_latency_ms": round(mean(latencies), 1) if latencies else None,
         "p95_latency_ms": _nearest_rank_percentile(latencies, 95) if latencies else None,
         "estimated_cost_usd": None,
@@ -139,13 +156,25 @@ def _warnings(routes: dict[str, dict[str, Any]], *, slow_route_p95_ms: int, retr
             warnings.append(_warning("quality_gate_failures", route, f"{route} quality_gate_failures={stats['quality_gate_failures']}"))
         provider_error_count = int(stats.get("provider_error_count") or 0)
         provider_quota_error_count = int(stats.get("provider_quota_error_count") or 0)
-        if provider_error_count > 0:
-            warning_id = "provider_quota_errors" if provider_quota_error_count > 0 else "provider_errors"
+        provider_non_quota_error_count = int(stats.get("provider_non_quota_error_count") or 0)
+        if provider_quota_error_count > 0:
+            status_codes = _format_counts(stats.get("provider_quota_status_code_counts"))
             warnings.append(
                 _warning(
-                    warning_id,
+                    "provider_quota_errors",
                     route,
-                    f"{route} provider_error_count={provider_error_count} provider_quota_error_count={provider_quota_error_count}",
+                    f"{route} provider_quota_error_count={provider_quota_error_count} provider_error_count={provider_error_count}"
+                    + (f" provider_status_codes={status_codes}" if status_codes else ""),
+                )
+            )
+        if provider_non_quota_error_count > 0:
+            status_codes = _format_counts(stats.get("provider_non_quota_status_code_counts"))
+            warnings.append(
+                _warning(
+                    "provider_errors",
+                    route,
+                    f"{route} provider_non_quota_error_count={provider_non_quota_error_count} provider_error_count={provider_error_count}"
+                    + (f" provider_status_codes={status_codes}" if status_codes else ""),
                 )
             )
     return warnings
@@ -153,6 +182,23 @@ def _warnings(routes: dict[str, dict[str, Any]], *, slow_route_p95_ms: int, retr
 
 def _warning(warning_id: str, route: str, message: str) -> dict[str, str]:
     return {"id": warning_id, "route": route, "message": message}
+
+
+def _status_code(value: Any) -> int | None:
+    try:
+        code = int(value)
+    except (TypeError, ValueError, ArithmeticError):
+        return None
+    return code if 400 <= code <= 599 else None
+
+
+def _sorted_counts(value: Any) -> dict[str, int]:
+    rows = value if isinstance(value, dict) else {}
+    return {str(key): int(rows[key]) for key in sorted(rows, key=lambda item: int(item))}
+
+
+def _format_counts(value: Any) -> str:
+    return ",".join(f"{key}:{count}" for key, count in _sorted_counts(value).items())
 
 
 def _nearest_rank_percentile(sorted_values: list[float], percentile: int) -> float | None:

@@ -150,8 +150,8 @@ def test_model_route_budget_separates_provider_errors_from_node_failures():
             }
         ],
         provider_error_rows=[
-            {"pipeline_id": "v4", "model": "gemma-4-31b-it", "status": "quota_error"},
-            {"pipeline_id": "v4", "model": "gemma-4-31b-it", "status": "error"},
+            {"pipeline_id": "v4", "model": "gemma-4-31b-it", "status": "quota_error", "provider_status_code": 429},
+            {"pipeline_id": "v4", "model": "gemma-4-31b-it", "status": "error", "provider_status_code": 504},
         ],
     )
 
@@ -161,10 +161,15 @@ def test_model_route_budget_separates_provider_errors_from_node_failures():
     assert route["failure_rate"] == 0.0
     assert route["provider_error_count"] == 2
     assert route["provider_quota_error_count"] == 1
+    assert route["provider_non_quota_error_count"] == 1
+    assert route["provider_status_code_counts"] == {"429": 1, "504": 1}
     assert budget["summary"]["provider_error_sample_size"] == 2
-    warning = next(item for item in budget["warnings"] if item["route"] == "v4/gemma-4-31b-it")
-    assert warning["id"] == "provider_quota_errors"
-    assert "provider_error_count=2" in warning["message"]
+    warnings = {item["id"]: item for item in budget["warnings"] if item["route"] == "v4/gemma-4-31b-it"}
+    assert set(warnings) == {"provider_quota_errors", "provider_errors"}
+    assert "provider_quota_error_count=1" in warnings["provider_quota_errors"]["message"]
+    assert "provider_non_quota_error_count=1" in warnings["provider_errors"]["message"]
+    assert "provider_status_codes=429:1" in warnings["provider_quota_errors"]["message"]
+    assert "provider_status_codes=504:1" in warnings["provider_errors"]["message"]
 
 
 def test_model_route_budget_payload_does_not_promote_legacy_false_unavailable_flag(monkeypatch):

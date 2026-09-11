@@ -1,6 +1,7 @@
 """Gemma evidence requests reuse provider quota controls, with per-batch cache."""
 import asyncio
 import json
+import time
 
 from google.genai import types
 
@@ -18,9 +19,12 @@ from .generation_config import estimate_agent_input_tokens
 from .llm_call_metadata import _key_slot_fields, _record_llm_token_usage
 from .model_policy import record_model_success
 from .retry_policy import AgentTransientError, _agent_error_category, _raise_agent_call_error
+from .retry_error_classification import provider_status_code
 
 TIMEOUT = 60
 CACHE_SECONDS = 3600
+TRANSIENT_MAX_ATTEMPTS = 2
+RETRY_DELAY_SECONDS = 2
 
 
 def should_batch(agent_num, model_id, prompt, context):
@@ -51,13 +55,17 @@ def append_if_capacity_allows(agent_num, model_id, prompt, notes, context=None):
 def config():
     # A separate extraction protocol, never the final agent's output schema.
     return types.GenerateContentConfig(temperature=0, max_output_tokens=2048, system_instruction=SYSTEM,
-                                       http_options=types.HttpOptions(timeout=TIMEOUT * 1000))
+                                       http_options=types.HttpOptions(
+                                           timeout=TIMEOUT * 1000,
+                                           # Count every HTTP send in our own ledger/retry loop.
+                                           retry_options=types.HttpRetryOptions(attempts=1),
+                                       ))
 
 
-def event(context, batch, phase, rotator=None, key=None, **extra):
+def event(context, batch, phase, rotator=None, key=None, event_message=None, **extra):
     emit_context_event(context, make_runtime_event(
         "status", phase=phase, level="warning" if phase.endswith("error") else "info",
-        message=f"Agent {batch['agent_num']} Gemma 分批證據處理：{phase.removeprefix('gemma_evidence_')}",
+        message=event_message or f"Agent {batch['agent_num']} Gemma 分批證據處理：{phase.removeprefix('gemma_evidence_')}",
         agent_num=batch["agent_num"], pipeline_id=context.get("pipeline_id"),
         metadata={"model_id": MODEL, "call_purpose": "evidence_batch", "batch_id": batch["batch_id"],
                   "estimated_input_tokens": batch_input_tokens(batch),
@@ -82,8 +90,48 @@ def finish_response(batch, context, rotator, key, response):
 
 def provider_error(batch, context, rotator, key, exc):
     event(context, batch, "gemma_evidence_error", rotator, key,
-          error_category=_agent_error_category(exc), error_kind=type(exc).__name__, provider_quota=extract_quota_details(exc))
+          error_category=_agent_error_category(exc), error_kind=type(exc).__name__,
+          provider_status_code=provider_status_code(exc), provider_quota=extract_quota_details(exc))
     _raise_agent_call_error(exc, key, MODEL, rotator, 1)
+
+
+def retry_event(batch, context, exc, attempt):
+    event(
+        context,
+        batch,
+        "gemma_evidence_retry",
+        event_message=(
+            f"Agent {batch['agent_num']} Gemma 證據請求暫時失敗，"
+            f"{RETRY_DELAY_SECONDS} 秒後再試一次；若仍失敗即切換備援模型。"
+        ),
+        attempt=attempt,
+        max_attempts=TRANSIENT_MAX_ATTEMPTS,
+        retry_delay_seconds=RETRY_DELAY_SECONDS,
+        error_category=_agent_error_category(exc),
+        provider_status_code=provider_status_code(exc),
+    )
+
+
+def call_batch_with_retry(batch, context, rotator):
+    for attempt in range(1, TRANSIENT_MAX_ATTEMPTS + 1):
+        try:
+            return call_batch(batch, context, rotator)
+        except AgentTransientError as exc:
+            if attempt >= TRANSIENT_MAX_ATTEMPTS:
+                raise
+            retry_event(batch, context, exc, attempt + 1)
+            time.sleep(RETRY_DELAY_SECONDS)
+
+
+async def call_batch_with_retry_async(batch, context, rotator):
+    for attempt in range(1, TRANSIENT_MAX_ATTEMPTS + 1):
+        try:
+            return await call_batch_async(batch, context, rotator)
+        except AgentTransientError as exc:
+            if attempt >= TRANSIENT_MAX_ATTEMPTS:
+                raise
+            retry_event(batch, context, exc, attempt + 1)
+            await asyncio.sleep(RETRY_DELAY_SECONDS)
 
 
 def call_batch(batch, context, rotator):
@@ -146,7 +194,7 @@ def collect_evidence(agent_num, prompt, context, rotator):
         raise_if_cancelled(context)
         response = cached_response(batch)
         if response is None:
-            response = call_batch(batch, context, rotator)
+            response = call_batch_with_retry(batch, context, rotator)
             save_response(batch, response)
         else:
             event(context, batch, "gemma_evidence_cache_hit")
@@ -162,7 +210,7 @@ async def collect_evidence_async(agent_num, prompt, context, rotator):
         raise_if_cancelled(context)
         response = cached_response(batch)
         if response is None:
-            response = await call_batch_async(batch, context, rotator)
+            response = await call_batch_with_retry_async(batch, context, rotator)
             save_response(batch, response)
         else:
             event(context, batch, "gemma_evidence_cache_hit")
