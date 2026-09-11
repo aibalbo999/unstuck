@@ -7,8 +7,9 @@ def test_daily_panel_uses_provider_errors_and_keeps_local_blocks_separate():
     static = Path(__file__).resolve().parents[1] / "backend" / "static"
     script = """
 global.window = {};
+require(USAGE);
+require(OBSERVATIONS);
 require(PANEL);
-try { require(HELPER); } catch (error) { if (error.code !== 'MODULE_NOT_FOUND') throw error; }
 const summaryEl = {}, listEl = {};
 window.StockAgentApiQuotaPanel.render({ services: [{service:'Gemini / Google AI', configured:true, usage: {
  observed_calls_since_reset:10, observed_quota_errors_since_reset:30,
@@ -16,7 +17,9 @@ window.StockAgentApiQuotaPanel.render({ services: [{service:'Gemini / Google AI'
  quota_day_profile:{today:{requests:10,provider_quota_errors:1,local_blocks:3,other_errors:2,unclassified_quota_errors:0}}
 }}]}, {summaryEl,listEl,escapeHtml: value=>String(value ?? '')});
 process.stdout.write(JSON.stringify(listEl));
-""".replace("PANEL", json.dumps(str(static / "api_quota_panel.js"))).replace("HELPER", json.dumps(str(static / "api_quota_usage_helpers.js")))
+""".replace("USAGE", json.dumps(str(static / "api_quota_usage_helpers.js"))).replace(
+        "OBSERVATIONS", json.dumps(str(static / "api_quota_observations.js"))
+    ).replace("PANEL", json.dumps(str(static / "api_quota_panel.js")))
     result = subprocess.run(["node", "-e", script], capture_output=True, text=True, check=True)
     html = json.loads(result.stdout)["innerHTML"]
     assert "今日 1517 次" in html
