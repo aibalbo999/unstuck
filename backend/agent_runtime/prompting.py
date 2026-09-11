@@ -55,21 +55,25 @@ def data_for_agent_prompt(agent_num: int, data: StockData) -> StockData:
     return prompt_data
 
 
-def build_company_identity_guard(data: StockData) -> str:
+def build_company_identity_guard(data: StockData, *, agent_num: int | None = None) -> str:
     """Build a hard identity lock so agents do not assign peer facts to the target company."""
     identity = raw_identity if isinstance(raw_identity := dict.get(data, "company_identity"), dict) else {}
-    try:
-        if len(identity) == 0:
-            return ""
-    except (TypeError, ValueError, ArithmeticError, RuntimeError, AttributeError):
-        pass
 
-    identity_ticker = _safe_prompt_text(dict.get(identity, "ticker"), "N/A")
-    ticker = _safe_prompt_text(dict.get(data, "ticker"), identity_ticker)
-    stock_id = _safe_prompt_text(dict.get(identity, "stock_id"), ticker)
-    company_name = _safe_prompt_text(dict.get(data, "company_name"), ticker)
-    official_name = _safe_prompt_text(dict.get(identity, "official_name"), company_name)
-    legal_name = _safe_prompt_text(dict.get(identity, "legal_name"))
+    data_ticker = dict.get(data, "ticker")
+    identity_ticker_value = dict.get(identity, "ticker")
+    identity_ticker = _safe_prompt_text(
+        "" if identity_ticker_value is None else identity_ticker_value,
+        _safe_prompt_text("" if data_ticker is None else data_ticker, "N/A"),
+    )
+    ticker = _safe_prompt_text("" if data_ticker is None else data_ticker, identity_ticker)
+    stock_id_value = dict.get(identity, "stock_id")
+    company_name_value = dict.get(data, "company_name")
+    official_name_value = dict.get(identity, "official_name")
+    legal_name_value = dict.get(identity, "legal_name")
+    stock_id = _safe_prompt_text("" if stock_id_value is None else stock_id_value, ticker)
+    company_name = _safe_prompt_text("" if company_name_value is None else company_name_value, ticker)
+    official_name = _safe_prompt_text("" if official_name_value is None else official_name_value, company_name)
+    legal_name = _safe_prompt_text("" if legal_name_value is None else legal_name_value)
     english_names = _safe_prompt_text_list(dict.get(identity, "english_names", []), limit=3)
     forbidden_aliases = _safe_prompt_text_list(dict.get(identity, "forbidden_aliases", []))
 
@@ -81,6 +85,11 @@ def build_company_identity_guard(data: StockData) -> str:
         "english_names": ", ".join(english_names),
         "forbidden_aliases": ", ".join(forbidden_aliases),
     })
+    if agent_num in {22, 23, 24}:
+        lines.append(
+            "- 技術、籌碼與交易角色的唯一主體仍是上述標的；同業名稱只能出現在明確標示「同業」的比較句，"
+            "不得把同業名稱、代號、法人流向或價位寫成本次標的。"
+        )
 
     return "\n".join(lines)
 
@@ -168,7 +177,7 @@ def build_prompt(agent_num: int, data: StockData, context: AnalysisContext) -> s
         token_budget_func=get_agent_prompt_token_budget,
     )
     context["rag_context"] = {agent_num: rag_context}
-    identity_guard = build_company_identity_guard(data)
+    identity_guard = build_company_identity_guard(data, agent_num=agent_num)
     numeric_tool_instruction = build_numeric_tool_instruction(agent_num)
     enrichment_instruction = build_data_enrichment_instruction(agent_num)
     retry_instruction = _safe_prompt_text(context.get("_identity_retry_instruction", ""))

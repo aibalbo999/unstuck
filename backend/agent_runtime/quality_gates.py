@@ -22,6 +22,7 @@ from validators import (
 )
 from .cancellation import raise_if_cancelled
 from .deferred import AgentDeferredError
+from .deterministic_skips import apply_deterministic_agent_skip
 from .retry_policy import AgentConfigurationError
 from .quality_retry import retry_after_agent_quality_issues
 from .quality_structured_outputs import try_parse_structured_output as _try_parse_structured_output
@@ -71,6 +72,9 @@ async def run_agent_with_quality_gates_async(
     )
     context["structured_outputs"].pop(agent_num, None)
     raise_if_cancelled(context)
+    deterministic_result = await apply_deterministic_agent_skip(agent_num, data, context)
+    if deterministic_result is not None:
+        return agent_num, deterministic_result
     restored_draft = has_checkpointed_quality_draft()
     if agent_num in CONTEXT_DIGEST_TARGET_AGENTS and not restored_draft:
         await emit_status_async(

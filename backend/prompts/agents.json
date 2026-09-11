@@ -1,13 +1,49 @@
 {
-  "version": 3,
+  "version": 4,
   "description": "Agent system prompts and analysis prompt templates. Jinja placeholders: {{ ticker }}, {{ name }}, {{ fin_data }}, {{ prev }}.",
   "state_view_policy": {
+    "3": {
+      "normalized_financials": [
+        "gross_margin_raw",
+        "profit_margin_raw",
+        "revenue_history",
+        "net_income_history"
+      ],
+      "peer_context": [
+        "selected_peers",
+        "selection_policy",
+        "dynamic_peer_metrics"
+      ],
+      "root": [
+        "validation_issues",
+        "risk_flags",
+        "source_audit"
+      ]
+    },
     "11": {
       "root": [
         "validation_issues",
         "risk_flags",
         "macro_context",
         "taiwan_open_data"
+      ]
+    },
+    "12": {
+      "normalized_financials": [
+        "gross_margin_raw",
+        "profit_margin_raw",
+        "revenue_history",
+        "net_income_history"
+      ],
+      "peer_context": [
+        "selected_peers",
+        "selection_policy",
+        "dynamic_peer_metrics"
+      ],
+      "root": [
+        "validation_issues",
+        "risk_flags",
+        "source_audit"
       ]
     },
     "13": {

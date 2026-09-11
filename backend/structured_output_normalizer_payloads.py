@@ -24,8 +24,9 @@ _POSITION_ACTIONS = {"進場", "續抱", "減碼", "等待"}
 def _coerce_position_plan_payload(value: Any) -> dict[str, str | int | None]:
     plan = safe_mapping_dict(value) or {}
     action = _string_field_line(plan.get("action"))
-    return {
-        "action": action if action in _POSITION_ACTIONS else "資料不足",
+    action = action if action in _POSITION_ACTIONS else "資料不足"
+    normalized = {
+        "action": action,
         "entry_zone": _string_field_line(plan.get("entry_zone"), "資料不足，等待可驗證進場條件"),
         "position_size": _string_field_line(plan.get("position_size"), "資料不足"),
         "stop_loss": _string_field_line(plan.get("stop_loss"), "資料不足，暫不建立部位"),
@@ -35,11 +36,21 @@ def _coerce_position_plan_payload(value: Any) -> dict[str, str | int | None]:
         "transaction_cost": optional_execution_text(plan.get("transaction_cost")),
         "horizon_trading_days": plan.get("horizon_trading_days"),
     }
+    if action == "等待":
+        normalized.update({
+            "entry_zone": "N/A",
+            "position_size": "0%",
+            "stop_loss": "N/A",
+            "risk_reward": "N/A",
+            "target_price": None,
+            "transaction_cost": None,
+        })
+    return normalized
 
 
-def _coerce_short_setup_payload(value: Any) -> dict[str, str | int | None]:
+def _coerce_short_setup_payload(value: Any, recommendation: Any = None) -> dict[str, str | int | None]:
     setup = safe_mapping_dict(value) or {}
-    return {
+    normalized = {
         "entry_trigger": _string_field_line(setup.get("entry_trigger"), "資料不足，等待可驗證做空觸發"),
         "downside_target": _string_field_line(setup.get("downside_target"), "資料不足"),
         "cover_stop": _string_field_line(setup.get("cover_stop"), "資料不足，暫不建立空方部位"),
@@ -48,6 +59,18 @@ def _coerce_short_setup_payload(value: Any) -> dict[str, str | int | None]:
         "transaction_cost": optional_execution_text(setup.get("transaction_cost")),
         "horizon_trading_days": setup.get("horizon_trading_days"),
     }
+    recommendation_map = safe_mapping_dict(recommendation) or {}
+    label = normalize_recommendation_label(
+        recommendation_map.get("建議", recommendation_map.get("recommendation", recommendation))
+    )
+    if recommendation is not None and label != "放空":
+        normalized.update({
+            "entry_trigger": "目前不建立空方部位；等待可驗證做空觸發後再評估。",
+            "downside_target": "N/A",
+            "cover_stop": "N/A",
+            "transaction_cost": None,
+        })
+    return normalized
 
 
 def _coerce_downside_risk_rows(value: Any, minimum: int = 0, maximum: int = 5) -> list[dict[str, Any]]:
@@ -57,6 +80,7 @@ def _coerce_downside_risk_rows(value: Any, minimum: int = 0, maximum: int = 5) -
                 "title": "下行風險",
                 "evidence": "資料不足",
                 "impact": "",
+                "falsifier": "資料不足，待補可證偽條件",
                 "severity": "warning",
                 "confidence": 0.7,
             }
@@ -71,6 +95,7 @@ def _coerce_downside_risk_rows(value: Any, minimum: int = 0, maximum: int = 5) -
                 "title": "下行風險",
                 "evidence": "資料不足",
                 "impact": "",
+                "falsifier": "資料不足，待補可證偽條件",
                 "severity": "warning",
                 "confidence": 0.7,
             })
@@ -86,6 +111,10 @@ def _coerce_downside_risk_rows(value: Any, minimum: int = 0, maximum: int = 5) -
             "title": title or "下行風險",
             "evidence": evidence or "資料不足",
             "impact": _string_field_line(row.get("impact")),
+            "falsifier": _string_field_line(
+                row.get("falsifier"),
+                "資料不足，待補可證偽條件",
+            ),
             "severity": severity,
             "confidence": confidence if confidence is not None else 0.7,
         }
@@ -100,6 +129,7 @@ def _coerce_downside_risk_rows(value: Any, minimum: int = 0, maximum: int = 5) -
             "title": "下行風險",
             "evidence": "資料不足",
             "impact": "",
+            "falsifier": "資料不足，待補可證偽條件",
             "severity": "warning",
             "confidence": 0.7,
         })
@@ -178,7 +208,7 @@ def _coerce_trade_setup_payload(value: Any) -> Any:
         trade_direction = "Neutral"
     if risk_level not in _TRADE_RISK_LEVELS:
         risk_level = "High"
-    return {
+    normalized = {
         **payload,
         "trade_direction": trade_direction,
         "entry_zone": _string_field_line(payload.get("entry_zone"), "N/A"),
@@ -188,6 +218,26 @@ def _coerce_trade_setup_payload(value: Any) -> Any:
         "risk_level": risk_level,
         "transaction_cost": optional_execution_text(payload.get("transaction_cost")),
     }
+    missing_execution = any(
+        not normalized[key] or normalized[key].upper() in {"N/A", "NA"} or "資料不足" in normalized[key]
+        for key in ("entry_zone", "target_price", "stop_loss")
+    )
+    if trade_direction == "Neutral" or missing_execution:
+        if trade_direction != "Neutral" and missing_execution:
+            reason = normalized["core_catalyst"]
+            if not reason or reason.upper() in {"N/A", "NA"}:
+                reason = "等待可驗證技術、籌碼與事件條件"
+            normalized["core_catalyst"] = "資料不足，原方向不可執行；" + reason
+        normalized.update({
+            "trade_direction": "Neutral",
+            "entry_zone": "N/A",
+            "target_price": "N/A",
+            "stop_loss": "N/A",
+            "transaction_cost": None,
+        })
+        if missing_execution:
+            normalized["risk_level"] = "High"
+    return normalized
 
 
 def _coerce_recommendation_payload(value: Any, default_label: str = "持有") -> Any:

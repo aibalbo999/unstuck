@@ -89,11 +89,13 @@
         "    \"專利技術\": number|null,",
         "    \"整體護城河\": number|null",
         "  },",
+        "  \"moat_evidence\": {\"品牌影響力\": {\"finding\": \"結論\", \"source_refs\": [\"可追溯資料路徑\"], \"counterevidence\": \"反證或資料缺口\"}, \"網路效應\": {}, \"轉換成本\": {}, \"成本優勢\": {}, \"專利技術\": {}, \"整體護城河\": {}},",
         "  \"analysis_markdown\": \"繁體中文正式報告正文\"",
         "}"
       ],
       "rules": [
         "reasoning_steps 必須先於 moat_scores 產生，且每一步都要連結具體證據、反證或資料限制。",
+        "moat_evidence 必須逐項對應每個非 null 分數，source_refs 只能填本次可見的 State 或財務 JSON 路徑，不得自造網址或來源。",
         "有證據的分數必須是 1-10；無足夠證據時填 null 並標記未評估，不得以低分代替。",
         "analysis_markdown 不可重複系統提示詞或草稿筆記。",
         "任一護城河維度給 7 分以上，reasoning_steps 或 analysis_markdown 必須引用至少 1 項具體數字、同業比較、專利/市佔/客戶黏著度證據或清楚處理反證。",
@@ -174,6 +176,23 @@
         "next_catalysts 必須列出 1-3 個未來可觀察事件，trigger_condition 要能直接轉成 watchlist radar 條件，不可寫成泛泛口號。"
       ]
     },
+    "11": {
+      "title": "總經證據與時點結構化輸出規則",
+      "intro": "請只輸出合法 JSON，不要 Markdown code fence。",
+      "schema_lines": [
+        "{",
+        "  \"as_of_date\": \"YYYY-MM-DD 或資料時點未提供\",",
+        "  \"confidence\": \"high|medium|low|unassessed\",",
+        "  \"evidence_items\": [{\"finding\": \"總經發現\", \"source_refs\": [\"可追溯資料路徑\"], \"freshness_note\": \"資料日期與延遲限制\", \"counterevidence\": \"反證或資料缺口\"}],",
+        "  \"analysis_markdown\": \"繁體中文正式總經報告\"",
+        "}"
+      ],
+      "rules": [
+        "至少提供 1 項 evidence_items；source_refs 只能引用本次可見資料路徑，不得自造來源或日期。",
+        "利率、匯率、景氣與跨市場判斷必須標示資料時點；資料落後或缺漏時降低 confidence。",
+        "不得提出個股目標價或最終投資建議。"
+      ]
+    },
     "12": {
       "title": "結構化輸出硬性規則",
       "intro": "請只輸出合法 JSON，不要 Markdown code fence，不要前言，不要附註。",
@@ -190,11 +209,13 @@
         "    \"專利技術\": number|null,",
         "    \"整體護城河\": number|null",
         "  },",
+        "  \"moat_evidence\": {\"品牌影響力\": {\"finding\": \"結論\", \"source_refs\": [\"可追溯資料路徑\"], \"counterevidence\": \"反證或資料缺口\"}, \"網路效應\": {}, \"轉換成本\": {}, \"成本優勢\": {}, \"專利技術\": {}, \"整體護城河\": {}},",
         "  \"analysis_markdown\": \"繁體中文正式報告正文\"",
         "}"
       ],
       "rules": [
         "reasoning_steps 必須先於 moat_scores 產生，且每一步都要連結具體證據、反證或資料限制。",
+        "moat_evidence 必須逐項對應每個非 null 分數，source_refs 只能填本次可見的 State 或財務 JSON 路徑，不得自造網址或來源。",
         "有證據的分數必須是 1-10；無足夠證據時填 null 並標記未評估，不得以低分代替。",
         "analysis_markdown 不可重複系統提示詞或草稿筆記。",
         "任一護城河維度給 7 分以上，reasoning_steps 或 analysis_markdown 必須引用至少 1 項具體數字、同業比較、專利/市佔/客戶黏著度證據或清楚處理反證。",
@@ -235,6 +256,23 @@
         "不可僅憑 AI、熱門題材或市場熱度提高成長率或估值倍數；資料不足時需採保守情境、降低倍數或標示低信心。",
         "dcf_scenarios 應逐一引用 deterministic DCF 的 bear/base/bull 假設；Bull 的成長與利潤率偏差較 Base 樂觀且 WACC 較低，Bear 反之。",
         "三情境目標價必須同時存在且滿足 熊市情境 <= 基本情境 <= 牛市情境；若資料不足，仍需輸出保守可比較的三情境數字並在 reasoning 說明限制。"
+      ]
+    },
+    "15": {
+      "title": "籌碼動能證據與時點結構化輸出規則",
+      "intro": "請只輸出合法 JSON，不要 Markdown code fence。",
+      "schema_lines": [
+        "{",
+        "  \"as_of_date\": \"YYYY-MM-DD 或資料時點未提供\",",
+        "  \"confidence\": \"high|medium|low|unassessed\",",
+        "  \"evidence_items\": [{\"finding\": \"籌碼發現\", \"source_refs\": [\"可追溯資料路徑\"], \"freshness_note\": \"資料日期與延遲限制\", \"counterevidence\": \"反向籌碼或資料缺口\"}],",
+        "  \"analysis_markdown\": \"繁體中文正式籌碼報告\"",
+        "}"
+      ],
+      "rules": [
+        "至少提供 1 項 evidence_items；法人、融資券與大戶資料須各自引用本次可見路徑，不得補造張數或連續天數。",
+        "明確區分 5、10、20 交易日觀察窗與資料截至日；資料不足時降低 confidence。",
+        "不得提出最終 recommendation、目標價或部位指令。"
       ]
     },
     "16": {
@@ -356,14 +394,48 @@
       "schema_lines": [
         "{",
         "  \"thesis_summary\": \"被檢驗論點的反證摘要\",",
-        "  \"downside_risks\": [{\"title\": \"風險\", \"evidence\": \"State 證據\", \"impact\": \"衝擊\", \"severity\": \"warning|high|critical\", \"confidence\": 0.0}],",
+        "  \"downside_risks\": [{\"title\": \"風險\", \"evidence\": \"State 證據\", \"impact\": \"衝擊\", \"falsifier\": \"可證偽條件\", \"severity\": \"warning|high|critical\", \"confidence\": 0.0}],",
         "  \"analysis_markdown\": \"繁體中文獨立反證報告\"",
         "}"
       ],
       "rules": [
         "downside_risks 只列有證據的 0 至 5 項，不得為湊滿數量補造風險；不足3項須在正文說明資料限制或反證不足。",
         "模式 C 的 downside_risks 是空方部位的風險，須挑戰空方主要論點；模式 A/B 為多頭部位的下行風險。",
-        "每項風險必須具備可追溯證據，不得補造。"
+        "每項風險必須具備可追溯證據與可觀察的 falsifier（可證偽條件），不得補造。"
+      ]
+    },
+    "22": {
+      "title": "短線技術證據與時點結構化輸出規則",
+      "intro": "請只輸出合法 JSON，不要 Markdown code fence。",
+      "schema_lines": [
+        "{",
+        "  \"as_of_date\": \"YYYY-MM-DD 或資料時點未提供\",",
+        "  \"confidence\": \"high|medium|low|unassessed\",",
+        "  \"evidence_items\": [{\"finding\": \"技術發現\", \"source_refs\": [\"可追溯資料路徑\"], \"freshness_note\": \"K 線資料截至日與延遲\", \"counterevidence\": \"反向技術訊號或資料缺口\"}],",
+        "  \"analysis_markdown\": \"繁體中文 1-2 週技術報告\"",
+        "}"
+      ],
+      "rules": [
+        "至少提供 1 項 evidence_items；支撐、壓力、均線、量價或 ATR 判斷只能引用 short_term_market_context 的可見路徑。",
+        "所有技術訊號必須標示行情資料截至日；資料過舊或不足時降低 confidence。",
+        "不得給出最終 trade_direction、entry_zone、target_price 或 stop_loss。"
+      ]
+    },
+    "23": {
+      "title": "短線籌碼證據與時點結構化輸出規則",
+      "intro": "請只輸出合法 JSON，不要 Markdown code fence。",
+      "schema_lines": [
+        "{",
+        "  \"as_of_date\": \"YYYY-MM-DD 或資料時點未提供\",",
+        "  \"confidence\": \"high|medium|low|unassessed\",",
+        "  \"evidence_items\": [{\"finding\": \"籌碼發現\", \"source_refs\": [\"可追溯資料路徑\"], \"freshness_note\": \"資料截至日與延遲\", \"counterevidence\": \"反向籌碼或資料缺口\"}],",
+        "  \"analysis_markdown\": \"繁體中文 1-2 週籌碼報告\"",
+        "}"
+      ],
+      "rules": [
+        "至少提供 1 項 evidence_items；法人、大戶、融資券與借券判斷只能引用本次可見 State 路徑。",
+        "明確區分 5、10、20 交易日觀察窗與資料截至日；單日雜訊不得冒稱趨勢。",
+        "不得給出最終 trade_direction、entry_zone、target_price 或 stop_loss。"
       ]
     },
     "24": {
@@ -397,7 +469,7 @@
     "2": {
       "title": "數值工具使用規則",
       "rules": [
-        "CAGR 請呼叫 calculate_cagr，或引用財務 JSON 中 deterministic_financial_tool_results.calculations.revenue_cagr。",
+        "CAGR 只引用財務 JSON 中 deterministic_financial_tool_results.calculations.revenue_cagr；缺少結果時標示資料不足。",
         "FCF/淨利、年度成長率與杜邦恒等式應以 JSON 欄位與工具結果為準，不自行心算替換單位。",
         "正式輸出可列簡短公式摘要，但不要輸出內部驗算草稿。"
       ]
@@ -406,22 +478,22 @@
       "title": "估值工具使用規則",
       "rules": [
         "先檢查 quant_metrics.v2 的各別 metric_status：dcf/wacc/implied_pe 僅 available 才可引用。負 FCF、缺 raw 事實等造成 unavailable 時，不得把 DCF 當作下行保護或現金流底線；此規則優先於 high_growth 底線規則。method/unit/input_provenance 必須沿用工具結果，twd_per_share 不得再當 billion TWD 換算。",
-        "WACC 權重請呼叫 calculate_wacc，或引用 deterministic_financial_tool_results.calculations.market_value_wacc_default。",
-        "DCF 情境請呼叫 calculate_dcf，或引用 deterministic_financial_tool_results.calculations.dcf_scenarios_default。",
-        "金融股或殖利率高於 5% 的標的，請呼叫 calculate_ddm 或引用 ddm_scenarios_default，並提高 DDM/P/B 權重。",
+        "WACC 權重只引用 deterministic_financial_tool_results.calculations.market_value_wacc_default；缺少結果時不得自行補算。",
+        "DCF 情境只引用 deterministic_financial_tool_results.calculations.dcf_scenarios_default；缺少結果時不得輸出 DCF 目標價。",
+        "金融股或殖利率高於 5% 的標的，只在 ddm_scenarios_default 可用時提高 DDM/P/B 權重。",
         "若自行調整成長率、折現率或 normalized FCF，需清楚列出參數，計算結果以工具回傳值為準。",
         "本益比估值與 DCF 必須分開呈現；正式輸出只保留必要算式摘要。",
         "若自行設定未來營收或 FCF 年成長率超過 30%，需同時列出 CapEx/產能/折舊/良率支撐依據；沒有依據時不得把該高成長情境作為基本情境。",
         "若 dcf_scenarios_default.growth_phase 為 high_growth，必須在報告中說明成長率假設已放寬，並以 Forward P/E 作為主要估值方法；不得只呈現 DCF 結果而不說明此限制。",
         "若 market_catalysts 中偵測到產品單價（ASP）結構性變動相關詞彙，必須觸發 ASP 風險提示段落，並在 bear 情境備註中說明潛在下修幅度。",
         "正式報告中的關鍵數字必須能追溯到 AgentState view 的 state path，例如 normalized_financials、quant_metrics、peer_context 或 tool_results；不可只引用前序摘要。",
-        "若 Forward EPS 或市場共識 EPS 隱含極端成長，必須呼叫 calculate_implied_revenue_growth，並在正式輸出引用工具回傳的 implied_revenue_cagr_pct。"
+        "若 Forward EPS 或市場共識 EPS 隱含極端成長，只能引用 deterministic 結果中的 implied_revenue_cagr_pct；缺少時明確標示無法驗證。"
       ]
     },
     "13": {
       "title": "數值工具使用規則",
       "rules": [
-        "CAGR 請呼叫 calculate_cagr，或引用財務 JSON 中 deterministic_financial_tool_results.calculations.revenue_cagr。",
+        "CAGR 只引用財務 JSON 中 deterministic_financial_tool_results.calculations.revenue_cagr；缺少結果時標示資料不足。",
         "FCF/淨利、年度成長率與杜邦恒等式應以 JSON 欄位與工具結果為準，不自行心算替換單位。",
         "正式輸出可列簡短公式摘要，但不要輸出內部驗算草稿。"
       ]
@@ -430,22 +502,22 @@
       "title": "估值工具使用規則",
       "rules": [
         "先檢查 quant_metrics.v2 的各別 metric_status：dcf/wacc/implied_pe 僅 available 才可引用。負 FCF、缺 raw 事實等造成 unavailable 時，不得把 DCF 當作下行保護或現金流底線；此規則優先於 high_growth 底線規則。method/unit/input_provenance 必須沿用工具結果，twd_per_share 不得再當 billion TWD 換算。",
-        "WACC 權重請呼叫 calculate_wacc，或引用 deterministic_financial_tool_results.calculations.market_value_wacc_default。",
-        "DCF 情境請呼叫 calculate_dcf，或引用 deterministic_financial_tool_results.calculations.dcf_scenarios_default。",
-        "金融股或殖利率高於 5% 的標的，請呼叫 calculate_ddm 或引用 ddm_scenarios_default，並提高 DDM/P/B 權重。",
+        "WACC 權重只引用 deterministic_financial_tool_results.calculations.market_value_wacc_default；缺少結果時不得自行補算。",
+        "DCF 情境只引用 deterministic_financial_tool_results.calculations.dcf_scenarios_default；缺少結果時不得輸出 DCF 目標價。",
+        "金融股或殖利率高於 5% 的標的，只在 ddm_scenarios_default 可用時提高 DDM/P/B 權重。",
         "若自行調整成長率、折現率或 normalized FCF，需清楚列出參數，計算結果以工具回傳值為準。",
         "本益比估值與 DCF 必須分開呈現；正式輸出只保留必要算式摘要。",
         "若自行設定未來營收或 FCF 年成長率超過 30%，需同時列出 CapEx/產能/折舊/良率支撐依據；沒有依據時不得把該高成長情境作為基本情境。",
         "若 dcf_scenarios_default.growth_phase 為 high_growth，必須在報告中說明成長率假設已放寬，並以 Forward P/E 作為主要估值方法；不得只呈現 DCF 結果而不說明此限制。",
         "若 market_catalysts 中偵測到產品單價（ASP）結構性變動相關詞彙，必須觸發 ASP 風險提示段落，並在 bear 情境備註中說明潛在下修幅度。",
         "正式報告中的關鍵數字必須能追溯到 AgentState view 的 state path，例如 normalized_financials、quant_metrics、peer_context 或 tool_results；不可只引用前序摘要。",
-        "若 Forward EPS 或市場共識 EPS 隱含極端成長，必須呼叫 calculate_implied_revenue_growth，並在正式輸出引用工具回傳的 implied_revenue_cagr_pct。"
+        "若 Forward EPS 或市場共識 EPS 隱含極端成長，只能引用 deterministic 結果中的 implied_revenue_cagr_pct；缺少時明確標示無法驗證。"
       ]
     },
     "18": {
       "title": "數值工具使用規則",
       "rules": [
-        "CAGR 請呼叫 calculate_cagr，或引用財務 JSON 中 deterministic_financial_tool_results.calculations.revenue_cagr。",
+        "CAGR 只引用財務 JSON 中 deterministic_financial_tool_results.calculations.revenue_cagr；缺少結果時標示資料不足。",
         "ROE、資產周轉率、毛利率、FCF/淨利與法人籌碼資料應以 JSON 欄位與工具結果為準，不自行心算替換單位。",
         "正式輸出可列簡短公式摘要與反證推論，但不要輸出內部驗算草稿。"
       ]

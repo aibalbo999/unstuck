@@ -20,6 +20,54 @@ from .retry_policy import AgentTransientError
 from .routing import get_agent_function_tools
 
 
+GENERATION_POLICY_VERSION = "agent-generation:v1"
+_DEFAULT_GENERATION_PROFILE = {
+    "temperature": 0.7,
+    "top_p": 0.95,
+    "max_output_tokens": 8192,
+}
+
+# The former global 0.7/0.95/8192 policy made deterministic evidence roles as
+# variable and expensive as the debate role.  Keep one explicit profile per
+# numbered agent so report provenance can identify the policy actually used.
+AGENT_GENERATION_PROFILES = {
+    1: {"temperature": 0.45, "top_p": 0.90, "max_output_tokens": 4096},
+    2: {"temperature": 0.25, "top_p": 0.90, "max_output_tokens": 4096},
+    3: {"temperature": 0.30, "top_p": 0.90, "max_output_tokens": 4096},
+    4: {"temperature": 0.20, "top_p": 0.85, "max_output_tokens": 6144},
+    5: {"temperature": 0.45, "top_p": 0.90, "max_output_tokens": 4096},
+    6: {"temperature": 0.60, "top_p": 0.95, "max_output_tokens": 4096},
+    7: {"temperature": 0.25, "top_p": 0.90, "max_output_tokens": 6144},
+    11: {"temperature": 0.40, "top_p": 0.90, "max_output_tokens": 3072},
+    12: {"temperature": 0.30, "top_p": 0.90, "max_output_tokens": 4096},
+    13: {"temperature": 0.25, "top_p": 0.90, "max_output_tokens": 3072},
+    14: {"temperature": 0.20, "top_p": 0.85, "max_output_tokens": 6144},
+    15: {"temperature": 0.40, "top_p": 0.90, "max_output_tokens": 3072},
+    16: {"temperature": 0.25, "top_p": 0.90, "max_output_tokens": 6144},
+    17: {"temperature": 0.40, "top_p": 0.90, "max_output_tokens": 3072},
+    18: {"temperature": 0.25, "top_p": 0.90, "max_output_tokens": 4096},
+    19: {"temperature": 0.25, "top_p": 0.90, "max_output_tokens": 6144},
+    20: {"temperature": 0.20, "top_p": 0.85, "max_output_tokens": 1024},
+    21: {"temperature": 0.25, "top_p": 0.90, "max_output_tokens": 4096},
+    22: {"temperature": 0.35, "top_p": 0.90, "max_output_tokens": 3072},
+    23: {"temperature": 0.30, "top_p": 0.90, "max_output_tokens": 3072},
+    24: {"temperature": 0.20, "top_p": 0.85, "max_output_tokens": 2048},
+}
+_BOUNDED_THINKING_MODELS = {"gemini-3.5-flash-lite", "gemini-3.7-flash", "gemini-3.8-flash"}
+_MEDIUM_THINKING_AGENTS = {7, 16, 19, 24}
+
+
+def generation_profile(agent_num: int) -> dict[str, int | float]:
+    return dict(AGENT_GENERATION_PROFILES.get(agent_num, _DEFAULT_GENERATION_PROFILE))
+
+
+def generation_event_metadata(agent_num: int, model_id: str) -> dict[str, int | float | str]:
+    metadata = generation_profile(agent_num)
+    if model_id in _BOUNDED_THINKING_MODELS:
+        metadata["thinking_level"] = "medium" if agent_num in _MEDIUM_THINKING_AGENTS else "low"
+    return metadata
+
+
 def _sanitize_genai_schema(node: Any) -> Any:
     """Recursively remove or rewrite JSON-schema fields rejected by Google GenAI.
 
@@ -54,11 +102,7 @@ def _generate_config_supports(field_name: str) -> bool:
 def build_generation_config(agent_num: int, system_instruction: Optional[str] = None):
     """Build Google GenAI generation config, using JSON MIME type where supported."""
     uses_structured_response = agent_num in STRUCTURED_AGENT_INSTRUCTIONS
-    config_kwargs = {
-        "temperature": 0.7,
-        "top_p": 0.95,
-        "max_output_tokens": 8192,
-    }
+    config_kwargs = generation_profile(agent_num)
     if system_instruction:
         config_kwargs["system_instruction"] = system_instruction
     if uses_structured_response:
@@ -121,13 +165,14 @@ def google_safe_agent_system_instruction(agent_num: int, model_id: str) -> str:
 
 def _generate_content(api_key: str, model_id: str, agent_num: int, prompt: str):
     config = build_generation_config(agent_num, google_safe_agent_system_instruction(agent_num, model_id))
-    config = apply_model_generation_policy(config, model_id)
+    config = apply_model_generation_policy(config, model_id, agent_num)
     return generate_content(api_key, model_id, prompt, config)
 
 
-def apply_model_generation_policy(config, model_id: str):
-    if model_id in {"gemini-3.5-flash-lite", "gemini-3.7-flash", "gemini-3.8-flash"}:
-        return config.model_copy(update={"thinking_config": types.ThinkingConfig(thinking_level="low")})
+def apply_model_generation_policy(config, model_id: str, agent_num: int | None = None):
+    if model_id in _BOUNDED_THINKING_MODELS:
+        level = "medium" if agent_num in _MEDIUM_THINKING_AGENTS else "low"
+        return config.model_copy(update={"thinking_config": types.ThinkingConfig(thinking_level=level)})
     return config
 
 
@@ -140,13 +185,13 @@ def estimate_agent_input_tokens(agent_num: int, model_id: str, prompt: str) -> i
 
 async def _generate_content_async(api_key: str, model_id: str, agent_num: int, prompt: str):
     config = build_generation_config(agent_num, google_safe_agent_system_instruction(agent_num, model_id))
-    config = apply_model_generation_policy(config, model_id)
+    config = apply_model_generation_policy(config, model_id, agent_num)
     return await generate_content_async(api_key, model_id, prompt, config)
 
 
 async def _generate_content_stream_async(api_key: str, model_id: str, agent_num: int, prompt: str, *, on_delta=None):
     config = build_generation_config(agent_num, google_safe_agent_system_instruction(agent_num, model_id))
-    config = apply_model_generation_policy(config, model_id)
+    config = apply_model_generation_policy(config, model_id, agent_num)
     return await generate_content_stream_async(api_key, model_id, prompt, config, on_delta=on_delta)
 
 

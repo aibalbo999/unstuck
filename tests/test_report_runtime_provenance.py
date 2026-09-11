@@ -54,8 +54,8 @@ def test_report_packet_records_actual_final_model_and_fallback_route():
     assert packet["source_publication_at"] == ""
     assert packet["source_provenance_coverage"] == "incomplete"
     assert packet["model_executions"] == [
-        context["model_executions"][11],
-        context["model_executions"][16],
+        {**context["model_executions"][11], "generation_policy_version": "", "generation_config": {}},
+        {**context["model_executions"][16], "generation_policy_version": "", "generation_config": {}},
     ]
 
 
@@ -82,6 +82,37 @@ def test_model_execution_receipt_distinguishes_skipped_provider_and_cache_routes
         "failed_models": [],
         "fallback_used": True,
         "cache_hit": True,
+        "generation_policy_version": "",
+        "generation_config": {},
+    }
+
+
+def test_model_execution_receipt_keeps_secret_safe_generation_settings():
+    receipts = model_executions_from_events([{
+        "payload": {
+            "pipeline_id": "v4",
+            "agent_num": 24,
+            "phase": "llm_model_response",
+            "metadata": {
+                "model_id": "gemini-3.8-flash",
+                "generation_policy_version": "agent-generation:v1",
+                "generation_config": {
+                    "temperature": 0.2,
+                    "top_p": 0.85,
+                    "max_output_tokens": 2048,
+                    "thinking_level": "medium",
+                    "api_key": "must-not-survive",
+                },
+            },
+        },
+    }], "v4")
+
+    assert receipts[24]["generation_policy_version"] == "agent-generation:v1"
+    assert receipts[24]["generation_config"] == {
+        "temperature": 0.2,
+        "top_p": 0.85,
+        "max_output_tokens": 2048,
+        "thinking_level": "medium",
     }
 
 

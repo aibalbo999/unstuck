@@ -26,6 +26,15 @@ def make_context(pipeline="v2"):
     }
 
 
+def test_context_digest_generation_budget_matches_compact_schema():
+    from context_digest_runtime import CONTEXT_DIGEST_MAX_OUTPUT_TOKENS, _build_digest_generation_config
+
+    config = _build_digest_generation_config()
+
+    assert CONTEXT_DIGEST_MAX_OUTPUT_TOKENS == 2048
+    assert config.max_output_tokens == CONTEXT_DIGEST_MAX_OUTPUT_TOKENS
+
+
 @pytest.mark.parametrize("change", ["tail", "structured", "guidance", "red_team", "fingerprint", "output_version"])
 def test_digest_hash_changes_with_all_real_upstream_inputs(change):
     context = make_context()
@@ -230,3 +239,35 @@ def test_chief_editor_does_not_claim_conflicts_resolved_from_field_presence():
     assert not any("已收斂" in line for line in resolutions)
     assert any("目標價 300 與三情境區間不一致" in line for line in resolutions)
     assert context == before
+
+
+def test_chief_editor_selects_mode_relevant_reports_instead_of_dict_prefix():
+    from types import SimpleNamespace
+
+    reports = {
+        str(agent): SimpleNamespace(markdown=f"AGENT_{agent}_VIEW。")
+        for agent in (1, 2, 3, 4, 22, 23, 24)
+    }
+    state = SimpleNamespace(
+        agent_reports=reports,
+        executive_thesis=None,
+        smoothed_markdown=None,
+        next_catalysts=[],
+    )
+    context = {
+        "pipeline_id": "v4",
+        "data": {"ticker": "TEST", "company_name": "Fixture"},
+        "parsed": {"trade_setup": {"trade_direction": "Neutral"}},
+        "agent_state": state,
+    }
+
+    result = run_chief_editor_synthesis(context)
+    markdown = result["smoothed_markdown"]
+
+    assert "Agent 22：AGENT_22_VIEW。" in markdown
+    assert "Agent 23：AGENT_23_VIEW。" in markdown
+    assert "Agent 24：AGENT_24_VIEW。" in markdown
+    assert "AGENT_1_VIEW" not in markdown
+    chief = result["structured_outputs"]["chief_editor"]
+    assert "AGENT_24_VIEW" in chief["bull_case_summary"]
+    assert "AGENT_22_VIEW" in chief["bear_case_summary"]

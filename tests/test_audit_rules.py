@@ -964,7 +964,7 @@ class AuditRuleTests(unittest.TestCase):
             [tool.__name__ for tool in ar.get_agent_function_tools(14)],
         )
 
-    def test_valuation_rules_require_implied_growth_tool_for_extreme_forward_eps(self):
+    def test_valuation_rules_require_precomputed_implied_growth_for_extreme_forward_eps(self):
         rules = json.loads(
             (ROOT / "backend" / "prompts" / "runtime_rules.json").read_text(encoding="utf-8")
         )
@@ -973,13 +973,12 @@ class AuditRuleTests(unittest.TestCase):
             valuation_rules = rules["numeric_tool_instructions"][agent_num]["rules"]
             self.assertTrue(
                 any(
-                    "calculate_implied_revenue_growth" in rule
-                    and "implied_revenue_cagr_pct" in rule
+                    "implied_revenue_cagr_pct" in rule
+                    and "deterministic" in rule
                     for rule in valuation_rules
                 )
             )
-        self.assertNotIn("絕對禁止自行計算", ar.ANALYSIS_PROMPTS[4])
-        self.assertIn("工具呼叫", ar.ANALYSIS_PROMPTS[4])
+            self.assertNotIn("必須呼叫 calculate_implied_revenue_growth", "\n".join(valuation_rules))
 
     def test_structured_agents_use_native_response_schema(self):
         config_obj = ar.build_generation_config(3, "system")

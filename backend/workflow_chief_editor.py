@@ -10,6 +10,21 @@ from investment_thesis import build_investment_thesis
 from pipeline_modes import normalize_pipeline_id
 
 
+_EDITORIAL_AGENT_PRIORITY = {
+    "v1": (4, 6, 21, 7),
+    "v2": (13, 14, 15, 21, 16),
+    "v3": (17, 18, 21, 19),
+    "v4": (22, 23, 24),
+}
+
+_CASE_AGENT_PRIORITY = {
+    "v1": {"bull": (4, 7, 6), "bear": (21,)},
+    "v2": {"bull": (14, 16, 15), "bear": (21,)},
+    "v3": {"bull": (21,), "bear": (19, 18)},
+    "v4": {"bull": (24, 23), "bear": (22, 24)},
+}
+
+
 def run_chief_editor_synthesis(context: AnalysisContext) -> dict[str, Any]:
     """Synthesize a single editorial thesis without introducing new facts."""
     parsed = context.get("parsed", {}) or {}
@@ -47,12 +62,8 @@ def run_chief_editor_synthesis(context: AnalysisContext) -> dict[str, Any]:
     if not resolved:
         resolved.append("已記錄的最終稽核未列出未解決問題；此結果不代表所有研究分歧均已消除。" if audit else "最終稽核尚未記錄，無法確認研究分歧的處理狀態。")
 
-    lead_sections = []
-    for agent_id, report in list(agent_reports.items())[:4]:
-        lead_sections.append(f"- Agent {agent_id}：{_first_sentence(report.markdown)}")
-    if not lead_sections:
-        for agent_id, text in list(analyses.items())[:4]:
-            lead_sections.append(f"- Agent {agent_id}：{_first_sentence(str(text))}")
+    lead_sections = _mode_relevant_report_lines(pipeline_id, agent_reports, analyses)
+    case_summaries = _mode_case_summaries(pipeline_id, agent_reports, analyses)
 
     smoothed_markdown = "\n".join([
         "## Executive Thesis",
@@ -79,8 +90,8 @@ def run_chief_editor_synthesis(context: AnalysisContext) -> dict[str, Any]:
         "structured_outputs": {
             "chief_editor": {
                 "core_thesis": thesis,
-                "bull_case_summary": "多方取決於成長、估值與催化條件能否同步驗證。",
-                "bear_case_summary": "空方取決於財務品質、估值折讓與資料限制是否擴大。",
+                "bull_case_summary": case_summaries["bull"],
+                "bear_case_summary": case_summaries["bear"],
                 "resolved_contradictions": resolved,
                 "smoothed_markdown": smoothed_markdown,
             }
@@ -157,6 +168,55 @@ def _first_mapping_value(mapping: dict, needle: str) -> Any:
         if needle in str(key):
             return value
     return None
+
+
+def _report_text(agent_id: int, agent_reports: Any, analyses: Any) -> str:
+    reports = agent_reports if isinstance(agent_reports, dict) else {}
+    report = reports.get(str(agent_id), reports.get(agent_id))
+    if report is not None:
+        if isinstance(report, dict):
+            text = report.get("markdown")
+        else:
+            text = getattr(report, "markdown", None)
+        if text:
+            return str(text)
+    analysis_map = analyses if isinstance(analyses, dict) else {}
+    text = analysis_map.get(agent_id, analysis_map.get(str(agent_id)))
+    return str(text or "")
+
+
+def _mode_relevant_report_lines(
+    pipeline_id: str,
+    agent_reports: Any,
+    analyses: Any,
+) -> list[str]:
+    lines = []
+    for agent_id in _EDITORIAL_AGENT_PRIORITY[pipeline_id]:
+        text = _report_text(agent_id, agent_reports, analyses)
+        if text:
+            lines.append(f"- Agent {agent_id}：{_first_sentence(text)}")
+    return lines
+
+
+def _mode_case_summaries(
+    pipeline_id: str,
+    agent_reports: Any,
+    analyses: Any,
+) -> dict[str, str]:
+    fallbacks = {
+        "bull": "目前沒有足夠的模式內證據可形成多方摘要。",
+        "bear": "目前沒有足夠的模式內證據可形成空方摘要。",
+    }
+    result = {}
+    for side in ("bull", "bear"):
+        summary = ""
+        for agent_id in _CASE_AGENT_PRIORITY[pipeline_id][side]:
+            text = _report_text(agent_id, agent_reports, analyses)
+            if text:
+                summary = f"Agent {agent_id}：{_first_sentence(text)}"
+                break
+        result[side] = summary or fallbacks[side]
+    return result
 
 
 def _summarize_final_audit(audit: dict) -> str:

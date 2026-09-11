@@ -94,7 +94,8 @@ def ensure_tear_sheet_summary(context: dict, rotator: KeyRotator, progress_callb
     if context.get("tear_sheet_summary") or not isinstance(rotator, KeyRotator):
         return
     prompt = _build_tear_sheet_prompt(context)
-    for model_id in _tear_sheet_model_sequence():
+    models = _tear_sheet_model_sequence()
+    for model_index, model_id in enumerate(models):
         try:
             emit_context_event(
                 context,
@@ -126,6 +127,7 @@ def ensure_tear_sheet_summary(context: dict, rotator: KeyRotator, progress_callb
                 return
         except Exception as exc:
             if is_missing_model_error(str(exc)):
+                has_fallback = model_index + 1 < len(models)
                 emit_context_event(
                     context,
                     make_runtime_event(
@@ -133,13 +135,19 @@ def ensure_tear_sheet_summary(context: dict, rotator: KeyRotator, progress_callb
                         **_tear_sheet_event_kwargs(
                             context,
                             model_id,
-                            "model_fallback",
-                            f"一頁式摘要模型 {model_id} 不可用，嘗試備援模型。",
+                            "model_fallback" if has_fallback else "tear_sheet_fallback",
+                            (
+                                f"一頁式摘要模型 {model_id} 不可用，嘗試備援模型。"
+                                if has_fallback
+                                else f"一頁式摘要模型 {model_id} 不可用，改用 deterministic fallback 摘要。"
+                            ),
                             level="warning",
                         ),
                     ),
                     progress_callback,
                 )
+                if not has_fallback:
+                    return
                 continue
             message = f"一頁式摘要生成失敗，報表將使用 fallback 摘要：{str(exc)[:120]}"
             emit_log(f"  ⚠️  {message}")
@@ -155,7 +163,8 @@ async def ensure_tear_sheet_summary_async(context: dict, rotator: KeyRotator, pr
     if context.get("tear_sheet_summary") or not isinstance(rotator, KeyRotator):
         return
     prompt = _build_tear_sheet_prompt(context)
-    for model_id in _tear_sheet_model_sequence():
+    models = _tear_sheet_model_sequence()
+    for model_index, model_id in enumerate(models):
         try:
             await emit_context_event_async(
                 context,
@@ -187,6 +196,7 @@ async def ensure_tear_sheet_summary_async(context: dict, rotator: KeyRotator, pr
                 return
         except Exception as exc:
             if is_missing_model_error(str(exc)):
+                has_fallback = model_index + 1 < len(models)
                 await emit_context_event_async(
                     context,
                     make_runtime_event(
@@ -194,13 +204,19 @@ async def ensure_tear_sheet_summary_async(context: dict, rotator: KeyRotator, pr
                         **_tear_sheet_event_kwargs(
                             context,
                             model_id,
-                            "model_fallback",
-                            f"一頁式摘要模型 {model_id} 不可用，嘗試備援模型。",
+                            "model_fallback" if has_fallback else "tear_sheet_fallback",
+                            (
+                                f"一頁式摘要模型 {model_id} 不可用，嘗試備援模型。"
+                                if has_fallback
+                                else f"一頁式摘要模型 {model_id} 不可用，改用 deterministic fallback 摘要。"
+                            ),
                             level="warning",
                         ),
                     ),
                     progress_callback,
                 )
+                if not has_fallback:
+                    return
                 continue
             message = f"一頁式摘要生成失敗，報表將使用 fallback 摘要：{str(exc)[:120]}"
             emit_log(f"  ⚠️  {message}")

@@ -3975,7 +3975,8 @@ def test_normalize_structured_output_display_fields_ignore_non_string_literals()
     assert recommendation["recommendation"]["短期目標（3個月）"] == "N/A"
     assert recommendation["recommendation"]["中期目標（6個月）"] == "NT$330"
     assert trade["entry_zone"] == "N/A"
-    assert trade["core_catalyst"] == "N/A"
+    assert trade["core_catalyst"].startswith("資料不足，原方向不可執行")
+    assert trade["trade_direction"] == "Neutral"
     combined = (
         structured_output_to_report_text(21, downside)
         + structured_output_to_report_text(7, recommendation)
@@ -4823,9 +4824,11 @@ def test_normalize_structured_output_agent24_uses_safe_text_before_validation():
     normalized = normalize_structured_output(24, payload)
 
     assert normalized is not None
-    assert normalized["trade_direction"] == "Long"
+    assert normalized["trade_direction"] == "Neutral"
     assert normalized["entry_zone"] == "N/A"
-    assert normalized["target_price"] == "NT$112"
+    assert normalized["target_price"] == "N/A"
+    assert normalized["stop_loss"] == "N/A"
+    assert normalized["risk_level"] == "High"
 
 
 def test_normalize_structured_output_agent24_invalid_enums_use_fallback_before_validation():
@@ -4845,7 +4848,9 @@ def test_normalize_structured_output_agent24_invalid_enums_use_fallback_before_v
     assert normalized is not None
     assert normalized["trade_direction"] == "Neutral"
     assert normalized["risk_level"] == "High"
-    assert normalized["entry_zone"] == "NT$100-105"
+    assert normalized["entry_zone"] == "N/A"
+    assert normalized["target_price"] == "N/A"
+    assert normalized["stop_loss"] == "N/A"
 
 
 def test_normalize_structured_output_agent24_preserves_analysis_markdown_for_legacy_text():

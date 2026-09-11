@@ -114,6 +114,49 @@ def _moat_reasoning_steps_text(value: Any) -> str:
     return _reasoning_steps_text(value, "## 護城河推論步驟")
 
 
+def _moat_evidence_text(value: Any) -> str:
+    evidence = safe_mapping_dict(value) or {}
+    lines = []
+    for dimension, raw_row in evidence.items():
+        row = safe_mapping_dict(raw_row)
+        if row is None:
+            continue
+        label = _display_line(dimension, "護城河")
+        finding = _display_line(row.get("finding"), "資料不足")
+        refs = [
+            _display_line(ref)
+            for ref in safe_sequence_items(row.get("source_refs"))
+            if _display_line(ref)
+        ] if isinstance(row.get("source_refs"), (list, tuple)) else []
+        counterevidence = _display_line(row.get("counterevidence"), "資料不足")
+        source_text = "、".join(refs) if refs else "資料不足"
+        lines.append(
+            f"- **{label}證據**：{finding}（來源：{source_text}）；反證：{counterevidence}"
+        )
+    return "\n\n## 護城河逐項證據\n" + "\n".join(lines) if lines else ""
+
+
+def _dated_evidence_memo_text(structured: Any) -> str:
+    payload = safe_mapping_dict(structured) or {}
+    as_of_date = _display_line(payload.get("as_of_date"), "資料時點未提供")
+    confidence = _display_line(payload.get("confidence"), "unassessed")
+    lines = [f"- **資料時點：{as_of_date}**", f"- **證據信心：{confidence}**"]
+    for item in safe_dict_list(payload.get("evidence_items")):
+        finding = _display_line(item.get("finding"), "資料不足")
+        freshness = _display_line(item.get("freshness_note"), "資料時點未提供")
+        counterevidence = _display_line(item.get("counterevidence"), "資料不足")
+        refs = [
+            _display_line(ref)
+            for ref in safe_sequence_items(item.get("source_refs"))
+            if _display_line(ref)
+        ] if isinstance(item.get("source_refs"), (list, tuple)) else []
+        lines.append(
+            f"- **發現**：{finding}（來源：{'、'.join(refs) or '資料不足'}；{freshness}）；"
+            f"反證：{counterevidence}"
+        )
+    return "## 證據時點與來源\n" + "\n".join(lines)
+
+
 def _downside_risk_line(item: dict[str, Any]) -> str:
     title = _display_line(item.get("title"), "下行風險")
     if len(title) < 2:
@@ -141,7 +184,14 @@ def _downside_risk_line(item: dict[str, Any]) -> str:
     metadata_text = f"（{'；'.join(metadata)}）" if metadata else ""
     impact_separator = "" if evidence.endswith(("。", "！", "？", ".", "!", "?", "；", ";")) else "；"
     impact_text = f"{impact_separator}影響：{impact}" if impact else ""
-    return f"- **{title}**{metadata_text}：{evidence}{impact_text}"
+    falsifier_text = ""
+    if "falsifier" in item:
+        falsifier = _display_line(item.get("falsifier"), "資料不足，待補可證偽條件")
+        falsifier_separator = "" if (impact or evidence).endswith(
+            ("。", "！", "？", ".", "!", "?", "；", ";")
+        ) else "；"
+        falsifier_text = f"{falsifier_separator}可證偽條件：{falsifier}"
+    return f"- **{title}**{metadata_text}：{evidence}{impact_text}{falsifier_text}"
 
 
 def _management_highlight_line(item: dict[str, Any]) -> str:

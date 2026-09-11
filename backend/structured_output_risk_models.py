@@ -92,6 +92,7 @@ class DownsideRisk(StructuredModel):
     title: str = Field(..., min_length=1)
     evidence: str = Field(..., min_length=1)
     impact: str = ""
+    falsifier: str = Field(..., min_length=1)
     severity: Literal["warning", "high", "critical"]
     confidence: float = Field(default=0.7, ge=0, le=1)
 
@@ -104,6 +105,7 @@ class DownsideRisk(StructuredModel):
                 "title": "下行風險",
                 "evidence": "資料不足",
                 "impact": "",
+                "falsifier": "資料不足，待補可證偽條件",
                 "severity": "warning",
                 "confidence": 0.7,
             }
@@ -117,6 +119,10 @@ def _safe_downside_risk_fields(risk: dict[str, Any]) -> dict[str, Any]:
         "title": _safe_string_text(risk.get("title"), "下行風險"),
         "evidence": _safe_string_text(risk.get("evidence"), "資料不足"),
         "impact": _safe_string_text(risk.get("impact")),
+        "falsifier": _safe_string_text(
+            risk.get("falsifier"),
+            "資料不足，待補可證偽條件",
+        ),
         "severity": severity if severity in _DOWNSIDE_RISK_SEVERITIES else "warning",
         "confidence": _safe_number(risk.get("confidence"), default=0.7, minimum=0, maximum=1),
     }

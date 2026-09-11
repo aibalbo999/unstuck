@@ -14,11 +14,13 @@ from structured_output_normalizer_basic import (
 from structured_output_normalizer_text import (
     _coerce_number,
     _dcf_scenarios_text,
+    _dated_evidence_memo_text,
     _display_line,
     _display_price_target,
     _downside_risk_line,
     _management_highlight_line,
     _moat_reasoning_steps_text,
+    _moat_evidence_text,
     _moat_score_line,
     _next_catalyst_text,
     _reasoning_steps_text,
@@ -36,6 +38,10 @@ def structured_output_to_report_text(agent_num: int, structured: dict, fallback_
     structured = safe_mapping_dict(structured) or {}
     body = _report_body_text(structured.get("analysis_markdown"), fallback_text)
 
+    if agent_num in {11, 15, 22, 23}:
+        body_text = "資料不足" if body and len(body) < 2 else body
+        return f"{_dated_evidence_memo_text(structured)}\n\n{body_text}".strip()
+
     if agent_num in {3, 12}:
         body = _legacy_body_text(body)
         scores = safe_mapping_dict(structured.get("moat_scores")) or {}
@@ -45,9 +51,10 @@ def structured_output_to_report_text(agent_num: int, structured: dict, fallback_
         if not score_lines:
             score_lines = "護城河指標: N/A"
         reasoning_text = _moat_reasoning_steps_text(structured.get("reasoning_steps"))
+        evidence_text = _moat_evidence_text(structured.get("moat_evidence"))
         if moat_assessment(scores)["unassessed_fields"]:
             reasoning_text += "\n護城河評估狀態：部分或全部項目未評估，缺少證據不代表低分。"
-        return f"[護城河評分]\n{score_lines}\n[/護城河評分]{reasoning_text}\n\n{body}".strip()
+        return f"[護城河評分]\n{score_lines}\n[/護城河評分]{reasoning_text}{evidence_text}\n\n{body}".strip()
 
     if agent_num in {4, 14}:
         body = _legacy_body_text(body)

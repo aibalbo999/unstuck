@@ -2,6 +2,7 @@
 
 import asyncio
 
+import config
 from tenacity import AsyncRetrying, Retrying, retry_if_exception_type
 
 from analysis_types import AnalysisContext, StockData
@@ -17,7 +18,7 @@ from .llm_calls import (
     _run_agent_once_async,
 )
 from .cancellation import raise_if_cancelled
-from .deferred import failed_route_result, record_route_failure, unavailable_model
+from .deferred import failed_route_result, unavailable_model
 from .model_policy import (
     make_model_retry_stop_for_rotator,
     model_attempt_policy,
@@ -26,8 +27,6 @@ from .model_policy import (
     timeout_for_model_call,
 )
 from .prompting import build_prompt
-from . import gemma_evidence_runtime as evidence_batches
-from gemma_evidence_batches import EvidenceBatchInvalid
 from market_context_manifest import adopt_market_context_result, market_output_attempt
 from .routing import get_runtime_model_sequence
 from .single_agent_prompt import build_model_prompt as _build_model_prompt_impl
@@ -40,6 +39,13 @@ from .step_cache import (
     cached_market_context_matches,
 )
 from .single_agent_events import emit_async_model_event, emit_sync_model_event, reject_async_model, reject_sync_model
+from .single_agent_admission import (
+    EvidenceBatchInvalid,
+    admit_model_input_async,
+    admit_model_input_sync,
+    append_evidence_notes,
+)
+from .single_agent_failures import record_retryable_failure_async, record_retryable_failure_sync
 from runtime_events import emit_log
 
 
@@ -92,7 +98,7 @@ def run_single_agent(
         timeout_seconds = timeout_for_model_call(model_index, has_fallback)
         policy = model_attempt_policy(model_index, has_fallback, max_retries, model_key_count(rotator, model_id))
         prompt = _build_model_prompt(agent_num, data, context, model_id, model_index == 0 and has_fallback)
-        prompt = evidence_batches.append_if_capacity_allows(agent_num, model_id, prompt, evidence_notes, context)
+        prompt = append_evidence_notes(agent_num, model_id, prompt, evidence_notes, context)
         cache_key = build_agent_step_cache_key(agent_num, data, context, model_id, prompt)
         cached_step = get_cached_agent_step(cache_key)
         if cached_step is not None and cached_market_context_matches(context, agent_num, cached_step, prompt):
@@ -107,6 +113,14 @@ def run_single_agent(
                 cache_hit=True,
             )
             return restore_cached_agent_step(context, agent_num, cached_step)
+        admission = admit_model_input_sync(
+            agent_num, model_id, prompt, context, rotator,
+            has_fallback=has_fallback, evidence_notes=evidence_notes,
+        )
+        evidence_notes = admission.evidence_notes
+        if not admission.call_provider:
+            last_error = admission.last_error or last_error
+            continue
         record_agent_step_cache_miss(context)
         retryer = Retrying(
             stop=make_model_retry_stop_for_rotator(policy, rotator, model_id),
@@ -116,9 +130,6 @@ def run_single_agent(
             reraise=True,
         )
         try:
-            if has_fallback and evidence_batches.should_batch(agent_num, model_id, prompt, context):
-                evidence_notes = evidence_batches.collect_evidence(agent_num, prompt, context, rotator)
-                continue  # A configured fallback integrates the full original evidence.
             for attempt in retryer:
                 raise_if_cancelled(context)
                 with attempt, market_output_attempt(context, agent_num):
@@ -140,20 +151,8 @@ def run_single_agent(
             last_error = reject_sync_model(context, agent_num, model_id, exc)
             continue
         except AgentRetryableError as exc:
-            last_error = str(exc)
-            circuit_state = record_route_failure(context, rotator, model_id, exc, deferred_routes)
-            message = f"{model_id} 多次重試後仍失敗：{last_error[:120]}"
-            emit_log(f"    ❌ {message}")
-            emit_sync_model_event(
-                context,
-                agent_num,
-                "model_failed",
-                "error",
-                message,
-                model_id,
-                error_kind=exc.__class__.__name__,
-                circuit_open=bool(circuit_state.get("opened_until")),
-                shared_circuit_open=bool(getattr(exc, "parallel_circuit_open", False)),
+            last_error = record_retryable_failure_sync(
+                context, rotator, agent_num, model_id, exc, deferred_routes,
             )
             continue
 
@@ -198,7 +197,7 @@ async def run_single_agent_async(
         timeout_seconds = timeout_for_model_call(model_index, has_fallback)
         policy = model_attempt_policy(model_index, has_fallback, max_retries, model_key_count(rotator, model_id))
         prompt = _build_model_prompt(agent_num, data, context, model_id, model_index == 0 and has_fallback)
-        prompt = evidence_batches.append_if_capacity_allows(agent_num, model_id, prompt, evidence_notes, context)
+        prompt = append_evidence_notes(agent_num, model_id, prompt, evidence_notes, context)
         cache_key = build_agent_step_cache_key(agent_num, data, context, model_id, prompt)
         cached_step = get_cached_agent_step(cache_key)
         if cached_step is not None and cached_market_context_matches(context, agent_num, cached_step, prompt):
@@ -213,6 +212,14 @@ async def run_single_agent_async(
                 cache_hit=True,
             )
             return restore_cached_agent_step(context, agent_num, cached_step)
+        admission = await admit_model_input_async(
+            agent_num, model_id, prompt, context, rotator,
+            has_fallback=has_fallback, evidence_notes=evidence_notes,
+        )
+        evidence_notes = admission.evidence_notes
+        if not admission.call_provider:
+            last_error = admission.last_error or last_error
+            continue
         record_agent_step_cache_miss(context)
         retryer = AsyncRetrying(
             stop=make_model_retry_stop_for_rotator(policy, rotator, model_id),
@@ -222,9 +229,6 @@ async def run_single_agent_async(
             reraise=True,
         )
         try:
-            if has_fallback and evidence_batches.should_batch(agent_num, model_id, prompt, context):
-                evidence_notes = await evidence_batches.collect_evidence_async(agent_num, prompt, context, rotator)
-                continue
             async for attempt in retryer:
                 raise_if_cancelled(context)
                 with attempt, market_output_attempt(context, agent_num):
@@ -246,20 +250,8 @@ async def run_single_agent_async(
             last_error = await reject_async_model(context, agent_num, model_id, exc)
             continue
         except AgentRetryableError as exc:
-            last_error = str(exc)
-            circuit_state = record_route_failure(context, rotator, model_id, exc, deferred_routes)
-            message = f"{model_id} 多次重試後仍失敗：{last_error[:120]}"
-            emit_log(f"    ❌ {message}")
-            await emit_async_model_event(
-                context,
-                agent_num,
-                "model_failed",
-                "error",
-                message,
-                model_id,
-                error_kind=exc.__class__.__name__,
-                circuit_open=bool(circuit_state.get("opened_until")),
-                shared_circuit_open=bool(getattr(exc, "parallel_circuit_open", False)),
+            last_error = await record_retryable_failure_async(
+                context, rotator, agent_num, model_id, exc, deferred_routes,
             )
             continue
 

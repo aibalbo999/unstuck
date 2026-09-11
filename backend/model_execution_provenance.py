@@ -6,7 +6,7 @@ from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
 
-SELECTED_PHASES = {"llm_model_response", "agent_step_cache_hit"}
+SELECTED_PHASES = {"llm_model_response", "agent_step_cache_hit", "agent_deterministic_result"}
 SKIPPED_PHASES = {"model_circuit_open", "model_config_error", "model_input_capacity"}
 FAILED_PHASES = {"llm_model_error", "model_failed", "gemma_evidence_error"}
 
@@ -36,6 +36,8 @@ def model_executions_from_events(events: Sequence[Mapping[str, Any]], pipeline_i
             record["model_id"] = model_id
             record["cache_hit"] = phase == "agent_step_cache_hit"
             record["route_index"] = record["route_considered"].index(model_id)
+            record["generation_policy_version"] = str(metadata.get("generation_policy_version") or "").strip()
+            record["generation_config"] = _safe_generation_config(metadata.get("generation_config"))
         if phase == "model_fallback":
             record["fallback_used"] = True
     return {agent: record for agent, record in records.items() if record["model_id"]}
@@ -87,7 +89,15 @@ def report_model_id(
 def _new_record(agent_num: int) -> dict[str, Any]:
     return {"agent_num": agent_num, "model_id": "", "route_index": None, "route_considered": [],
             "provider_call_models": [], "route_skipped": [], "failed_models": [],
-            "fallback_used": False, "cache_hit": False}
+            "fallback_used": False, "cache_hit": False,
+            "generation_policy_version": "", "generation_config": {}}
+
+
+def _safe_generation_config(value: Any) -> dict[str, Any]:
+    if not isinstance(value, Mapping):
+        return {}
+    allowed = {"temperature", "top_p", "max_output_tokens", "thinking_level"}
+    return {str(key): item for key, item in value.items() if key in allowed and isinstance(item, (int, float, str))}
 
 
 def _append_unique(values: list[str], value: str) -> None:

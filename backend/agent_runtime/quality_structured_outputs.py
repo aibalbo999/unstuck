@@ -4,12 +4,16 @@ from __future__ import annotations
 
 from analysis_types import AnalysisContext
 from pipeline_modes import get_pipeline_definition
+from structured_output_models import STRUCTURED_AGENT_INSTRUCTIONS
 from structured_output_runtime import process_agent_response
 
 
 def is_structured_agent(agent_num: int, context: AnalysisContext) -> bool:
     pipeline_def = get_pipeline_definition(context.get("pipeline_id", "v1"))
-    return int(agent_num) in set(pipeline_def["structured_agents"].values())
+    return (
+        int(agent_num) in set(pipeline_def["structured_agents"].values())
+        or int(agent_num) in STRUCTURED_AGENT_INSTRUCTIONS
+    )
 
 
 def try_parse_structured_output(agent_num: int, result: str, context: AnalysisContext) -> tuple[bool, str]:
