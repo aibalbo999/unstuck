@@ -6,6 +6,7 @@ import time
 
 from config import OUTPUT_DIR as DEFAULT_OUTPUT_DIR
 from report_persistence import persist_report_bundle
+from report_publication_gate import assert_report_publishable
 from reporting import ReportRequest
 from storage.report_storage import LocalFileStorage, ReportStorage
 
@@ -27,6 +28,7 @@ async def render_and_persist_report(
     storage: ReportStorage | None = None,
     filename: str | None = None,
 ) -> dict:
+    assert_report_publishable(context)
     append_event_func(job_id, {
         "type": "status",
         "message": f"生成 {pipeline_def['short_label']} HTML / Markdown 報告...",

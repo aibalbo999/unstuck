@@ -9,6 +9,7 @@ from data_trust import data_snapshot_filename_for_report, sanitize_for_snapshot
 from data_trust_snapshot import set_snapshot_integrity
 from mapping_fields import safe_mapping_dict
 from report_persistence import persist_report_bundle
+from report_publication_gate import assert_report_publishable
 from reporting import ReportRequest
 from report_rerun_context import RERUN_SCOPE_LABELS
 from storage.report_storage import LocalFileStorage, ReportStorage
@@ -34,6 +35,7 @@ async def render_and_save_rerun_report(
     storage: ReportStorage | None = None,
 ) -> dict:
     context_payload = safe_mapping_dict(context) or {}
+    assert_report_publishable(context_payload)
     filename, _, _ = rerun_report_filename(context_payload.get("ticker"), pipeline_id)
     context_payload["partial_rerun"] = {
         "scope": scope,

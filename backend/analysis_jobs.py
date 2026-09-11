@@ -26,6 +26,7 @@ from pipeline_modes import (
 )
 from reporting import ReportRenderer
 from reporting.lint import ReportLintError
+from report_publication_gate import ReportPublicationBlockedError, publication_blocked_event
 from quant_engine import QuantEngine
 from runtime_dependencies import create_report_storage_for_output_dir, runtime_settings_for_output_dir
 from temporal_memory_service import build_temporal_memory
@@ -184,14 +185,7 @@ async def run_stock_analysis_job_async(
             attach_model_executions(context, get_events_since(job_id), current_pipeline_id)
             audit_notice = build_operator_audit_notice(context)
 
-            if audit_notice["status"] == "needs_attention":
-                append_event(job_id, {
-                    "type": "status",
-                    "message": audit_notice["message"],
-                    "pipeline_id": current_pipeline_id,
-                    "pipeline_label": pipeline_def["label"],
-                })
-            elif audit_notice["status"] == "passed_with_notes":
+            if audit_notice["status"] == "passed_with_notes":
                 append_event(job_id, {
                     "type": "status",
                     "message": audit_notice["message"],
@@ -244,10 +238,13 @@ async def run_stock_analysis_job_async(
         update_job(job_id, "cancelled", error=message)
         append_event(job_id, {"type": "error", "phase": "cancelled", "level": "warning", "message": message})
         return ""
-    except ReportLintError as e:
-        message = f"錯誤：{str(e)}"
-        update_job(job_id, "error", error=message)
-        append_event(job_id, {"type": "error", "message": message})
+    except (ReportPublicationBlockedError, ReportLintError) as e:
+        event = publication_blocked_event(
+            e, thread_id=current_thread_id, pipeline_label=current_pipeline_label,
+            pipeline_id=current_thread_id.rsplit(":", 1)[-1] if current_thread_id else run_id,
+        )
+        update_job(job_id, "error", error=event["message"])
+        append_event(job_id, event)
         return ""
     except (AgentRateLimitError, AgentTransientError) as e:
         retry = prepare_analysis_retry(job_id, e)

@@ -11,6 +11,13 @@ from agent_runtime.repair_transaction import repair_requests
 from agent_runtime.routing import is_agent_execution_failure
 
 
+class FinalRerunQualityBlockedError(HTTPException):
+    """Keep the HTTP 409 contract while identifying a terminal quality failure."""
+    def __init__(self, detail: str):
+        self.issues = [detail]
+        super().__init__(status_code=409, detail=detail)
+
+
 def _require_final_output(context: dict, final_agent: int, prior_hash: str) -> None:
     raise_if_cancelled(context)
     if upstream_input_hash(final_agent, context) != prior_hash:
@@ -18,14 +25,14 @@ def _require_final_output(context: dict, final_agent: int, prior_hash: str) -> N
     text = (context.get("analyses") or {}).get(final_agent, "")
     if (not isinstance(text, str) or not text.strip() or is_agent_execution_failure(text)
             or context.get("blocking_issues") or context.get("status") == "blocked"):
-        raise HTTPException(status_code=409, detail="最終建議生成或品質檢查未完成，未產生新報告；請稍後重試或完整重跑。")
+        raise FinalRerunQualityBlockedError("最終建議生成或品質檢查未完成，未產生新報告；請稍後重試或完整重跑。")
 
 
 def _require_final_only_repair(context: dict, audit: dict, final_agent: int) -> None:
     upstream = {int(agent) for agent in (audit.get("repair_agent_issues") or {}) if int(agent) != final_agent}
     upstream.update(agent for agent in stale_agent_numbers(context) if agent != final_agent)
     if upstream:
-        raise HTTPException(status_code=409, detail=f"稽核需要更正前序 Agent {sorted(upstream)}；只重跑最終建議不能修改上游，請使用完整重跑。")
+        raise FinalRerunQualityBlockedError(f"稽核需要更正前序 Agent {sorted(upstream)}；只重跑最終建議不能修改上游，請使用完整重跑。")
 
 
 async def run_final_rerun_audit(context: dict, final_agent: int, rotator, *, run_agent, parse, audit, progress_callback=None) -> dict:
@@ -44,11 +51,11 @@ async def run_final_rerun_audit(context: dict, final_agent: int, rotator, *, run
             context["final_audit"] = audit(context, append_section=True)
             _require_final_only_repair(context, context["final_audit"], final_agent)
             if context["final_audit"].get("critical"):
-                raise HTTPException(status_code=409, detail="最終稽核仍有未解決的可信度異常，未產生新報告。")
+                raise FinalRerunQualityBlockedError("最終稽核仍有未解決的可信度異常，未產生新報告。")
             _require_final_output(context, final_agent, prior_hash)
             return context["final_audit"]
         if repair_pass >= max_passes or not final_requests:
-            raise HTTPException(status_code=409, detail="最終建議的可信度異常經有界修復仍未解決，未產生新報告；請使用完整重跑。")
+            raise FinalRerunQualityBlockedError("最終建議的可信度異常經有界修復仍未解決，未產生新報告；請使用完整重跑。")
         context["repair_iteration_count"] = repair_pass + 1
         scoped = dict(current)
         for field in ("repair_agent_issues", "coverage_repair_agent_issues"):
