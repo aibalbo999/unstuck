@@ -26,6 +26,8 @@ from .model_policy import (
     timeout_for_model_call,
 )
 from .prompting import build_prompt
+from . import gemma_evidence_runtime as evidence_batches
+from gemma_evidence_batches import EvidenceBatchInvalid
 from market_context_manifest import adopt_market_context_result, market_output_attempt
 from .routing import get_runtime_model_sequence
 from .single_agent_prompt import build_model_prompt as _build_model_prompt_impl
@@ -37,7 +39,7 @@ from .step_cache import (
     store_cached_agent_step,
     cached_market_context_matches,
 )
-from .single_agent_events import emit_async_model_event, emit_sync_model_event, route_rejection_event
+from .single_agent_events import emit_async_model_event, emit_sync_model_event, reject_async_model, reject_sync_model
 from runtime_events import emit_log
 
 
@@ -65,6 +67,7 @@ def run_single_agent(
         raise AgentConfigurationError(f"Agent {agent_num} 未設定可用模型路由。")
     last_error = ""
     deferred_routes = []
+    evidence_notes = ""
 
     for model_index, model_id in enumerate(model_sequence):
         raise_if_cancelled(context)
@@ -88,9 +91,8 @@ def run_single_agent(
         has_fallback = len(model_sequence) > model_index + 1
         timeout_seconds = timeout_for_model_call(model_index, has_fallback)
         policy = model_attempt_policy(model_index, has_fallback, max_retries, model_key_count(rotator, model_id))
-        prompt = _build_model_prompt(
-            agent_num, data, context, model_id, model_index == 0 and has_fallback,
-        )
+        prompt = _build_model_prompt(agent_num, data, context, model_id, model_index == 0 and has_fallback)
+        prompt = evidence_batches.append_if_capacity_allows(agent_num, model_id, prompt, evidence_notes, context)
         cache_key = build_agent_step_cache_key(agent_num, data, context, model_id, prompt)
         cached_step = get_cached_agent_step(cache_key)
         if cached_step is not None and cached_market_context_matches(context, agent_num, cached_step, prompt):
@@ -114,6 +116,9 @@ def run_single_agent(
             reraise=True,
         )
         try:
+            if has_fallback and evidence_batches.should_batch(agent_num, model_id, prompt, context):
+                evidence_notes = evidence_batches.collect_evidence(agent_num, prompt, context, rotator)
+                continue  # A configured fallback integrates the full original evidence.
             for attempt in retryer:
                 raise_if_cancelled(context)
                 with attempt, market_output_attempt(context, agent_num):
@@ -131,11 +136,8 @@ def run_single_agent(
                         text=result,
                     )
                     return result
-        except (InputCapacityExceededError, AgentMissingModelError, AgentConfigurationError) as exc:
-            last_error = str(exc)
-            phase, message, metadata = route_rejection_event(model_id, exc)
-            emit_log(f"    ❌ {message}")
-            emit_sync_model_event(context, agent_num, phase, "warning", message, model_id, **metadata)
+        except (InputCapacityExceededError, AgentMissingModelError, AgentConfigurationError, EvidenceBatchInvalid) as exc:
+            last_error = reject_sync_model(context, agent_num, model_id, exc)
             continue
         except AgentRetryableError as exc:
             last_error = str(exc)
@@ -171,6 +173,7 @@ async def run_single_agent_async(
         raise AgentConfigurationError(f"Agent {agent_num} 未設定可用模型路由。")
     last_error = ""
     deferred_routes = []
+    evidence_notes = ""
 
     for model_index, model_id in enumerate(model_sequence):
         raise_if_cancelled(context)
@@ -194,9 +197,8 @@ async def run_single_agent_async(
         has_fallback = len(model_sequence) > model_index + 1
         timeout_seconds = timeout_for_model_call(model_index, has_fallback)
         policy = model_attempt_policy(model_index, has_fallback, max_retries, model_key_count(rotator, model_id))
-        prompt = _build_model_prompt(
-            agent_num, data, context, model_id, model_index == 0 and has_fallback,
-        )
+        prompt = _build_model_prompt(agent_num, data, context, model_id, model_index == 0 and has_fallback)
+        prompt = evidence_batches.append_if_capacity_allows(agent_num, model_id, prompt, evidence_notes, context)
         cache_key = build_agent_step_cache_key(agent_num, data, context, model_id, prompt)
         cached_step = get_cached_agent_step(cache_key)
         if cached_step is not None and cached_market_context_matches(context, agent_num, cached_step, prompt):
@@ -220,6 +222,9 @@ async def run_single_agent_async(
             reraise=True,
         )
         try:
+            if has_fallback and evidence_batches.should_batch(agent_num, model_id, prompt, context):
+                evidence_notes = await evidence_batches.collect_evidence_async(agent_num, prompt, context, rotator)
+                continue
             async for attempt in retryer:
                 raise_if_cancelled(context)
                 with attempt, market_output_attempt(context, agent_num):
@@ -237,11 +242,8 @@ async def run_single_agent_async(
                         text=result,
                     )
                     return result
-        except (InputCapacityExceededError, AgentMissingModelError, AgentConfigurationError) as exc:
-            last_error = str(exc)
-            phase, message, metadata = route_rejection_event(model_id, exc)
-            emit_log(f"    ❌ {message}")
-            await emit_async_model_event(context, agent_num, phase, "warning", message, model_id, **metadata)
+        except (InputCapacityExceededError, AgentMissingModelError, AgentConfigurationError, EvidenceBatchInvalid) as exc:
+            last_error = await reject_async_model(context, agent_num, model_id, exc)
             continue
         except AgentRetryableError as exc:
             last_error = str(exc)

@@ -8,7 +8,7 @@ from typing import Any
 
 SELECTED_PHASES = {"llm_model_response", "agent_step_cache_hit"}
 SKIPPED_PHASES = {"model_circuit_open", "model_config_error", "model_input_capacity"}
-FAILED_PHASES = {"llm_model_error", "model_failed"}
+FAILED_PHASES = {"llm_model_error", "model_failed", "gemma_evidence_error"}
 
 
 def model_executions_from_events(events: Sequence[Mapping[str, Any]], pipeline_id: str) -> dict[int, dict[str, Any]]:
@@ -26,7 +26,7 @@ def model_executions_from_events(events: Sequence[Mapping[str, Any]], pipeline_i
             continue
         record = records.setdefault(agent_num, _new_record(agent_num))
         _append_unique(record["route_considered"], model_id)
-        if phase == "llm_provider_request":
+        if phase in {"llm_provider_request", "gemma_evidence_request"}:
             _append_unique(record["provider_call_models"], model_id)
         if phase in SKIPPED_PHASES:
             _append_unique(record["route_skipped"], model_id)

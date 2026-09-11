@@ -20,6 +20,7 @@ from llm_http_providers import (
     generate_openai_content_async,
 )
 from llm_semantic_cache import get_cached_llm_response, store_llm_response
+from llm_evidence_request import is_evidence_request, frame_source_prompt
 from llm_usage import extract_usage
 from llm_provider_routes import split_model_provider
 from llm_response_diagnostics import ResponseDiagnostics, attach_response_diagnostics
@@ -102,7 +103,7 @@ async def close_cached_clients_async() -> None:
 
 def generate_content(api_key: str, model_id: str, prompt: str, config):
     """Call the configured LLM provider synchronously with an isolated per-key client."""
-    cached = get_cached_llm_response(model_id, prompt, config)
+    cached = None if is_evidence_request() else get_cached_llm_response(model_id, prompt, config)
     if cached is not None:
         return TextLLMResponse(str(cached.get("text") or ""), cached.get("usage"))
     provider, provider_model = split_model_provider(model_id)
@@ -125,7 +126,7 @@ def generate_content(api_key: str, model_id: str, prompt: str, config):
     client = generation_client(api_key, model_id, _get_client, genai.Client, _genai_http_options)
     response = client.models.generate_content(
         model=provider_model,
-        contents=sanitize_google_prompt(prompt),
+        contents=frame_source_prompt(prompt) if is_evidence_request() else sanitize_google_prompt(prompt),
         config=sanitize_google_generation_config(config),
     )
     return _cache_generated_response(model_id, prompt, config, response)
@@ -133,7 +134,7 @@ def generate_content(api_key: str, model_id: str, prompt: str, config):
 
 async def generate_content_async(api_key: str, model_id: str, prompt: str, config):
     """Call the configured LLM provider through an async client implementation."""
-    cached = get_cached_llm_response(model_id, prompt, config)
+    cached = None if is_evidence_request() else get_cached_llm_response(model_id, prompt, config)
     if cached is not None:
         return TextLLMResponse(str(cached.get("text") or ""), cached.get("usage"))
     provider, provider_model = split_model_provider(model_id)
@@ -156,7 +157,7 @@ async def generate_content_async(api_key: str, model_id: str, prompt: str, confi
     client = generation_client(api_key, model_id, _get_client, genai.Client, _genai_http_options)
     response = await client.aio.models.generate_content(
         model=provider_model,
-        contents=sanitize_google_prompt(prompt),
+        contents=frame_source_prompt(prompt) if is_evidence_request() else sanitize_google_prompt(prompt),
         config=sanitize_google_generation_config(config),
     )
     return _cache_generated_response(model_id, prompt, config, response)
@@ -212,6 +213,8 @@ async def embed_content_async(api_key: str, model_id: str, contents, config):
 
 
 def _cache_generated_response(model_id: str, prompt: str, config, response):
+    if is_evidence_request():
+        return response
     text = response_text(response)
     store_llm_response(model_id, prompt, config, text=text, usage=extract_usage(response))
     return response

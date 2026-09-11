@@ -31,6 +31,9 @@ MODEL_ROUTES, MODEL_ROUTES_FILE_SHA256 = _load_model_routes()
 LLM_PROVIDER_QUOTA_AUTHORITATIVE = env_bool(
     "LLM_PROVIDER_QUOTA_AUTHORITATIVE", MODEL_ROUTES.get("provider_quota_authoritative") is True,
 )
+GEMMA_EVIDENCE_BATCHING_ENABLED = env_bool(
+    "GEMMA_EVIDENCE_BATCHING_ENABLED", MODEL_ROUTES.get("gemma_evidence_batching") is True,
+)
 LLM_QUOTA_MAX_ATTEMPTS_PER_MODEL = max(0, env_int("LLM_QUOTA_MAX_ATTEMPTS_PER_MODEL", int(MODEL_ROUTES.get("quota_max_attempts_per_model", 0))))
 LLM_ROUTE_SERVER_ERROR_MAX_ATTEMPTS = max(0, env_int("LLM_ROUTE_SERVER_ERROR_MAX_ATTEMPTS", int(MODEL_ROUTES.get("server_error_max_attempts", 0))))
 

@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from analysis_types import AnalysisContext
-from runtime_events import emit_context_event, emit_context_event_async, make_runtime_event
+from runtime_events import emit_context_event, emit_context_event_async, make_runtime_event, emit_log
 from llm_input_capacity import InputCapacityExceededError
 from .retry_policy import AgentConfigurationError
 
@@ -69,3 +69,17 @@ async def emit_async_model_event(
             **single_agent_event_fields(context, agent_num, model_id, **metadata),
         ),
     )
+
+
+def reject_sync_model(context, agent_num, model_id, error):
+    phase, message, metadata = route_rejection_event(model_id, error)
+    emit_log(f"    ❌ {message}")
+    emit_sync_model_event(context, agent_num, phase, "warning", message, model_id, **metadata)
+    return str(error)
+
+
+async def reject_async_model(context, agent_num, model_id, error):
+    phase, message, metadata = route_rejection_event(model_id, error)
+    emit_log(f"    ❌ {message}")
+    await emit_async_model_event(context, agent_num, phase, "warning", message, model_id, **metadata)
+    return str(error)
