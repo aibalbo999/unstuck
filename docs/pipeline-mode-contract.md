@@ -36,7 +36,7 @@ HTML 報告會在 `<main>` 上保留 `data-report-template` 與 `data-report-lay
 | `v1` | Agent 7 | `recommendation` | 資料可信度、整體護城河、基本情境估值與最終建議。 |
 | `v2` | Agent 16 | `position_plan` | `action`、`entry_zone`、`position_size`、`stop_loss`、`risk_reward`、`invalidation_condition`。 |
 | `v3` | Agent 19 | `short_setup` | `entry_trigger`、`downside_target`、`cover_stop`、`squeeze_risk`、`thesis_invalidation`。 |
-| `v4` | Agent 24 | `trade_setup` | `trade_direction`、`entry_zone`、`target_price`、`stop_loss`、`support_level`、`resistance_level`、`core_catalyst`、`risk_level`。 |
+| `v4` | Agent 24 | `trade_setup` | `trade_direction`、`entry_zone`、`target_price`、`stop_loss`、`support_level`、`resistance_level`、`core_catalyst`、`risk_level`、`support_source_refs`、`resistance_source_refs`、`catalyst_source_refs`。 |
 
 新產出的報告必須通過上述原生欄位的 final audit；normalizer 產生的「資料不足」相容值不能視為完整決策。舊報告不會自動重跑，也不會在查看時重新套用新版 HTML/Markdown 模板；已保存的產物維持產出當時的模板。若要取得新版模式專屬摘要與決策計畫，必須重新產出該報告。相容 fallback 只用於仍由新版 renderer 處理的舊 context，不得借用其他數值填滿欄位。
 

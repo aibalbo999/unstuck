@@ -26,6 +26,9 @@ TRADE_SETUP = {
     "resistance_level": "NT$188（前高壓力）",
     "core_catalyst": "下週法說會可能釋出新產品出貨上修訊號。",
     "risk_level": "Medium",
+    "support_source_refs": ["short_term_market_context.technical_indicators.sma_20"],
+    "resistance_source_refs": ["short_term_market_context.daily_market_data.bars"],
+    "catalyst_source_refs": ["short_term_market_context.event_calendar.events"],
 }
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -216,5 +219,5 @@ def test_v4_deterministic_fallback_preserves_strict_risk_control():
     assert ok is True
     assert context["structured_outputs"][24]["trade_direction"] == "Neutral"
     assert context["structured_outputs"][24]["risk_level"] == "High"
-    assert "停損" in context["structured_outputs"][24]["stop_loss"]
-    assert "N/A" not in context["structured_outputs"][24]["stop_loss"]
+    assert context["structured_outputs"][24]["stop_loss"] == "N/A"
+    assert "暫不交易" in context["structured_outputs"][24]["core_catalyst"]

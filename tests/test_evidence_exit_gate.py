@@ -1490,6 +1490,35 @@ def test_evidence_gate_matches_stop_loss_claims_to_structured_output():
     assert result["sampled_claims"][0]["matched_path"] == "rerun_context.structured_outputs.24.stop_loss"
 
 
+def test_evidence_gate_matches_trade_support_and_resistance_to_structured_output():
+    from evidence_exit_gate import evaluate_report_evidence
+
+    result = evaluate_report_evidence(
+        "- **支撐位：2409.5**\n- **壓力位：2505.0**",
+        {
+            "rerun_context": {
+                "structured_outputs": {
+                    "24": {
+                        "support_level": "2409.5",
+                        "resistance_level": "2505.0",
+                    },
+                },
+            },
+        },
+        sample_ratio=1.0,
+        min_sample=2,
+    )
+
+    assert result["verdict"] == "approved"
+    assert result["unverifiable_count"] == 0
+    assert {
+        claim["matched_path"] for claim in result["sampled_claims"]
+    } == {
+        "rerun_context.structured_outputs.24.support_level",
+        "rerun_context.structured_outputs.24.resistance_level",
+    }
+
+
 def test_evidence_gate_matches_chip_distribution_and_margin_claims():
     from evidence_exit_gate import evaluate_report_evidence
 

@@ -302,6 +302,16 @@ def _path_markers_for_claim(claim: dict[str, Any]) -> tuple[str, ...]:
         return () if any(_normalize_match_text(marker) in label for marker in ("券資比", "margin short ratio", "short margin ratio")) or (has_news_source and any(_normalize_match_text(marker) in label for marker in ("支撐", "壓力", "關卡", "風險"))) else ("stop_loss", "support", "resistance", "risk_price", "price_target", "price_targets", "target_price", "scenario", "scenarios")
     if label == "x歷史高分位帶" and (band_match := re.search(r"(?P<multiple>\d[\d,]*(?:\.\d+)?)\s*x", str(claim.get("raw_text") or ""), re.IGNORECASE)):
         return (f"pe_river_chart.bands.{band_match.group('multiple')}x",)
+    if label in {"支撐位", "近期支撐"}:
+        return (
+            "structured_outputs.24.support_level",
+            "parsed.trade_setup.support_level",
+        )
+    if label in {"壓力位", "近期壓力", "關鍵壓力位"}:
+        return (
+            "structured_outputs.24.resistance_level",
+            "parsed.trade_setup.resistance_level",
+        )
     for label_markers, path_markers in _FIELD_HINTS:
         if any(_label_matches_marker(raw_label, label, marker) for marker in label_markers):
             return ("structured_outputs.24.target_price", "parsed.trade_setup.target_price") if any(_normalize_match_text(marker) in label for marker in ("目標價", "targetprice")) and label not in ("目標價", "targetprice") else ("price_target", "price_targets", "target_price", "scenario", "scenarios") if label in ("目標價", "targetprice") else path_markers

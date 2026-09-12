@@ -29,8 +29,8 @@
 - Watchlist 支援本機股票代號建議與貼上/CSV 匯入；台股四碼會正規化成 `.TW`，匯入流程仍受 mutation token 保護
 - Portfolio CSV 風控可在本機分析持股集中度、產業/國家曝險與投資論文健康度，不接券商、不下單
 - 內建報告刪除 API，會同步刪除 `.html`、`.md` 與資料快照
-- 結構化 Agent 使用 JSON 輸出優先解析；Mode A/B 會解析護城河、估值與投資建議，Mode C 會解析泡沫狙擊建議，Mode D 會解析極短線交易設定
-- Mode C 的 Agent 19 報告會強制保留做空觸發條件、防軋空停損點，並將 `[投資建議]` 區塊固定放在最終段落尾端；Mode D 則使用 Agent 24 輸出標準化 Trade Setup
+- 結構化 Agent 使用 JSON 輸出優先解析；Mode A/B 會解析護城河、估值與投資建議，Mode C 會解析泡沫狙擊建議，Mode D 會解析極短線交易設定；最終 Agent 的信心分數會依資料可信度套用確定性上限並揭露校準理由
+- Mode C 的 Agent 19 報告會強制保留做空觸發條件、防軋空停損點，並將 `[投資建議]` 區塊固定放在最終段落尾端；Mode D 則使用 Agent 24 輸出標準化 Trade Setup，Long／Short 的支撐、壓力與催化劑都必須附上本次可見資料路徑，否則降為 Neutral
 - 財務資料使用快取後端持久化，預設走 Redis；SQLite cache 仍可作為本機 fallback，財務資料 TTL 預設 24 小時
 - 台股會嘗試以 FinMind / TWSE 官方資料補抓最近四季財報，成功時納入跨來源比對；未取得時 HTML 報告會顯示官方財務資料警示
 - yfinance 欄位缺漏時會用 FMP（需 API key）或可追溯的衍生補值補上市場欄位、TTM 營收或 FCF，並在 prompt 中揭露限制

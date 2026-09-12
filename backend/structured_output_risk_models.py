@@ -15,6 +15,7 @@ from structured_output_model_base import (
     _safe_mapping_value,
     _safe_number,
     _safe_string_text,
+    _safe_string_text_list,
     AnalysisMarkdownMixin,
     StructuredModel,
 )
@@ -183,6 +184,21 @@ class SwingTradeSetup(StructuredModel):
     resistance_level: str = Field(..., min_length=1)
     core_catalyst: str = Field(..., min_length=1)
     risk_level: Literal["High", "Medium", "Low"]
+    support_source_refs: list[str] = Field(
+        ...,
+        max_length=6,
+        description="支撐位引用的本次可見 State 或 short_term_market_context 路徑；Neutral 且無價位時可為空陣列。",
+    )
+    resistance_source_refs: list[str] = Field(
+        ...,
+        max_length=6,
+        description="壓力位引用的本次可見 State 或 short_term_market_context 路徑；Neutral 且無價位時可為空陣列。",
+    )
+    catalyst_source_refs: list[str] = Field(
+        ...,
+        max_length=6,
+        description="近期催化劑引用的本次可見 State、上游 evidence item 或事件路徑；無已確認事件時可為空陣列。",
+    )
     transaction_cost: str | None = Field(default=None, description="每股來回交易成本金額，含費稅與滑價；未知為 null，明確免費才為 0。")
 
     @model_validator(mode="before")
@@ -199,6 +215,9 @@ class SwingTradeSetup(StructuredModel):
                 "resistance_level": "N/A",
                 "core_catalyst": "N/A",
                 "risk_level": "High",
+                "support_source_refs": [],
+                "resistance_source_refs": [],
+                "catalyst_source_refs": [],
             }
         normalized = {**setup}
         normalized["transaction_cost"] = optional_execution_text(setup.get("transaction_cost"))
@@ -226,4 +245,10 @@ class SwingTradeSetup(StructuredModel):
             raw_risk_level = _safe_mapping_value(setup, "risk_level")
             if not isinstance(raw_risk_level, str):
                 normalized["risk_level"] = "High"
+        for key in (
+            "support_source_refs",
+            "resistance_source_refs",
+            "catalyst_source_refs",
+        ):
+            normalized[key] = _safe_string_text_list(setup.get(key))[:6]
         return normalized

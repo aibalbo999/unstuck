@@ -75,14 +75,17 @@ __all__ = [
 STRUCTURED_AGENT_INSTRUCTIONS = build_structured_agent_instructions()
 
 STRUCTURED_AGENT_RESPONSE_SCHEMAS: dict[int, type[StructuredModel]] = {
+    2: DatedEvidenceMemoStructuredOutput,
     11: DatedEvidenceMemoStructuredOutput,
     3: MoatStructuredOutput,
     4: PriceTargetStructuredOutput,
     7: RecommendationStructuredOutput,
     12: MoatStructuredOutput,
+    13: DatedEvidenceMemoStructuredOutput,
     14: PriceTargetStructuredOutput,
     15: DatedEvidenceMemoStructuredOutput,
     16: TradingDecisionStructuredOutput,
+    18: DatedEvidenceMemoStructuredOutput,
     19: BubbleSniperStructuredOutput,
     20: ManagementSentimentStructuredOutput,
     21: BearAdvocateStructuredOutput,

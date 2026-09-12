@@ -28,8 +28,8 @@ def test_decision_agents_use_more_thinking_only_on_supported_models():
     assert evidence.thinking_config.thinking_level.value == "LOW"
 
 
-def test_structured_agents_do_not_attach_tools_but_unstructured_math_roles_keep_guarded_tools():
-    from agent_runtime.generation_config import agent_request_budget_options
+def test_tool_backed_structured_agents_keep_calculators_without_native_json_mode():
+    from agent_runtime.generation_config import agent_request_budget_options, build_generation_config
     from agent_runtime.routing import get_agent_function_tools
 
     for agent in (3, 4, 12, 14):
@@ -37,6 +37,13 @@ def test_structured_agents_do_not_attach_tools_but_unstructured_math_roles_keep_
     for agent in (2, 13, 18):
         assert get_agent_function_tools(agent)
         assert agent_request_budget_options(agent) == {"request_units": 6}
+        config = build_generation_config(agent)
+        assert config.response_mime_type is None
+        assert config.response_schema is None
+
+    native_json_config = build_generation_config(24)
+    assert native_json_config.response_mime_type == "application/json"
+    assert native_json_config.response_schema is not None
 
 
 def test_waiting_position_plan_cannot_keep_entry_orders():
@@ -400,3 +407,192 @@ def test_swing_normalizer_downgrades_incomplete_long_to_neutral():
     assert result["target_price"] == "N/A"
     assert result["stop_loss"] == "N/A"
     assert result["risk_level"] == "High"
+
+
+def test_agent_24_deterministic_fallback_is_a_valid_non_trade_observation():
+    from agent_runtime.deterministic_fallback_mode_contracts import event_swing_fallback
+    from final_audit_mode_contracts import v4_trade_setup_contract_issues
+    from trade_execution_contract import contains_trade_order
+
+    fallback = event_swing_fallback()
+
+    assert fallback["trade_direction"] == "Neutral"
+    assert not contains_trade_order(
+        f"{fallback['entry_zone']} {fallback['core_catalyst']}"
+    )
+    assert v4_trade_setup_contract_issues(fallback) == []
+
+
+def test_financial_evidence_roles_use_structured_canonical_source_memos():
+    from structured_output_models import build_structured_output_instruction, get_structured_response_schema
+    from structured_output_normalizer import normalize_structured_output, structured_output_to_report_text
+
+    payload = {
+        "as_of_date": "2026-09-09",
+        "confidence": "medium",
+        "evidence_items": [{
+            "finding": "TTM 自由現金流為正，但年度口徑仍需分開判讀。",
+            "source_refs": ["cash_flow.free_cash_flow_ttm_billion_twd"],
+            "freshness_note": "資料截至 2026-09-09。",
+            "counterevidence": "年度現金流序列尚未完整覆蓋。",
+        }],
+        "analysis_markdown": "## 財務證據摘要\n\n僅使用可追溯欄位。",
+    }
+
+    for agent in (2, 13, 18):
+        assert get_structured_response_schema(agent) is not None
+        assert "source_refs" in build_structured_output_instruction(agent)
+        result = normalize_structured_output(agent, payload)
+        assert result["evidence_items"][0]["source_refs"] == [
+            "cash_flow.free_cash_flow_ttm_billion_twd"
+        ]
+        rendered = structured_output_to_report_text(agent, result)
+        assert "cash_flow.free_cash_flow_ttm_billion_twd" in rendered
+
+
+def test_agent_24_trade_levels_and_catalyst_preserve_source_refs():
+    from structured_output_models import get_structured_response_schema
+    from structured_output_normalizer import normalize_structured_output, structured_output_to_report_text
+
+    schema = get_structured_response_schema(24)
+    properties = schema.model_json_schema()["properties"]
+    assert {
+        "support_source_refs",
+        "resistance_source_refs",
+        "catalyst_source_refs",
+    }.issubset(properties)
+
+    payload = {
+        "trade_direction": "Long",
+        "entry_zone": "NT$2,440-2,450",
+        "target_price": "NT$2,505-2,535",
+        "stop_loss": "NT$2,410",
+        "support_level": "NT$2,410",
+        "resistance_level": "NT$2,505-2,535",
+        "core_catalyst": "未來兩週量價突破後重新驗證。",
+        "risk_level": "Medium",
+        "support_source_refs": ["short_term_market_context.technical_indicators.sma_20"],
+        "resistance_source_refs": ["short_term_market_context.daily_market_data.bars"],
+        "catalyst_source_refs": ["short_term_market_context.event_calendar.events"],
+    }
+
+    result = normalize_structured_output(24, payload)
+    assert result["support_source_refs"] == payload["support_source_refs"]
+    assert result["resistance_source_refs"] == payload["resistance_source_refs"]
+    assert result["catalyst_source_refs"] == payload["catalyst_source_refs"]
+    rendered = structured_output_to_report_text(24, result)
+    for ref in (
+        "short_term_market_context.technical_indicators.sma_20",
+        "short_term_market_context.daily_market_data.bars",
+        "short_term_market_context.event_calendar.events",
+    ):
+        assert ref in rendered
+
+
+def test_agent_24_active_trade_without_provenance_is_downgraded_to_neutral():
+    from structured_output_normalizer import normalize_structured_output
+
+    result = normalize_structured_output(24, {
+        "trade_direction": "Long",
+        "entry_zone": "NT$2,440-2,450",
+        "target_price": "NT$2,505-2,535",
+        "stop_loss": "NT$2,410",
+        "support_level": "NT$2,410",
+        "resistance_level": "NT$2,505-2,535",
+        "core_catalyst": "未來兩週量價突破後重新驗證。",
+        "risk_level": "Medium",
+    })
+
+    assert result["trade_direction"] == "Neutral"
+    assert result["entry_zone"] == "N/A"
+    assert result["target_price"] == "N/A"
+    assert result["stop_loss"] == "N/A"
+    assert result["risk_level"] == "High"
+    assert "來源不足" in result["core_catalyst"]
+
+
+def test_agent_24_active_trade_rejects_non_state_source_refs():
+    from structured_output_normalizer import normalize_structured_output
+
+    result = normalize_structured_output(24, {
+        "trade_direction": "Long",
+        "entry_zone": "NT$2,440-2,450",
+        "target_price": "NT$2,505-2,535",
+        "stop_loss": "NT$2,410",
+        "support_level": "NT$2,410",
+        "resistance_level": "NT$2,505-2,535",
+        "core_catalyst": "未來兩週量價突破後重新驗證。",
+        "risk_level": "Medium",
+        "support_source_refs": ["https://model-invented.invalid/support"],
+        "resistance_source_refs": ["MODEL_INVENTED_REFERENCE"],
+        "catalyst_source_refs": ["short_term_market_context.event_calendar.events"],
+    })
+
+    assert result["trade_direction"] == "Neutral"
+    assert result["support_source_refs"] == []
+    assert result["resistance_source_refs"] == []
+    assert result["catalyst_source_refs"] == [
+        "short_term_market_context.event_calendar.events"
+    ]
+    assert "來源不足" in result["core_catalyst"]
+
+
+def test_financial_evidence_roles_have_deterministic_structured_fallbacks():
+    from agent_runtime.deterministic_fallbacks import _deterministic_structured_fallback
+
+    for agent in (2, 13, 18):
+        context = {"analyses": {}, "structured_outputs": {}}
+        ok, message = _deterministic_structured_fallback(
+            agent,
+            {
+                "ticker": "2330.TW",
+                "company_name": "台積電",
+                "fetch_date": "2026-09-09",
+                "data_trust": {"status": "partial"},
+            },
+            context,
+            "",
+        )
+
+        assert ok is True
+        assert "fallback" in message
+        assert context["structured_outputs"][agent]["confidence"] == "low"
+        assert context["structured_outputs"][agent]["evidence_items"][0]["source_refs"] == [
+            "data_trust"
+        ]
+
+
+def test_final_agent_confidence_is_deterministically_capped_before_rendering():
+    from structured_output_normalizer import structured_output_to_report_text
+    from structured_output_warnings import calibrate_structured_confidence
+
+    for agent in (7, 16, 19):
+        structured = {
+            "recommendation": {
+                "建議": "避免" if agent == 19 else "持有",
+                "信心指數": "9/10",
+                "confidence_basis": {
+                    "evidence_items": ["證據一", "證據二", "證據三"],
+                    "key_risks_acknowledged": ["風險一", "風險二"],
+                },
+            }
+        }
+        context = {"data": {"data_trust": {"status": "partial"}}}
+
+        calibration = calibrate_structured_confidence(agent, structured, context)
+
+        assert structured["recommendation"]["信心指數"] == "7/10"
+        assert calibration["status"] == "adjusted"
+        assert calibration["original_score"] == 9.0
+        assert calibration["applied_score"] == 7.0
+        assert structured["confidence_calibration"] == {
+            "status": "adjusted",
+            "original_confidence": "9/10",
+            "applied_confidence": "7/10",
+            "data_trust_status": "partial",
+            "reasons": calibration["reasons"],
+        }
+        rendered = structured_output_to_report_text(agent, structured)
+        assert "### 信心校準" in rendered
+        assert "原始 9/10 → 套用 7/10" in rendered
+        assert "data_trust=partial" in rendered

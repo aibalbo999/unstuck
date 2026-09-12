@@ -8,11 +8,17 @@ from structured_output_models import STRUCTURED_AGENT_INSTRUCTIONS
 from structured_output_runtime import process_agent_response
 
 
+_TOOL_BACKED_PROMPT_STRUCTURED_AGENTS = {2, 13, 18}
+
+
 def is_structured_agent(agent_num: int, context: AnalysisContext) -> bool:
     pipeline_def = get_pipeline_definition(context.get("pipeline_id", "v1"))
     return (
         int(agent_num) in set(pipeline_def["structured_agents"].values())
-        or int(agent_num) in STRUCTURED_AGENT_INSTRUCTIONS
+        or (
+            int(agent_num) in STRUCTURED_AGENT_INSTRUCTIONS
+            and int(agent_num) not in _TOOL_BACKED_PROMPT_STRUCTURED_AGENTS
+        )
     )
 
 

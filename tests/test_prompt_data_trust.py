@@ -648,7 +648,7 @@ def test_runtime_rules_require_agents_to_cite_or_disclose_global_context():
     assert any("global_market_context" in rule and "最終" in rule for rule in enrichment_rules["16"]["rules"])
 
 
-def test_structured_output_warns_on_high_confidence_with_low_trust():
+def test_structured_output_caps_high_confidence_with_low_trust_before_rendering():
     context = {
         "data": {"data_trust": {"status": "stale"}},
         "analyses": {},
@@ -661,9 +661,10 @@ def test_structured_output_warns_on_high_confidence_with_low_trust():
     )
 
     assert "[投資建議]" in report_text
-    assert context["structured_outputs"][7]["recommendation"]["信心指數"] == "9/10"
-    assert context["structured_quality_warnings"]
-    assert "data_trust=stale" in context["structured_quality_warnings"][0]
+    assert context["structured_outputs"][7]["recommendation"]["信心指數"] == "7/10"
+    assert context.get("structured_quality_warnings", []) == []
+    assert context["confidence_calibration"]["status"] == "adjusted"
+    assert context["confidence_adjustments"][0]["original_confidence"] == "9/10"
 
 
 def test_structured_output_keeps_legacy_false_circuit_closed():
@@ -754,7 +755,7 @@ def test_final_audit_keeps_legacy_false_circuit_closed():
     assert audit["confidence_calibration"]["max_recommended_confidence"] == 10
 
 
-def test_final_audit_deduplicates_structured_confidence_warning():
+def test_final_audit_does_not_repeat_warning_after_structured_confidence_cap():
     from structured_output_warnings import warn_high_confidence_with_low_trust
 
     context = {
@@ -784,7 +785,8 @@ def test_final_audit_deduplicates_structured_confidence_warning():
     audit = final_audit.run_final_report_audit(context, append_section=False)
     warnings = [warning for warning in audit["warnings"] if "data_trust=partial" in warning]
 
-    assert len(warnings) == 1
+    assert warnings == []
+    assert context["parsed"]["recommendation"]["信心指數"] == "7/10"
 
 
 def test_final_audit_warns_when_final_decision_omits_available_global_context():

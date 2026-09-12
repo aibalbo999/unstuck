@@ -1,16 +1,19 @@
 """Mode-specific payloads for deterministic structured fallbacks."""
 
 
-def event_swing_fallback() -> dict[str, str]:
+def event_swing_fallback() -> dict[str, object]:
     return {
         "trade_direction": "Neutral",
-        "entry_zone": "待價格放量突破近期壓力位後回測不破再評估進場",
-        "target_price": "資料不足，等待可驗證目標價",
-        "stop_loss": "進場後若收盤跌破突破位、20 日均線或型態支撐即嚴格停損",
-        "support_level": "最近一個可由價格資料驗證的型態支撐或 20 日均線",
-        "resistance_level": "最近一個可由價格資料驗證的前高或型態壓力",
-        "core_catalyst": "未取得可驗證的未來 1-2 週事件，維持觀望直到技術與籌碼同步確認。",
+        "entry_zone": "N/A",
+        "target_price": "N/A",
+        "stop_loss": "N/A",
+        "support_level": "N/A",
+        "resistance_level": "N/A",
+        "core_catalyst": "資料不足，等待可驗證事件與技術、籌碼同步確認；目前維持觀望，暫不交易。",
         "risk_level": "High",
+        "support_source_refs": [],
+        "resistance_source_refs": [],
+        "catalyst_source_refs": [],
     }
 
 
