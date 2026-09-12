@@ -108,7 +108,7 @@ def normalize_structured_output(agent_num: int, payload: Any) -> Optional[dict]:
             "analysis_markdown": _normalized_analysis_markdown(raw_payload, payload),
         }
 
-    if agent_num in {11, 15, 22, 23}:
+    if agent_num in {2, 11, 13, 15, 18, 22, 23}:
         return {
             "as_of_date": _string_field_text(payload.get("as_of_date"), "資料時點未提供"),
             "confidence": _string_field_text(payload.get("confidence"), "unassessed"),
@@ -200,6 +200,9 @@ def normalize_structured_output(agent_num: int, payload: Any) -> Optional[dict]:
             "resistance_level": _string_field_text(payload.get("resistance_level"), "N/A"),
             "core_catalyst": _string_field_text(payload.get("core_catalyst"), "N/A"),
             "risk_level": _string_field_text(payload.get("risk_level"), "High"),
+            "support_source_refs": list(payload.get("support_source_refs") or [])[:6],
+            "resistance_source_refs": list(payload.get("resistance_source_refs") or [])[:6],
+            "catalyst_source_refs": list(payload.get("catalyst_source_refs") or [])[:6],
         }
         if "analysis_markdown" in raw_payload or "analysis_markdown" in payload:
             trade_setup["analysis_markdown"] = _normalized_analysis_markdown(raw_payload, payload)

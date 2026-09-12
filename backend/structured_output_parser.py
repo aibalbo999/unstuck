@@ -192,6 +192,9 @@ def parse_structured_data(context: AnalysisContext) -> dict:
                 "resistance_level",
                 "core_catalyst",
                 "risk_level",
+                "support_source_refs",
+                "resistance_source_refs",
+                "catalyst_source_refs",
             )
         }
         if "transaction_cost" in structured_outputs[trade_setup_agent]:

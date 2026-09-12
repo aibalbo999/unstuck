@@ -48,7 +48,7 @@
         "非放空且明確等待不建空單時可保留空目標／停損，仍須說明借券或軋空資料缺口與重新評估條件。"
       ],
       "24": [
-        "Trade Setup 八個核心欄位須保留；Long/Short須有可驗證的進場/目標/停損，Neutral可N/A但須明確不交易及重新評估條件。可選transaction_cost未知為null。"
+        "Trade Setup 八個核心欄位與 support_source_refs、resistance_source_refs、catalyst_source_refs 須保留；Long/Short須有可驗證的進場/目標/停損及對應來源，Neutral可N/A但須明確不交易及重新評估條件。可選transaction_cost未知為null。"
       ]
     },
     "per_pipeline": {
@@ -73,6 +73,23 @@
     "forbidden_aliases_rule": "特別禁止把以下名稱當作 {ticker}：{forbidden_aliases}。"
   },
   "structured_agent_instructions": {
+    "2": {
+      "title": "財務品質證據與時點結構化輸出規則",
+      "intro": "請只輸出合法 JSON，不要 Markdown code fence。",
+      "schema_lines": [
+        "{",
+        "  \"as_of_date\": \"YYYY-MM-DD 或資料時點未提供\",",
+        "  \"confidence\": \"high|medium|low|unassessed\",",
+        "  \"evidence_items\": [{\"finding\": \"財務品質發現\", \"source_refs\": [\"可追溯財務 JSON 或 deterministic tool 路徑\"], \"freshness_note\": \"資料期間與口徑\", \"counterevidence\": \"反證或資料缺口\"}],",
+        "  \"analysis_markdown\": \"繁體中文正式財務品質報告\"",
+        "}"
+      ],
+      "rules": [
+        "至少提供 1 項 evidence_items；每個具體財務數字都必須綁定本次可見 State、財務 JSON 或 deterministic_financial_tool_results 路徑。",
+        "TTM、年度、季度與月營收口徑必須分開，freshness_note 說明資料期間；缺漏時降低 confidence。",
+        "不得提出 DCF、目標價或最終投資建議。"
+      ]
+    },
     "3": {
       "title": "結構化輸出硬性規則",
       "intro": "請只輸出合法 JSON，不要 Markdown code fence，不要前言，不要附註。",
@@ -223,6 +240,23 @@
         "成本優勢必須引用毛利率、淨利率、單位成本、規模或同業利潤率比較；缺少足以評分的比較證據時成本優勢填 null。"
       ]
     },
+    "13": {
+      "title": "財務排雷證據與時點結構化輸出規則",
+      "intro": "請只輸出合法 JSON，不要 Markdown code fence。",
+      "schema_lines": [
+        "{",
+        "  \"as_of_date\": \"YYYY-MM-DD 或資料時點未提供\",",
+        "  \"confidence\": \"high|medium|low|unassessed\",",
+        "  \"evidence_items\": [{\"finding\": \"財務紅旗或反證\", \"source_refs\": [\"可追溯財務 JSON 或 deterministic tool 路徑\"], \"freshness_note\": \"資料期間與口徑\", \"counterevidence\": \"緩解證據或資料缺口\"}],",
+        "  \"analysis_markdown\": \"繁體中文正式財務排雷報告\"",
+        "}"
+      ],
+      "rules": [
+        "至少提供 1 項 evidence_items；現金流、杜邦、存貨、應收與槓桿判斷都必須引用本次可見 State、財務 JSON 或 deterministic_financial_tool_results 路徑。",
+        "不得把 DCF unavailable、占位值或跨期混合計算當成可信財務證據；freshness_note 須說明期間與口徑。",
+        "不得提出目標價或最終投資建議。"
+      ]
+    },
     "14": {
       "title": "結構化輸出硬性規則",
       "intro": "請只輸出合法 JSON，不要 Markdown code fence，不要前言，不要附註。",
@@ -321,6 +355,23 @@
         "position_plan 六個核心欄位須保留；等待時 position_size=0%，entry_zone/stop_loss/risk_reward 可填 N/A，但 invalidation_condition 須說明可驗證的重新評估條件。",
         "next_catalysts 必須列出 1-3 個未來可觀察事件，trigger_condition 要能直接轉成 watchlist radar 條件，不可寫成泛泛口號。",
         "position_plan 可選 target_price（同期間目標）、transaction_cost、horizon_trading_days；無可靠同期間目標時風報比維持未驗證。horizon_trading_days 是同一交易計畫的可選持有期間，僅可提供 1-252 的整數交易日或 null；不明時不得自行借用 recommendation 的 3/6/12 月期間。transaction_cost 是可選的非負每股來回交易成本金額，未知為 null，不得當作 0；有成本時必須納入風報比與成本揭露。"
+      ]
+    },
+    "18": {
+      "title": "法證財務與資金流證據結構化輸出規則",
+      "intro": "請只輸出合法 JSON，不要 Markdown code fence。",
+      "schema_lines": [
+        "{",
+        "  \"as_of_date\": \"YYYY-MM-DD 或資料時點未提供\",",
+        "  \"confidence\": \"high|medium|low|unassessed\",",
+        "  \"evidence_items\": [{\"finding\": \"財務或資金流反證\", \"source_refs\": [\"可追溯財務、同業或法人路徑\"], \"freshness_note\": \"資料期間與口徑\", \"counterevidence\": \"反向證據或資料缺口\"}],",
+        "  \"analysis_markdown\": \"繁體中文正式法證財務與資金流報告\"",
+        "}"
+      ],
+      "rules": [
+        "至少提供 1 項 evidence_items；財務現實、杜邦、同業比較與法人資金流須各自引用本次可見路徑，禁止只引用 Agent 17 的敘事。",
+        "明確區分財報期間與法人交易期間；DCF unavailable、缺值或無同業資料必須列為資料限制並降低 confidence。",
+        "不得提出最終投資建議或目標股價。"
       ]
     },
     "19": {
@@ -450,17 +501,21 @@
         "  \"support_level\": \"可追溯的近期支撐位或可驗證條件\",",
         "  \"resistance_level\": \"可追溯的近期壓力位或可驗證條件\",",
         "  \"core_catalyst\": \"一句話總結未來 1-2 週的可驗證催化劑\",",
+        "  \"support_source_refs\": [\"支撐位的可追溯 State 路徑\"],",
+        "  \"resistance_source_refs\": [\"壓力位的可追溯 State 路徑\"],",
+        "  \"catalyst_source_refs\": [\"催化劑的可追溯 State 或上游 evidence 路徑\"],",
         "  \"risk_level\": \"High|Medium|Low\",",
         "  \"transaction_cost\": null",
         "}"
       ],
       "rules": [
-        "八個核心欄位皆須保留，另允許可選 transaction_cost；未知成本填 null，明確0元仍須有資料支持。",
+        "八個核心欄位與三組 source_refs 皆須保留，另允許可選 transaction_cost；未知成本填 null，明確0元仍須有資料支持。",
         "trade_direction 只能是 Long、Short 或 Neutral；risk_level 只能是 High、Medium 或 Low。",
         "Long/Short 的進場、目標、停損須為可解析正數價位，以完整進場區間最差價驗證 Long：stop < entry < target，Short：target < entry < stop；不可用現價代替進場基準。",
         "Neutral 表示不交易；entry_zone、target_price、stop_loss、support_level、resistance_level 可為 N/A，但 core_catalyst 或 entry_zone 必須明確寫等待／不交易，core_catalyst 須說明可驗證的重新評估條件；不得混入立即交易指示。",
         "target_price 只能是一個單一目標價，或使用連字號/至表達一個明確價格區間；不得把 1-2 週期間、無價位條件、支撐或多個情境塞入目標。沒有可靠價位時使用 Neutral + High，不得強行補價。",
         "core_catalyst 只使用未來1-2週可驗證事件或明確等待條件；使用 short_term_market_context 的日線、技術指標與日期投影，不得把長期題材當短期催化。",
+        "Long/Short 的支撐、壓力與催化劑各自至少提供一個本次可見路徑；Neutral 無可驗證價位或事件時對應 source_refs 可為空陣列，不得自造來源。",
         "transaction_cost 使用每股來回交易成本金額，非百分比；未知保持 null，不得以0宣稱成本已計入。"
       ]
     }

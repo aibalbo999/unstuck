@@ -38,7 +38,7 @@ def structured_output_to_report_text(agent_num: int, structured: dict, fallback_
     structured = safe_mapping_dict(structured) or {}
     body = _report_body_text(structured.get("analysis_markdown"), fallback_text)
 
-    if agent_num in {11, 15, 22, 23}:
+    if agent_num in {2, 11, 13, 15, 18, 22, 23}:
         body_text = "資料不足" if body and len(body) < 2 else body
         return f"{_dated_evidence_memo_text(structured)}\n\n{body_text}".strip()
 
@@ -119,6 +119,19 @@ def structured_output_to_report_text(agent_num: int, structured: dict, fallback_
         risk_level = _display_line(structured.get("risk_level"), "High")
         if risk_level not in _TRADE_RISK_LEVELS:
             risk_level = "High"
+        source_lines = []
+        for label, key in (
+            ("支撐來源", "support_source_refs"),
+            ("壓力來源", "resistance_source_refs"),
+            ("催化劑來源", "catalyst_source_refs"),
+        ):
+            refs = [
+                _display_line(ref)
+                for ref in safe_sequence_items(structured.get(key))
+                if _display_line(ref)
+            ]
+            source_lines.append(f"- **{label}：{', '.join(refs) if refs else '未提供'}**")
+        source_text = "\n".join(source_lines)
         return (
             "## 極短線交易計畫\n"
             f"- **交易方向：{trade_direction}**\n"
@@ -128,7 +141,8 @@ def structured_output_to_report_text(agent_num: int, structured: dict, fallback_
             f"- **支撐位：{_trade_plan_field(structured.get('support_level'))}**\n"
             f"- **壓力位：{_trade_plan_field(structured.get('resistance_level'))}**\n"
             f"- **核心催化劑：{_trade_plan_field(structured.get('core_catalyst'))}**\n"
-            f"- **短期波動風險：{risk_level}**"
+            f"- **短期波動風險：{risk_level}**\n"
+            f"{source_text}"
             f"{body_text}"
         )
 
@@ -156,6 +170,25 @@ def structured_output_to_report_text(agent_num: int, structured: dict, fallback_
             if basis_lines:
                 basis_text = "\n\n### 信心依據\n" + "\n".join(basis_lines) + "\n"
 
+        calibration = safe_mapping_dict(structured.get("confidence_calibration")) or {}
+        calibration_text = ""
+        if calibration.get("status") == "adjusted":
+            original = _display_line(calibration.get("original_confidence"), "N/A")
+            applied = _display_line(calibration.get("applied_confidence"), "N/A")
+            trust_status = _display_line(calibration.get("data_trust_status"), "unknown")
+            reason_lines = [
+                f"- {reason}"
+                for item in safe_sequence_items(calibration.get("reasons"))
+                if len(reason := _display_line(item)) >= 2
+            ]
+            calibration_text = (
+                "\n\n### 信心校準\n"
+                f"- 原始 {original} → 套用 {applied}（data_trust={trust_status}）"
+            )
+            if reason_lines:
+                calibration_text += "\n" + "\n".join(reason_lines)
+            calibration_text += "\n"
+
         triggers = safe_dict_list(structured.get("scenario_triggers"))
         trigger_text = ""
         if triggers:
@@ -176,7 +209,7 @@ def structured_output_to_report_text(agent_num: int, structured: dict, fallback_
         recommendation_block = format_recommendation_block(agent_num, rec)
         if agent_num == 19:
             body = ensure_agent19_required_sections(body, structured)
-            return f"{body}{reasoning_text}{basis_text}{trigger_text}{catalyst_text}{market_text}\n\n{recommendation_block}".strip()
+            return f"{body}{reasoning_text}{basis_text}{calibration_text}{trigger_text}{catalyst_text}{market_text}\n\n{recommendation_block}".strip()
         if agent_num == 16:
             plan = safe_mapping_dict(structured.get("position_plan")) or {}
             position_text = "\n".join([
@@ -190,7 +223,7 @@ def structured_output_to_report_text(agent_num: int, structured: dict, fallback_
                 f"- 風險報酬：{_display_line(plan.get('risk_reward'), '資料不足')}",
                 f"- 失效條件：{_display_line(plan.get('invalidation_condition'), '資料不足')}",
             ])
-            return f"{recommendation_block}{reasoning_text}\n\n{position_text}\n\n{body}{basis_text}{trigger_text}{catalyst_text}{market_text}".strip()
-        return f"{recommendation_block}{reasoning_text}\n\n{body}{basis_text}{trigger_text}{catalyst_text}{market_text}".strip()
+            return f"{recommendation_block}{reasoning_text}\n\n{position_text}\n\n{body}{basis_text}{calibration_text}{trigger_text}{catalyst_text}{market_text}".strip()
+        return f"{recommendation_block}{reasoning_text}\n\n{body}{basis_text}{calibration_text}{trigger_text}{catalyst_text}{market_text}".strip()
 
     return fallback_text

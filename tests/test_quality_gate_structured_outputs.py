@@ -20,7 +20,7 @@ def test_try_parse_structured_output_skips_non_structured_agents(monkeypatch):
     monkeypatch.setattr(quality_structured_outputs, "process_agent_response", fake_process_agent_response)
 
     ok, result = quality_structured_outputs.try_parse_structured_output(
-        2,
+        1,
         "raw markdown",
         {"pipeline_id": "v1", "structured_outputs": {}},
     )

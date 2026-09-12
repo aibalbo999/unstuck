@@ -55,6 +55,7 @@ AGENT_GENERATION_PROFILES = {
 }
 _BOUNDED_THINKING_MODELS = {"gemini-3.5-flash-lite", "gemini-3.7-flash", "gemini-3.8-flash"}
 _MEDIUM_THINKING_AGENTS = {7, 16, 19, 24}
+_PROMPT_STRUCTURED_TOOL_AGENTS = {2, 13, 18}
 
 
 def generation_profile(agent_num: int) -> dict[str, int | float]:
@@ -101,7 +102,14 @@ def _generate_config_supports(field_name: str) -> bool:
 
 def build_generation_config(agent_num: int, system_instruction: Optional[str] = None):
     """Build Google GenAI generation config, using JSON MIME type where supported."""
-    uses_structured_response = agent_num in STRUCTURED_AGENT_INSTRUCTIONS
+    function_tools = get_agent_function_tools(agent_num)
+    # Google rejects native JSON response schemas and function tools in the same
+    # request. Tool-backed evidence agents keep their deterministic calculators
+    # and follow the JSON contract through the appended prompt instruction.
+    uses_structured_response = (
+        agent_num in STRUCTURED_AGENT_INSTRUCTIONS
+        and agent_num not in _PROMPT_STRUCTURED_TOOL_AGENTS
+    )
     config_kwargs = generation_profile(agent_num)
     if system_instruction:
         config_kwargs["system_instruction"] = system_instruction
@@ -118,10 +126,6 @@ def build_generation_config(agent_num: int, system_instruction: Optional[str] = 
             except Exception:
                 # Fall back to passing the class directly if schema extraction fails.
                 config_kwargs["response_schema"] = response_schema_cls
-    function_tools = get_agent_function_tools(agent_num)
-    # Google GenAI rejects function calling when the same request also asks for
-    # JSON response_mime_type/response_schema. Structured agents prioritize the
-    # native schema path; non-structured agents keep tool calling enabled.
     if uses_structured_response:
         function_tools = []
     if function_tools:

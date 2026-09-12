@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from mapping_fields import safe_mapping_dict, safe_sequence_items
@@ -19,6 +20,14 @@ from structured_output_normalizer_basic import (
 
 
 _POSITION_ACTIONS = {"進場", "續抱", "減碼", "等待"}
+_TRADE_SOURCE_REF_PATTERN = re.compile(
+    r"^(?:"
+    r"short_term_market_context|"
+    r"normalized_financials\.(?:current_price|institutional_trading|recent_catalysts)|"
+    r"agent_reports\.(?:22|23)|"
+    r"chip_context"
+    r")(?:\.[A-Za-z0-9_:-]+|\[[0-9]+\])*$"
+)
 
 
 def _coerce_position_plan_payload(value: Any) -> dict[str, str | int | None]:
@@ -208,6 +217,18 @@ def _coerce_trade_setup_payload(value: Any) -> Any:
         trade_direction = "Neutral"
     if risk_level not in _TRADE_RISK_LEVELS:
         risk_level = "High"
+
+    def source_refs(key: str) -> list[str]:
+        raw = payload.get(key)
+        if not isinstance(raw, (list, tuple)):
+            return []
+        return [
+            text
+            for item in safe_sequence_items(raw)[:6]
+            if (text := _string_field_line(item))
+            and _TRADE_SOURCE_REF_PATTERN.fullmatch(text)
+        ]
+
     normalized = {
         **payload,
         "trade_direction": trade_direction,
@@ -217,17 +238,34 @@ def _coerce_trade_setup_payload(value: Any) -> Any:
         "core_catalyst": _string_field_line(payload.get("core_catalyst"), "N/A"),
         "risk_level": risk_level,
         "transaction_cost": optional_execution_text(payload.get("transaction_cost")),
+        "support_source_refs": source_refs("support_source_refs"),
+        "resistance_source_refs": source_refs("resistance_source_refs"),
+        "catalyst_source_refs": source_refs("catalyst_source_refs"),
     }
     missing_execution = any(
         not normalized[key] or normalized[key].upper() in {"N/A", "NA"} or "資料不足" in normalized[key]
         for key in ("entry_zone", "target_price", "stop_loss")
     )
-    if trade_direction == "Neutral" or missing_execution:
-        if trade_direction != "Neutral" and missing_execution:
+    missing_provenance = trade_direction in {"Long", "Short"} and any(
+        not normalized[key]
+        for key in (
+            "support_source_refs",
+            "resistance_source_refs",
+            "catalyst_source_refs",
+        )
+    )
+    if trade_direction == "Neutral" or missing_execution or missing_provenance:
+        if trade_direction != "Neutral" and (missing_execution or missing_provenance):
             reason = normalized["core_catalyst"]
             if not reason or reason.upper() in {"N/A", "NA"}:
                 reason = "等待可驗證技術、籌碼與事件條件"
-            normalized["core_catalyst"] = "資料不足，原方向不可執行；" + reason
+            if missing_execution:
+                prefix = "資料不足，原方向不可執行；"
+                if missing_provenance:
+                    prefix += "且來源不足，等待可驗證來源後重新評估；"
+            else:
+                prefix = "來源不足，原方向不可執行；等待可驗證來源後重新評估；"
+            normalized["core_catalyst"] = prefix + reason
         normalized.update({
             "trade_direction": "Neutral",
             "entry_zone": "N/A",
@@ -235,7 +273,7 @@ def _coerce_trade_setup_payload(value: Any) -> Any:
             "stop_loss": "N/A",
             "transaction_cost": None,
         })
-        if missing_execution:
+        if missing_execution or missing_provenance:
             normalized["risk_level"] = "High"
     return normalized
 

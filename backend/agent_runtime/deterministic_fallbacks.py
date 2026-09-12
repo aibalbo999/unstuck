@@ -10,6 +10,7 @@ from .deterministic_fallback_audit import (
     clear_agent_blocking_issues as _clear_agent_blocking_issues,
     record_deterministic_fallback as _record_deterministic_fallback,
 )
+from .deterministic_fallback_evidence import financial_evidence_fallback
 from .deterministic_fallback_mode_contracts import event_swing_fallback, position_plan_fallback, short_setup_fallback
 
 
@@ -21,6 +22,19 @@ def _deterministic_structured_fallback(
 ) -> tuple[bool, str]:
     """Last-resort structured output so reports do not preserve malformed JSON blobs."""
     structured_outputs = context.setdefault("structured_outputs", {})
+
+    if agent_num in {2, 13, 18}:
+        structured = financial_evidence_fallback(agent_num, data, context)
+        structured_outputs[agent_num] = structured
+        context.setdefault("analyses", {})[agent_num] = structured_output_to_report_text(
+            agent_num, structured, ""
+        )
+        _clear_agent_blocking_issues(context, agent_num)
+        return True, (
+            "已套用 deterministic 財務品質 fallback"
+            if agent_num == 2
+            else "已套用 deterministic 財務證據 fallback"
+        )
 
     if agent_num in {4, 14}:
         temp_context = dict(context)

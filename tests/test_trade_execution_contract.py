@@ -30,7 +30,11 @@ def swing(**updates):
     return {
         "trade_direction": "Long", "entry_zone": "100", "target_price": "120",
         "stop_loss": "90", "support_level": "90", "resistance_level": "120",
-        "core_catalyst": "下週法說後重新檢查營收指引", "risk_level": "Medium", **updates,
+        "core_catalyst": "下週法說後重新檢查營收指引", "risk_level": "Medium",
+        "support_source_refs": ["short_term_market_context.technical_indicators.sma_20"],
+        "resistance_source_refs": ["short_term_market_context.daily_market_data.bars"],
+        "catalyst_source_refs": ["short_term_market_context.event_calendar.events"],
+        **updates,
     }
 
 
