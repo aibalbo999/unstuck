@@ -44,11 +44,15 @@ Agent 可用性與品質失敗分流：`agent_runtime/deferred.py` 將耗盡的�
 
 Gemma dense 編碼的相容稀疏表在 `prompt_record_tables.py`：`absent` 區分缺欄與 null；`prompt_builder.py` 將完整同值的時效資料副本改為 payload 內部引用，保留原值與來源路徑。僅屬輸入表示法，不修改原始 snapshot、角色資料範圍、admission 或品質 gate。
 
+2026-09-17 備援實作：`agent_runtime/report_preflight.py` 在 RAG／Agent 前只檢查尚需生成的關鍵角色，沿用原 deferred retry 並保留有效 checkpoint；`settings/model_candidates.py` 提供預設 OFF 的逐角色 Lite／audit rewrite 候選。`prompt_state_references.py` 的 Gemma 同值 State 引用同樣預設 OFF，嚴格 table 解碼遇不明格式保留原文。`workflow_telemetry_attribution.py` 與 `agent_runtime/attempt_telemetry.py` 將本次回應身分綁回 node result；缺少明確品質 verdict 的 telemetry 為 null，API／SSE 不改成 false。這不重寫歷史 telemetry、不保證未來 audit 可完成；詳見 [本機實作與驗收邊界](agent-fallback-implementation-2026-09-17.md)。
+
 正式 usage-aware profile 的 `provider_quota_authoritative` 在 `settings/models.py` 載入，`llm_rate_limits.py` 保留同步／非同步 RPM/TPM 與 daily reservation orchestration，`llm_rate_limit_routes.py` 承接 provider key availability、RPD key+model 停用及 model-circuit 查詢；本機每日限制則切為可超過參考值的用量記錄。`llm_daily_budget.py` 的觀測模式仍保有交易式累計和 receipt 結算。`analysis_job_retry.py` 僅為模型可用性例外持續補足 RQ 延後重試；`analysis_jobs.py`／`report_rerun_jobs.py` 共用入口，真實 provider 日額度回饋與暫時 cooldown 分開標示。取消與品質阻擋不被此策略覆寫。API／面板的每日計數不再顯示為停止依據。
 
 來源狀態面板的取得資料率在 `provider_acquisition.py`：唯讀掃描 canonical operational DB 的 `provider_sla_events`，分開計算非空成功、空結果、降級資料、有效／空／過期快取與失敗。既有 provider SLA 的 availability 欄位保留相容用途，面板只讀 `/api/observability/provider-sla` 的 `acquisition` projection；缺少 projection 時明示無法判定，不回退到舊成功率。以既有 workflow provider 名稱及 audit message 識別並排除彙總／合併列，保留真實重試；沒有原始觀測的來源不產生成功率。這些是供應商觀測數，不是 HTTP 請求數、唯一資料筆數或內容正確率；全部期間只包含目前保留的事件。UI 列出全部來源，明細完整且失敗優先，綠色不覆蓋期間失敗；時間範圍與更新時間取自同一份 projection。原始紀錄、報告資料可信度與發布閘門不由此面板改寫。
 
 ## 目前 Runtime 真相
+
+追蹤表的「一鍵處理警示」先使用共用品質 policy 的 `reportAutomaticRerunAction()`，細部條件集中在 `report_automatic_rerun_policy.js`：已有明確 freshness 重跑標記且無來源錯誤／快照損壞時，經原 `scope=full_report` 路徑送件，即使舊報告有品質警示也不轉成人工略過。一般預覽與採用建議仍使用原 `reportRecommendedAction()`，舊報告的品質警示、資料及閱讀限制不變；這不放寬新報告發布 gate、不自動點擊／送件、不新增背景排程或修改已凍結 OOS cohort。
 
 以下為本機預設設定。若環境變數覆寫，請以 `config` 實際輸出為準。
 
