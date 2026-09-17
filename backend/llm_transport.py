@@ -105,7 +105,7 @@ def generate_content(api_key: str, model_id: str, prompt: str, config):
     """Call the configured LLM provider synchronously with an isolated per-key client."""
     cached = None if is_evidence_request() else get_cached_llm_response(model_id, prompt, config)
     if cached is not None:
-        return TextLLMResponse(str(cached.get("text") or ""), cached.get("usage"))
+        return TextLLMResponse.from_cache(cached)
     provider, provider_model = split_model_provider(model_id)
     if provider == "openai":
         return _cache_generated_response(
@@ -136,7 +136,7 @@ async def generate_content_async(api_key: str, model_id: str, prompt: str, confi
     """Call the configured LLM provider through an async client implementation."""
     cached = None if is_evidence_request() else get_cached_llm_response(model_id, prompt, config)
     if cached is not None:
-        return TextLLMResponse(str(cached.get("text") or ""), cached.get("usage"))
+        return TextLLMResponse.from_cache(cached)
     provider, provider_model = split_model_provider(model_id)
     if provider == "openai":
         return _cache_generated_response(

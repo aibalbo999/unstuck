@@ -20,7 +20,8 @@
 
     const trackedSet = payload => new Set((payload?.items || []).filter(item => item.enabled).map(item => item.ticker));
 
-    const recommendedActionForReport = report => qualityPolicy().reportRecommendedAction?.(report) || null;
+    const recommendedActionForReport = report => qualityPolicy().reportAutomaticRerunAction?.(report)
+        || qualityPolicy().reportRecommendedAction?.(report) || null;
 
     function uniqueRecommendedActions(payload) {
         const seen = new Set(), actions = [];

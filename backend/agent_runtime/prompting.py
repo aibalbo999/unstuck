@@ -5,10 +5,11 @@ import json
 from analysis_types import AnalysisContext, StockData
 from agent_catalog import AGENT_NAMES
 from assistant_context import _format_previous
-from config import PRIMARY_PROMPT_CONTEXT_TOTAL_CHAR_BUDGET, get_agent_context_budgets
+from config import GEMMA_STATE_REFERENCE_COMPACTION_ENABLED, PRIMARY_PROMPT_CONTEXT_TOTAL_CHAR_BUDGET, get_agent_context_budgets
 from prompt_builder import format_data_for_prompt, render_prompt_template
 from prompt_evidence import prompt_evidence_copy
 from prompt_record_tables import pack_record_tables
+from prompt_state_references import compact_state_reference_section
 from prompt_rules import (
     build_agent_rule_block,
     build_final_audit_preflight_rule,
@@ -208,6 +209,10 @@ def build_prompt(agent_num: int, data: StockData, context: AnalysisContext) -> s
             "agent_num": agent_num,
         },
     )
+
+    if (GEMMA_STATE_REFERENCE_COMPACTION_ENABLED and gemma_prompt and not repair_prompt
+            and not context.get('_model_sequence_override') and analysis_prompt.count(fin_data) == 1):
+        state_view_section = compact_state_reference_section(fin_data, state_view_section)
 
     structured_instruction = build_structured_output_instruction(agent_num)
     prompt_parts = [

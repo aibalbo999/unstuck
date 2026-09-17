@@ -18,6 +18,7 @@ from .llm_calls import (
     _run_agent_once_async,
 )
 from .cancellation import raise_if_cancelled
+from .attempt_telemetry import record_node_cache_response
 from .deferred import failed_route_result, unavailable_model
 from .model_policy import (
     make_model_retry_stop_for_rotator,
@@ -112,7 +113,9 @@ def run_single_agent(
                 cache_key=cache_key,
                 cache_hit=True,
             )
-            return restore_cached_agent_step(context, agent_num, cached_step)
+            result = restore_cached_agent_step(context, agent_num, cached_step)
+            record_node_cache_response(context, agent_num, cached_step)
+            return result
         admission = admit_model_input_sync(
             agent_num, model_id, prompt, context, rotator,
             has_fallback=has_fallback, evidence_notes=evidence_notes,
@@ -211,7 +214,9 @@ async def run_single_agent_async(
                 cache_key=cache_key,
                 cache_hit=True,
             )
-            return restore_cached_agent_step(context, agent_num, cached_step)
+            result = restore_cached_agent_step(context, agent_num, cached_step)
+            record_node_cache_response(context, agent_num, cached_step)
+            return result
         admission = await admit_model_input_async(
             agent_num, model_id, prompt, context, rotator,
             has_fallback=has_fallback, evidence_notes=evidence_notes,

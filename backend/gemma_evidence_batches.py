@@ -9,6 +9,7 @@ import json
 from llm_input_capacity import estimate_input_tokens
 from google_prompt_safety import sanitize_google_system_instruction
 from llm_evidence_request import frame_source_prompt
+from prompt_record_tables import unpack_record_tables as unpack_tables
 
 VERSION = "gemma-evidence-v1"
 MODEL = "gemma-4-31b-it"
@@ -33,20 +34,6 @@ def encode(value):
 
 def digest(value):
     return hashlib.sha256(value.encode()).hexdigest()
-
-
-def unpack_tables(value):
-    if isinstance(value, list):
-        return [unpack_tables(v) for v in value]
-    if not isinstance(value, dict):
-        return value
-    if value.get("__record_table__") == 1:
-        rows = []
-        for i, values in enumerate(value["rows"]):
-            absent = value.get("absent", {}).get(str(i), [])
-            rows.append({key: unpack_tables(v) for j, (key, v) in enumerate(zip(value["columns"], values)) if j not in absent})
-        return dict(zip(value["row_keys"], rows)) if "row_keys" in value else rows
-    return {k: unpack_tables(v) for k, v in value.items()}
 
 
 def prompt_payload(prompt):

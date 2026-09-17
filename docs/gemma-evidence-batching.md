@@ -1,5 +1,7 @@
 # Gemma 原文證據分批（2026-09-11）
 
+2026-09-17 追加了獨立、預設關閉的 State 同值引用壓縮，以及三份較新 v4 快照的容量量測，見 [Agent 備援與 Gemma 輸入效率](agent-fallback-implementation-2026-09-17.md)。本文件的 batching 正式開關、角色範圍與未通過 live 驗收的結論不變。
+
 ## 交付狀態
 
 實作完成，採 **dark launch，預設 OFF**。

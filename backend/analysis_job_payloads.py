@@ -117,7 +117,8 @@ def _serialize_telemetry_row(row: dict) -> dict:
         serialized["retry_count"] = _safe_int(serialized.get("retry_count"))
     for key in ("cache_hit", "quality_gate_pass"):
         if key in serialized:
-            serialized[key] = _safe_bool_field(serialized.get(key))
+            value = serialized.get(key)
+            serialized[key] = None if key == "quality_gate_pass" and value is None else _safe_bool_field(value)
     serialized["error"] = sanitize_error_message(serialized.get("error"))
     return serialized
 
