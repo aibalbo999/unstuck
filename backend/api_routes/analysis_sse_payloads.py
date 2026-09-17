@@ -70,7 +70,8 @@ def sanitize_replay_payload(value: Any, *, job_id: str) -> dict:
     if "retry_count" in sanitized:
         sanitized["retry_count"] = replay_count_field(sanitized.get("retry_count"))
     if "quality_gate_pass" in sanitized:
-        sanitized["quality_gate_pass"] = replay_bool_field(sanitized.get("quality_gate_pass"))
+        verdict = sanitized.get("quality_gate_pass")
+        sanitized["quality_gate_pass"] = None if verdict is None else replay_bool_field(verdict)
     for field in STRUCTURED_FIELDS:
         if field in sanitized:
             sanitized[field] = sanitize_for_snapshot(sanitized.get(field))

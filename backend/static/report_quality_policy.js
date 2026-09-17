@@ -52,6 +52,7 @@
             || (dataTrustStatus(report) === 'partial' && !hasProviderSlaOnlyPartial(report));
     }
     const hasSourceError = report => dataTrustReasonCodes(report).some(code => code.startsWith('source_error:'));
+    const reportAutomaticRerunAction = report => window.StockAgentReportAutomaticRerunPolicy?.reportAutomaticRerunAction?.(report, { dataTrustStatus, hasSourceError }) || null;
     function reportRecommendedAction(report) {
         const filename = report?.filename;
         if (!filename) return null;
@@ -73,6 +74,6 @@
         dataTrustStatus, dataTrustProviderSlaOnlyPartial, decisionFreshnessStatusLabel,
         evidenceExitGateVerdict, hasProviderSlaOnlyPartial, hasRefreshableDataTrustIssue,
         reportConformanceStatus, reportDecisionStatusLabel, reportHasFreshData, reportNeedsDataRefresh, reportReadingBoundary,
-        reportNeedsRerun, reportQualityGateAction, reportRecommendedAction, reportRerunMessage, requiresDataTrustAction, sourceNoticeReports
+        reportAutomaticRerunAction, reportNeedsRerun, reportQualityGateAction, reportRecommendedAction, reportRerunMessage, requiresDataTrustAction, sourceNoticeReports
     };
 })();

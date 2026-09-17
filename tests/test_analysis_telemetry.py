@@ -16,6 +16,12 @@ import job_store  # noqa: E402
 from state_memory import initialize_agent_state  # noqa: E402
 from workflow_graph import run_analysis_workflow  # noqa: E402
 from workflow_state import agent_state_to_graph  # noqa: E402
+from agent_runtime.attempt_telemetry import (  # noqa: E402
+    build_agent_node_receipt,
+    record_node_model_call,
+    record_node_model_response,
+    reset_node_attempt_telemetry,
+)
 
 
 class TelemetryWorkflowServices:
@@ -46,6 +52,11 @@ class TelemetryWorkflowServices:
         delta = {"analyses": {str(agent_num): f"agent-{agent_num}"}}
         if self.token_usage:
             delta["llm_token_usage"] = {str(agent_num): self.token_usage}
+            context = {}
+            reset_node_attempt_telemetry(context, agent_num)
+            record_node_model_call(context, agent_num, "gemini-3.5-flash-lite")
+            record_node_model_response(context, agent_num, "gemini-3.5-flash-lite", {"usage": self.token_usage})
+            delta["node_telemetry"] = build_agent_node_receipt(context, agent_num, delta)
         return delta
 
     async def final_audit(self, _state):
@@ -74,10 +85,11 @@ def test_langgraph_success_node_writes_telemetry_callback_payload():
     assert agent_record["latency_ms"] >= 0
     assert agent_record["input_tokens"] is None
     assert agent_record["output_tokens"] is None
-    assert agent_record["quality_gate_pass"] is True
+    assert agent_record["quality_gate_pass"] is None
+    assert agent_record["model"] is None
 
 
-def test_langgraph_agent_telemetry_uses_token_usage_from_node_delta():
+def test_langgraph_agent_telemetry_uses_token_usage_from_same_result_receipt():
     services = TelemetryWorkflowServices(token_usage={"input_tokens": 123, "output_tokens": 45})
     initial_state = services.initialize({"ticker": "2330.TW", "company_name": "台積電"}, "v4")
 
@@ -86,6 +98,8 @@ def test_langgraph_agent_telemetry_uses_token_usage_from_node_delta():
     agent_record = next(record for record in services.records if record["node_name"] == "agent_22")
     assert agent_record["input_tokens"] == 123
     assert agent_record["output_tokens"] == 45
+    assert agent_record["model"] == "gemini-3.5-flash-lite"
+    assert agent_record["quality_gate_pass"] is None
 
 
 def test_langgraph_failed_node_writes_sanitized_telemetry_before_reraising():
@@ -168,3 +182,28 @@ def test_telemetry_store_parses_legacy_boolean_tokens():
     row = job_store.list_node_telemetry(job_id)[0]
     assert row["cache_hit"] is False
     assert row["quality_gate_pass"] is False
+
+
+def test_telemetry_store_and_api_preserve_unknown_model_usage_and_quality():
+    job_id = job_store.create_job("2330.TW", "v4")
+    job_store.record_node_telemetry({
+        "job_id": job_id, "ticker": "2330.TW", "pipeline_id": "v4", "node_name": "agent_22",
+        "model": None, "input_tokens": None, "output_tokens": None, "quality_gate_pass": None,
+    })
+
+    assert job_store.list_node_telemetry(job_id)[0]["model"] is None
+    response = TestClient(api.app).get(f"/api/analysis-jobs/{job_id}/telemetry")
+    assert response.status_code == 200
+    record = response.json()["telemetry"][0]
+    assert record["model"] == ""  # Existing API normalizes absent text to empty.
+    assert record["input_tokens"] is None
+    assert record["output_tokens"] is None
+    assert record["quality_gate_pass"] is None
+
+
+@pytest.mark.parametrize("verdict,expected", [(None, None), (True, True), (False, False), ("false", False)])
+def test_telemetry_sse_replay_preserves_unknown_quality_verdict(verdict, expected):
+    from api_routes.analysis_sse_payloads import sanitize_replay_payload
+
+    result = sanitize_replay_payload({"type": "telemetry", "quality_gate_pass": verdict}, job_id="offline-job")
+    assert result["quality_gate_pass"] is expected

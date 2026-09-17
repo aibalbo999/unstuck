@@ -29,7 +29,7 @@ from .repair_reflection import (
     generate_audit_reflection,
     generate_audit_reflection_async,
 )
-from .routing import get_audit_model_sequence, is_agent_execution_failure
+from .routing import get_audit_rewrite_model_sequence, is_agent_execution_failure
 from .deferred import AgentDeferredError
 from .single_agent import run_single_agent, run_single_agent_async
 from .structured_repair_contracts import structured_output_missing as _structured_output_missing
@@ -75,7 +75,7 @@ def _repair_agent_output(agent_num: int, data: StockData, context: AnalysisConte
                 agent_num,
                 reflection_instruction=build_audit_reflection_instruction(reflection),
                 retry_instruction=build_audit_retry_instruction(agent_num, current_issues),
-                model_sequence=get_audit_model_sequence(),
+                model_sequence=get_audit_rewrite_model_sequence(agent_num),
             )
             try:
                 result = sanitize_model_output(run_single_agent(agent_num, data, context, rotator, max_retries=1))
@@ -183,7 +183,7 @@ async def _repair_agent_output_async(agent_num: int, data: StockData, context: A
                 agent_num,
                 reflection_instruction=build_audit_reflection_instruction(reflection),
                 retry_instruction=build_audit_retry_instruction(agent_num, current_issues),
-                model_sequence=get_audit_model_sequence(),
+                model_sequence=get_audit_rewrite_model_sequence(agent_num),
             )
             try:
                 result = sanitize_model_output(await run_single_agent_async(agent_num, data, context, rotator, max_retries=1))

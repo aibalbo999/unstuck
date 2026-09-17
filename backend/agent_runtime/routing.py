@@ -2,6 +2,8 @@
 
 from typing import Optional
 
+import config
+from agent_catalog import AGENT_NAMES
 from analysis_types import AnalysisContext
 from config import AGENT_FALLBACK_MODELS, AGENT_MODELS, AUDIT_FALLBACK_MODELS, AUDIT_MODEL, CONTEXT_DIGEST_MODEL
 from financial_tools import (
@@ -36,12 +38,27 @@ def get_agent_model_sequence(agent_num: int) -> list[str]:
     """Return the configured model route for an analysis agent."""
     primary = AGENT_MODELS[agent_num]
     fallbacks = AGENT_FALLBACK_MODELS.get(agent_num, [])
-    return list(dict.fromkeys([primary, *fallbacks]))
+    models = list(dict.fromkeys([primary, *fallbacks]))
+    return _with_lite_candidate(agent_num, models, "CRITICAL_LITE_FALLBACK_AGENTS", config.CRITICAL_REPORT_AGENT_NUMBERS)
 
 
 def get_audit_model_sequence() -> list[str]:
     """Return the model route reserved for final audit reflection and rewrites."""
     return list(dict.fromkeys([AUDIT_MODEL, *AUDIT_FALLBACK_MODELS]))
+
+
+def _with_lite_candidate(agent_num: int, models: list[str], setting_name: str, allowed_agents) -> list[str]:
+    flags = getattr(config, setting_name, {})
+    if agent_num in allowed_agents and isinstance(flags, dict) and flags.get(agent_num) is True:
+        return list(dict.fromkeys([*models, "gemini-3.5-flash-lite"]))
+    return models
+
+
+def get_audit_rewrite_model_sequence(agent_num: int) -> list[str]:
+    """Role-scoped rewrite canary; reflection routing is deliberately unchanged."""
+    return _with_lite_candidate(
+        agent_num, get_audit_model_sequence(), "AUDIT_REWRITE_LITE_FALLBACK_AGENTS", AGENT_NAMES,
+    )
 
 
 def get_context_digest_model_sequence() -> list[str]:

@@ -6,6 +6,9 @@ from dataclasses import dataclass
 from typing import Any, Awaitable, Callable
 
 from agent_runtime.audit_repair import finalize_final_audit_async
+from agent_runtime.attempt_telemetry import build_agent_node_receipt, reset_node_attempt_telemetry
+from agent_runtime.cancellation import raise_if_cancelled
+from agent_runtime.report_preflight import preflight_remaining_critical_agents
 from agent_runtime.state_report_adapter import record_agent_state_report
 from config import EMBEDDING_MODEL, LLM_API_KEYS_BY_PROVIDER
 from data_financial_metric_validator import load_provider_values_from_payload, validate_state_provider_values
@@ -75,6 +78,8 @@ def create_default_workflow_services(
 
     async def prepare(state: AgentGraphState) -> dict[str, Any]:
         context = legacy_context_from_graph(state, holder["services"])
+        raise_if_cancelled(context)
+        preflight_remaining_critical_agents(context, active_rotator)
         rag_index = await build_rag_index_async(context.get("data", {}) or {}, active_rotator)
         if rag_index is None:
             return {}
@@ -185,6 +190,9 @@ def repair_graph_state(state: AgentGraphState) -> AgentGraphState:
 
 async def run_agent_node_adapter(agent_num: int, state: AgentGraphState, services: WorkflowServices, rotator: Any) -> dict[str, Any]:
     context = legacy_context_from_graph(state, services)
+    raise_if_cancelled(context)
+    preflight_remaining_critical_agents(context, rotator, current_agent=agent_num)
+    reset_node_attempt_telemetry(context, agent_num)
     before_blocking = list(context.get("blocking_issues", []) or [])
     async with quality_draft_node(agent_num, state, context):
         completed_agent_num, markdown = await run_agent_with_quality_gates_async(
@@ -232,4 +240,5 @@ async def run_agent_node_adapter(agent_num: int, state: AgentGraphState, service
     agent_quality_retry_counts = context.get("agent_quality_retry_counts") or {}
     if agent_quality_retry_counts:
         delta["agent_quality_retry_counts"] = graph_agent_mapping(agent_quality_retry_counts)
+    delta["node_telemetry"] = build_agent_node_receipt(context, completed_agent_num, delta)
     return delta

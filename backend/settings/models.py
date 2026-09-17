@@ -13,6 +13,7 @@ from agent_catalog import AGENT_NAMES
 from pipeline_modes import get_pipeline_agents
 
 from .env import DEFAULT_MODEL_ROUTES_FILE, env_bool, env_int, env_list, env_str, json_env_dict
+from .model_candidates import CRITICAL_REPORT_AGENT_NUMBERS, load_lite_candidate_flags
 
 
 def _load_model_routes() -> tuple[dict, str]:
@@ -33,6 +34,12 @@ LLM_PROVIDER_QUOTA_AUTHORITATIVE = env_bool(
 )
 GEMMA_EVIDENCE_BATCHING_ENABLED = env_bool(
     "GEMMA_EVIDENCE_BATCHING_ENABLED", MODEL_ROUTES.get("gemma_evidence_batching") is True,
+)
+GEMMA_STATE_REFERENCE_COMPACTION_ENABLED = env_bool(
+    "GEMMA_STATE_REFERENCE_COMPACTION_ENABLED", MODEL_ROUTES.get("gemma_state_reference_compaction") is True,
+)
+CRITICAL_LITE_FALLBACK_AGENTS, AUDIT_REWRITE_LITE_FALLBACK_AGENTS = load_lite_candidate_flags(
+    MODEL_ROUTES, os.environ,
 )
 LLM_QUOTA_MAX_ATTEMPTS_PER_MODEL = max(0, env_int("LLM_QUOTA_MAX_ATTEMPTS_PER_MODEL", int(MODEL_ROUTES.get("quota_max_attempts_per_model", 0))))
 LLM_ROUTE_SERVER_ERROR_MAX_ATTEMPTS = max(0, env_int("LLM_ROUTE_SERVER_ERROR_MAX_ATTEMPTS", int(MODEL_ROUTES.get("server_error_max_attempts", 0))))

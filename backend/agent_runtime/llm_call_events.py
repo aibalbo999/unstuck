@@ -15,6 +15,7 @@ from .generation_config import (
 )
 from .llm_call_metadata import _key_slot_fields, _record_llm_token_usage
 from .retry_error_classification import provider_status_code
+from .attempt_telemetry import record_node_model_call, record_node_model_response
 
 
 def _model_event_fields(context: AnalysisContext, agent_num: int, model_id: str, prompt: str, **metadata) -> dict:
@@ -46,6 +47,7 @@ def _should_stream_llm_response(context: AnalysisContext) -> bool:
 
 
 def llm_model_call_event(context: AnalysisContext, agent_num: int, model_id: str, prompt: str, *, timeout_seconds) -> dict:
+    record_node_model_call(context, agent_num, model_id)
     return make_runtime_event(
         "status",
         phase="llm_model_call",
@@ -98,17 +100,10 @@ def llm_model_error_fields(
 
 
 def llm_model_response_event(
-    context: AnalysisContext,
-    agent_num: int,
-    model_id: str,
-    prompt: str,
-    result: str,
-    rotator,
-    api_key: str | None,
-    *,
-    timeout_seconds,
-    response=None,
+    context: AnalysisContext, agent_num: int, model_id: str, prompt: str, result: str,
+    rotator, api_key: str | None, *, timeout_seconds, response=None,
 ) -> dict:
+    record_node_model_response(context, agent_num, model_id, response)
     return make_runtime_event(
         "status",
         phase="llm_model_response",
