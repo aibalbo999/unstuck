@@ -291,7 +291,7 @@ Gemma evidence extraction 現在明確使用 `thinking_level=minimal`，只改�
 - 成交量由已知 yfinance adapter 明確標記 `shares`，經每日行情與技術指標保留；舊快照缺少單位時維持未知。Agent 22/24 不得自行宣稱股／張，已知台股單位可檢查千倍錯置。Agent 23/24 將融資賣出、融券賣出、今日及前日餘額分開比對；null 不能借用其他欄位或變成零。問題進入既有品質修復與最終稽核，不降低 gate。
 - 429 解析 `Retry-After` 秒數／HTTP 日期及 `RetryInfo`（包括九位小數），採較長有效提示。沒有提示的被拒 key/model 至少冷卻 60 秒，其他可用 key 仍可有界嘗試；未知 429 不推定為 RPD。Redis 原子操作只延長冷卻，並在本機保存期限以承受 Redis 暫時故障；既有 RPD 保護保留。
 - 隔離 runner 的 39 組相關測試共 **723 passed、75 subtests passed**，3 項既有 deprecation warnings。真實 Redis 併發冷卻測試使用私人 Unix socket、TCP port 0，不連正式 Redis。
-- 私有完整 v4 canary 使用三份固定真實快照（1623、6715、6257），停用驗證程序的回應快取，沿正式模型路由及正常品質修復生成 HTML／Markdown。三個標的均至少取得一份 `final_audit=passed`、lint 通過、evidence approved 的報告；原資料 hash 保持不變。1623 與 6715 保留來源可信度警示，6257 conformance passed；未發布私人驗證報告。
+- 私有完整 v4 canary 使用三份固定真實快照（1623、6715、6257），停用驗證程序的回應快取，沿正式模型路由及正常品質修復生成 HTML／Markdown。三個標的均至少取得一份 `final_audit=passed`、lint 通過、evidence approved 的報告；原資料 hash 保持不變。1623 保留來源可信度警示，6715 與 6257 conformance passed；未發布私人驗證報告。
 - 初始兩輪六次執行為三次成功、三次因 429 有界延期；6715 成功報告亦曾在 429 後換可用 key 修復。這證明錯誤可退出及部分備援可恢復，不代表供應商額度充足或長期 429 頻率已下降。後續 paced repeats、正式重啟／版本校驗與持續觀察以證據目錄更新結果為準。
 - 數字檢查屬特定欄位與句型保護，不是所有歷史數字的全面驗證；三個標的小樣本及先前十二個有效 Gemma 批次亦不能推算長期 504 率。Google 官方說明額度以 project 計算，不能由多把 key 推定多個獨立額度（https://ai.google.dev/gemini-api/docs/rate-limits）。
 - 完整失敗、測試、來源 hash、發布 manifest、部署及持續觀察證據：`/Volumes/X10 Pro Mac/stock-agent-final-optimization-20260919.ccemjg5q`。
