@@ -9,7 +9,7 @@ from datetime import datetime, time, timedelta
 from zoneinfo import ZoneInfo
 
 
-LOCAL_BLOCK_KINDS = {"ModelCircuitOpenError", "AllKeysRpdDisabledError", "InputCapacityExceededError", "DailyBudgetBlockedError", "ToolRequestGuardError"}
+LOCAL_BLOCK_KINDS = {"ModelCircuitOpenError", "AllKeysRpdDisabledError", "InputCapacityExceededError", "DailyBudgetBlockedError", "ToolRequestGuardError", "KeyAdmissionTimeout"}
 COUNTS = ("requests", "success_events", "provider_quota_errors", "local_blocks", "other_errors", "unclassified_quota_errors")
 
 

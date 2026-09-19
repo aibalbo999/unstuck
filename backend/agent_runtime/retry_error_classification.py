@@ -9,6 +9,8 @@ from llm_rate_limits import AllKeysRpdDisabledError
 from llm_input_capacity import InputCapacityExceededError
 from llm_daily_budget import DailyBudgetBlockedError
 from llm_tool_rate_guard import ToolRequestGuardError
+from llm_key_admission import KeyAdmissionTimeout
+from llm_model_circuits import ModelCircuitOpenError
 
 
 def _is_server_5xx_error(error_msg: str) -> bool:
@@ -82,6 +84,10 @@ def _key_slot(api_key: str | None, rotator) -> tuple[int | None, int | None]:
 
 
 def _agent_error_category(exc: Exception) -> str:
+    if isinstance(exc, ModelCircuitOpenError):
+        return "local_model_circuit"
+    if isinstance(exc, KeyAdmissionTimeout):
+        return "local_admission_wait"
     if isinstance(exc, ToolRequestGuardError):
         return "local_tool_guard"
     if isinstance(exc, DailyBudgetBlockedError):
@@ -96,7 +102,7 @@ def _agent_error_category(exc: Exception) -> str:
         return "quota"
     if is_auth_error(error_msg):
         return "auth"
-    if is_quota_or_rate_error(error_msg):
+    if status_code == 429 or is_quota_or_rate_error(error_msg):
         return "quota"
     if is_missing_model_error(error_msg):
         return "missing_model"

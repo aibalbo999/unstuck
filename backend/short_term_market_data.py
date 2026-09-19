@@ -48,7 +48,7 @@ def _valid_bar(raw, as_of):
     return {"date": day.isoformat(), **numbers}
 
 
-def normalize_daily_market_data(rows, *, as_of=None, source="yfinance 5y history") -> dict:
+def normalize_daily_market_data(rows, *, as_of=None, source="yfinance 5y history", volume_unit=None) -> dict:
     as_of = parse_market_date(as_of) or date.today()
     rows = rows if isinstance(rows, (list, tuple)) else []
     valid = {}
@@ -66,13 +66,14 @@ def normalize_daily_market_data(rows, *, as_of=None, source="yfinance 5y history
     return {
         "as_of": bars[-1]["date"] if bars else None,
         "requested_as_of": as_of.isoformat(), "source": str(source or "unavailable")[:240],
+        "volume_unit": volume_unit if volume_unit in ("shares", "lots") else None,
         "interval": "1d", "sample_count": len(bars), "max_samples": MAX_DAILY_BARS,
         "availability": "unavailable" if not bars else "partial" if missing else "available",
         "missing_fields": missing, "excluded_row_count": excluded, "bars": bars,
     }
 
 
-def daily_market_data_from_frame(frame, *, as_of=None, source="yfinance 5y history") -> dict:
+def daily_market_data_from_frame(frame, *, as_of=None, source="yfinance 5y history", volume_unit=None) -> dict:
     rows = []
     if frame is not None and hasattr(frame, "iterrows"):
         for index, row in frame.iterrows():
@@ -83,14 +84,15 @@ def daily_market_data_from_frame(frame, *, as_of=None, source="yfinance 5y histo
                           isinstance(value, (int, float)) and math.isnan(value)) else value
                       for key, value in values.items()}
             rows.append({"date": day.isoformat() if day else None, **values})
-    return normalize_daily_market_data(rows, as_of=as_of, source=source)
+    return normalize_daily_market_data(rows, as_of=as_of, source=source, volume_unit=volume_unit)
 
 
 def build_short_term_market_context(data: dict, *, as_of=None, compact=False) -> dict:
     as_of = parse_market_date(as_of) or date.today()
     raw_daily = data.get("daily_market_data")
     raw_daily = raw_daily if isinstance(raw_daily, dict) else {}
-    daily = normalize_daily_market_data(raw_daily.get("bars"), as_of=as_of, source=raw_daily.get("source"))
+    daily = normalize_daily_market_data(raw_daily.get("bars"), as_of=as_of, source=raw_daily.get("source"),
+                                        volume_unit=raw_daily.get("volume_unit"))
     indicators = calculate_technical_indicators(daily)
     displayed = daily["bars"][-(5 if compact else 20):]
     return {

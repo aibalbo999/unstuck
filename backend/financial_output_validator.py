@@ -15,6 +15,7 @@ from financial_claim_context import (
     revenue_period as _revenue_period,
     sentence_span,
 )
+from short_term_output_validator import short_term_evidence_issues
 from output_sanitizer import strip_generated_audit_sections
 
 
@@ -299,6 +300,7 @@ def validate_analysis_output(agent_num: int, text: str, data: Optional[dict] = N
                 )
 
     append_deep_numeric_consistency_issues(issues, normalized)
+    issues.extend(short_term_evidence_issues(agent_num, text or "", data))
 
     return list(dict.fromkeys(issues))
 

@@ -595,7 +595,7 @@ class AuditRuleTests(unittest.TestCase):
 
         self.assertIn(1, context["analyses"])
         self.assertNotIn("blocking_issues", context)
-        self.assertTrue(any("商業模式與整體分析 AI 修復成功" in item for item in context["audit_repair_log"]))
+        self.assertTrue(any("商業模式與整體分析 AI 修復候選已通過" in item and "仍待整份報告稽核" in item for item in context["audit_repair_log"]))
 
         context = complete_context()
         context["analyses"][2] = "[Agent 2 執行失敗：所有模型/Key 不可用]"
@@ -1472,7 +1472,9 @@ class AuditRuleTests(unittest.TestCase):
             )
         self.assertEqual(rendered, "標的 2330.TW 台積電 DDM")
 
+    @patch.object(config, "CRITICAL_LITE_FALLBACK_AGENTS", {})
     def test_model_routing_policy(self):
+        # Verify the base route independently of the separately tested opt-in candidates.
         configured_agents = {
             int(agent_num): model
             for agent_num, model in config.MODEL_ROUTES.get("agents", {}).items()

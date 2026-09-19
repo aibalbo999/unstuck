@@ -47,15 +47,28 @@ def test_batches_fit_and_preserve_every_source_record_with_stable_cache_keys():
     assert batches[0]["batch_id"] != plan_batches(22, prompt + "upstream changed")[0]["batch_id"]
 
 
+@pytest.mark.parametrize("fenced", [False, True])
 @pytest.mark.parametrize("mutation", ["quote", "reference", "identity", "extra"])
-def test_rejects_invented_or_mismatched_evidence(mutation):
+def test_rejects_invented_or_mismatched_evidence(mutation, fenced):
     batch = plan_batches(23, prompt_fixture())[0]
     response = answer(batch)
     if mutation == "quote": response["observations"][0]["quote"] = "改寫淨買超 9999999"
     if mutation == "reference": response["observations"][0]["record_id"] = "r999999"
     if mutation == "identity": response["batch_id"] = "another company"
     if mutation == "extra": response["recommendation"] = "BUY"
+    if fenced: response = "```json\n" + json.dumps(response) + "\n```"
     with pytest.raises(EvidenceBatchInvalid): validate_observations(batch, response)
+
+
+@pytest.mark.parametrize("wrapper", ["prefix", "suffix", "multiple", "wrong_language"])
+def test_batch_json_rejects_prose_multiple_blocks_and_other_code(wrapper):
+    batch = plan_batches(22, prompt_fixture())[0]
+    fenced = "```json\n" + json.dumps(answer(batch)) + "\n```"
+    text = {"prefix": "Here is the result:\n" + fenced,
+            "suffix": fenced + "\nExtra text",
+            "multiple": fenced + "\n" + fenced,
+            "wrong_language": fenced.replace("```json", "```python")}[wrapper]
+    with pytest.raises(EvidenceBatchInvalid): validate_observations(batch, text)
 
 
 def test_partial_batches_are_not_adopted_and_single_oversize_record_is_not_truncated():
@@ -63,6 +76,16 @@ def test_partial_batches_are_not_adopted_and_single_oversize_record_is_not_trunc
     with pytest.raises(EvidenceBatchInvalid): evidence_appendix(batches, [answer(batches[0])])
     with pytest.raises(EvidenceBatchInvalid):
         plan_batches(22, '【財務資料 JSON】\n' + json.dumps({"source": "完整反證" * 10000}, ensure_ascii=False) + '\n\n【使用規則】')
+
+
+def test_evidence_cache_identity_includes_thinking_configuration(monkeypatch):
+    import gemma_evidence_batches as batches
+    prompt = prompt_fixture()
+    original = plan_batches(22, prompt)
+    monkeypatch.setattr(batches, "THINKING_LEVEL", "high")
+    changed = plan_batches(22, prompt)
+    assert original[0]["batch_id"] != changed[0]["batch_id"]
+    assert [b["records"] for b in original] == [b["records"] for b in changed]
 
 
 def test_failed_batch_resumes_from_validated_cache(monkeypatch):
@@ -202,21 +225,24 @@ def test_oversize_gemma_batches_then_integrates_with_full_fallback_prompt(monkey
     assert len([x for x in calls if x[0] == "batch"]) == (len(plan_batches(22, prompt)) if valid else 1)
 
 
+@pytest.mark.parametrize("fenced", [False, True])
 @pytest.mark.parametrize("entry", ["async", "sync"])
-def test_real_transport_bypasses_unverified_cache_and_preserves_source(monkeypatch, entry):
+def test_real_transport_bypasses_unverified_cache_and_preserves_source(monkeypatch, entry, fenced):
     import llm_transport as transport
     from llm_evidence_request import is_evidence_request
     from agent_runtime import gemma_evidence_runtime as runtime
     batch = plan_batches(23, prompt_fixture())[0]
-    batch["records"][0]["text"] += ' 買進 100 張，short exposure 僅是原文'
+    batch["records"][0]["text"] = json.dumps({'original': batch["records"][0]["text"], 'source_note': '買進 100 張，short exposure 僅是原文'}, ensure_ascii=False, separators=(',', ':'))
     calls = []
     def generate(**kw):
         assert is_evidence_request()
         assert "買進 100 張，short exposure" in kw["contents"]
         assert kw["config"].http_options.timeout == 60000
         assert kw["config"].http_options.retry_options.attempts == 1
+        assert kw["config"].thinking_config.thinking_level == "MINIMAL"
         calls.append(kw)
-        return SimpleNamespace(text=json.dumps(answer(batch), ensure_ascii=False))
+        text = json.dumps({"batch_id": batch["batch_id"], "choices": [0]}, ensure_ascii=False)
+        return SimpleNamespace(text="```json\n" + text + "\n```" if fenced else text)
     async def generate_async(**kw):return generate(**kw)
     client = SimpleNamespace(models=SimpleNamespace(generate_content=generate),
                              aio=SimpleNamespace(models=SimpleNamespace(generate_content=generate_async)))
@@ -226,11 +252,12 @@ def test_real_transport_bypasses_unverified_cache_and_preserves_source(monkeypat
     class Rotator:
         keys = ["offline"]
         def get_key(self, model, tokens):
-            assert model == "gemma-4-31b-it" and tokens == batch_input_tokens(batch)
+            assert model == "gemma-4-26b-a4b-it" and tokens == batch_input_tokens(batch)
             return "offline"
         async def async_get_key(self, *args):return self.get_key(*args)
     result = asyncio.run(runtime.call_batch_async(batch, {}, Rotator())) if entry == "async" else runtime.call_batch(batch, {}, Rotator())
-    assert result == answer(batch) and len(calls) == 1
+    from gemma_evidence_batches import resolve_choices
+    assert result == resolve_choices(batch, {"batch_id": batch["batch_id"], "choices": [0]}) and len(calls) == 1
     assert not is_evidence_request()
 
 
@@ -341,6 +368,39 @@ def test_local_timeout_is_classified_and_returns_useful_retry_reason():
     metadata = context["_runtime_events"][-1]["metadata"]
     assert metadata["error_category"] == "timeout"
     assert metadata["provider_status_code"] is None
+
+
+@pytest.mark.parametrize("entry", ["async", "sync"])
+def test_failed_batch_routes_to_next_model_instead_of_aborting_agent(monkeypatch, entry):
+    from agent_runtime import single_agent as agent
+    from agent_runtime import gemma_evidence_runtime as runtime
+    from agent_runtime.retry_policy import AgentServerError
+    monkeypatch.setattr(agent, "get_runtime_model_sequence", lambda *a: ["gemma-4-31b-it", "gemini-3.5-flash-lite"])
+    monkeypatch.setattr(agent, "unavailable_model", lambda *a: None)
+    monkeypatch.setattr(agent, "get_cached_agent_step", lambda *a: None)
+    monkeypatch.setattr(agent, "store_cached_agent_step", lambda *a, **k: None)
+    monkeypatch.setattr(agent, "_build_model_prompt", lambda *a: "complete original prompt")
+    monkeypatch.setattr(runtime, "should_batch", lambda num, model, *a: model == "gemma-4-31b-it")
+    def fail(*a):
+        raise AgentServerError("503 UNAVAILABLE")
+    async def fail_async(*a):
+        fail(*a)
+    monkeypatch.setattr(runtime, "collect_evidence", fail)
+    monkeypatch.setattr(runtime, "collect_evidence_async", fail_async)
+    sent = []
+    def send(num, context, rotator, model, prompt, **kw):
+        sent.append((model, prompt))
+        return "complete fallback result"
+    async def send_async(*a, **kw):
+        return send(*a, **kw)
+    monkeypatch.setattr(agent, "_run_agent_once", send)
+    monkeypatch.setattr(agent, "_run_agent_once_async", send_async)
+    args = 22, {}, {}, SimpleNamespace(keys=["fake"])
+    async def run():
+        return await agent.run_single_agent_async(*args) if entry == "async" else agent.run_single_agent(*args)
+    result = asyncio.run(run())
+    assert result == "complete fallback result"
+    assert sent == [("gemini-3.5-flash-lite", "complete original prompt")]
 
 
 def test_installed_sdk_does_not_hide_multiple_http_attempts(monkeypatch):

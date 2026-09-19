@@ -1,20 +1,21 @@
 """Gemma evidence requests reuse provider quota controls, with per-batch cache."""
 import asyncio
-import json
 import time
 
 from google.genai import types
 
 from cache_store import get_cache_json, set_cache_json
 from config import GEMMA_EVIDENCE_BATCHING_ENABLED, MODEL_INPUT_TOKEN_LIMITS
-from gemma_evidence_batches import (MODEL, ROLES, SYSTEM, EvidenceBatchInvalid, batch_input_tokens,
-                                    batch_prompt, evidence_appendix, plan_batches, validate_observations)
+from gemma_evidence_batches import (MODEL, TRIGGER_MODEL, ROLES, SYSTEM, THINKING_LEVEL, EvidenceBatchInvalid, batch_input_tokens,
+                                    batch_prompt, evidence_appendix, plan_batches, resolve_choices, validate_observations)
 from llm_client import generate_content, generate_content_async, response_text
 from llm_response_diagnostics import response_diagnostics
 from llm_errors import extract_quota_details
 from llm_evidence_request import evidence_request_scope
 from runtime_events import emit_context_event, make_runtime_event
 from .cancellation import raise_if_cancelled
+from .llm_waiting import acquire_key, acquire_key_async
+from llm_key_admission import propagate_admission_cancel
 from .generation_config import estimate_agent_input_tokens
 from .llm_call_metadata import _key_slot_fields, _record_llm_token_usage
 from .model_policy import record_model_success
@@ -28,17 +29,17 @@ RETRY_DELAY_SECONDS = 2
 
 
 def should_batch(agent_num, model_id, prompt, context):
-    if not GEMMA_EVIDENCE_BATCHING_ENABLED or model_id != MODEL or agent_num not in ROLES:
+    if not GEMMA_EVIDENCE_BATCHING_ENABLED or model_id != TRIGGER_MODEL or agent_num not in ROLES:
         return False
     if context.get("_model_sequence_override") or any(context.get(k) for k in (
         "_audit_retry_instruction", "_audit_reflection_instruction", "_identity_retry_instruction")):
         return False
-    limit = MODEL_INPUT_TOKEN_LIMITS.get(MODEL, 12000)
-    return limit > 0 and estimate_agent_input_tokens(agent_num, MODEL, prompt) > limit
+    limit = MODEL_INPUT_TOKEN_LIMITS.get(TRIGGER_MODEL, 12000)
+    return limit > 0 and estimate_agent_input_tokens(agent_num, TRIGGER_MODEL, prompt) > limit
 
 
 def append_if_capacity_allows(agent_num, model_id, prompt, notes, context=None):
-    if not notes or model_id == MODEL:
+    if not notes or model_id in {MODEL, TRIGGER_MODEL}:
         return prompt
     combined = prompt + notes
     limit = MODEL_INPUT_TOKEN_LIMITS.get(model_id, 0)
@@ -55,6 +56,7 @@ def append_if_capacity_allows(agent_num, model_id, prompt, notes, context=None):
 def config():
     # A separate extraction protocol, never the final agent's output schema.
     return types.GenerateContentConfig(temperature=0, max_output_tokens=2048, system_instruction=SYSTEM,
+                                       thinking_config=types.ThinkingConfig(thinking_level=THINKING_LEVEL),
                                        http_options=types.HttpOptions(
                                            timeout=TIMEOUT * 1000,
                                            # Count every HTTP send in our own ledger/retry loop.
@@ -68,6 +70,7 @@ def event(context, batch, phase, rotator=None, key=None, event_message=None, **e
         message=event_message or f"Agent {batch['agent_num']} Gemma 分批證據處理：{phase.removeprefix('gemma_evidence_')}",
         agent_num=batch["agent_num"], pipeline_id=context.get("pipeline_id"),
         metadata={"model_id": MODEL, "call_purpose": "evidence_batch", "batch_id": batch["batch_id"],
+                  "thinking_level": THINKING_LEVEL, "timeout_seconds": TIMEOUT,
                   "estimated_input_tokens": batch_input_tokens(batch),
                   "input_estimate_basis": "batch_prompt_with_system", "source_record_count": len(batch["records"]),
                   **(_key_slot_fields(rotator, key) if rotator is not None else {}), **extra},
@@ -79,16 +82,18 @@ def finish_response(batch, context, rotator, key, response):
     _record_llm_token_usage(context, batch["agent_num"], response)
     text = response_text(response)
     try:
-        validate_observations(batch, text)
+        parsed = resolve_choices(batch, text)
+        validate_observations(batch, parsed)
     except EvidenceBatchInvalid:
         event(context, batch, "gemma_evidence_error", rotator, key, error_category="evidence_validation")
         raise
     record_model_success(context, MODEL)
     event(context, batch, "gemma_evidence_response", rotator, key, response_diagnostics=response_diagnostics(response))
-    return json.loads(text)
+    return parsed
 
 
 def provider_error(batch, context, rotator, key, exc):
+    propagate_admission_cancel(exc)
     event(context, batch, "gemma_evidence_error", rotator, key,
           error_category=_agent_error_category(exc), error_kind=type(exc).__name__,
           provider_status_code=provider_status_code(exc), provider_quota=extract_quota_details(exc))
@@ -139,7 +144,7 @@ def call_batch(batch, context, rotator):
     key = None
     event(context, batch, "gemma_evidence_call")
     try:
-        key = rotator.get_key(MODEL, batch_input_tokens(batch))
+        key = acquire_key(rotator, MODEL, batch_input_tokens(batch), context, TIMEOUT)
     except Exception as exc:
         provider_error(batch, context, rotator, key, exc)
     raise_if_cancelled(context)
@@ -157,7 +162,7 @@ async def call_batch_async(batch, context, rotator):
     key = None
     event(context, batch, "gemma_evidence_call")
     try:
-        key = await rotator.async_get_key(MODEL, batch_input_tokens(batch))
+        key = await acquire_key_async(rotator, MODEL, batch_input_tokens(batch), context, TIMEOUT)
     except Exception as exc:
         provider_error(batch, context, rotator, key, exc)
     raise_if_cancelled(context)

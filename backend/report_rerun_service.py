@@ -23,6 +23,7 @@ from report_history_storage import storage_for_existing_output_dir
 from report_index_parsing import is_safe_report_filename
 from report_pipeline_identity import resolve_report_pipeline_id as _source_pipeline_id
 from report_rerun_data import prepare_full_rerun_data, rerun_data_payload
+from report_rerun_checkpoint import full_rerun_checkpoint
 from report_rerun_audit import run_final_rerun_audit
 from report_rerun_context import (
     RERUN_SCOPE_LABELS,
@@ -49,17 +50,27 @@ async def _run_full_pipeline_rerun(
     progress_callback: Any = None,
     cancel_check: Any = None,
     storage: ReportStorage | None = None,
+    job_id: str | None = None,
 ) -> dict:
-    data = await prepare_full_rerun_data(
-        snapshot,
-        pipeline_id=pipeline_id,
-        refresh_service=refresh_service,
-        progress_callback=progress_callback,
+    if callable(cancel_check):
+        cancel_check()
+    checkpoint, data = await full_rerun_checkpoint(
+        job_id=job_id, source_filename=source_filename, scope=scope,
+        pipeline_id=pipeline_id, output_dir=output_dir,
     )
     if callable(cancel_check):
         cancel_check()
+    if data is None:
+        data = await prepare_full_rerun_data(snapshot, pipeline_id=pipeline_id,
+            refresh_service=refresh_service, progress_callback=progress_callback)
+    elif callable(progress_callback):
+        progress_callback({"type": "status", "phase": "rerun_resume", "pipeline_id": pipeline_id,
+            "message": "已找到重跑進度，沿用原資料快照接續未完成步驟；資料日期保持原值。"})
+    if callable(cancel_check):
+        cancel_check()
     analysis_result = await pipeline_runner.run_async(
-        AnalysisRequest(data=data, pipeline_id=pipeline_id, progress_callback=progress_callback, cancel_check=cancel_check)
+        AnalysisRequest(data=data, pipeline_id=pipeline_id, progress_callback=progress_callback,
+                        cancel_check=cancel_check, **checkpoint)
     )
     if callable(cancel_check):
         cancel_check()
@@ -204,6 +215,7 @@ async def rerun_report_analysis(
     progress_callback: Any = None,
     cancel_check: Any = None,
     storage: ReportStorage | None = None,
+    job_id: str | None = None,
 ) -> dict:
     normalized_scope = normalize_rerun_scope(scope)
     if not is_safe_report_filename(filename, ".html"):
@@ -218,32 +230,20 @@ async def rerun_report_analysis(
             raise HTTPException(status_code=404, detail="找不到報告")
     snapshot = read_report_snapshot(filename, output_dir, storage=source_storage)
     source_pipeline_id = _source_pipeline_id(filename, snapshot=snapshot)
-    if normalized_scope == "full_report":
+    if normalized_scope in {"full_report", "mode_b"}:
         return await _run_full_pipeline_rerun(
             snapshot=snapshot,
             output_dir=output_dir,
             pipeline_runner=pipeline_runner,
             report_renderer=report_renderer,
             source_filename=filename,
-            pipeline_id=source_pipeline_id,
-            scope="full_report",
-            refresh_service=refresh_service,
+            pipeline_id=source_pipeline_id if normalized_scope == "full_report" else "v2",
+            scope=normalized_scope,
+            refresh_service=refresh_service if normalized_scope == "full_report" else None,
             progress_callback=progress_callback,
             cancel_check=cancel_check,
             storage=content_storage,
-        )
-    if normalized_scope == "mode_b":
-        return await _run_full_pipeline_rerun(
-            snapshot=snapshot,
-            output_dir=output_dir,
-            pipeline_runner=pipeline_runner,
-            report_renderer=report_renderer,
-            source_filename=filename,
-            pipeline_id="v2",
-            scope="mode_b",
-            progress_callback=progress_callback,
-            cancel_check=cancel_check,
-            storage=content_storage,
+            job_id=job_id,
         )
     return await _run_final_recommendation_rerun(
         filename=filename,

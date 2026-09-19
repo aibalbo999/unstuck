@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+
 from market_context_manifest import CONTRACT_VERSION, SOURCE_FIELDS, available_source_count, manifest_matches_input, market_input_fingerprint
 
 _LABELS = {"global_market_context": "全球市場脈絡", "international_news_context": "國際新聞脈絡"}
@@ -22,6 +24,17 @@ def _agent_value(values, agent):
 
 def _reason(value) -> str:
     return value.strip() if isinstance(value, str) else ""
+
+
+def _reference_repair_hint(source: str, visible: list[str], trusted: bool) -> str:
+    field = f"market_context_assessment.{source}.source_refs"
+    if not trusted:
+        return f"{field} 的來源憑據與本次輸入不符；請按重寫提示的完整來源區塊重新評估，不得沿用舊引用。"
+    if not visible:
+        return f"{field} 沒有完整可見的來源；填空陣列與 not_assessed 並說明限制，不得借用其他來源欄位的引用。"
+    return (f"{field} 不得混用其他來源欄位的引用；此欄位已驗證的引用為 {json.dumps(visible)}。"
+            "請重新核對完整來源內容、impact 與 reason，不得只替換引用碼。"
+            "重寫時仍以本次完整可見的 market-source 區塊為準；若已省略來源則填 not_assessed 並說明限制。")
 
 
 def assess_final_market_context(context: dict) -> dict:
@@ -63,7 +76,8 @@ def assess_final_market_context(context: dict) -> dict:
             code = "source_reference_invalid"
             message = f"Agent {agent} {label}：{_REASONS[code]}"
             result["critical"].append(message)
-            result["repair_agent_issues"].setdefault(agent, []).append(message)
+            result["repair_agent_issues"].setdefault(agent, []).append(
+                message + _reference_repair_hint(source, visible, trusted_manifest))
         elif source_absent or (trusted_manifest and not visible):
             code = "source_unavailable" if source_absent else "prompt_omitted"
         elif not (claimed and refs_valid_shape and refs and reason and reason not in {*SOURCE_FIELDS, *_LABELS.values(), "N/A", "未評估"}):

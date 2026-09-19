@@ -90,9 +90,11 @@ def run_single_agent(
             continue
         if unavailable:
             deferred_routes.append(unavailable)
-            message = f"模型 {model_id} 暫時熔斷，直接切換備援模型。"
+            reason = "供應商每日額度已用完" if unavailable.get("provider_quota_confirmed") else "暫時冷卻中"
+            message = f"模型 {model_id} {reason}，直接切換備援模型。"
             emit_log(f"    🔁 {message}")
-            emit_sync_model_event(context, agent_num, "model_circuit_open", "warning", message, model_id)
+            emit_sync_model_event(context, agent_num, "model_circuit_open", "warning", message, model_id,
+                                  **{k: v for k, v in unavailable.items() if k != "model_id"})
             continue
 
         has_fallback = len(model_sequence) > model_index + 1
@@ -116,23 +118,23 @@ def run_single_agent(
             result = restore_cached_agent_step(context, agent_num, cached_step)
             record_node_cache_response(context, agent_num, cached_step)
             return result
-        admission = admit_model_input_sync(
-            agent_num, model_id, prompt, context, rotator,
-            has_fallback=has_fallback, evidence_notes=evidence_notes,
-        )
-        evidence_notes = admission.evidence_notes
-        if not admission.call_provider:
-            last_error = admission.last_error or last_error
-            continue
-        record_agent_step_cache_miss(context)
-        retryer = Retrying(
-            stop=make_model_retry_stop_for_rotator(policy, rotator, model_id),
-            wait=_agent_retry_wait,
-            retry=retry_if_exception_type(AgentRetryableError),
-            before_sleep=make_agent_retry_logger(context, agent_num, model_id),
-            reraise=True,
-        )
         try:
+            admission = admit_model_input_sync(
+                agent_num, model_id, prompt, context, rotator,
+                has_fallback=has_fallback, evidence_notes=evidence_notes,
+            )
+            evidence_notes = admission.evidence_notes
+            if not admission.call_provider:
+                last_error = admission.last_error or last_error
+                continue
+            record_agent_step_cache_miss(context)
+            retryer = Retrying(
+                stop=make_model_retry_stop_for_rotator(policy, rotator, model_id),
+                wait=_agent_retry_wait,
+                retry=retry_if_exception_type(AgentRetryableError),
+                before_sleep=make_agent_retry_logger(context, agent_num, model_id),
+                reraise=True,
+            )
             for attempt in retryer:
                 raise_if_cancelled(context)
                 with attempt, market_output_attempt(context, agent_num):
@@ -191,9 +193,11 @@ async def run_single_agent_async(
             continue
         if unavailable:
             deferred_routes.append(unavailable)
-            message = f"模型 {model_id} 暫時熔斷，直接切換備援模型。"
+            reason = "供應商每日額度已用完" if unavailable.get("provider_quota_confirmed") else "暫時冷卻中"
+            message = f"模型 {model_id} {reason}，直接切換備援模型。"
             emit_log(f"    🔁 {message}")
-            await emit_async_model_event(context, agent_num, "model_circuit_open", "warning", message, model_id)
+            await emit_async_model_event(context, agent_num, "model_circuit_open", "warning", message, model_id,
+                                        **{k: v for k, v in unavailable.items() if k != "model_id"})
             continue
 
         has_fallback = len(model_sequence) > model_index + 1
@@ -217,23 +221,23 @@ async def run_single_agent_async(
             result = restore_cached_agent_step(context, agent_num, cached_step)
             record_node_cache_response(context, agent_num, cached_step)
             return result
-        admission = await admit_model_input_async(
-            agent_num, model_id, prompt, context, rotator,
-            has_fallback=has_fallback, evidence_notes=evidence_notes,
-        )
-        evidence_notes = admission.evidence_notes
-        if not admission.call_provider:
-            last_error = admission.last_error or last_error
-            continue
-        record_agent_step_cache_miss(context)
-        retryer = AsyncRetrying(
-            stop=make_model_retry_stop_for_rotator(policy, rotator, model_id),
-            wait=_agent_retry_wait,
-            retry=retry_if_exception_type(AgentRetryableError),
-            before_sleep=make_agent_retry_logger(context, agent_num, model_id),
-            reraise=True,
-        )
         try:
+            admission = await admit_model_input_async(
+                agent_num, model_id, prompt, context, rotator,
+                has_fallback=has_fallback, evidence_notes=evidence_notes,
+            )
+            evidence_notes = admission.evidence_notes
+            if not admission.call_provider:
+                last_error = admission.last_error or last_error
+                continue
+            record_agent_step_cache_miss(context)
+            retryer = AsyncRetrying(
+                stop=make_model_retry_stop_for_rotator(policy, rotator, model_id),
+                wait=_agent_retry_wait,
+                retry=retry_if_exception_type(AgentRetryableError),
+                before_sleep=make_agent_retry_logger(context, agent_num, model_id),
+                reraise=True,
+            )
             async for attempt in retryer:
                 raise_if_cancelled(context)
                 with attempt, market_output_attempt(context, agent_num):

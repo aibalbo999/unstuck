@@ -14,6 +14,7 @@ async def build_model_route_budget_payload(telemetry_limit: int = 5000) -> dict:
     snapshot = await _dashboard_snapshot_or_empty(telemetry_limit=telemetry_limit)
     payload = safe_mapping_dict(snapshot.get("model_route_budget")) if isinstance(snapshot, dict) else {}
     if payload:
+        payload = {**payload, "report_execution": safe_mapping_dict(snapshot.get("report_execution"))}
         return payload
     empty = build_model_route_budget([])
     if isinstance(snapshot, dict) and safe_bool(snapshot.get("observability_unavailable")):

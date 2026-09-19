@@ -82,6 +82,7 @@ def calculate_technical_indicators(daily: dict) -> dict:
     return {
         "as_of": daily.get("as_of"), "sample_count": len(bars),
         "source": daily.get("source"),
+        "volume_unit": daily.get("volume_unit"),
         "availability": "unavailable" if not bars else "partial" if missing else "available",
         "missing_indicators": missing,
         "calculation_policy": {

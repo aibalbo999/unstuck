@@ -19,18 +19,18 @@ def event_swing_fallback() -> dict[str, object]:
 
 def short_setup_fallback() -> dict[str, str]:
     return {
-        "entry_trigger": "後續財測下修、毛利率壓縮或估值均值回歸開始發生",
+        "entry_trigger": "等待後續財測、毛利率與估值證據確認後重新評估；目前觀望，不開倉。",
         "downside_target": "資料不足，需重新產生可驗證下行目標",
-        "cover_stop": "股價放量突破前高且基本面證據同步改善",
+        "cover_stop": "不適用，目前不建立空方部位。",
         "squeeze_risk": "借券與空單資料不足，禁止建立積極空方部位",
-        "thesis_invalidation": "基本面證據改善並重新支撐目前估值",
+        "thesis_invalidation": "若後續財報或財測顯示基本面改善，須重新評估目前估值及原先的空方假設。",
     }
 
 
 def position_plan_fallback() -> dict[str, str]:
     return {
         "action": "等待",
-        "entry_zone": "資料不足，等待可驗證進場條件",
+        "entry_zone": "目前觀望，等待財報、籌碼與估值證據確認後重新評估；暫不交易。",
         "position_size": "0%，等待觸發",
         "stop_loss": "資料不足，暫不建立部位",
         "risk_reward": "資料不足",

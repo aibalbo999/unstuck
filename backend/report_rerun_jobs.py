@@ -176,6 +176,7 @@ async def run_report_rerun_job_async(
             progress_callback=progress_callback,
             cancel_check=lambda: _raise_if_cancelled(job_id),
             storage=report_storage,
+            job_id=job_id,
         )
         _raise_if_cancelled(job_id)
         result_map = safe_mapping_dict(result) or {}

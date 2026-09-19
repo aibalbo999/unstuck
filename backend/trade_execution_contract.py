@@ -22,6 +22,9 @@ def observation_reason_is_explicit(value) -> bool:
 def contains_trade_order(value) -> bool:
     """Conservatively distinguish a deferred order from observation-only text."""
     text = safe_text(value)
+    # This names information still missing, rather than instructing an entry.
+    # Remove only the bounded noun phrase; any following actual order remains.
+    text = re.sub(r"等待(?:可驗證|明確)的?進場條件(?=$|[，。；、\n])", "", text)
     verbs = r"(?:建立空方部位|建立空單|買入|賣出|做多|做空|放空|開倉|建倉|進場|下單)"
     text = re.sub(r"(?:暫不|尚不|不可|不|勿|禁止|不得)\s*(?:立即|馬上|考慮)?\s*" + verbs, "", text)
     text = re.sub(r"\b(?:no|not|do not|don't)\s+(?:buy|sell|short|trade)\b", "", text, flags=re.I)

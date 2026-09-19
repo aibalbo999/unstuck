@@ -119,7 +119,7 @@ async def attempt_final_audit_repair_async(context: AnalysisContext, audit: Audi
 
 
 def _record_repair_result(context: AnalysisContext, progress_callback, agent_num: int, agent_name: str, ok: bool, message: str) -> None:
-    status = "成功" if ok else "失敗"
+    status = "候選已通過單一 Agent 契約檢查（仍待整份報告稽核）" if ok else "失敗"
     log = f"{agent_name} 自動修復{status}：{message}"
     context.setdefault("audit_repair_log", []).append(log)
     emit_log(f"     - {log}")
@@ -131,7 +131,7 @@ def _record_repair_result(context: AnalysisContext, progress_callback, agent_num
 
 
 async def _record_repair_result_async(context: AnalysisContext, progress_callback, agent_num: int, agent_name: str, ok: bool, message: str) -> None:
-    status = "成功" if ok else "失敗"
+    status = "候選已通過單一 Agent 契約檢查（仍待整份報告稽核）" if ok else "失敗"
     log = f"{agent_name} 自動修復{status}：{message}"
     context.setdefault("audit_repair_log", []).append(log)
     emit_log(f"     - {log}")
@@ -154,7 +154,7 @@ def _repair_result_event(context: AnalysisContext, agent_num: int, agent_name: s
         agent_num=agent_num,
         pipeline_id=context.get("pipeline_id"),
         pipeline_label=context.get("pipeline_label"),
-        metadata={"ok": ok},
+        metadata={"ok": ok, "validation_scope": "agent_contract", "final_report_passed": None},
     )
 
 

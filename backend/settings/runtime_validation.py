@@ -36,7 +36,8 @@ def validate_runtime_settings_from(settings: Mapping[str, Any]) -> list[str]:
                 "PRIMARY_MODEL_*_MAX_ATTEMPTS 必須大於 0。",
             ),
             (
-                get("LLM_SERVER_ERROR_MAX_ATTEMPTS", 0) <= 0 or get("LLM_SERVER_ERROR_RETRY_MAX_WAIT_SECONDS", 0) <= 0,
+                get("LLM_SERVER_ERROR_MAX_ATTEMPTS", 0) <= 0 or get("LLM_SERVER_ERROR_RETRY_MAX_WAIT_SECONDS", 0) <= 0
+                or get("LLM_SERVER_ERROR_MODEL_COOLDOWN_SECONDS", 60) <= 0,
                 "LLM_SERVER_ERROR_* 必須大於 0。",
             ),
             (

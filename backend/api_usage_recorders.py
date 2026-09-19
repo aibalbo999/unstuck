@@ -5,6 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 
 from api_usage_store import record_api_usage
+from llm_daily_usage import LOCAL_BLOCK_KINDS
 
 
 def record_runtime_event_usage(
@@ -20,6 +21,7 @@ def record_runtime_event_usage(
     if phase not in {"llm_model_call", "llm_provider_request", "llm_model_error", "llm_model_response"}:
         return
     metadata = payload.get("metadata") if isinstance(payload.get("metadata"), dict) else {}
+    metadata = {"agent_num": payload.get("agent_num"), "pipeline_id": payload.get("pipeline_id"), **metadata}
     model_id = str(metadata.get("model_id") or "unknown")
     message = str(payload.get("message") or "")
     if phase == "llm_model_call":
@@ -50,7 +52,11 @@ def record_runtime_event_usage(
         return
     if phase == "llm_model_error":
         error_category = str(metadata.get("error_category") or "")
-        if error_category == "auth" or "401" in message or "unauthenticated" in message.lower():
+        if error_category == "local_admission_wait":
+            status = "local_admission_wait"
+        elif metadata.get("error_kind") in LOCAL_BLOCK_KINDS:
+            status = "local_block"
+        elif error_category == "auth" or "401" in message or "unauthenticated" in message.lower():
             status = "auth_error"
         elif error_category == "schema_error":
             status = "config_error"

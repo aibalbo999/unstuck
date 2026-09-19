@@ -31,7 +31,7 @@ def extract_market_history_bundle(stock, *, as_of=None) -> dict:
         hist = stock.history(period="5y")
     except Exception:
         hist = None
-    daily = daily_market_data_from_frame(hist, as_of=today)
+    daily = daily_market_data_from_frame(hist, as_of=today, volume_unit="shares")
     return {
         "price_history_ranges": _price_history_ranges_from_frame(hist, as_of=today),
         "daily_market_data": daily,

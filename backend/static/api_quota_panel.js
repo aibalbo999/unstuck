@@ -48,6 +48,16 @@
     }
     const observations = window.StockAgentApiQuotaObservations;
 
+    function reportExecutionMarkup(metrics, escapeHtml) {
+        if (!metrics || !metrics.sample_size) return '';
+        const mean = metrics.mean_observed_requests_per_completed_report;
+        const reasons = {provider_daily_quota_exhausted: '供應商每日額度用完', model_cooldown: '暫時冷卻', input_capacity: '完整輸入超過容量', temporary_provider_failure: '供應商暫時失敗', local_key_admission_timeout: '等候可用額度逾時', legacy_unspecified: '舊紀錄未分類'};
+        const statuses = {running: '執行中', waiting_retry: '等待重試', queued: '排隊中', pending: '待執行', error: '失敗', cancelled: '已取消'};
+        const skips = (metrics.route_skips || []).slice(0, 12).map(row => `<li>${escapeHtml(row.model_id)}：${escapeHtml(reasons[row.reason_code] || row.reason_code)} ${escapeHtml(row.count)} 次</li>`).join('');
+        const jobs = (metrics.reports || []).filter(row => row.status !== 'done').slice(0, 10).map(row => `<li>${escapeHtml(row.ticker)} ${escapeHtml(row.pipeline_id === 'rerun:full_report' ? '完整重跑' : row.pipeline_id)}：${escapeHtml(statuses[row.status] || row.status)}；最近階段 ${escapeHtml(row.last_agent == null ? '未記錄' : 'Agent ' + row.last_agent)}；已觀測請求 ${escapeHtml(row.observed_provider_requests ?? '無資料')}</li>`).join('');
+        return `<article class="provider-sla-chip provider-sla-insight"><strong>整份報告的模型用量</strong><span class="provider-sla-detail">${mean == null ? '尚無可計算的已完成報告請求紀錄' : `有請求紀錄的 ${escapeHtml(metrics.completed_with_request_evidence)} 份已完成報告，平均觀測到 ${escapeHtml(mean)} 次模型請求`}</span><span class="provider-sla-detail">完成報告平均歷時 ${escapeHtml(metrics.mean_completed_elapsed_seconds ?? '無資料')} 秒，包含排隊與延後重試。請求數涵蓋 Agent 正文與證據分批，不含摘要與反思。統計取最近有限筆紀錄，缺少資料不視為零。</span><details class="provider-sla-technical"><summary>備援跳過原因與未完成任務</summary><ul>${skips}${jobs}</ul></details></article>`;
+    }
+
     function render(payload, options) {
         const summaryEl = options.summaryEl;
         const listEl = options.listEl;
@@ -85,7 +95,7 @@
             }).join('')
             : '';
         const routeMarkup = warningGroups.map(group => observations.routeWarningMarkup(group, escapeHtml)).join('');
-        listEl.innerHTML = serviceMarkup + routeMarkup || '<span class="provider-sla-chip is-warning">尚無 LLM/API 本機觀測資料</span>';
+        listEl.innerHTML = reportExecutionMarkup(payload?.model_route_budget?.report_execution, escapeHtml) + serviceMarkup + routeMarkup || '<span class="provider-sla-chip is-warning">尚無 LLM/API 本機觀測資料</span>';
     }
 
     window.StockAgentApiQuotaPanel = { render };

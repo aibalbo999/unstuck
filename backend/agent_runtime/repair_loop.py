@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from analysis_types import AnalysisContext, StockData
 from agent_catalog import AGENT_NAMES
+from config import MAX_PER_JOB_REPAIR_ATTEMPTS
 from llm_client import KeyRotator
 from runtime_events import emit_context_error, emit_context_error_async, emit_log
 from validators import (
@@ -19,10 +20,10 @@ from .deterministic_fallbacks import _clear_agent_blocking_issues
 from .repair_circuit_breaker import is_repair_429_error, record_repair_429_failure, repair_429_circuit_state
 from .repair_context import capture_repair_context, install_repair_attempt_context, restore_repair_context
 from .repair_quality_fallback import record_quality_fallback
-from .repair_state import adopt_repair_result
+from .repair_state import adopt_repair_result, repair_contract_issues
 from .repair_transaction import preserve_failed_repair
 from .cancellation import raise_if_cancelled
-from .repair_attempt_limits import apply_429_fallback, increment_repair_attempt_count, per_job_repair_limit_fallback
+from .repair_attempt_limits import apply_429_fallback, increment_repair_attempt_count, per_job_repair_limit_fallback, repair_attempt_count
 from .repair_reflection import (
     build_audit_reflection_instruction,
     build_audit_retry_instruction,
@@ -62,7 +63,8 @@ def _repair_agent_output(agent_num: int, data: StockData, context: AnalysisConte
         current_issues = list(issues)
         last_result = None
         last_quality_issues = []
-        for repair_attempt in range(2):
+        remaining = max(0, MAX_PER_JOB_REPAIR_ATTEMPTS - repair_attempt_count(context, agent_num))
+        for repair_attempt in range(min(2, remaining)):
             reflection = generate_audit_reflection(
                 agent_num,
                 current_issues,
@@ -103,8 +105,10 @@ def _repair_agent_output(agent_num: int, data: StockData, context: AnalysisConte
             if prompt_issues or identity_issues:
                 return False, "；".join(prompt_issues + identity_issues)
             quality_issues = validate_analysis_output(agent_num, result, data)
-            if not quality_issues and _structured_output_missing(context, agent_num):
-                quality_issues = [f"Agent {agent_num} 未提供可解析 JSON 結構化輸出。"]
+            quality_issues.extend(repair_contract_issues(agent_num, {
+                **context, "data": data,
+                "analyses": {**context.get("analyses", {}), agent_num: result},
+            }))
             if quality_issues:
                 last_result = append_quality_warnings(agent_num, result, data)
                 last_quality_issues = quality_issues
@@ -170,7 +174,8 @@ async def _repair_agent_output_async(agent_num: int, data: StockData, context: A
         current_issues = list(issues)
         last_result = None
         last_quality_issues = []
-        for repair_attempt in range(2):
+        remaining = max(0, MAX_PER_JOB_REPAIR_ATTEMPTS - repair_attempt_count(context, agent_num))
+        for repair_attempt in range(min(2, remaining)):
             reflection = await generate_audit_reflection_async(
                 agent_num,
                 current_issues,
@@ -211,8 +216,10 @@ async def _repair_agent_output_async(agent_num: int, data: StockData, context: A
             if prompt_issues or identity_issues:
                 return False, "；".join(prompt_issues + identity_issues)
             quality_issues = validate_analysis_output(agent_num, result, data)
-            if not quality_issues and _structured_output_missing(context, agent_num):
-                quality_issues = [f"Agent {agent_num} 未提供可解析 JSON 結構化輸出。"]
+            quality_issues.extend(repair_contract_issues(agent_num, {
+                **context, "data": data,
+                "analyses": {**context.get("analyses", {}), agent_num: result},
+            }))
             if quality_issues:
                 last_result = append_quality_warnings(agent_num, result, data)
                 last_quality_issues = quality_issues

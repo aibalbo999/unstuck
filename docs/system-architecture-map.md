@@ -22,9 +22,15 @@
 
 Agent 可用性與品質失敗分流：`agent_runtime/deferred.py` 將耗盡的暫時性模型失敗交給 `analysis_job_retry.py`，由 RQ 按實際恢復時間延後；本機 circuit 攔截不重新延長 provider 冷卻。`agent_runtime/quality_drafts.py` 的未通過草稿例外阻止正式發布，不能將草稿當作成功分析。`workflow_quality_drafts.py` 在同一個 checkpointer 的獨立 namespace 保存未驗證原稿，恢復後仍須重新通過品質檢查，不會推進成功節點。
 
+背景完整重跑的續接由 `report_rerun_checkpoint.py` 將 job／來源／scope 綁到既有 persistent workflow；`full_report` 四模式及 `mode_b` 在重試時讀回同一 graph input，不重抓新資料或重做已完成節點。新 job 重新準備資料；來源模式漂移或原 input 不可確認時停止。資料日期、取消、品質 gate 與 provider cooldown 保留；舊入口未保存的進度不能補回，直接 service 呼叫與只重跑最終建議維持原行為。本機驗收詳見 [備援與完整重跑續接](agent-fallback-implementation-2026-09-17.md)。
+
 目前 usage-aware profile 的一般分析路由以 Gemma 為主，依角色在 Preview／3.6 後接續 3.8／Lite；估值 4／14 分別以 3.6／Preview 為主，audit 與最終決策以 3.8 為主，這些角色的備援限於 Preview／3.6／3.8。`agent_runtime/routing.py` 仍以設定的順序為準，`single_agent.py` 保留同步／非同步 retry orchestration，`single_agent_prompt.py` 只管理單次模型嘗試的暫時 prompt context；輸入容量與可用性檢查後才自動嘗試下一候選，品質重寫和 audit override 不跨越角色邊界。路由更新需重載 runtime，不提前執行已排定的 RQ retry。
 
 工具迴圈的每日預留結算由 `llm_daily_budget.py`／`llm_budget_settlement.py` 管理，canonical operational DB 的 `llm_budget_reservations` 以 receipt 綁原 Pacific 日與 key-model；`llm_tool_rate_guard.py` 在 scope 結束後僅歸還未 claim 的預留，重複結算、跨日或失敗不得擴大預算。已 claim 的失敗／不確定請求仍扣帳，無 hook 證據與 legacy 扣帳不回補。
+
+`llm_rate_limits.KeyRotator` 先檢查本機分鐘配額，再取得共用 limiter 預留，成功後才扣本機與每日預算。共用限速拒絕某把 key 時繼續檢查其他本機可用候選，不讓第一把 key 的等待擋住整個模型；全部候選需等待時使用最短已知等待時間。同步／非同步 admission 共用本機扣帳鎖，工具後续請求仍綁定同一 key，不任意更換工具對話身分。
+
+一般 Agent 的 key 等待控制在 `llm_key_admission.py`／`agent_runtime/llm_waiting.py`，由單次呼叫的 task-local scope 傳給 rotator。key admission 與 provider 生成各自使用原 route timeout；本機等待逾時分類為 `local_admission_wait`，不視為 provider RPD、也不開新的 model circuit，而是沿既有候選／deferred 路徑處理。取消保留原 job exception；有 callback 時每秒檢查，scope 離開即還原，沒有 scope 的直接 rotator 呼叫不變。
 
 提示資料邊界在 `prompt_evidence.py`：內部 RAG 索引與向量不進入 prompt，checkpoint 與檢索證據保持原樣。`agent_runtime/prompt_routing_policy.py` 宣告角色可見的外部 context 與歷史年限，`agent_runtime/prompting.py` 負責安全投影及模板組裝。`llm_response_diagnostics.py` 保存有界的回應結束原因、阻擋原因、工具呼叫觀察與 usage，不保存 key、工具參數或思考內容；未取得 metadata 時不得猜測空白回應的原因。
 

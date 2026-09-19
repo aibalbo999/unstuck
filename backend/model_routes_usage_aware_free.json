@@ -1,5 +1,6 @@
 {
   "provider_quota_authoritative": true,
+  "gemma_evidence_batching": true,
   "default_analysis_model": "gemma-4-31b-it",
   "default_decision_model": "gemini-3.8-flash",
   "analysis_fallback_models": ["gemini-3-flash-preview", "gemini-3.6-flash", "gemini-3.8-flash", "gemini-3.5-flash-lite"],
@@ -32,6 +33,7 @@
   },
   "rpm_limits": {
     "gemma-4-31b-it": 1,
+    "gemma-4-26b-a4b-it": 1,
     "gemini-3.8-flash": 2,
     "gemini-3-flash-preview": 5,
     "gemini-3.6-flash": 5,
@@ -40,6 +42,7 @@
   },
   "tpm_limits": {
     "gemma-4-31b-it": 16000,
+    "gemma-4-26b-a4b-it": 16000,
     "gemini-3.8-flash": 200000,
     "gemini-3-flash-preview": 200000,
     "gemini-3.6-flash": 200000,
@@ -48,6 +51,7 @@
   },
   "input_token_limits": {
     "gemma-4-31b-it": 12000,
+    "gemma-4-26b-a4b-it": 12000,
     "gemini-3.8-flash": 150000,
     "gemini-3-flash-preview": 150000,
     "gemini-3.6-flash": 150000,
@@ -73,5 +77,36 @@
   "assumed_project_count": 16,
   "quota_max_attempts_per_model": 4,
   "server_error_max_attempts": 2,
-  "limit_basis": "local_operating_budgets_not_provider_entitlements"
+  "limit_basis": "local_operating_budgets_not_provider_entitlements",
+  "critical_lite_fallback_agents": {
+    "4": true,
+    "7": true,
+    "14": true,
+    "16": true,
+    "19": true,
+    "24": true
+  },
+  "audit_rewrite_lite_fallback_agents": {
+    "1": true,
+    "2": true,
+    "3": true,
+    "4": true,
+    "5": true,
+    "6": true,
+    "7": true,
+    "11": true,
+    "12": true,
+    "13": true,
+    "14": true,
+    "15": true,
+    "16": true,
+    "17": true,
+    "18": true,
+    "19": true,
+    "20": true,
+    "21": true,
+    "22": true,
+    "23": true,
+    "24": true
+  }
 }

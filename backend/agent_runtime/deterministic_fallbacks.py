@@ -107,8 +107,8 @@ def _deterministic_structured_fallback(
         structured = {
             "reasoning_steps": [
                 "可解析泡沫狙擊 JSON 不足，採用保守逆勢風險框架。",
-                "在資料不足下不主張積極追價，優先保留避險或避免立場。",
-                "需等待明確財測下修、估值均值回歸或法人派發擴大作為交易觸發。",
+                "在資料不足下維持避免立場，目前觀望，不建立新部位。",
+                "等待可驗證的財測、估值與法人資料後重新評估，不將觀察條件視為交易指令。",
             ],
             "recommendation": {
                 "建議": "避免",
@@ -121,12 +121,12 @@ def _deterministic_structured_fallback(
             "scenario_triggers": [
                 {
                     "trigger_condition": "後續財測下修、毛利率壓縮或估值均值回歸開始發生",
-                    "action": "提高避險或放空觀察權重",
+                    "action": "重新評估空方假設，目前仍觀望，不開倉",
                     "direction": "bearish_downgrade",
                 },
                 {
                     "trigger_condition": "股價放量突破前高且基本面證據同步改善",
-                    "action": "回補空方部位並重新檢驗泡沫假設",
+                    "action": "重新檢驗泡沫假設，目前不建立空方部位",
                     "direction": "neutral_review",
                 },
             ],
@@ -134,13 +134,13 @@ def _deterministic_structured_fallback(
             "analysis_markdown": (
                 "## 保守泡沫狙擊摘要\n\n"
                 "Agent 19 未能提供完整可解析結構化輸出，系統改用保守 fallback。"
-                "本段不新增未驗證的借券、空單或內線資料，只保留資料受限下的避險框架。\n\n"
+                "本段不新增未驗證的借券、空單或內線資料；目前觀望，不建立新部位。\n\n"
                 "## 做空觸發條件（Catalyst for crash）\n"
-                "- 後續財測下修、毛利率壓縮或估值均值回歸開始發生。\n"
-                "- 外資或法人派發擴大，且價格無法再由基本面數據支撐。\n\n"
+                "- 等待財測、毛利率與估值資料後重新評估，條件出現也不代表可直接開倉。\n"
+                "- 法人資料、借券條件與交易風險尚需驗證，維持觀望。\n\n"
                 "## 防軋空停損點（Stop-loss level）\n"
-                "- 股價放量突破前高且基本面證據同步改善時，應回補空方部位並重新檢驗泡沫假設。\n"
-                "- 若資料可信度不足以支持做空，應以避免或避險取代積極放空。"
+                "- 目前沒有可驗證的放空方案，回補停損不適用；不推定已持有空方部位。\n"
+                "- 若後續財報或財測顯示基本面改善，須重新評估目前估值及原先的空方假設。"
             ),
         }
         structured_outputs[agent_num] = structured

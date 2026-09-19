@@ -11,6 +11,7 @@ from config import (
     LLM_MODEL_CIRCUIT_COOLDOWN_SECONDS,
     LLM_MODEL_CIRCUIT_THRESHOLD,
     LLM_SERVER_ERROR_MAX_ATTEMPTS,
+    LLM_SERVER_ERROR_MODEL_COOLDOWN_SECONDS,
     LLM_QUOTA_MAX_ATTEMPTS_PER_MODEL,
     LLM_ROUTE_SERVER_ERROR_MAX_ATTEMPTS,
     PRIMARY_LLM_AGENT_CALL_TIMEOUT_SECONDS,
@@ -99,6 +100,8 @@ def make_model_retry_stop(
         if isinstance(exc, AgentRateLimitError) and exc.all_keys_exhausted:
             return True
         if shared_circuit_open is not None and shared_circuit_open():
+            if isinstance(exc, AgentServerError):
+                exc.parallel_circuit_open = True
             if isinstance(exc, AgentRateLimitError):
                 exc.all_keys_exhausted = True
                 exc.parallel_circuit_open = True
@@ -171,6 +174,7 @@ def publish_shared_model_circuit(
     circuit_state: dict,
     *,
     quota_exhausted: bool = False,
+    server_exhausted: bool = False,
 ) -> None:
     if circuit_state.get("preflight_blocked"):
         return
@@ -179,7 +183,7 @@ def publish_shared_model_circuit(
     if callable(opener) and opened_until > 0.0:
         opener(model_id, opened_until=opened_until)
     shared_opener = getattr(rotator, "open_shared_model_circuit", None)
-    if quota_exhausted and callable(shared_opener) and opened_until > 0.0:
+    if (quota_exhausted or server_exhausted) and callable(shared_opener) and opened_until > 0.0:
         shared_opener(model_id, opened_until=opened_until)
 
 
@@ -234,7 +238,10 @@ def record_model_failure(context: dict, model_id: str, exc: BaseException) -> di
     state["failures"] = int(state.get("failures") or 0) + 1
     state["last_error"] = str(exc)[:240]
     exhausted_quota_keys = isinstance(exc, AgentRateLimitError) and bool(getattr(exc, "all_keys_exhausted", False))
-    if exhausted_quota_keys or state["failures"] >= max(1, int(LLM_MODEL_CIRCUIT_THRESHOLD)):
+    if isinstance(exc, AgentServerError):
+        # Called after the route's bounded retry budget, not after each HTTP error.
+        state["opened_until"] = max(float(state["opened_until"]), time.time() + max(1.0, float(LLM_SERVER_ERROR_MODEL_COOLDOWN_SECONDS)))
+    elif exhausted_quota_keys or state["failures"] >= max(1, int(LLM_MODEL_CIRCUIT_THRESHOLD)):
         state["opened_until"] = time.time() + max(1.0, float(LLM_MODEL_CIRCUIT_COOLDOWN_SECONDS or 1))
     return dict(state)
 

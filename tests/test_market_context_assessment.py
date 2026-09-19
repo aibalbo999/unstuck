@@ -29,6 +29,46 @@ def assessment_context(*, agent=7, data=None, compact=False, omitted=False):
 
 
 @pytest.mark.parametrize("agent", [7, 16, 19])
+def test_cross_source_repair_supplies_only_verified_field_refs(agent):
+    from agent_runtime.repair_reflection import build_audit_retry_instruction
+
+    context = assessment_context(agent=agent)
+    manifest = context["market_context_manifests"][agent]
+    news_ref = manifest["sources"]["international_news_context"]["visible_refs"][0]
+    assessment = context["structured_outputs"][agent]["market_context_assessment"]
+    assessment["global_market_context"]["source_refs"] = [news_ref]
+    original = copy.deepcopy(context)
+    result = assessment_module().assess_final_market_context(context)
+    instruction = build_audit_retry_instruction(agent, result["repair_agent_issues"][agent])
+    assert result["status"] == "critical"
+    assert "global_market_context.source_refs" in instruction
+    assert all(ref in instruction for ref in manifest["sources"]["global_market_context"]["visible_refs"])
+    assert news_ref not in instruction
+    assert "不得只替換引用碼" in instruction
+    assert result["assessment"]["global_market_context"]["impact"] == "not_assessed"
+    assert context == original  # Diagnostic guidance never rewrites the model's claim.
+
+
+@pytest.mark.parametrize("untrusted", [False, True])
+def test_reference_repair_never_offers_omitted_or_untrusted_sources(untrusted):
+    context = assessment_context(omitted=not untrusted)
+    manifest = context["market_context_manifests"][7]
+    refs = manifest["sources"]["global_market_context"]["visible_refs"][:]
+    if untrusted:
+        manifest["input_fingerprint"] = "wrong-input"
+    context["structured_outputs"][7]["market_context_assessment"]["global_market_context"] = {
+        "impact": "affects_conclusion", "reason": "claim", "source_refs": ["invented-ref"]}
+    original = copy.deepcopy(context)
+    result = assessment_module().assess_final_market_context(context)
+    instruction = " ".join(result["repair_agent_issues"][7])
+    assert result["status"] == "critical"
+    assert "global_market_context.source_refs" in instruction
+    assert "invented-ref" not in instruction
+    assert not any(ref in instruction for ref in refs)
+    assert context == original
+
+
+@pytest.mark.parametrize("agent", [7, 16, 19])
 @pytest.mark.parametrize("impact", ["affects_conclusion", "no_material_impact"])
 def test_valid_grounded_assessment_is_accepted(agent, impact):
     module = assessment_module()

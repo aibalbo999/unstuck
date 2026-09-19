@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from typing import Optional
-
 from tenacity import wait_exponential
 
 from analysis_types import AnalysisContext
@@ -20,6 +18,8 @@ from llm_client import (
 from llm_rate_limits import AllKeysRpdDisabledError, InputCapacityExceededError, ModelCircuitOpenError
 from llm_daily_budget import DailyBudgetBlockedError
 from llm_tool_rate_guard import ToolRequestGuardError
+from llm_key_admission import KeyAdmissionTimeout
+from llm_quota_details import extract_quota_details
 from runtime_events import emit_context_event, emit_log, make_runtime_event
 
 from .retry_error_classification import (
@@ -96,6 +96,8 @@ class AgentConfigurationError(Exception):
 
 
 BASE_AGENT_RETRY_WAIT = wait_exponential(multiplier=2, min=1, max=30)
+# Local protection when the provider gives no retry hint, not a quota entitlement.
+UNKNOWN_RATE_LIMIT_COOLDOWN_SECONDS = 60.0
 SERVER_ERROR_RETRY_WAIT = wait_exponential(
     multiplier=2,
     min=2,
@@ -183,18 +185,20 @@ def _key_error_metadata(exc: Exception | None) -> dict:
         for key, value in {
             "key_slot": exc.key_slot,
             "key_count": exc.key_count,
+            "reason_code": getattr(exc, "reason_code", None),
+            "provider_status_code": getattr(exc, "status_code", None),
         }.items()
         if value is not None
     }
 
 
-def _raise_agent_call_error(exc: Exception, api_key: Optional[str], model_id: str, rotator: KeyRotator, quota_default: float):
+def _raise_agent_call_error(exc: Exception, api_key: str | None, model_id: str, rotator: KeyRotator, quota_default: float):
     if isinstance(exc, InputCapacityExceededError):
         raise exc
     if isinstance(exc, ToolRequestGuardError):
         raise AgentConfigurationError(str(exc)) from exc
     error_msg = str(exc)
-    if isinstance(exc, (DailyBudgetBlockedError, ModelCircuitOpenError, AllKeysRpdDisabledError)):
+    if isinstance(exc, (DailyBudgetBlockedError, ModelCircuitOpenError, AllKeysRpdDisabledError, KeyAdmissionTimeout)):
         key_slot, key_count = _key_slot(api_key, rotator)
         detail = str(exc)
         if isinstance(exc, ModelCircuitOpenError):
@@ -210,6 +214,7 @@ def _raise_agent_call_error(exc: Exception, api_key: Optional[str], model_id: st
         rate_error.all_keys_exhausted = True
         rate_error.parallel_circuit_open = isinstance(exc, ModelCircuitOpenError)
         rate_error.preflight_blocked = True
+        rate_error.reason_code = getattr(exc, "reason_code", None)
         raise rate_error from exc
 
     if is_auth_error(error_msg):
@@ -221,22 +226,32 @@ def _raise_agent_call_error(exc: Exception, api_key: Optional[str], model_id: st
             key_count=key_count,
         ) from exc
 
-    if is_quota_or_rate_error(error_msg):
-        key_cooldown = retry_delay_seconds(exc, default=quota_default)
+    if provider_status_code(exc) == 429 or is_quota_or_rate_error(error_msg):
+        key_cooldown = retry_delay_seconds(
+            exc, default=max(float(quota_default), UNKNOWN_RATE_LIMIT_COOLDOWN_SECONDS),
+        )
+        explicit_rpd = is_requests_per_day_error(exc)
         if api_key:
-            if is_requests_per_day_error(exc) and hasattr(rotator, "disable_rpd_until_reset"):
+            if explicit_rpd and hasattr(rotator, "disable_rpd_until_reset"):
                 key_cooldown = rotator.disable_rpd_until_reset(api_key, model_id)
             else:
                 rotator.penalize(api_key, model_id, key_cooldown)
         retry_wait = 1.0 if len(getattr(rotator, "keys", []) or []) > 1 else key_cooldown
         key_slot, key_count = _key_slot(api_key, rotator)
-        raise AgentRateLimitError(
+        rate_error = AgentRateLimitError(
             describe_quota_or_rate_error(exc),
             retry_wait,
             key_cooldown,
             key_slot=key_slot,
             key_count=key_count,
-        ) from exc
+        )
+        rate_error.status_code = provider_status_code(exc)
+        rate_error.reason_code = (
+            "provider_daily_quota_exhausted" if explicit_rpd else
+            "provider_rate_limited" if extract_quota_details(exc)["violations"] else
+            "provider_quota_or_rate_unknown"
+        )
+        raise rate_error from exc
 
     if is_missing_model_error(error_msg):
         raise AgentMissingModelError(error_msg) from exc

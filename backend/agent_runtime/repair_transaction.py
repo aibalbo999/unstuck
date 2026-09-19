@@ -108,7 +108,7 @@ def _restore_result_fields(context, before, fields=RESULT_FIELDS):
 
 def _accept_single_result(agent, context, before, result):
     if not result[0]:
-        _restore_result_fields(context, before)
+        _restore_result_fields(context, before, (*RESULT_FIELDS, "blocking_issues"))
     else:
         record_result_provenance(agent, context)
         if output_fingerprint(agent, context) != output_fingerprint(agent, before):
@@ -128,7 +128,7 @@ def preserve_failed_repair(function):
             try:
                 result = await function(agent, data, context, *args, **kwargs)
             except BaseException:
-                _restore_result_fields(context, before)
+                _restore_result_fields(context, before, (*RESULT_FIELDS, "blocking_issues"))
                 raise
             return _accept_single_result(agent, context, before, result)
         return asynchronous
@@ -139,7 +139,7 @@ def preserve_failed_repair(function):
         try:
             result = function(agent, data, context, *args, **kwargs)
         except BaseException:
-            _restore_result_fields(context, before)
+            _restore_result_fields(context, before, (*RESULT_FIELDS, "blocking_issues"))
             raise
         return _accept_single_result(agent, context, before, result)
     return synchronous

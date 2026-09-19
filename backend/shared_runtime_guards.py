@@ -46,6 +46,17 @@ return 0
 """
 
 
+EXTEND_COOLDOWN_LUA = """
+local requested_ttl = tonumber(ARGV[1])
+local existing_ttl = redis.call('PTTL', KEYS[1])
+if existing_ttl < requested_ttl then
+  redis.call('SET', KEYS[1], '1', 'PX', requested_ttl)
+  return requested_ttl
+end
+return existing_ttl
+"""
+
+
 def shared_guard_enabled(env_name: str) -> bool:
     backend = os.getenv(env_name, "auto").strip().lower()
     if backend in {"redis", "rq"}:
@@ -117,15 +128,18 @@ class RedisFixedWindowRateLimiter:
             return self._fallback.reserve(api_key, model, **fallback_limits)
 
     def penalize(self, api_key: str, model: str, wait_seconds: float) -> None:
+        # Preserve provider deadlines if Redis fails after a successful penalty.
+        self._fallback.penalize(api_key, model, wait_seconds)
         if self._client is None:
-            self._fallback.penalize(api_key, model, wait_seconds)
             return
         try:
             cooldown_key = f"{self._namespace}:llm:{guard_hash(model)}:{guard_hash(api_key)}:cooldown"
-            self._client.set(cooldown_key, "1", px=max(int(wait_seconds * 1000), 1))
+            ttl_ms = self._client.eval(
+                EXTEND_COOLDOWN_LUA, 1, cooldown_key, max(int(wait_seconds * 1000), 1),
+            )
+            self._fallback.penalize(api_key, model, max(float(ttl_ms), 1.0) / 1000.0)
         except Exception:
             self._client = None
-            self._fallback.penalize(api_key, model, wait_seconds)
 
     def disable_rpd_until_reset(self, api_key: str, model: str, *, now: datetime | None = None) -> float:
         wait_seconds = seconds_until_next_pacific_midnight(now)

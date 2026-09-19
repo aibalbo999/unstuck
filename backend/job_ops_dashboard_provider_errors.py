@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from typing import Any
+from llm_daily_usage import LOCAL_BLOCK_KINDS
 
 
 def provider_error_rows(conn: sqlite3.Connection, limit: int) -> list[dict]:
@@ -16,6 +17,7 @@ def provider_error_rows(conn: sqlite3.Connection, limit: int) -> list[dict]:
             FROM api_usage_events
             WHERE service = 'Gemini / Google AI'
               AND operation = 'llm_model_error'
+              AND status != 'local_admission_wait'
             ORDER BY id DESC
             LIMIT ?
             """,
@@ -28,6 +30,8 @@ def provider_error_rows(conn: sqlite3.Connection, limit: int) -> list[dict]:
     job_ids = set()
     for row in rows:
         metadata = _safe_metadata(row["metadata_json"])
+        if metadata.get("error_kind") in LOCAL_BLOCK_KINDS or str(metadata.get("error_category") or "").startswith("local_"):
+            continue
         job_id = str(metadata.get("job_id") or "").strip()
         if job_id:
             job_ids.add(job_id)

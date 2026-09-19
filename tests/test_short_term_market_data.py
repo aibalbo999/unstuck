@@ -205,3 +205,23 @@ def test_mode_d_prompt_context_has_bounded_daily_bars_and_technical_values():
     assert context["daily_market_data"]["sample_count"] == 120
     assert context["daily_market_data"]["displayed_sample_count"] == 20
     assert context["technical_indicators"]["sma_60"] == pytest.approx(189.5)
+
+
+def test_yfinance_volume_unit_survives_indicators_and_prompt_context():
+    bundle = _bundle(_frame(60))
+    assert bundle["daily_market_data"]["volume_unit"] == "shares"
+    assert bundle["technical_indicators"]["volume_unit"] == "shares"
+    context = _prompt_json(_data(**bundle, _prompt_agent_num=22))["short_term_market_context"]
+    assert context["daily_market_data"]["volume_unit"] == "shares"
+    assert context["technical_indicators"]["volume_unit"] == "shares"
+    assert context["technical_indicators"]["volume_sma_20"] == 1000
+
+
+def test_arbitrary_or_legacy_daily_data_does_not_infer_a_volume_unit():
+    from short_term_market_data import normalize_daily_market_data, build_short_term_market_context
+    daily = normalize_daily_market_data([{"date": "2026-09-04", "close": 100, "volume": 1000}])
+    assert daily["volume_unit"] is None
+    context = build_short_term_market_context({"daily_market_data": daily}, as_of=AS_OF)
+    assert context["daily_market_data"]["volume_unit"] is None
+    assert context["technical_indicators"]["volume_unit"] is None
+    assert context["technical_indicators"]["volume_latest"] == 1000

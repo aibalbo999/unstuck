@@ -20,6 +20,7 @@ from llm_model_circuits import (
 )
 from llm_provider_routes import normalize_provider_keys as _normalize_provider_keys, provider_for_model
 from llm_rate_limit_routes import KeyAvailabilityMixin
+from llm_key_admission import check_key_admission, key_wait_intervals
 from runtime_events import emit_log
 from shared_runtime_guards import LocalFixedWindowRateLimiter, create_shared_llm_limiter
 
@@ -111,15 +112,24 @@ class KeyRotator(KeyAvailabilityMixin):
     def _try_key(self, model: str, estimated_tokens: int, request_units: int):
         provider, keys, candidates = self._available_candidate_key_positions(model, request_units)
         reservations = [(self._wait_for_key(key, model, estimated_tokens), position, key) for position, key in candidates]
-        wait, position, key = min(reservations, key=lambda item: item[0])
-        if wait <= 0:
-            wait = max(self._reserve_for_key(key, model, estimated_tokens),
-                       self._reserve_shared_for_key(key, model, estimated_tokens))
+        waits = []
+        for wait, position, key in sorted(reservations, key=lambda item: item[0]):
+            check_key_admission()
             if wait <= 0:
-                if not self._reserve_daily_budget(key, model, request_units):
-                    return 0, provider, keys, None
-                self._provider_indexes[provider] = (position + 1) % len(keys)
-                self.index = (self.index + 1) % max(len(self.keys), 1)
+                # Another worker can exhaust this key while our local bucket is
+                # still full. A shared refusal consumes no local/daily budget
+                # and must not hide other ready candidates behind its wait.
+                wait = self._reserve_shared_for_key(key, model, estimated_tokens)
+                if wait <= 0:
+                    wait = self._reserve_for_key(key, model, estimated_tokens)
+                    if wait <= 0:
+                        if not self._reserve_daily_budget(key, model, request_units):
+                            return 0, provider, keys, None
+                        self._provider_indexes[provider] = (position + 1) % len(keys)
+                        self.index = (self.index + 1) % max(len(self.keys), 1)
+                        return 0, provider, keys, key
+            waits.append((wait, key))
+        wait, key = min(waits, key=lambda item: item[0])
         return wait, provider, keys, key
 
     def get_key(self, model: str, estimated_tokens: int = 0, *, request_units: int = 1) -> str:
@@ -128,16 +138,18 @@ class KeyRotator(KeyAvailabilityMixin):
                               input_limit=MODEL_INPUT_TOKEN_LIMITS.get(model, MODEL_INPUT_TOKEN_LIMITS.get("*", 0)),
                               tpm_limit=TPM_LIMITS.get(model) or TPM_LIMITS.get("*"))
         while True:
+            check_key_admission()
             with self._sync_lock:
                 wait, provider, keys, key = self._try_key(model, estimated_tokens, max(1, int(request_units)))
 
             if wait > 0:
                 emit_log(f"    ⏳ {model} 動態限速等待 {wait:.1f} 秒...")
-                time.sleep(wait)
+                for interval in key_wait_intervals(wait):
+                    time.sleep(interval)
                 continue
             if key is None:
                 continue
-            emit_log(f"    🔑 使用 {provider} Key {keys.index(key)+1}/{len(keys)} ({self._preview_key(key)})")
+            emit_log(f"    🔑 使用 {provider} Key slot {keys.index(key)+1}/{len(keys)}")
             return key
 
     async def async_get_key(self, model: str, estimated_tokens: int = 0, *, request_units: int = 1) -> str:
@@ -146,16 +158,19 @@ class KeyRotator(KeyAvailabilityMixin):
                               input_limit=MODEL_INPUT_TOKEN_LIMITS.get(model, MODEL_INPUT_TOKEN_LIMITS.get("*", 0)),
                               tpm_limit=TPM_LIMITS.get(model) or TPM_LIMITS.get("*"))
         while True:
+            check_key_admission()
             async with self._async_lock:
-                wait, provider, keys, key = self._try_key(model, estimated_tokens, max(1, int(request_units)))
+                with self._sync_lock:
+                    wait, provider, keys, key = self._try_key(model, estimated_tokens, max(1, int(request_units)))
 
             if wait > 0:
                 emit_log(f"    ⏳ {model} 動態限速等待 {wait:.1f} 秒...")
-                await asyncio.sleep(wait)
+                for interval in key_wait_intervals(wait):
+                    await asyncio.sleep(interval)
                 continue
             if key is None:
                 continue
-            emit_log(f"    🔑 使用 {provider} Key {keys.index(key)+1}/{len(keys)} ({self._preview_key(key)})")
+            emit_log(f"    🔑 使用 {provider} Key slot {keys.index(key)+1}/{len(keys)}")
             return key
 
     def penalize(self, key: str, model: str, wait_seconds: float = 60) -> None:

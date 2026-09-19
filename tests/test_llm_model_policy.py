@@ -295,7 +295,7 @@ def test_rpd_429_disables_key_model_until_reset():
     assert rotator.penalties == []
 
 
-def test_non_rpd_429_keeps_short_key_penalty():
+def test_non_rpd_429_without_retry_hint_cools_key_for_one_minute():
     class FakeRotator:
         keys = ["key-a", "key-b"]
 
@@ -315,12 +315,12 @@ def test_non_rpd_429_keeps_short_key_penalty():
     try:
         _raise_agent_call_error(RuntimeError("429 RESOURCE_EXHAUSTED RequestsPerMinute"), "key-b", "gemini-2.5-flash", rotator, 7)
     except AgentRateLimitError as exc:
-        assert exc.key_cooldown_seconds == 7
+        assert exc.key_cooldown_seconds == 60
     else:
         raise AssertionError("429 should become AgentRateLimitError")
 
     assert rotator.disabled == []
-    assert rotator.penalties == [("key-b", "gemini-2.5-flash", 7)]
+    assert rotator.penalties == [("key-b", "gemini-2.5-flash", 60)]
 
 
 def test_all_keys_rpd_disabled_is_classified_as_rate_limit():

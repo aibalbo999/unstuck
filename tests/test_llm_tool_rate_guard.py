@@ -14,6 +14,7 @@ from google.genai.errors import ServerError
 
 import llm_rate_limit_buckets
 import llm_rate_limits
+import llm_key_admission
 import llm_transport
 from agent_runtime import llm_calls
 from llm_input_capacity import InputCapacityExceededError, estimate_input_tokens
@@ -121,6 +122,7 @@ class FakeSDK:
 @pytest.fixture
 def rig(monkeypatch):
     clock = Clock()
+    monkeypatch.setattr(llm_key_admission, "time", NS(monotonic=lambda: clock.now))
     monkeypatch.setattr(llm_rate_limit_buckets, "time", NS(monotonic=lambda: clock.now))
     monkeypatch.setattr(llm_rate_limits, "time", NS(sleep=clock.sleep))
     monkeypatch.setattr(llm_rate_limits, "create_shared_llm_limiter", lambda: None)

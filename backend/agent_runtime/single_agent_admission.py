@@ -13,6 +13,11 @@ from llm_input_capacity import InputCapacityExceededError, ensure_input_capacity
 from . import gemma_evidence_runtime as evidence_batches
 from .generation_config import estimate_agent_input_tokens
 from .single_agent_events import reject_async_model, reject_sync_model
+from .retry_policy import AgentRetryableError, AgentMissingModelError, AgentConfigurationError
+
+
+EVIDENCE_FAILURES = (EvidenceBatchInvalid, InputCapacityExceededError, AgentRetryableError,
+                     AgentMissingModelError, AgentConfigurationError)
 
 
 @dataclass(frozen=True)
@@ -52,8 +57,8 @@ def admit_model_input_sync(
     if has_fallback and evidence_batches.should_batch(agent_num, model_id, prompt, context):
         try:
             notes = evidence_batches.collect_evidence(agent_num, prompt, context, rotator)
-        except EvidenceBatchInvalid as exc:
-            return ModelInputAdmission(False, evidence_notes, reject_sync_model(context, agent_num, model_id, exc))
+        except EVIDENCE_FAILURES as exc:
+            return ModelInputAdmission(False, evidence_notes, reject_sync_model(context, agent_num, evidence_batches.MODEL, exc))
         return ModelInputAdmission(False, notes)
     try:
         _preflight_model_input_capacity(agent_num, model_id, prompt)
@@ -75,8 +80,8 @@ async def admit_model_input_async(
     if has_fallback and evidence_batches.should_batch(agent_num, model_id, prompt, context):
         try:
             notes = await evidence_batches.collect_evidence_async(agent_num, prompt, context, rotator)
-        except EvidenceBatchInvalid as exc:
-            error = await reject_async_model(context, agent_num, model_id, exc)
+        except EVIDENCE_FAILURES as exc:
+            error = await reject_async_model(context, agent_num, evidence_batches.MODEL, exc)
             return ModelInputAdmission(False, evidence_notes, error)
         return ModelInputAdmission(False, notes)
     try:

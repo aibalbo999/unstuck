@@ -5,10 +5,12 @@ from __future__ import annotations
 import json
 import math
 import re
+import time
+from email.utils import parsedate_to_datetime
 
 
 def extract_quota_details(error) -> dict:
-    result = {"violations": [], "retry_delay_seconds": None}
+    result = {"violations": [], "retry_delay_seconds": _header_retry_delay(error)}
     pending = [(getattr(error, name, None), 0) for name in ("details", "message", "response_json")]
     pending.append((str(error)[:100_000], 0))
     visited = 0
@@ -32,10 +34,35 @@ def extract_quota_details(error) -> dict:
             if violation and violation not in result["violations"] and len(result["violations"]) < 12:
                 result["violations"].append(violation)
             delay = value.get("retryDelay")
-            if isinstance(delay, str) and re.fullmatch(r"\d{1,6}(?:\.\d{1,6})?s", delay):
+            if isinstance(delay, str) and re.fullmatch(r"\d{1,6}(?:\.\d{1,9})?s", delay):
                 result["retry_delay_seconds"] = max(result["retry_delay_seconds"] or 0, float(delay[:-1]))
             pending.extend((item, depth + 1) for item in list(value.values())[:100] if isinstance(item, (dict, list, str)))
     return result
+
+
+def _header_retry_delay(error):
+    """Read only Retry-After, including HTTP dates, without retaining headers."""
+    delays = []
+    for source in (error, getattr(error, "response", None)):
+        headers = getattr(source, "headers", None)
+        if not hasattr(headers, "items"):
+            continue
+        for index, (name, value) in enumerate(headers.items()):
+            if index >= 100:
+                break
+            if str(name).lower() != "retry-after" or not isinstance(value, str) or len(value) > 128:
+                continue
+            value = value.strip()
+            if re.fullmatch(r"\d{1,9}(?:\.\d{1,9})?", value):
+                delays.append(float(value))
+                continue
+            try:
+                deadline = parsedate_to_datetime(value)
+                if deadline.tzinfo is not None:
+                    delays.append(max(0.0, deadline.timestamp() - time.time()))
+            except (TypeError, ValueError, OverflowError):
+                continue
+    return max(delays) if delays else None
 
 
 def _violation(value):

@@ -7,7 +7,7 @@ import time
 
 from config import LLM_MODEL_CIRCUIT_COOLDOWN_SECONDS
 from .model_policy import MODEL_CIRCUITS_KEY, eligible_model_key_slots, model_circuit_open_for_job, publish_shared_model_circuit, record_model_failure
-from .retry_policy import AgentConfigurationError, AgentRateLimitError, AgentTransientError
+from .retry_policy import AgentConfigurationError, AgentRateLimitError, AgentServerError, AgentTransientError
 
 
 class AgentDeferredError(AgentRateLimitError):
@@ -56,7 +56,9 @@ def failed_route_result(agent_num: int, last_error: str, deferred_routes: list[d
 
 def record_route_failure(context: dict, rotator, model_id: str, error: Exception, deferred_routes: list[dict]) -> dict:
     state = record_model_failure(context, model_id, error)
-    publish_shared_model_circuit(rotator, model_id, state, quota_exhausted=bool(getattr(error, "all_keys_exhausted", False)))
+    publish_shared_model_circuit(rotator, model_id, state,
+                                 quota_exhausted=bool(getattr(error, "all_keys_exhausted", False)),
+                                 server_exhausted=isinstance(error, AgentServerError))
     unavailable = unavailable_model(context, rotator, model_id)
     if unavailable is None and isinstance(error, (AgentRateLimitError, AgentTransientError)):
         waits = [60.0]
@@ -64,7 +66,7 @@ def record_route_failure(context: dict, rotator, model_id: str, error: Exception
             value = getattr(error, field, None)
             if isinstance(value, (int, float)) and math.isfinite(value):
                 waits.append(value)
-        unavailable = {"model_id": model_id, "reason_code": "temporary_provider_failure", "retry_wait_seconds": max(waits)}
+        unavailable = {"model_id": model_id, "reason_code": getattr(error, "reason_code", None) or "temporary_provider_failure", "retry_wait_seconds": max(waits)}
     if unavailable:
         deferred_routes.append(unavailable)
     return state

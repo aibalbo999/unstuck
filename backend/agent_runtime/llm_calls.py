@@ -11,6 +11,7 @@ import asyncio
 from analysis_types import AnalysisContext
 from config import LLM_AGENT_CALL_TIMEOUT_SECONDS
 from llm_client import KeyRotator, estimate_text_tokens
+from llm_key_admission import propagate_admission_cancel
 from llm_response_diagnostics import response_kind
 from llm_tool_rate_guard import tool_request_scope
 from runtime_events import (
@@ -20,6 +21,7 @@ from runtime_events import (
     emit_context_event_async,
 )
 from structured_output_runtime import process_agent_response
+from .llm_waiting import acquire_key, acquire_key_async, await_response
 
 from .generation_config import (
     _generate_content,
@@ -60,12 +62,7 @@ from .llm_call_events import (
 async def _await_with_agent_timeout(coro, *, model_id: str, timeout_seconds: float | None = None):
     """Compatibility timeout seam; tests may monkeypatch the module constant."""
     timeout = float(LLM_AGENT_CALL_TIMEOUT_SECONDS if timeout_seconds is None else timeout_seconds)
-    if timeout <= 0:
-        return await coro
-    try:
-        return await asyncio.wait_for(coro, timeout=timeout)
-    except asyncio.TimeoutError as exc:
-        raise AgentTransientError(f"LLM timeout after {timeout:.1f}s for model {model_id}") from exc
+    return await await_response(coro, model_id=model_id, timeout=timeout)
 
 
 def _run_agent_once(
@@ -85,7 +82,7 @@ def _run_agent_once(
             llm_model_call_event(context, agent_num, model_id, prompt, timeout_seconds=timeout_seconds),
         )
         budget = agent_request_budget_options(agent_num)
-        api_key = rotator.get_key(model_id, estimate_agent_input_tokens(agent_num, model_id, prompt), **budget)
+        api_key = acquire_key(rotator, model_id, estimate_agent_input_tokens(agent_num, model_id, prompt), context, timeout_seconds, **budget)
         emit_context_event(
             context,
             llm_provider_request_event(
@@ -104,6 +101,7 @@ def _run_agent_once(
         result = process_agent_response(agent_num, _response_text(response), context)
         _validate_agent_result(result)
     except Exception as exc:
+        propagate_admission_cancel(exc)
         emit_context_error(
             context,
             "llm_model_error",
@@ -162,7 +160,7 @@ async def _run_agent_once_async(
             llm_model_call_event(context, agent_num, model_id, prompt, timeout_seconds=timeout_seconds),
         )
         budget = agent_request_budget_options(agent_num)
-        api_key = await rotator.async_get_key(model_id, estimate_agent_input_tokens(agent_num, model_id, prompt), **budget)
+        api_key = await acquire_key_async(rotator, model_id, estimate_agent_input_tokens(agent_num, model_id, prompt), context, timeout_seconds, **budget)
         await emit_context_event_async(
             context,
             llm_provider_request_event(
@@ -208,6 +206,7 @@ async def _run_agent_once_async(
         result = process_agent_response(agent_num, _response_text(response), context)
         _validate_agent_result(result)
     except (Exception, asyncio.CancelledError) as exc:
+        propagate_admission_cancel(exc)
         await emit_context_error_async(
             context,
             "llm_model_error",
