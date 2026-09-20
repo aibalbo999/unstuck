@@ -80,7 +80,7 @@ def structured_output_to_report_text(agent_num: int, structured: dict, fallback_
         if tone not in _MANAGEMENT_GUIDANCE_TONES:
             tone = "資料不足"
         confidence = _coerce_number(structured.get("confidence"), 0, 1)
-        confidence_text = f"信心分數：{confidence}\n" if confidence is not None else ""
+        confidence_text = f"信心分數（0–1）：{confidence}\n" if confidence is not None else ""
         highlights = safe_dict_list(structured.get("highlights"))
         lines = [_management_highlight_line(item) for item in highlights]
         if not lines:

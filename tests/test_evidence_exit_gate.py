@@ -44,7 +44,9 @@ def test_evidence_gate_reports_verified_sample_count():
     )
 
     assert result["verified_count"] == 1
-    assert result["unverifiable_count"] == 1
+    assert result["unverifiable_count"] == 0
+    assert result["metadata_unverifiable_count"] == 1
+
 
 
 def test_evidence_projection_exposes_stale_analysis_context_without_changing_verdict():
@@ -107,10 +109,13 @@ def test_evidence_gate_explains_confidence_metadata_boundary():
         sample_ratio=1.0,
     )
 
-    claim = result["sampled_claims"][0]
-    assert claim["status"] == "unverifiable"
-    assert claim["verification_reason_code"] == "confidence_metadata_not_evidence"
-    assert result["unverifiable_reason_counts"] == {"confidence_metadata_not_evidence": 1}
+    claim = result["metadata_claims"][0]
+    assert claim["status"] == "valid"
+    assert claim["verification_reason_code"] == "score_within_declared_range"
+    assert {item["verification_reason_code"] for item in result["metadata_claims"]} == {"score_within_declared_range"}
+
+    assert result["claim_count"] == result["verified_count"] == 0
+    assert all(item["financial_evidence"] is False for item in result["metadata_claims"])
 
 
 def test_evidence_gate_explains_analysis_score_metadata_boundary():
@@ -123,12 +128,16 @@ def test_evidence_gate_explains_analysis_score_metadata_boundary():
         min_sample=1,
     )
 
-    assert result["unverifiable_count"] == 2
+    assert result["unverifiable_count"] == 0
+    assert result["metadata_checked_count"] == 2
     assert all(
-        claim["verification_reason_code"] == "analysis_metadata_not_evidence"
-        for claim in result["sampled_claims"]
+        claim["verification_reason_code"] == "score_within_declared_range"
+        for claim in result["metadata_claims"]
     )
-    assert result["unverifiable_reason_counts"] == {"analysis_metadata_not_evidence": 2}
+    assert {item["verification_reason_code"] for item in result["metadata_claims"]} == {"score_within_declared_range"}
+
+    assert result["claim_count"] == result["verified_count"] == 0
+    assert all(item["financial_evidence"] is False for item in result["metadata_claims"])
 
 
 def test_evidence_gate_classifies_sentiment_score_as_analysis_metadata():
@@ -141,10 +150,13 @@ def test_evidence_gate_classifies_sentiment_score_as_analysis_metadata():
         min_sample=1,
     )
 
-    claim = result["sampled_claims"][0]
-    assert claim["status"] == "unverifiable"
-    assert claim["verification_reason_code"] == "analysis_metadata_not_evidence"
+    claim = result["metadata_claims"][0]
+    assert claim["status"] == "valid"
+    assert claim["verification_reason_code"] == "score_within_declared_range"
     assert claim["candidate_count"] == 0
+
+    assert result["claim_count"] == result["verified_count"] == 0
+    assert all(item["financial_evidence"] is False for item in result["metadata_claims"])
 
 
 def test_evidence_gate_classifies_fomo_score_as_analysis_metadata():
@@ -157,10 +169,13 @@ def test_evidence_gate_classifies_fomo_score_as_analysis_metadata():
         min_sample=1,
     )
 
-    claim = result["sampled_claims"][0]
-    assert claim["status"] == "unverifiable"
-    assert claim["verification_reason_code"] == "analysis_metadata_not_evidence"
+    claim = result["metadata_claims"][0]
+    assert claim["status"] == "valid"
+    assert claim["verification_reason_code"] == "score_within_declared_range"
     assert claim["candidate_count"] == 0
+
+    assert result["claim_count"] == result["verified_count"] == 0
+    assert all(item["financial_evidence"] is False for item in result["metadata_claims"])
 
 
 def test_evidence_gate_maps_liquidity_ratios_to_canonical_snapshot_fields():
@@ -504,6 +519,7 @@ def test_evidence_exit_gate_uses_eps_value_when_claim_starts_with_a_date():
     assert claims == [
         {
             "id": 1,
+            "claim_type": "financial",
             "label": "Factset EPS 下修預警",
             "reported_value": 26.0,
             "unit": "元",
@@ -511,6 +527,7 @@ def test_evidence_exit_gate_uses_eps_value_when_claim_starts_with_a_date():
             "raw_text": markdown,
         }
     ]
+
 
 
 def test_evidence_claims_ignore_period_and_alphanumeric_identifier_numbers():
@@ -576,16 +593,20 @@ def test_evidence_gate_does_not_match_confidence_to_unrelated_snapshot_numbers()
 
     result = evaluate_report_evidence(markdown, snapshot, sample_ratio=1.0)
 
-    claim = result["sampled_claims"][0]
+    claim = result["metadata_claims"][0]
     assert claim["label"] == "high；信心"
     assert claim["status"] == "unverifiable"
     assert claim["matched_path"] == ""
     assert claim["matched_value"] is None
     assert result["failed_count"] == 0
-    assert result["unverifiable_count"] == 1
-    assert claim["verification_reason_code"] == "confidence_metadata_not_evidence"
+    assert result["unverifiable_count"] == 0
+    assert result["metadata_unverifiable_count"] == 1
+    assert claim["verification_reason_code"] == "score_scale_unspecified"
     assert claim["candidate_count"] == 0
-    assert result["unverifiable_reason_counts"] == {"confidence_metadata_not_evidence": 1}
+    assert {item["verification_reason_code"] for item in result["metadata_claims"]} == {"score_scale_unspecified"}
+
+    assert result["claim_count"] == result["verified_count"] == 0
+    assert all(item["financial_evidence"] is False for item in result["metadata_claims"])
 
 
 def test_evidence_gate_does_not_match_confidence_to_confidence_basis_evidence_items():
@@ -610,12 +631,15 @@ def test_evidence_gate_does_not_match_confidence_to_confidence_basis_evidence_it
         min_sample=1,
     )
 
-    claim = result["sampled_claims"][0]
+    claim = result["metadata_claims"][0]
     assert result["verdict"] == "caution"
-    assert claim["status"] == "unverifiable"
-    assert claim["verification_reason_code"] == "confidence_metadata_not_evidence"
+    assert claim["status"] == "valid"
+    assert claim["verification_reason_code"] == "score_within_declared_range"
     assert claim["candidate_count"] == 0
     assert claim["matched_path"] == ""
+
+    assert result["claim_count"] == result["verified_count"] == 0
+    assert all(item["financial_evidence"] is False for item in result["metadata_claims"])
 
 
 def test_evidence_gate_matches_recommendation_prefix_horizon_with_context():
@@ -677,15 +701,18 @@ def test_evidence_gate_classifies_intraday_bulletin_support_as_news_source():
     assert claim["candidate_count"] == 0
 
 
-def test_evidence_gate_reports_missing_semantic_path_for_unknown_numeric_labels():
+def test_evidence_gate_reports_score_scale_unspecified_for_unknown_numeric_labels():
     from evidence_exit_gate import evaluate_report_evidence
 
     result = evaluate_report_evidence("- 未知評分: 0.85", {"data": {"other_value": 0.85}}, sample_ratio=1.0)
 
-    claim = result["sampled_claims"][0]
+    claim = result["metadata_claims"][0]
     assert claim["status"] == "unverifiable"
-    assert claim["verification_reason_code"] == "missing_semantic_path"
-    assert result["unverifiable_reason_counts"] == {"missing_semantic_path": 1}
+    assert claim["verification_reason_code"] == "score_scale_unspecified"
+    assert {item["verification_reason_code"] for item in result["metadata_claims"]} == {"score_scale_unspecified"}
+
+    assert result["claim_count"] == result["verified_count"] == 0
+    assert all(item["financial_evidence"] is False for item in result["metadata_claims"])
 
 
 def test_evidence_gate_maps_composite_52_week_high_low_to_distinct_snapshot_fields():
@@ -774,7 +801,7 @@ def test_evidence_gate_classifies_compact_legacy_recommendation_horizons():
     assert reasons["避免；3個月"] == "legacy_conclusion_without_snapshot_path"
     assert reasons["6個月"] == "legacy_conclusion_without_snapshot_path"
     assert reasons["12個月"] == "legacy_conclusion_without_snapshot_path"
-    assert reasons["信心"] == "confidence_metadata_not_evidence"
+    assert result["metadata_claims"][0]["verification_reason_code"] == "score_within_declared_range"
     assert result["verdict"] == "caution"
 
 
@@ -907,10 +934,13 @@ def test_evidence_gate_classifies_explicit_agent_score_context_as_analysis_metad
         sample_ratio=1.0,
     )
 
-    claim = result["sampled_claims"][0]
-    assert claim["status"] == "unverifiable"
-    assert claim["verification_reason_code"] == "analysis_metadata_not_evidence"
+    claim = result["metadata_claims"][0]
+    assert claim["status"] == "valid"
+    assert claim["verification_reason_code"] == "score_within_declared_range"
     assert claim["matched_path"] == ""
+
+    assert result["claim_count"] == result["verified_count"] == 0
+    assert all(item["financial_evidence"] is False for item in result["metadata_claims"])
 
 
 def test_evidence_gate_keeps_long_agent_score_label_context_after_raw_text_truncation():
@@ -922,9 +952,12 @@ def test_evidence_gate_keeps_long_agent_score_label_context_after_raw_text_trunc
         sample_ratio=1.0,
     )
 
-    claim = result["sampled_claims"][0]
-    assert claim["verification_reason_code"] == "analysis_metadata_not_evidence"
-    assert claim["status"] == "unverifiable"
+    claim = result["metadata_claims"][0]
+    assert claim["verification_reason_code"] == "score_within_declared_range"
+    assert claim["status"] == "valid"
+
+    assert result["claim_count"] == result["verified_count"] == 0
+    assert all(item["financial_evidence"] is False for item in result["metadata_claims"])
 
 
 def test_evidence_gate_classifies_unbacked_scenario_table_target():
@@ -1422,6 +1455,7 @@ def test_evidence_claims_ignore_numeric_currency_table_cells_as_labels():
     assert value_cell_claims == [
         {
             "id": 1,
+            "claim_type": "financial",
             "label": "營收",
             "reported_value": 464.0,
             "unit": "億",
@@ -1429,6 +1463,7 @@ def test_evidence_claims_ignore_numeric_currency_table_cells_as_labels():
             "raw_text": "| 營收 | NT$464 億 |",
         }
     ]
+
 
 
 def test_evidence_claims_ignore_month_day_range_after_labeled_colon():
@@ -4069,9 +4104,12 @@ def test_evidence_gate_classifies_fomo_overheat_score_as_analysis_metadata():
         min_sample=1,
     )
 
-    claim = result["sampled_claims"][0]
-    assert claim["status"] == "unverifiable"
-    assert claim["verification_reason_code"] == "analysis_metadata_not_evidence"
+    claim = result["metadata_claims"][0]
+    assert claim["status"] == "valid"
+    assert claim["verification_reason_code"] == "score_within_declared_range"
+
+    assert result["claim_count"] == result["verified_count"] == 0
+    assert all(item["financial_evidence"] is False for item in result["metadata_claims"])
 
 
 def test_evidence_gate_does_not_treat_plain_key_pressure_as_week_high():

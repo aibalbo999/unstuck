@@ -1,11 +1,36 @@
 """Recommendation and target-price alignment checks for content credibility."""
 from __future__ import annotations
+import re
 from typing import Any
+from mapping_fields import safe_mapping_dict, safe_text
 from recommendation_labels import CANONICAL_RECOMMENDATIONS
+from trade_execution_contract import contains_trade_order, observation_reason_is_explicit, short_observation_is_explicit
+from trade_price_inputs import execution_value_missing
 from .content_credibility_inputs import upside_pct
 BUY_TARGET_MIN_UPSIDE_PCT = 0.0
 BEARISH_TARGET_MAX_UPSIDE_PCT = 10.0
 HOLD_EXTREME_MOVE_PCT = 30.0
+
+
+def _explicit_no_position(short_setup: Any) -> bool:
+    """A price-free, affirmative no-position contract; silence is insufficient."""
+    setup = safe_mapping_dict(short_setup) or {}
+    entry = safe_text(setup.get("entry_trigger"))
+    stop = safe_text(setup.get("cover_stop"))
+    target = safe_text(setup.get("downside_target"))
+    no_position = r"(?:^|[，。；、\n])\s*(?:目前|暫時|現在)?\s*不(?:開倉|建倉|交易|建立(?:新|空方)?部位)(?=[，。；、\n]|$)"
+    return (
+        short_observation_is_explicit(setup)
+        and bool(re.search(no_position, entry))
+        and bool(re.search(no_position, stop))
+        and "不適用" in stop
+        and execution_value_missing(setup.get("downside_target"))
+        and not re.search(r"\d", f"{entry} {target} {stop}")
+        and not contains_trade_order(f"{entry} {target} {stop}")
+        and not re.search(r"持有|持倉|既有|現有|已建立|回補|加碼|減碼", f"{entry} {target} {stop}")
+        and observation_reason_is_explicit(setup.get("squeeze_risk"))
+        and observation_reason_is_explicit(setup.get("thesis_invalidation"))
+    )
 
 
 def _issue(issue_id: str, message: str, details: dict | None = None) -> dict:
@@ -28,6 +53,8 @@ def evaluate_recommendation_target_alignment(
     recommendation_label: str,
     current_price: float | None,
     main_target: dict[str, Any] | None,
+    pipeline_id: str = "",
+    short_setup: dict[str, Any] | None = None,
 ) -> dict:
     """Evaluate whether the final recommendation direction matches target price."""
     blocking: list[dict] = []
@@ -49,6 +76,16 @@ def evaluate_recommendation_target_alignment(
         )
         warnings.append(issue)
         checks.append(_check("recommendation_target_alignment", "warning", issue["message"], details))
+        return {"blocking_issues": blocking, "warnings": warnings, "checks": checks}
+
+    if (pipeline_id == "v3" and recommendation_present and recommendation_label == "避免"
+            and main_target is None and _explicit_no_position(short_setup)):
+        details = {"pipeline_id": "v3", "recommendation": "避免", "current_price": current_price,
+                   "target_price": None, "contract_scope": "v3_explicit_no_position",
+                   "contract_verified": True, "execution_status": "no_position",
+                   "analysis_completeness": "not_evaluated"}
+        checks.append(_check("recommendation_target_alignment", "not_applicable",
+            "已確認目前不建立空方部位，目標價方向檢查不適用；不代表分析完整性或證據品質已通過。", details))
         return {"blocking_issues": blocking, "warnings": warnings, "checks": checks}
 
     if current_price and main_target:

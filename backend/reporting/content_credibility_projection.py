@@ -181,25 +181,48 @@ def merge_content_credibility_results(recorded: Any, projected: Any) -> dict[str
     )
     result["blocking_issues"] = _merge_issues(
         projected_map.get("blocking_issues"),
-        recorded_map.get("blocking_issues"),
-        suppressed_ids=resolved_issue_ids,
+        _merge_issues(recorded_map.get("blocking_issues"), suppressed_ids=resolved_issue_ids),
     )
     result["warnings"] = _merge_issues(
         projected_map.get("warnings"),
-        recorded_map.get("warnings"),
-        suppressed_ids=resolved_issue_ids,
+        _merge_issues(recorded_map.get("warnings"), suppressed_ids=resolved_issue_ids),
     )
     result["checks"] = _merge_checks(projected_map.get("checks"), recorded_map.get("checks"))
     recorded_status = safe_text(recorded_map.get("status")).strip().lower()
     projected_status = safe_text(projected_map.get("status")).strip().lower()
-    if resolved_issue_ids and not result["blocking_issues"] and not result["warnings"]:
-        status = projected_status
-    else:
-        status = max((recorded_status, projected_status), key=lambda value: _STATUS_RANK.get(value, 0))
+    # A passing recheck can explain only its own historical findings. Merely
+    # having a resolver must not erase an unexplained blocked/failed status.
+    resolved_rank = _resolved_recorded_rank(recorded_map, resolved_issue_ids)
+    remaining_rank = max(
+        [3 if result["blocking_issues"] else 0, 2 if result["warnings"] else 0]
+        + [_STATUS_RANK.get(safe_text(check.get("status")).strip().lower(), 0)
+           for check in result["checks"]]
+    )
+    finding_status = "blocked" if remaining_rank >= 3 else "warning" if remaining_rank >= 2 else "passed"
+    current_status = max((projected_status, finding_status), key=lambda value: _STATUS_RANK.get(value, 0))
+    status = current_status if resolved_rank and _STATUS_RANK.get(recorded_status, 0) <= resolved_rank else max(
+        (recorded_status, current_status), key=lambda value: _STATUS_RANK.get(value, 0))
     if status:
         result["status"] = status
         result["summary"] = _STATUS_SUMMARIES.get(status, safe_text(projected_map.get("summary")).strip())
     return result
+
+
+def _resolved_recorded_rank(recorded: dict, resolved_ids: frozenset[str]) -> int:
+    ranks = [0]
+    for field, rank in (("blocking_issues", 3), ("warnings", 2)):
+        if any(safe_text(issue.get("id")) in resolved_ids for issue in safe_dict_list(recorded.get(field))):
+            ranks.append(rank)
+    # Legacy reports may save a check without an issue list. These two checks
+    # have a defined issue family; no-position proof resolves only the explicit
+    # missing-price issue, never an unexplained historical direction warning.
+    families = {"trade_setup_alignment": _TRADE_SETUP_ISSUE_IDS,
+                "confidence_evidence_alignment": _EVIDENCE_ALIGNMENT_ISSUE_IDS}
+    for check in safe_dict_list(recorded.get("checks")):
+        family = families.get(safe_text(check.get("id")).strip(), frozenset())
+        if family and family.issubset(resolved_ids):
+            ranks.append(_STATUS_RANK.get(safe_text(check.get("status")).strip().lower(), 0))
+    return max(ranks)
 
 
 def _resolved_trade_setup_issue_ids(projected: dict[str, Any]) -> frozenset[str]:
@@ -211,6 +234,17 @@ def _resolved_trade_setup_issue_ids(projected: dict[str, Any]) -> frozenset[str]
         ):
             resolved.update(_TRADE_SETUP_ISSUE_IDS)
         details = safe_mapping_dict(check.get("details")) or {}
+        if (
+            check.get("id") == "recommendation_target_alignment"
+            and check.get("status") == "not_applicable"
+            and details.get("contract_scope") == "v3_explicit_no_position"
+            and details.get("contract_verified") is True
+            and details.get("pipeline_id") == "v3"
+            and details.get("execution_status") == "no_position"
+            and details.get("recommendation") == "避免"
+            and details.get("target_price") is None
+        ):
+            resolved.add("missing_price_alignment_inputs")
         if (
             safe_text(check.get("id")).strip() == "confidence_evidence_alignment"
             and safe_text(check.get("status")).strip().lower() == "passed"

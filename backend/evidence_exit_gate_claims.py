@@ -13,6 +13,7 @@ from evidence_claim_numbers import (
 from evidence_daily_price_claims import dated_daily_extreme_path
 from evidence_technical_claims import technical_sma_path
 from evidence_recommendation_claims import recommendation_horizon_path
+from evidence_claim_types import NUMBER_TOKEN, calendar_metadata_label, calendar_metadata_match, score_metadata
 
 def _normalize_match_text(value: Any) -> str:
     return re.sub(r"[^0-9a-zA-Z_\u4e00-\u9fff]+", "", str(value or "").lower())
@@ -20,10 +21,10 @@ def _normalize_match_text(value: Any) -> str:
 
 _NUMERIC_UNIT_PATTERN = r"(?:TWD|%|x|X|倍|億|元|張|B|M|K|k|T)"
 _KV_RE = re.compile(
-    rf"(?P<label>[\u4e00-\u9fffA-Za-z][^:\n：|]{{0,30}})[:：]\s*[*_`]*\s*(?:[~約])?(?:NT\$|\$)?(?P<num>-?\d[\d,]*(?:\.\d+)?)\s*(?P<unit>{_NUMERIC_UNIT_PATTERN})?(?:[.．](?=\s*(?:[)）(（]|$)))?(?![\dA-Za-z]|[.．](?!\s*(?:[)）(（]|$|\s+[A-Za-z\u4e00-\u9fff])))"
+    rf"(?P<label>[\u4e00-\u9fffA-Za-z][^:\n：|]{{0,30}})[:：]\s*[*_`]*\s*(?:[~約])?(?:NT\$|\$)?(?P<num>{NUMBER_TOKEN})\s*(?P<unit>{_NUMERIC_UNIT_PATTERN})?(?:[.．](?=\s*(?:[)）(（]|$)))?(?![\dA-Za-z]|[.．](?!\s*(?:[)）(（]|$|\s+[A-Za-z\u4e00-\u9fff])))"
 )
 _TABLE_CELL_RE = re.compile(
-    rf"\|\s*(?P<label>[^|\n]{{1,30}})\s*\|\s*[*_`]*\s*(?:[~約])?(?:NT\$|\$)?(?P<num>-?\d[\d,]*(?:\.\d+)?)\s*(?P<unit>{_NUMERIC_UNIT_PATTERN})?(?:[.．](?=\s*\|))?(?![\dA-Za-z.])\s*\|"
+    rf"\|\s*(?P<label>[^|\n]{{1,30}})\s*\|\s*[*_`]*\s*(?:[~約])?(?:NT\$|\$)?(?P<num>{NUMBER_TOKEN})\s*(?P<unit>{_NUMERIC_UNIT_PATTERN})?(?:\s*/\s*(?P<score_denominator>{NUMBER_TOKEN}))?(?:[.．](?=\s*\|))?(?![\dA-Za-z.])\s*\|"
 )
 _TABLE_VALUE_LABEL_RE = re.compile(
     rf"^\s*(?:NT\$|\$)?\s*-?\d[\d,]*(?:\.\d+)?\s*(?:{_NUMERIC_UNIT_PATTERN}|billion[_ ]?twd|million[_ ]?twd|thousand[_ ]?twd)\s*$",
@@ -111,18 +112,21 @@ def extract_numeric_claims(markdown: str) -> list[dict[str, Any]]:
             horizon_prefix = re.search(r"(?P<horizon>\d+)\s*[*_`]*$", line[:match.start("label")])
             label = f"{horizon_prefix.group('horizon')}{label}" if horizon_prefix and label.startswith(("個月", "月")) else label
             number, unit = _claim_value(match, label, line)
-            if not label or number is None or not _valid_claim_number(number):
+            metadata = score_metadata(label, unit, match.group("num"), line[match.end("num"):])
+            if metadata is None and match.groupdict().get("score_denominator") is not None:
+                continue
+            if not label or (metadata is None and (number is None or not _valid_claim_number(number))):
                 continue
             default_number = _clean_number(match.group("num"))
-            if number == default_number and _NON_CLAIM_SUFFIX_RE.match(line[match.end():]):
+            if metadata is None and number == default_number and _NON_CLAIM_SUFFIX_RE.match(line[match.end():]):
                 continue
-            if number == default_number and _RANGE_PREFIX_RE.match(line[match.end():]):
+            if metadata is None and number == default_number and _RANGE_PREFIX_RE.match(line[match.end():]):
                 continue
-            if number == default_number and _SHORT_DATE_SUFFIX_RE.match(line[match.end():]):
+            if metadata is None and number == default_number and _SHORT_DATE_SUFFIX_RE.match(line[match.end():]):
                 continue
-            if number == default_number and not match.group("unit") and default_number is not None and 1900 <= default_number <= 2100 and _DATE_PREFIX_RE.match(line[match.end():]):
+            if metadata is None and number == default_number and not match.group("unit") and default_number is not None and 1900 <= default_number <= 2100 and _DATE_PREFIX_RE.match(line[match.end():]):
                 continue
-            key = (label, round(number, 6), line_number)
+            key = (label, match.group("num").lower() if metadata else round(number, 6), line_number)
             if key in seen:
                 continue
             seen.add(key)
@@ -130,6 +134,7 @@ def extract_numeric_claims(markdown: str) -> list[dict[str, Any]]:
                 "id": len(claims) + 1,
                 "label": label,
                 "reported_value": number,
+                **(metadata or {"claim_type": "financial"}),
                 "unit": unit,
                 "line_number": line_number,
                 "raw_text": line if ("rketcontext[" in label and "change" in label) or "觀察近三個月價格" in line else line[:160],
@@ -156,9 +161,13 @@ def extract_numeric_claims(markdown: str) -> list[dict[str, Any]]:
         if (previous := _CHIP_EXTERNAL_PREVIOUS_RE.search(line)) and (number := _clean_number(previous.group("num"))) is not None and (key := ("Previous", round(number, 6), line_number)) not in seen:
             seen.add(key)
             claims.append({"id": len(claims) + 1, "label": "Previous", "reported_value": number, "unit": "", "line_number": line_number, "raw_text": line[:160]})
+    for claim in claims:
+        claim.setdefault("claim_type", "financial")
     return claims
 
 def _is_non_claim_match(line: str, match: re.Match[str]) -> bool:
+    if calendar_metadata_label(match.group("label")):
+        return calendar_metadata_match(match)
     timestamp = re.search(r"\d{4}-\d{2}-\d{2}T\d{1,2}:\d{2}:\d{2}", line)
     if (timestamp and timestamp.start() <= match.start("label") <= timestamp.end()) or (line[max(0, match.start("label") - 1):match.start("label")] == "_" and re.search(r"`normalized[_ ]financials`", line[max(0, match.start("label") - 40):match.end("label")], re.IGNORECASE)) or re.search(r"`institutional_trading`\s*[:：]\s*\d+\s*-\s*day\s+lookback\b", line, re.IGNORECASE) or re.search(r"(?:不可用|unavailable|fallback|error|錯誤)\s*[:：]?\s*(?:4\d{2}|5\d{2})\b", line[max(0, match.start("num") - 80):match.end("num") + 1], re.IGNORECASE) or re.match(r"(?:\s*-\s*(?:day|days|week|weeks|month|months)\b|\s*(?:日|天|週|周|個月|月)\b)", line[match.end("num"):], re.IGNORECASE) or (match.re is _TABLE_CELL_RE and _TABLE_VALUE_LABEL_RE.fullmatch(match.group("label"))):
         return True

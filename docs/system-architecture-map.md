@@ -58,6 +58,8 @@ Gemma dense 編碼的相容稀疏表在 `prompt_record_tables.py`：`absent` 區
 
 來源狀態面板的取得資料率在 `provider_acquisition.py`：唯讀掃描 canonical operational DB 的 `provider_sla_events`，分開計算非空成功、空結果、降級資料、有效／空／過期快取與失敗。既有 provider SLA 的 availability 欄位保留相容用途，面板只讀 `/api/observability/provider-sla` 的 `acquisition` projection；缺少 projection 時明示無法判定，不回退到舊成功率。以既有 workflow provider 名稱及 audit message 識別並排除彙總／合併列，保留真實重試；沒有原始觀測的來源不產生成功率。這些是供應商觀測數，不是 HTTP 請求數、唯一資料筆數或內容正確率；全部期間只包含目前保留的事件。UI 列出全部來源，明細完整且失敗優先，綠色不覆蓋期間失敗；時間範圍與更新時間取自同一份 projection。原始紀錄、報告資料可信度與發布閘門不由此面板改寫。
 
+報告品質 schema 2 由 `evidence_claim_types.py` 區分日期、分析評分與財務抽樣；`structured_output_runtime.py` 只在明確 Google response 邊界還原安全 recommendation enum。Agent 19 完整性策略、嚴格 v3 不開倉 N/A 與精確解除歷史 finding 的唯讀 projection 詳見 [報告品質修正與重稽核](report-quality-optimization-2026-09-20.md)。
+
 ## 目前 Runtime 真相
 
 追蹤表的「一鍵處理警示」先使用共用品質 policy 的 `reportAutomaticRerunAction()`，細部條件集中在 `report_automatic_rerun_policy.js`：已有明確 freshness 重跑標記且無來源錯誤／快照損壞時，經原 `scope=full_report` 路徑送件，即使舊報告有品質警示也不轉成人工略過。一般預覽與採用建議仍使用原 `reportRecommendedAction()`，舊報告的品質警示、資料及閱讀限制不變；這不放寬新報告發布 gate、不自動點擊／送件、不新增背景排程或修改已凍結 OOS cohort。

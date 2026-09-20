@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import re
 from analysis_types import AnalysisContext
+from google_prompt_safety import GOOGLE_SCHEMA_VALUE_REPLACEMENTS
 from json_utils import extract_json_payload
+from llm_provider_routes import provider_for_model
+from recommendation_labels import CANONICAL_RECOMMENDATIONS
 from structured_output_models import STRUCTURED_AGENT_INSTRUCTIONS
 from structured_output_normalizer import (
     normalize_structured_output,
@@ -26,7 +29,31 @@ def _sanitize_text(text: str) -> str:
     )
 
 
-def process_agent_response(agent_num: int, raw_text: str, context: AnalysisContext) -> str:
+def _decode_google_recommendation(agent_num: int, payload, model_id: str | None):
+    """Reverse exact schema wire enums only at an identified Google response boundary."""
+    if (
+        agent_num not in {7, 16, 19}
+        or not model_id
+        or provider_for_model(model_id) != "google"
+        or not isinstance(payload, dict)
+        or not isinstance(payload.get("recommendation"), dict)
+    ):
+        return payload
+    wire_to_product = {
+        GOOGLE_SCHEMA_VALUE_REPLACEMENTS[label]: label
+        for label in CANONICAL_RECOMMENDATIONS
+    }
+    recommendation = dict(payload["recommendation"])
+    for field in ("建議", "recommendation"):
+        value = recommendation.get(field)
+        if isinstance(value, str) and value in wire_to_product:
+            recommendation[field] = wire_to_product[value]
+    return {**payload, "recommendation": recommendation}
+
+
+def process_agent_response(
+    agent_num: int, raw_text: str, context: AnalysisContext, *, model_id: str | None = None,
+) -> str:
     """Persist JSON structured output and return report-ready text."""
     if agent_num not in STRUCTURED_AGENT_INSTRUCTIONS:
         return _sanitize_text(raw_text or "")
@@ -34,6 +61,7 @@ def process_agent_response(agent_num: int, raw_text: str, context: AnalysisConte
     payload = extract_json_payload(raw_text or "")
     if payload is None:
         return _sanitize_text(raw_text or "")
+    payload = _decode_google_recommendation(agent_num, payload, model_id)
     structured = normalize_structured_output(agent_num, payload)
     if not structured:
         if isinstance(payload, dict) and "analysis_markdown" in payload:

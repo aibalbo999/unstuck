@@ -4465,7 +4465,7 @@ def test_agent21_report_text_uses_downside_risk_fallback_row_when_empty():
     })
     lines = report_text.splitlines()
 
-    fallback_line = "- **下行風險**（嚴重度：warning；信心：0.7）：資料不足"
+    fallback_line = "- **下行風險**（嚴重度：warning；信心（0–1）：0.7）：資料不足"
     assert fallback_line in lines
     assert (
         lines.index("## 最大下行風險 (Key Downside Risks) / 空頭觀點")
@@ -4591,9 +4591,9 @@ def test_agent21_report_text_surfaces_downside_risk_priority_metadata():
     })
     lines = report_text.splitlines()
 
-    assert "- **毛利率壓力**（嚴重度：high；信心：0.8）：同業報價 下修且庫存去化慢於預期。影響：估值倍數 下修" in lines
-    assert "- **現金流轉弱**（嚴重度：warning；信心：0.6）：營運資金需求上升使 FCF 轉換率下滑。影響：DCF 折價" in lines
-    assert "- **客戶集中**（嚴重度：critical；信心：0.5）：主要客戶拉貨節奏可能放大營收波動。影響：營收能見度下降" in lines
+    assert "- **毛利率壓力**（嚴重度：high；信心（0–1）：0.8）：同業報價 下修且庫存去化慢於預期。影響：估值倍數 下修" in lines
+    assert "- **現金流轉弱**（嚴重度：warning；信心（0–1）：0.6）：營運資金需求上升使 FCF 轉換率下滑。影響：DCF 折價" in lines
+    assert "- **客戶集中**（嚴重度：critical；信心（0–1）：0.5）：主要客戶拉貨節奏可能放大營收波動。影響：營收能見度下降" in lines
     assert all(not line.startswith(("下修且庫存", "下修")) for line in lines)
 
 
@@ -4629,7 +4629,7 @@ def test_agent21_report_text_separates_downside_risk_impact_from_evidence():
     })
     lines = report_text.splitlines()
 
-    assert "- **毛利率壓力**（嚴重度：high；信心：0.8）：同業報價下修且庫存去化慢；影響：估值倍數下修" in lines
+    assert "- **毛利率壓力**（嚴重度：high；信心（0–1）：0.8）：同業報價下修且庫存去化慢；影響：估值倍數下修" in lines
     assert "去化慢影響：" not in report_text
 
 
@@ -4651,8 +4651,8 @@ def test_agent21_report_text_uses_evidence_fallback_for_single_character_fragmen
     })
     lines = report_text.splitlines()
 
-    assert "- **毛利率壓力**（嚴重度：warning；信心：0.6）：資料不足；影響：估值折價擴大" in lines
-    assert "- **毛利率壓力**（嚴重度：warning；信心：0.6）：短；影響：估值折價擴大" not in lines
+    assert "- **毛利率壓力**（嚴重度：warning；信心（0–1）：0.6）：資料不足；影響：估值折價擴大" in lines
+    assert "- **毛利率壓力**（嚴重度：warning；信心（0–1）：0.6）：短；影響：估值折價擴大" not in lines
 
 
 def test_agent21_report_text_uses_title_fallback_for_single_character_fragments():
@@ -4673,8 +4673,8 @@ def test_agent21_report_text_uses_title_fallback_for_single_character_fragments(
     })
     lines = report_text.splitlines()
 
-    assert "- **下行風險**（嚴重度：warning；信心：0.6）：同業報價下修且庫存去化慢於預期。影響：估值折價擴大" in lines
-    assert "- **風**（嚴重度：warning；信心：0.6）：同業報價下修且庫存去化慢於預期。影響：估值折價擴大" not in lines
+    assert "- **下行風險**（嚴重度：warning；信心（0–1）：0.6）：同業報價下修且庫存去化慢於預期。影響：估值折價擴大" in lines
+    assert "- **風**（嚴重度：warning；信心（0–1）：0.6）：同業報價下修且庫存去化慢於預期。影響：估值折價擴大" not in lines
 
 
 def test_agent21_report_text_omits_impact_for_single_character_fragments():
@@ -4695,7 +4695,7 @@ def test_agent21_report_text_omits_impact_for_single_character_fragments():
     })
     lines = report_text.splitlines()
 
-    assert "- **毛利率壓力**（嚴重度：warning；信心：0.6）：同業報價下修且庫存去化慢於預期。" in lines
+    assert "- **毛利率壓力**（嚴重度：warning；信心（0–1）：0.6）：同業報價下修且庫存去化慢於預期。" in lines
     assert "影響：縮" not in report_text
 
 
@@ -4717,7 +4717,7 @@ def test_agent21_report_text_uses_severity_fallback_for_invalid_metadata():
     })
     lines = report_text.splitlines()
 
-    assert "- **毛利率壓力**（嚴重度：warning；信心：0.6）：同業報價下修且庫存去化慢於預期。影響：估值折價擴大" in lines
+    assert "- **毛利率壓力**（嚴重度：warning；信心（0–1）：0.6）：同業報價下修且庫存去化慢於預期。影響：估值折價擴大" in lines
     assert "嚴重度：高" not in report_text
 
 
@@ -4739,8 +4739,8 @@ def test_agent21_report_text_uses_confidence_fallback_for_invalid_metadata():
     })
     lines = report_text.splitlines()
 
-    assert "- **毛利率壓力**（嚴重度：warning；信心：0.7）：同業報價下修且庫存去化慢於預期。影響：估值折價擴大" in lines
-    assert "信心：很高" not in report_text
+    assert "- **毛利率壓力**（嚴重度：warning；信心（0–1）：0.7）：同業報價下修且庫存去化慢於預期。影響：估值折價擴大" in lines
+    assert "信心（0–1）：很高" not in report_text
 
 
 def test_normalize_structured_output_price_target_reasoning_uses_safe_text_before_validation():
@@ -5258,8 +5258,8 @@ def test_legacy_management_sentiment_report_text_surfaces_confidence():
     lines = report_text.splitlines()
 
     assert "## 管理層語氣：樂觀" in lines
-    assert "信心分數：0.86" in lines
-    assert lines.index("信心分數：0.86") < lines.index("- **訂單**：AI 訂單增長")
+    assert "信心分數（0–1）：0.86" in lines
+    assert lines.index("信心分數（0–1）：0.86") < lines.index("- **訂單**：AI 訂單增長")
 
 
 def test_legacy_management_sentiment_report_text_uses_quote_fallback():
@@ -5297,7 +5297,7 @@ def test_agent20_report_text_uses_highlight_fallbacks_for_single_character_fragm
     assert "- **亮點**：資料不足" in lines
     assert "- **訂單**：AI 訂單恢復成長" in lines
     assert "- **營**：好" not in lines
-    assert "信心分數：0.55" in lines
+    assert "信心分數（0–1）：0.55" in lines
 
 
 def test_legacy_management_sentiment_report_text_uses_highlight_fallback_row_when_empty():
@@ -5312,7 +5312,7 @@ def test_legacy_management_sentiment_report_text_uses_highlight_fallback_row_whe
     lines = report_text.splitlines()
 
     assert "- **亮點**：資料不足" in lines
-    assert lines.index("信心分數：0.4") < lines.index("- **亮點**：資料不足") < lines.index("管理層正文")
+    assert lines.index("信心分數（0–1）：0.4") < lines.index("- **亮點**：資料不足") < lines.index("管理層正文")
 
 
 def test_agent20_report_text_uses_guidance_tone_fallback_for_invalid_metadata():
@@ -5328,7 +5328,7 @@ def test_agent20_report_text_uses_guidance_tone_fallback_for_invalid_metadata():
 
     assert "## 管理層語氣：資料不足" in lines
     assert "## 管理層語氣：樂" not in lines
-    assert "信心分數：0.6" in lines
+    assert "信心分數（0–1）：0.6" in lines
     assert "- **需求回溫**：AI 訂單恢復成長" in lines
 
 

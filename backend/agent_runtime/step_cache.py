@@ -15,6 +15,10 @@ from market_context_manifest import CONTRACT_VERSION, FINAL_AGENTS, clear_market
 
 
 PROMPT_VERSION_DEFAULT = "runtime_rules:unversioned"
+# Step outputs are already normalized/rendered. Bump when the listed roles'
+# system/generation or output contract changes even if their user prompt does not.
+AGENT_OUTPUT_CONTRACT_VERSION = "agent-output:wire-decode-completion-v3-format:v2"
+_OUTPUT_CONTRACT_AGENTS = frozenset({7, 16, 18, 19, 20, 21})
 
 
 def build_agent_step_cache_key(
@@ -34,6 +38,8 @@ def build_agent_step_cache_key(
         "upstream_input_hash": upstream_input_hash(agent_num, context),
         "market_context_contract_version": context.get("market_context_contract_version"),
     }
+    if agent_num in _OUTPUT_CONTRACT_AGENTS:
+        key_parts["output_contract_version"] = AGENT_OUTPUT_CONTRACT_VERSION
     encoded = json.dumps(key_parts, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return "agent_step:" + hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 

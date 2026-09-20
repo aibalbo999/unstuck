@@ -1,6 +1,7 @@
 """Publish only accepted repair versions to the typed State blackboard."""
 
 from context_dependencies import invalidate_repair_digests
+from final_audit_mode_contracts import v3_short_setup_contract_issues
 from final_audit_helpers import extract_first_price, recommendation_value
 from forward_consistency_checker import run_forward_consistency_checks
 from pipeline_modes import get_structured_agent_num
@@ -15,6 +16,15 @@ def repair_contract_issues(agent_num: int, context: dict) -> list[str]:
     issues = []
     if structured_output_missing(context, agent_num):
         issues.append(f"Agent {agent_num} 結構化輸出未通過本模式契約檢查。")
+        if get_structured_agent_num("short_setup", context) == agent_num:
+            outputs = context.get("structured_outputs") or {}
+            output = outputs.get(agent_num, outputs.get(str(agent_num)))
+            if isinstance(output, dict):
+                short_setup = output.get("short_setup")
+                if isinstance(short_setup, dict):
+                    issues.extend(v3_short_setup_contract_issues(
+                        short_setup, recommendation=output.get("recommendation"),
+                    ))
     if get_structured_agent_num("recommendation", context) == agent_num:
         recommendation = parse_structured_data(context).get("recommendation") or {}
         checks = run_forward_consistency_checks(

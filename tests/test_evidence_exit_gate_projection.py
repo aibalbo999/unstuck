@@ -29,7 +29,11 @@ def test_projection_rechecks_current_evidence_without_mutating_snapshot():
 
     assert result["verdict"] == "caution"
     assert result["failed_count"] == 0
-    assert result["unverifiable_count"] == 1
+    assert result["schema_version"] == 2
+    assert result["unverifiable_count"] == 0
+    assert result["claim_count"] == result["sampled_count"] == 0
+    assert result["metadata_unverifiable_count"] == 1
+    assert result["metadata_claims"][0]["verification_reason_code"] == "score_scale_unspecified"
     assert snapshot == original
 
 

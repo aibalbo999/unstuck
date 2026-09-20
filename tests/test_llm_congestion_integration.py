@@ -141,7 +141,7 @@ def _agent(monkeypatch, spy, events):
     monkeypatch.setattr(calls, "estimate_agent_input_tokens", lambda *a: 1)
     monkeypatch.setattr(calls, "tool_request_scope", lambda *a, **k: ToolScope())
     monkeypatch.setattr(calls, "_record_llm_token_usage", lambda *a: None)
-    monkeypatch.setattr(calls, "process_agent_response", lambda a, text, c: text)
+    monkeypatch.setattr(calls, "process_agent_response", lambda a, text, c, **kwargs: text)
     monkeypatch.setattr(calls, "_validate_agent_result", lambda *a: None)
     monkeypatch.setattr(calls, "_should_stream_llm_response", lambda *a: False)
     monkeypatch.setattr(calls, "_generate_content", lambda key, model, agent, prompt: transport.generate_content(key, model, prompt, None))

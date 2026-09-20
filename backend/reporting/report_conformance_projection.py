@@ -34,8 +34,8 @@ def _gate_step(step_id: str, gate: dict, *, label: str) -> dict:
     return {"id": step_id, "status": status, "message": messages[status], "details": {label: gate}}
 
 
-def _merge_issues(existing: Any, additions: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    merged = safe_dict_list(existing)
+def _merge_issues(existing: Any, additions: list[dict[str, Any]], *, resolved: set[str]) -> list[dict[str, Any]]:
+    merged = [item for item in safe_dict_list(existing) if safe_text(item.get("id")) not in resolved]
     known = {(safe_text(item.get("id")), safe_text(item.get("message"))) for item in merged}
     for item in additions:
         key = (safe_text(item.get("id")), safe_text(item.get("message")))
@@ -71,24 +71,39 @@ def project_report_conformance(recorded: Any, evidence_exit_gate: Any, content_c
     if content_map and "content_credibility" not in replaced:
         projected_steps.append(_gate_step("content_credibility", content_map, label="content_credibility"))
 
+    # Only an explicitly recomputed, passing gate can resolve its old finding.
+    # Other findings and unexplained historical severity remain visible.
+    supplied = {name for name, gate in (("evidence_exit_gate", evidence_map),
+                                      ("content_credibility", content_map)) if gate}
+    resolved = {step["id"] for step in projected_steps
+                if step.get("id") in supplied and step.get("status") == "passed"}
+    old_blocking = safe_dict_list(recorded_map.get("blocking_issues"))
+    old_warnings = safe_dict_list(recorded_map.get("warnings"))
+    old_findings = old_blocking + old_warnings + [step for step in steps
+                    if _STATUS_RANK.get(safe_text(step.get("status")), 0) > 1]
+    resolved_recorded = any(safe_text(item.get("id")) in resolved for item in old_findings)
+    explained_rank = max([3 if old_blocking else 0, 2 if old_warnings else 0]
+                         + [_STATUS_RANK.get(safe_text(step.get("status")), 0) for step in steps])
+
     current_blocking = [
-        {"id": step["id"], "message": step["message"], "details": step.get("details", {})}
+        {"id": safe_text(step.get("id")), "message": safe_text(step.get("message")), "details": step.get("details", {})}
         for step in projected_steps
         if step.get("status") in {"blocked", "failed", "rejected"}
     ]
     current_warnings = [
-        {"id": step["id"], "message": step["message"], "details": step.get("details", {})}
+        {"id": safe_text(step.get("id")), "message": safe_text(step.get("message")), "details": step.get("details", {})}
         for step in projected_steps
         if step.get("status") == "warning"
     ]
-    current_status = "blocked" if current_blocking else "warning" if current_warnings else "passed"
     recorded_status = safe_text(recorded_map.get("status")).strip().lower()
-    status = max((recorded_status, current_status), key=lambda value: _STATUS_RANK.get(value, 0))
     result = dict(recorded_map)
     result["schema_version"] = recorded_map.get("schema_version", 1)
     result["decision_tree"] = projected_steps
-    result["blocking_issues"] = _merge_issues(recorded_map.get("blocking_issues"), current_blocking)
-    result["warnings"] = _merge_issues(recorded_map.get("warnings"), current_warnings)
+    result["blocking_issues"] = _merge_issues(old_blocking, current_blocking, resolved=resolved)
+    result["warnings"] = _merge_issues(old_warnings, current_warnings, resolved=resolved)
+    current_status = "blocked" if result["blocking_issues"] else "warning" if result["warnings"] else "passed"
+    status = current_status if resolved_recorded and _STATUS_RANK.get(recorded_status, 0) <= explained_rank else max(
+        (recorded_status, current_status), key=lambda value: _STATUS_RANK.get(value, 0))
     result["status"] = status
     result["summary"] = _STATUS_SUMMARIES.get(status, safe_text(recorded_map.get("summary")))
     return result

@@ -7,6 +7,7 @@ from collections import Counter
 from random import Random
 from typing import Any
 from evidence_technical_claims import technical_snapshot_values, valid_technical_date
+from evidence_claim_types import public_metadata_claim
 
 from evidence_exit_gate_claims import (
     _HORIZON_PREFIX_RE,
@@ -45,6 +46,8 @@ def evaluate_report_evidence(
     technical = data.get("technical_indicators") if isinstance(data, dict) else None
     technical = technical if isinstance(technical, dict) else {}
     claims = [{**claim, "_technical_as_of": valid_technical_date(technical.get("as_of"))} for claim in claims]
+    metadata_claims = [public_metadata_claim(claim) for claim in claims if claim.get("claim_type") == "analysis_score"]
+    claims = [claim for claim in claims if claim.get("claim_type") != "analysis_score"]
     sample = sample_numeric_claims(claims, sample_ratio=sample_ratio, min_sample=min_sample, max_sample=max_sample, seed=seed)
     checked = [_check_claim(claim, snapshot_values, tolerance_pct=tolerance_pct) for claim in sample]
     failed_count = sum(1 for item in checked if item["status"] == "mismatch")
@@ -68,8 +71,28 @@ def evaluate_report_evidence(
                 summary = "部分抽樣數字無法對上資料快照，需人工確認。"
             if unverifiable_count:
                 summary += "另有數字缺少同語意資料路徑。"
+    metadata_invalid = sum(item["status"] == "invalid" for item in metadata_claims)
+    metadata_unverifiable = sum(item["status"] == "unverifiable" for item in metadata_claims)
+    if metadata_invalid or metadata_unverifiable:
+        if verdict == "approved":
+            verdict = "caution"
+    if metadata_claims:
+        summary += (f"財務抽查 {len(checked)}/{len(claims)} 筆；分析評分 {len(metadata_claims)} 筆"
+                    f"（有效 {len(metadata_claims) - metadata_invalid - metadata_unverifiable}、無效 {metadata_invalid}、"
+                    f"量尺未明 {metadata_unverifiable}），評分不計入財務證據。")
+        reason_labels = {"score_not_finite": "評分不是有限數值", "score_scale_invalid": "評分量尺無效或互相衝突",
+                         "score_out_of_range": "評分超出合法範圍", "score_scale_unspecified": "評分量尺未明示"}
+        reasons = sorted({reason_labels.get(item["verification_reason_code"], item["verification_reason_code"])
+                          for item in metadata_claims if item["status"] != "valid"})
+        if reasons:
+            summary += "需確認：" + "、".join(reasons) + "。"
     return {
-        "schema_version": 1,
+        "schema_version": 2,
+        "metadata_claim_count": len(metadata_claims),
+        "metadata_checked_count": len(metadata_claims),
+        "metadata_invalid_count": metadata_invalid,
+        "metadata_unverifiable_count": metadata_unverifiable,
+        "metadata_claims": metadata_claims,
         "verdict": verdict,
         "summary": summary,
         "claim_count": len(claims),

@@ -145,7 +145,7 @@ def rig(monkeypatch):
     monkeypatch.setattr(llm_transport, "get_cached_llm_response", lambda *args: None)
     monkeypatch.setattr(llm_transport, "store_llm_response", lambda *args, **kwargs: None)
     monkeypatch.setattr(llm_calls, "estimate_agent_input_tokens", lambda *args: 10)
-    monkeypatch.setattr(llm_calls, "process_agent_response", lambda agent, text, context: text)
+    monkeypatch.setattr(llm_calls, "process_agent_response", lambda agent, text, context, **kwargs: text)
     sdk = FakeSDK([body(), body("tool result " * 100), body("tool result " * 200)], clock)
     monkeypatch.setattr(llm_transport.genai, "Client", sdk.client)
     yield NS(clock=clock, rotator=rotator, daily=daily, sdk=sdk, guard=guard)

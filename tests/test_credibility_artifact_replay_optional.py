@@ -43,9 +43,14 @@ def test_saved_1623_and_2308_credibility_boundaries():
     horizon = [item for item in results["2308_c"]["sampled_claims"]
                if item["reported_value"] == 1380 and "最終投資建議" in item["raw_text"]]
     assert horizon and all(item["matched_path"] == "rerun_context.parsed.recommendation.中期目標（6個月）" for item in horizon)
-    assert any(item["verification_reason_code"] == "confidence_metadata_not_evidence" for item in results["2308_c"]["sampled_claims"])
+    confidence = [item for item in results["2308_c"]["metadata_claims"] if item["score_kind"] == "confidence"]
+    assert results["2308_c"]["schema_version"] == 2
+    assert confidence and all(item["financial_evidence"] is False and item["matched_path"] == "" for item in confidence)
+    assert any(item["status"] == "valid" and item["reported_value"] == 7 and item["scale_max"] == 10 for item in confidence)
+    assert any(item["status"] == "unverifiable" and item["verification_reason_code"] == "score_scale_unspecified" for item in confidence)
+    assert all(item["claim_type"] == "financial" for item in results["2308_c"]["sampled_claims"])
     assert before == {key: hashlib.sha256(storage.get_report(key).content).hexdigest() for values in keys.values() for key in values if key}
     print(json.dumps({"artifact_hashes_unchanged": len(before), "negative_fcf_dcf": "unavailable",
                       "sma_matches": len(sma_claims), "compact_6m_matches": len(horizon),
                       "gate_counts": {name: {key: result[key] for key in
-                          ("sampled_count", "verified_count", "failed_count", "unverifiable_count")} for name, result in results.items()}}, ensure_ascii=False))
+                          ("sampled_count", "verified_count", "failed_count", "unverifiable_count", "metadata_claim_count", "metadata_invalid_count", "metadata_unverifiable_count")} for name, result in results.items()}}, ensure_ascii=False))

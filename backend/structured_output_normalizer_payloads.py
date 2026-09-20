@@ -74,7 +74,7 @@ def _coerce_short_setup_payload(value: Any, recommendation: Any = None) -> dict[
     )
     if recommendation is not None and label != "放空":
         normalized.update({
-            "entry_trigger": "目前不建立空方部位；等待可驗證做空觸發後再評估。",
+            "entry_trigger": "目前不建立空方部位；等待可驗證條件後重新評估。",
             "downside_target": "N/A",
             "cover_stop": "N/A",
             "transaction_cost": None,

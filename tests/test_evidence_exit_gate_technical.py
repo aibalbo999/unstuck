@@ -132,6 +132,6 @@ def test_ambiguous_compact_horizons_are_not_verified(text):
 
 @pytest.mark.parametrize("label", ["情緒過熱評分", "過熱評分"])
 def test_overheat_scores_remain_analysis_metadata(label):
-    claim = _claims(f"{label}：7.5（模型評估）", {"data": {"score": 7.5, "current_price": 7.5}})[0]
-    assert claim["status"] == "unverifiable"
-    assert claim["verification_reason_code"] == "analysis_metadata_not_evidence"
+    claim = evaluate_report_evidence(f"{label}：7.5（模型評估）", {"data": {"score": 7.5, "current_price": 7.5}}, sample_ratio=1)["metadata_claims"][0]
+    assert claim["status"] == "valid"
+    assert claim["verification_reason_code"] == "score_within_declared_range"

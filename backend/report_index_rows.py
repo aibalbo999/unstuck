@@ -284,6 +284,11 @@ def row_to_report(row) -> dict:
         snapshot.get("final_audit") or snapshot.get("report_conformance", {}),
     )
     projected_content_credibility = project_content_credibility_with_current_evidence(snapshot, stored_content_credibility, evidence_projection=projected_evidence_exit_gate, recommendation=recommendation)
+    current_content_credibility = _content_credibility(
+        row, pipeline_id=pipeline_id, markdown_text=markdown_text,
+        snapshot=dict(snapshot, evidence_exit_gate=projected_evidence_exit_gate) if projected_evidence_exit_gate is not None else snapshot,
+        projected=projected_content_credibility,
+    )
     preview = build_report_preview(
         pipeline_id,
         row["ticker"],
@@ -307,14 +312,8 @@ def row_to_report(row) -> dict:
         "decision_freshness": decision_freshness,
         "temporal_memory": _temporal_memory(row, snapshot=snapshot),
         "evidence_exit_gate": projected_evidence_exit_gate or stored_evidence_exit_gate,
-        "report_conformance": project_report_conformance(_report_conformance(row, snapshot=snapshot), projected_evidence_exit_gate, projected_content_credibility),
-        "content_credibility": _content_credibility(
-            row,
-            pipeline_id=pipeline_id,
-            markdown_text=markdown_text,
-            snapshot=dict(snapshot, evidence_exit_gate=projected_evidence_exit_gate) if projected_evidence_exit_gate is not None else snapshot,
-            projected=projected_content_credibility,
-        ),
+        "report_conformance": project_report_conformance(_report_conformance(row, snapshot=snapshot), projected_evidence_exit_gate, current_content_credibility if projected_content_credibility is not None else None),
+        "content_credibility": current_content_credibility,
         "snapshot_integrity": _snapshot_integrity(row, snapshot=snapshot),
         "data_snapshot_filename": row["data_snapshot_filename"] if "data_snapshot_filename" in row.keys() else "",
         "data_trust": data_trust,

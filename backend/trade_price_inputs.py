@@ -20,6 +20,13 @@ _MULTIPLES = re.compile(r"(?:P/?E|本益比|估值|valuation|band)\s*[:：=]?\s*
 _INVALID = re.compile(r"(?<![A-Za-z0-9_])(?:[+-]?(?:inf(?:inity)?|nan)|\d+(?:\.\d+)?[eE][+-]?\d+)(?![A-Za-z0-9_])", re.I)
 _NEGATIVE = re.compile(r"(?<![\d.,])(?:NT\$|TWD|\$)?\s*[-−]\s*\d", re.I)
 _REFERENCE = re.compile(r"[（(\[【][^）)\]】]*(?:52\s*週|52\s*week|高點|低點|壓力|支撐)[^）)\]】]*[）)\]】]", re.I)
+_STOCK_QUANTITY_AMOUNT = rf"{NUMBER}\s*(?:百萬|千萬|百億|千億|百|千|萬|億|(?:thousand|million|billion)\b)?"
+_STOCK_QUANTITIES = re.compile(
+    rf"(?<![A-Za-z0-9_.]){_STOCK_QUANTITY_AMOUNT}"
+    rf"(?:\s*(?:[-–—－−~～至到]|\bto\b)\s*{_STOCK_QUANTITY_AMOUNT})?"
+    r"\s*(?:張|股|shares?|lots?)(?![A-Za-z])",
+    re.I,
+)
 
 
 def execution_value_missing(value) -> bool:
@@ -40,6 +47,8 @@ def price_contract_text(value) -> str:
     """Remove explicitly non-price tokens without borrowing unrelated numbers."""
     text = unicodedata.normalize("NFKC", safe_text(value))
     text = _REFERENCE.sub(" ", text)
+    # Share/lot thresholds constrain a signal; they are never an entry price.
+    text = _STOCK_QUANTITIES.sub(" ", text)
     return _MULTIPLES.sub(" ", _PERCENT.sub(" ", _PERIODS.sub(" ", _DATES.sub(" ", text))))
 
 

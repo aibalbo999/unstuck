@@ -180,7 +180,7 @@ def _downside_risk_line(item: dict[str, Any]) -> str:
     if severity:
         metadata.append(f"嚴重度：{severity}")
     if confidence:
-        metadata.append(f"信心：{confidence}")
+        metadata.append(f"信心（0–1）：{confidence}")
     metadata_text = f"（{'；'.join(metadata)}）" if metadata else ""
     impact_separator = "" if evidence.endswith(("。", "！", "？", ".", "!", "?", "；", ";")) else "；"
     impact_text = f"{impact_separator}影響：{impact}" if impact else ""

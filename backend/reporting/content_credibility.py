@@ -46,7 +46,8 @@ def evaluate_content_credibility(context: dict, snapshot: dict | None = None, ma
     pipeline_id = first_non_missing_text(context.get("pipeline_id"), snapshot.get("pipeline")).lower()
     data_trust = normalize_data_trust(snapshot.get("data_trust") or data.get("data_trust"))
     current_price = first_price(data.get("current_price"))
-    recommendation_label = normalize_recommendation_label(first_value_by_key_fragment(recommendation, "建議"))
+    raw_recommendation = first_value_by_key_fragment(recommendation, "建議")
+    recommendation_label = normalize_recommendation_label(raw_recommendation)
     main_target = main_target_price(parsed)
     evidence_gate = _evidence_exit_gate(context, snapshot)
     evidence_verdict = safe_text(evidence_gate.get("verdict")).strip() or "not_recorded"
@@ -61,6 +62,10 @@ def evaluate_content_credibility(context: dict, snapshot: dict | None = None, ma
             recommendation_label=recommendation_label,
             current_price=current_price,
             main_target=main_target,
+            pipeline_id=pipeline_id,
+            # Normalized sell/reduce/compound labels can imply an existing
+            # position; they are insufficient proof of a no-position contract.
+            short_setup=_as_dict(parsed.get("short_setup")) if safe_text(raw_recommendation).strip() == "避免" else {},
         )
     results = [
         alignment,

@@ -10,6 +10,7 @@ from typing import Any, Optional
 from google.genai import types
 
 from config import LLM_AGENT_CALL_TIMEOUT_SECONDS
+from forward_consistency_checker import RECOMMENDATION_RETURN_GATES, TARGET_REVERSAL_TOLERANCE_PCT
 from google_prompt_safety import sanitize_google_system_instruction
 from llm_input_capacity import estimate_input_tokens
 from llm_client import generate_content, generate_content_async, generate_content_stream_async, response_text
@@ -20,7 +21,7 @@ from .retry_policy import AgentTransientError
 from .routing import get_agent_function_tools
 
 
-GENERATION_POLICY_VERSION = "agent-generation:v1"
+GENERATION_POLICY_VERSION = "agent-generation:v3"
 _DEFAULT_GENERATION_PROFILE = {
     "temperature": 0.7,
     "top_p": 0.95,
@@ -55,6 +56,44 @@ AGENT_GENERATION_PROFILES = {
 }
 _BOUNDED_THINKING_MODELS = {"gemini-3.5-flash-lite", "gemini-3.7-flash", "gemini-3.8-flash"}
 _MEDIUM_THINKING_AGENTS = {7, 16, 19, 24}
+_COMPLETION_LOW_THINKING_MODELS = _BOUNDED_THINKING_MODELS | {"gemini-3-flash-preview", "gemini-3.6-flash"}
+_AGENT19_COMPLETION_INSTRUCTION = (
+    "\n\nAgent 19 完整性契約：請一次輸出完整 JSON，先完成 response_schema 的所有必要欄位，"
+    "recommendation 分類只使用 response_schema 列舉值，不自行創造分類。"
+    "analysis_markdown 以 800–1200 字的精煉正文為目標，避免重貼原始表格、逐字重複其他 JSON 欄位或前序分析；"
+    "若必要證據需更多文字，完整性與品質規則優先於此篇幅目標。"
+    "保留做空觸發條件與防軋空停損點兩個必要標題，以及支持、反證與資料限制。"
+    "market_context_assessment 必須評估完整來源，保留具體 reason 與有效 source_refs，不能為省字略過來源評估或刪減必要引用。"
+    "製造業高成長情境仍須明確檢查產能、CapEx、折舊、良率與客戶議價五項風險；不適用或資料不足須逐項說明。"
+    "非放空分類的 short_setup.entry_trigger 只表達等待與重新評估條件，不能混入條件達成即可進場或建立空單的指令；"
+    "不開倉時 downside_target、cover_stop 可不適用並說明原因，不得補造價格。"
+)
+
+
+def _agent19_recommendation_contract_instruction() -> str:
+    gates = RECOMMENDATION_RETURN_GATES
+    return (
+        "\n\n四個 response_schema 研究分類有不同語意，須由完整證據選擇，不預設任何分類："
+        f"偏多觀察（BUY）：12 個月隱含報酬至少 {gates['買入']['min_expected_return_pct']:g}%；"
+        f"中性觀察（HOLD）：12 個月隱含報酬須介於 {gates['持有']['min_expected_return_pct']:g}% 至 {gates['持有']['max_expected_return_pct']:g}%，"
+        "不等於通用的等待或不開倉，也不能代表等待空方訊號；"
+        "避險觀察（AVOID）：不預設目標價格漲跌方向，須以證據說明不承擔新部位的理由；"
+        f"空方風險觀察（SHORT）：12 個月隱含報酬不得高於 {gates['放空']['max_expected_return_pct']:g}%，且 short_setup 必須具有可驗證價格與風險條件。"
+        "隱含報酬為（該期目標價 / current_price - 1）×100%；各期目標（3、6、12 個月）均須與研究分類及正文一致，"
+        "不能僅檢查 12 個月而忽略 3 或 6 個月目標的大幅下修或極端波幅；發生矛盾時應根據證據重審分類與估值假設。"
+        f"BUY 各期目標應大致遞增，SHORT 應大致遞減，既有相鄰期間逆向偏差容忍度為 {TARGET_REVERSAL_TOLERANCE_PCT:g}%。"
+        "缺少現價或目標價時保留資料不足，不得為符合門檻補造或調整價格，也不得為通過檢查而忽略反證或強迫選擇 AVOID。"
+    )
+
+
+def _thinking_level(agent_num: int | None, model_id: str) -> str | None:
+    model = model_id.removeprefix("google:").removeprefix("models/")
+    if agent_num in {18, 19} and model in _COMPLETION_LOW_THINKING_MODELS:
+        return "low"
+    if model_id in _BOUNDED_THINKING_MODELS:
+        return "medium" if agent_num in _MEDIUM_THINKING_AGENTS else "low"
+    return None
+
 _PROMPT_STRUCTURED_TOOL_AGENTS = {2, 13, 18}
 
 
@@ -64,8 +103,9 @@ def generation_profile(agent_num: int) -> dict[str, int | float]:
 
 def generation_event_metadata(agent_num: int, model_id: str) -> dict[str, int | float | str]:
     metadata = generation_profile(agent_num)
-    if model_id in _BOUNDED_THINKING_MODELS:
-        metadata["thinking_level"] = "medium" if agent_num in _MEDIUM_THINKING_AGENTS else "low"
+    level = _thinking_level(agent_num, model_id)
+    if level is not None:
+        metadata["thinking_level"] = level
     return metadata
 
 
@@ -162,7 +202,10 @@ def _response_text(response) -> str:
 
 def google_safe_agent_system_instruction(agent_num: int, model_id: str) -> str:
     system_instruction = SYSTEM_PROMPTS.get(agent_num, "")
-    if "gemini-3-flash-preview" in model_id:
+    if agent_num == 19:
+        system_instruction += _AGENT19_COMPLETION_INSTRUCTION
+        system_instruction += _agent19_recommendation_contract_instruction()
+    elif "gemini-3-flash-preview" in model_id:
         system_instruction += "\n\nIMPORTANT: You are operating as a fallback model. You MUST provide a comprehensive, highly detailed, and complete analysis. Ensure your response is sufficiently long and detailed to form a formal report section. Do not provide a short or truncated response."
     return sanitize_google_system_instruction(system_instruction)
 
@@ -174,8 +217,8 @@ def _generate_content(api_key: str, model_id: str, agent_num: int, prompt: str):
 
 
 def apply_model_generation_policy(config, model_id: str, agent_num: int | None = None):
-    if model_id in _BOUNDED_THINKING_MODELS:
-        level = "medium" if agent_num in _MEDIUM_THINKING_AGENTS else "low"
+    level = _thinking_level(agent_num, model_id)
+    if level is not None:
         return config.model_copy(update={"thinking_config": types.ThinkingConfig(thinking_level=level)})
     return config
 
