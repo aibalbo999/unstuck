@@ -29,6 +29,9 @@ def _load_model_routes() -> tuple[dict, str]:
 
 
 MODEL_ROUTES, MODEL_ROUTES_FILE_SHA256 = _load_model_routes()
+LLM_CONGESTION_GUARD_ENABLED = env_bool(
+    "LLM_CONGESTION_GUARD_ENABLED", MODEL_ROUTES.get("congestion_guard_enabled") is True,
+)
 LLM_PROVIDER_QUOTA_AUTHORITATIVE = env_bool(
     "LLM_PROVIDER_QUOTA_AUTHORITATIVE", MODEL_ROUTES.get("provider_quota_authoritative") is True,
 )

@@ -11,6 +11,7 @@ import asyncio
 from analysis_types import AnalysisContext
 from config import LLM_AGENT_CALL_TIMEOUT_SECONDS
 from llm_client import KeyRotator, estimate_text_tokens
+from llm_congestion import provider_attempt_scope
 from llm_key_admission import propagate_admission_cancel
 from llm_response_diagnostics import response_kind
 from llm_tool_rate_guard import tool_request_scope
@@ -83,20 +84,21 @@ def _run_agent_once(
         )
         budget = agent_request_budget_options(agent_num)
         api_key = acquire_key(rotator, model_id, estimate_agent_input_tokens(agent_num, model_id, prompt), context, timeout_seconds, **budget)
-        emit_context_event(
-            context,
-            llm_provider_request_event(
+        with provider_attempt_scope(model_id, api_key, record_outcome=False):
+            emit_context_event(
                 context,
-                agent_num,
-                model_id,
-                prompt,
-                rotator,
-                api_key,
-                timeout_seconds=timeout_seconds,
-            ),
-        )
-        with tool_request_scope(rotator, api_key, model_id, **budget):
-            response = _generate_content(api_key, model_id, agent_num, prompt)
+                llm_provider_request_event(
+                    context,
+                    agent_num,
+                    model_id,
+                    prompt,
+                    rotator,
+                    api_key,
+                    timeout_seconds=timeout_seconds,
+                ),
+            )
+            with tool_request_scope(rotator, api_key, model_id, **budget):
+                response = _generate_content(api_key, model_id, agent_num, prompt)
         _record_llm_token_usage(context, agent_num, response)
         result = process_agent_response(agent_num, _response_text(response), context)
         _validate_agent_result(result)
@@ -161,47 +163,48 @@ async def _run_agent_once_async(
         )
         budget = agent_request_budget_options(agent_num)
         api_key = await acquire_key_async(rotator, model_id, estimate_agent_input_tokens(agent_num, model_id, prompt), context, timeout_seconds, **budget)
-        await emit_context_event_async(
-            context,
-            llm_provider_request_event(
+        with provider_attempt_scope(model_id, api_key, record_outcome=False):
+            await emit_context_event_async(
                 context,
-                agent_num,
-                model_id,
-                prompt,
-                rotator,
-                api_key,
-                timeout_seconds=timeout_seconds,
-            ),
-        )
-        async with tool_request_scope(rotator, api_key, model_id, **budget):
-            if _should_stream_llm_response(context):
-                stream_sequence = 0
+                llm_provider_request_event(
+                    context,
+                    agent_num,
+                    model_id,
+                    prompt,
+                    rotator,
+                    api_key,
+                    timeout_seconds=timeout_seconds,
+                ),
+            )
+            async with tool_request_scope(rotator, api_key, model_id, **budget):
+                if _should_stream_llm_response(context):
+                    stream_sequence = 0
 
-                async def on_delta(delta: str) -> None:
-                    nonlocal stream_sequence
-                    if not delta:
-                        return
-                    stream_sequence += 1
-                    await emit_context_event_async(
-                        context,
-                        llm_stream_delta_event(
-                            context, agent_num, model_id, prompt, delta, stream_sequence,
-                            rotator, api_key, timeout_seconds=timeout_seconds,
-                        ),
-                        store=False,
+                    async def on_delta(delta: str) -> None:
+                        nonlocal stream_sequence
+                        if not delta:
+                            return
+                        stream_sequence += 1
+                        await emit_context_event_async(
+                            context,
+                            llm_stream_delta_event(
+                                context, agent_num, model_id, prompt, delta, stream_sequence,
+                                rotator, api_key, timeout_seconds=timeout_seconds,
+                            ),
+                            store=False,
+                        )
+
+                    response = await _await_with_agent_timeout(
+                        _generate_content_stream_async(api_key, model_id, agent_num, prompt, on_delta=on_delta),
+                        model_id=model_id,
+                        timeout_seconds=timeout_seconds,
                     )
-
-                response = await _await_with_agent_timeout(
-                    _generate_content_stream_async(api_key, model_id, agent_num, prompt, on_delta=on_delta),
-                    model_id=model_id,
-                    timeout_seconds=timeout_seconds,
-                )
-            else:
-                response = await _await_with_agent_timeout(
-                    _generate_content_async(api_key, model_id, agent_num, prompt),
-                    model_id=model_id,
-                    timeout_seconds=timeout_seconds,
-                )
+                else:
+                    response = await _await_with_agent_timeout(
+                        _generate_content_async(api_key, model_id, agent_num, prompt),
+                        model_id=model_id,
+                        timeout_seconds=timeout_seconds,
+                    )
         _record_llm_token_usage(context, agent_num, response)
         result = process_agent_response(agent_num, _response_text(response), context)
         _validate_agent_result(result)

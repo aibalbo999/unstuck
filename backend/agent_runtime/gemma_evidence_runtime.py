@@ -8,6 +8,7 @@ from cache_store import get_cache_json, set_cache_json
 from config import GEMMA_EVIDENCE_BATCHING_ENABLED, MODEL_INPUT_TOKEN_LIMITS
 from gemma_evidence_batches import (MODEL, TRIGGER_MODEL, ROLES, SYSTEM, THINKING_LEVEL, EvidenceBatchInvalid, batch_input_tokens,
                                     batch_prompt, evidence_appendix, plan_batches, resolve_choices, validate_observations)
+from llm_congestion import provider_attempt_scope
 from llm_client import generate_content, generate_content_async, response_text
 from llm_response_diagnostics import response_diagnostics
 from llm_errors import extract_quota_details
@@ -149,9 +150,10 @@ def call_batch(batch, context, rotator):
         provider_error(batch, context, rotator, key, exc)
     raise_if_cancelled(context)
     try:
-        event(context, batch, "gemma_evidence_request", rotator, key)
-        with evidence_request_scope():
-            response = generate_content(key, MODEL, batch_prompt(batch), config())
+        with provider_attempt_scope(MODEL, key, record_outcome=False):
+            event(context, batch, "gemma_evidence_request", rotator, key)
+            with evidence_request_scope():
+                response = generate_content(key, MODEL, batch_prompt(batch), config())
     except Exception as exc:
         provider_error(batch, context, rotator, key, exc)
     return finish_response(batch, context, rotator, key, response)
@@ -167,9 +169,10 @@ async def call_batch_async(batch, context, rotator):
         provider_error(batch, context, rotator, key, exc)
     raise_if_cancelled(context)
     try:
-        event(context, batch, "gemma_evidence_request", rotator, key)
-        with evidence_request_scope():
-            response = await asyncio.wait_for(generate_content_async(key, MODEL, batch_prompt(batch), config()), TIMEOUT)
+        with provider_attempt_scope(MODEL, key, record_outcome=False):
+            event(context, batch, "gemma_evidence_request", rotator, key)
+            with evidence_request_scope():
+                response = await asyncio.wait_for(generate_content_async(key, MODEL, batch_prompt(batch), config()), TIMEOUT)
     except Exception as exc:
         provider_error(batch, context, rotator, key, exc)
     return finish_response(batch, context, rotator, key, response)

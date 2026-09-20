@@ -19,6 +19,7 @@ from llm_http_providers import (
     generate_openai_content,
     generate_openai_content_async,
 )
+from llm_congestion import provider_attempt_scope
 from llm_semantic_cache import get_cached_llm_response, store_llm_response
 from llm_evidence_request import is_evidence_request, frame_source_prompt
 from llm_usage import extract_usage
@@ -56,7 +57,11 @@ def response_text(response) -> str:
 
 def _genai_http_options():
     timeout_seconds = float(LLM_AGENT_CALL_TIMEOUT_SECONDS or 0)
-    return None if timeout_seconds <= 0 else types.HttpOptions(timeout=max(1, int(round(timeout_seconds * 1000))))
+    # Application admission/retry owns every attempt; SDK retries hide 429 sends.
+    return types.HttpOptions(
+        timeout=max(1, int(round(timeout_seconds * 1000))) if timeout_seconds > 0 else None,
+        retry_options=types.HttpRetryOptions(attempts=1),
+    )
 
 
 _client_cache: dict[str, genai.Client] = {}
@@ -123,12 +128,13 @@ def generate_content(api_key: str, model_id: str, prompt: str, config):
         )
     if provider != "google":
         raise ValueError(f"Unsupported LLM provider: {provider}")
-    client = generation_client(api_key, model_id, _get_client, genai.Client, _genai_http_options)
-    response = client.models.generate_content(
-        model=provider_model,
-        contents=frame_source_prompt(prompt) if is_evidence_request() else sanitize_google_prompt(prompt),
-        config=sanitize_google_generation_config(config),
-    )
+    with provider_attempt_scope(model_id, api_key):
+        client = generation_client(api_key, model_id, _get_client, genai.Client, _genai_http_options)
+        response = client.models.generate_content(
+            model=provider_model,
+            contents=frame_source_prompt(prompt) if is_evidence_request() else sanitize_google_prompt(prompt),
+            config=sanitize_google_generation_config(config),
+        )
     return _cache_generated_response(model_id, prompt, config, response)
 
 
@@ -154,12 +160,13 @@ async def generate_content_async(api_key: str, model_id: str, prompt: str, confi
         )
     if provider != "google":
         raise ValueError(f"Unsupported LLM provider: {provider}")
-    client = generation_client(api_key, model_id, _get_client, genai.Client, _genai_http_options)
-    response = await client.aio.models.generate_content(
-        model=provider_model,
-        contents=frame_source_prompt(prompt) if is_evidence_request() else sanitize_google_prompt(prompt),
-        config=sanitize_google_generation_config(config),
-    )
+    with provider_attempt_scope(model_id, api_key):
+        client = generation_client(api_key, model_id, _get_client, genai.Client, _genai_http_options)
+        response = await client.aio.models.generate_content(
+            model=provider_model,
+            contents=frame_source_prompt(prompt) if is_evidence_request() else sanitize_google_prompt(prompt),
+            config=sanitize_google_generation_config(config),
+        )
     return _cache_generated_response(model_id, prompt, config, response)
 
 
@@ -177,24 +184,25 @@ async def generate_content_stream_async(api_key: str, model_id: str, prompt: str
 
     chunks: list[str] = []
     diagnostics = ResponseDiagnostics(stream=True)
-    try:
-        stream = stream_call(
-            model=provider_model,
-            contents=sanitize_google_prompt(prompt),
-            config=sanitize_google_generation_config(config),
-        )
-        if isawaitable(stream):
-            stream = await stream
-        async with closing_stream(stream):
-            if hasattr(stream, "__aiter__"):
-                async for chunk in stream:
-                    await _collect_stream_chunk(chunk, chunks, on_delta, diagnostics)
-            else:
-                for chunk in stream:
-                    await _collect_stream_chunk(chunk, chunks, on_delta, diagnostics)
-    except (Exception, asyncio.CancelledError) as exc:
-        attach_response_diagnostics(exc, diagnostics)
-        raise
+    with provider_attempt_scope(model_id, api_key):
+        try:
+            stream = stream_call(
+                model=provider_model,
+                contents=sanitize_google_prompt(prompt),
+                config=sanitize_google_generation_config(config),
+            )
+            if isawaitable(stream):
+                stream = await stream
+            async with closing_stream(stream):
+                if hasattr(stream, "__aiter__"):
+                    async for chunk in stream:
+                        await _collect_stream_chunk(chunk, chunks, on_delta, diagnostics)
+                else:
+                    for chunk in stream:
+                        await _collect_stream_chunk(chunk, chunks, on_delta, diagnostics)
+        except (Exception, asyncio.CancelledError) as exc:
+            attach_response_diagnostics(exc, diagnostics)
+            raise
     diagnostics.data["stream_completed"] = True
     snapshot = diagnostics.snapshot()
     return TextLLMResponse("".join(chunks), snapshot["usage"], snapshot)

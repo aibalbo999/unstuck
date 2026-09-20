@@ -4,18 +4,20 @@ from __future__ import annotations
 
 import threading
 import time
+from collections import deque
 from datetime import datetime
 from typing import Any
 
 from shared_runtime_guard_utils import guard_hash, seconds_until_next_pacific_midnight
+from llm_input_capacity import ensure_input_capacity
 
 
 class LocalFixedWindowRateLimiter:
-    """Thread-safe fallback that preserves API quotas when Redis is unavailable."""
+    """Rolling 60-second admission; the legacy class name remains compatible."""
 
     def __init__(self):
         self._lock = threading.Lock()
-        self._windows: dict[tuple[str, str, int], dict[str, float]] = {}
+        self._reservations: dict[tuple[str, str], deque] = {}
         self._cooldowns: dict[tuple[str, str], float] = {}
         self._rpd_disabled_until: dict[tuple[str, str], float] = {}
         self._model_circuits: dict[str, float] = {}
@@ -29,27 +31,54 @@ class LocalFixedWindowRateLimiter:
         tpm_limit: int | float | None = None,
         estimated_tokens: int = 0,
     ) -> float:
+        ensure_input_capacity(model, estimated_tokens, tpm_limit=tpm_limit)
         now = time.time()
         identity = (guard_hash(api_key), guard_hash(model))
-        window = int(now // 60)
-        window_key = (*identity, window)
+        rpm = max(int(rpm_limit), 1)
+        tpm = max(int(tpm_limit or 0), 0)
+        tokens = max(int(estimated_tokens or 0), 1)
         with self._lock:
             cooldown_until = self._cooldowns.get(identity, 0.0)
             if cooldown_until > now:
                 return cooldown_until - now
             self._cooldowns.pop(identity, None)
-            counters = self._windows.setdefault(window_key, {"rpm": 0.0, "tpm": 0.0})
-            rpm = max(int(rpm_limit), 1)
-            tpm = max(int(tpm_limit or 0), 0)
-            tokens = max(int(estimated_tokens or 0), 1)
-            if counters["rpm"] >= rpm or (tpm > 0 and counters["tpm"] + tokens > tpm):
-                return max(60.0 - (now % 60.0), 0.001)
-            counters["rpm"] += 1
-            if tpm > 0:
-                counters["tpm"] += tokens
-            if len(self._windows) > 2_048:
-                self._windows = {key: value for key, value in self._windows.items() if key[2] >= window - 1}
+            events = self._active_events(identity, now)
+            count, total = len(events), sum(amount for _, amount in events)
+            if count + 1 > rpm or (tpm > 0 and total + tokens > tpm):
+                for stamp, amount in events:
+                    count -= 1
+                    total -= amount
+                    if count + 1 <= rpm and (tpm <= 0 or total + tokens <= tpm):
+                        return max(stamp + 60.0 - now, 0.001)
+                return 60.0
+            self._append_event(events, now, tokens)
             return 0.0
+
+    def _active_events(self, identity, now):
+        events = self._reservations.setdefault(identity, deque())
+        while events and events[0][0] <= now - 60.0:
+            events.popleft()
+        if len(self._reservations) > 2_048:
+            self._reservations = {key: value for key, value in self._reservations.items()
+                                  if (value and value[-1][0] > now - 60.0) or key == identity}
+        return events
+
+    @staticmethod
+    def _append_event(events, now, tokens):
+        # A backward wall-clock adjustment must not expire newer requests early.
+        events.append((max(now, events[-1][0] if events else now), tokens))
+
+    def remember_reservation(self, api_key: str, model: str, estimated_tokens: int) -> None:
+        """Mirror an already admitted shared request without making a second decision."""
+        now = time.time()
+        identity = (guard_hash(api_key), guard_hash(model))
+        with self._lock:
+            self._append_event(self._active_events(identity, now), now, max(int(estimated_tokens or 0), 1))
+
+    def cooldown_wait(self, api_key: str, model: str) -> float:
+        identity = (guard_hash(api_key), guard_hash(model))
+        with self._lock:
+            return max(self._cooldowns.get(identity, 0.0) - time.time(), 0.0)
 
     def penalize(self, api_key: str, model: str, wait_seconds: float) -> None:
         identity = (guard_hash(api_key), guard_hash(model))

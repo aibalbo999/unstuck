@@ -1,5 +1,6 @@
 {
   "provider_quota_authoritative": true,
+  "congestion_guard_enabled": true,
   "gemma_evidence_batching": true,
   "default_analysis_model": "gemma-4-31b-it",
   "default_decision_model": "gemini-3.8-flash",

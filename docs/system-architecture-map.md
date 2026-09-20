@@ -32,6 +32,8 @@ Agent 可用性與品質失敗分流：`agent_runtime/deferred.py` 將耗盡的�
 
 一般 Agent 的 key 等待控制在 `llm_key_admission.py`／`agent_runtime/llm_waiting.py`，由單次呼叫的 task-local scope 傳給 rotator。key admission 與 provider 生成各自使用原 route timeout；本機等待逾時分類為 `local_admission_wait`，不視為 provider RPD、也不開新的 model circuit，而是沿既有候選／deferred 路徑處理。取消保留原 job exception；有 callback 時每秒檢查，scope 離開即還原，沒有 scope 的直接 rotator 呼叫不變。
 
+分鐘限流由 `shared_runtime_guards.py`／`shared_runtime_local_guards.py` 以連續 60 秒預留計算，Redis 使用 server TIME 原子判斷。`llm_congestion.py`／`llm_congestion_store.py` 在 Google 模型近期收到不同 key 的 429 時共享暫時冷卻，期滿單 probe，並以 owner／generation 拒絕舊結果；`llm_rate_limit_routes.py` 將其等待提供給既有 preflight／fallback。此為觀測擁塞保護，不是 provider 日額度或 project 身分推論；Redis 故障後本機模式的跨程序限制及開關見 [429 退避與連續分鐘限流](model-congestion-control-2026-09-20.md)。
+
 提示資料邊界在 `prompt_evidence.py`：內部 RAG 索引與向量不進入 prompt，checkpoint 與檢索證據保持原樣。`agent_runtime/prompt_routing_policy.py` 宣告角色可見的外部 context 與歷史年限，`agent_runtime/prompting.py` 負責安全投影及模板組裝。`llm_response_diagnostics.py` 保存有界的回應結束原因、阻擋原因、工具呼叫觀察與 usage，不保存 key、工具參數或思考內容；未取得 metadata 時不得猜測空白回應的原因。
 
 量化來源邊界在 `quant_input_contract.py`／`quant_metric_contract.py`：`quant_metrics.v2` 分別記錄 DCF、WACC、本益比可用性、raw facts provenance、單位及政策假設。`QuantEngine` 和 prompt 的 `financial_tools` 共用計算，缺事實不補示範值，負 FCF 不被舊正歷史覆蓋。`final_audit_dcf.py` 只比同方法、情境和每股單位；不可用來源主張為 critical。歷史無契約值只能以未驗證狀態讀取，不能從圖表 fallback 變回 canonical。

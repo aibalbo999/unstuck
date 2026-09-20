@@ -93,14 +93,20 @@ def test_output_sanitizer_exposes_strict_payload_and_guardrail_hook():
     assert stages[-1] == "input"
 
 
-def test_redis_rate_limiter_falls_back_to_local_bucket_when_redis_fails():
+def test_redis_rate_limiter_quarantines_before_local_admission_when_redis_fails(monkeypatch):
     from shared_runtime_guards import RedisFixedWindowRateLimiter
 
     class FailingRedis:
         def eval(self, *args):
             raise ConnectionError("redis down")
 
+    clock = [1000.0]
+    from types import SimpleNamespace
+    monkeypatch.setattr("shared_runtime_guards.time", SimpleNamespace(time=lambda: clock[0]))
+    monkeypatch.setattr("shared_runtime_local_guards.time", SimpleNamespace(time=lambda: clock[0]))
     limiter = RedisFixedWindowRateLimiter(FailingRedis(), namespace="test")
+    assert limiter.reserve("key-a", "model-a", rpm_limit=1, tpm_limit=0, estimated_tokens=1) == 60
+    clock[0] += 60.1
 
     assert limiter.reserve("key-a", "model-a", rpm_limit=1, tpm_limit=0, estimated_tokens=1) == 0
     assert limiter.reserve("key-a", "model-a", rpm_limit=1, tpm_limit=0, estimated_tokens=1) > 0

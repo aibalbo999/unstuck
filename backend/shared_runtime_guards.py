@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import os
 import time
+import threading
+import uuid
 from datetime import datetime
 from typing import Any
 
@@ -19,32 +21,41 @@ except Exception:  # pragma: no cover - redis is optional outside RQ deployments
 
 
 RATE_LIMIT_LUA = """
-local rpm_count = tonumber(redis.call('GET', KEYS[1]) or '0')
-local tpm_count = tonumber(redis.call('GET', KEYS[2]) or '0')
-local cooldown_ttl = redis.call('PTTL', KEYS[3])
+local clock = redis.call('TIME')
+local now_ms = tonumber(clock[1]) * 1000 + math.floor(tonumber(clock[2]) / 1000)
+local window_ms = tonumber(ARGV[4])
 local rpm_limit = tonumber(ARGV[1])
 local tpm_limit = tonumber(ARGV[2])
 local tokens = tonumber(ARGV[3])
-local ttl_ms = tonumber(ARGV[4])
-if cooldown_ttl and cooldown_ttl > 0 then
-  return cooldown_ttl
+local cooldown_ttl = redis.call('PTTL', KEYS[2])
+-- Retain in-flight legacy reservations during a rolling-window deployment.
+for index = 3, #KEYS do
+  if tonumber(redis.call('GET', KEYS[index]) or '0') > 0 then
+    cooldown_ttl = math.max(cooldown_ttl, redis.call('PTTL', KEYS[index]))
+  end
 end
-if rpm_count >= rpm_limit or (tpm_limit > 0 and (tpm_count + tokens) > tpm_limit) then
-  local rpm_ttl = redis.call('PTTL', KEYS[1])
-  local tpm_ttl = redis.call('PTTL', KEYS[2])
-  local wait_ttl = math.max(rpm_ttl, tpm_ttl)
-  if wait_ttl < 0 then wait_ttl = ttl_ms end
-  return wait_ttl
+if cooldown_ttl > 0 then return cooldown_ttl end
+redis.call('ZREMRANGEBYSCORE', KEYS[1], '-inf', now_ms - window_ms)
+local events = redis.call('ZRANGE', KEYS[1], 0, -1, 'WITHSCORES')
+local count = #events / 2
+local total = 0
+for index = 1, #events, 2 do
+  total = total + tonumber(string.match(events[index], ':(%d+)$'))
 end
-local new_rpm = redis.call('INCR', KEYS[1])
-if new_rpm == 1 then redis.call('PEXPIRE', KEYS[1], ttl_ms) end
-if tpm_limit > 0 then
-  local new_tpm = redis.call('INCRBYFLOAT', KEYS[2], tokens)
-  if tonumber(new_tpm) == tokens then redis.call('PEXPIRE', KEYS[2], ttl_ms) end
+if count + 1 > rpm_limit or (tpm_limit > 0 and total + tokens > tpm_limit) then
+  for index = 1, #events, 2 do
+    count = count - 1
+    total = total - tonumber(string.match(events[index], ':(%d+)$'))
+    if count + 1 <= rpm_limit and (tpm_limit <= 0 or total + tokens <= tpm_limit) then
+      return math.max(1, tonumber(events[index + 1]) + window_ms - now_ms)
+    end
+  end
+  return window_ms
 end
+redis.call('ZADD', KEYS[1], now_ms, ARGV[5] .. ':' .. tostring(tokens))
+redis.call('PEXPIRE', KEYS[1], window_ms)
 return 0
 """
-
 
 EXTEND_COOLDOWN_LUA = """
 local requested_ttl = tonumber(ARGV[1])
@@ -83,11 +94,16 @@ def create_redis_client(env_name: str):
 
 
 class RedisFixedWindowRateLimiter:
-    def __init__(self, client: Any, *, namespace: str = "stock-agent"):
+    """Atomic rolling admission with a compatible legacy public class name."""
+
+    def __init__(self, client: Any, *, namespace: str = "stock-agent", shared_required: bool = False):
         self._client = client
         self._namespace = namespace
         self._fallback = LocalFixedWindowRateLimiter()
         self.enabled = True
+        self._had_shared_client = client is not None or shared_required
+        self._fallback_ready_at = None
+        self._failure_lock = threading.Lock()
 
     def reserve(
         self,
@@ -103,15 +119,14 @@ class RedisFixedWindowRateLimiter:
             "rpm_limit": rpm_limit, "tpm_limit": tpm_limit, "estimated_tokens": estimated_tokens,
         }
         if self._client is None:
-            return self._fallback.reserve(api_key, model, **fallback_limits)
+            return self._reserve_locally(api_key, model, fallback_limits)
         window = int(time.time() // 60)
         key_hash = guard_hash(api_key)
         model_hash = guard_hash(model)
-        keys = [
-            f"{self._namespace}:llm:{model_hash}:{key_hash}:{window}:rpm",
-            f"{self._namespace}:llm:{model_hash}:{key_hash}:{window}:tpm",
-            f"{self._namespace}:llm:{model_hash}:{key_hash}:cooldown",
-        ]
+        prefix = f"{self._namespace}:llm:{model_hash}:{key_hash}"
+        keys = [f"{prefix}:rolling-v1", f"{prefix}:cooldown"]
+        keys.extend(f"{prefix}:{prior_window}:{kind}"
+                    for prior_window in (window, window - 1) for kind in ("rpm", "tpm"))
         try:
             wait_ms = self._client.eval(
                 RATE_LIMIT_LUA,
@@ -121,11 +136,27 @@ class RedisFixedWindowRateLimiter:
                 max(int(tpm_limit or 0), 0),
                 max(int(estimated_tokens or 0), 1),
                 60_000,
+                uuid.uuid4().hex,
             )
-            return max(float(wait_ms or 0) / 1000.0, 0.0)
+            wait = max(float(wait_ms or 0) / 1000.0, 0.0)
+            if wait == 0:
+                self._fallback.remember_reservation(api_key, model, estimated_tokens)
+            else:
+                self._fallback.penalize(api_key, model, wait)
+            return wait
         except Exception:
             self._client = None
-            return self._fallback.reserve(api_key, model, **fallback_limits)
+            return self._reserve_locally(api_key, model, fallback_limits)
+
+    def _reserve_locally(self, api_key, model, limits):
+        # A lost Redis reply may have committed, and peer reservations are unknown.
+        # Wait one full rolling window once, then retain local admission protection.
+        with self._failure_lock:
+            if self._had_shared_client and self._fallback_ready_at is None:
+                self._fallback_ready_at = time.time() + 60.0
+            quarantine = max((self._fallback_ready_at or 0.0) - time.time(), 0.0)
+        wait = max(quarantine, self._fallback.cooldown_wait(api_key, model))
+        return wait if wait > 0 else self._fallback.reserve(api_key, model, **limits)
 
     def penalize(self, api_key: str, model: str, wait_seconds: float) -> None:
         # Preserve provider deadlines if Redis fails after a successful penalty.
@@ -284,9 +315,11 @@ class RedisProviderCircuitStore:
 
 def create_shared_llm_limiter() -> RedisFixedWindowRateLimiter | None:
     if not shared_guard_enabled("LLM_RATE_LIMIT_BACKEND"):
-        return None
+        if os.getenv("LLM_RATE_LIMIT_BACKEND", "auto").strip().lower() in {"off", "disabled", "none"}:
+            return None
+        return RedisFixedWindowRateLimiter(None)
     client = create_redis_client("LLM_RATE_LIMIT_BACKEND")
-    return RedisFixedWindowRateLimiter(client)
+    return RedisFixedWindowRateLimiter(client, shared_required=True)
 
 
 def create_shared_provider_circuit_store() -> RedisProviderCircuitStore | None:

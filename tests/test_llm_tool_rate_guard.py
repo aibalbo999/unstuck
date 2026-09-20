@@ -239,7 +239,7 @@ def test_first_request_not_double_counted_and_scope_cleared(rig, mode):
     ordinary = llm_transport._get_client(KEY)
     assert ordinary is not guarded
     assert ordinary is llm_transport._get_client(KEY)
-    assert not getattr(ordinary.options, "retry_options", None)
+    assert ordinary.options.retry_options.attempts == 1
 
 
 def test_stream_callback_failure_closes_generator_immediately(rig):
@@ -295,7 +295,7 @@ def test_different_model_uses_ordinary_client_without_inheriting_scope(rig):
         llm_transport.generate_content(KEY, "google:other-model", "prompt", None)
         assert rig.guard.current_tool_scope(KEY) is scope
         assert llm_transport._client_cache[KEY] is rig.sdk.clients[0]
-        assert not getattr(rig.sdk.clients[0].options, "retry_options", None)
+        assert rig.sdk.clients[0].options.retry_options.attempts == 1
     assert not rig.sdk.clients[0].sync.is_closed
 
 

@@ -64,7 +64,9 @@ class KeyAvailabilityMixin:
                 if self._rpd_disabled_wait(key, model) <= 0 and remaining.get(key, 1) > 0}
 
     def model_circuit_wait(self, model: str) -> float:
-        return max(self._model_circuits.wait(model), shared_model_circuit_wait(self._shared_limiter, model))
+        from llm_congestion import congestion_wait
+        return max(self._model_circuits.wait(model), shared_model_circuit_wait(self._shared_limiter, model),
+                   congestion_wait(model))
 
     def model_retry_wait(self, model: str) -> float:
         _, keys = self._keys_for_model(model)
@@ -110,7 +112,8 @@ class KeyAvailabilityMixin:
         return self._model_circuits.is_open(model)
 
     def is_shared_model_circuit_open(self, model: str) -> bool:
-        return is_shared_model_circuit_open(self._shared_limiter, model)
+        from llm_congestion import congestion_wait
+        return is_shared_model_circuit_open(self._shared_limiter, model) or congestion_wait(model) > 0
 
     def disable_rpd_until_reset(self, key: str, model: str) -> float:
         """Disable a key/model pair until the next Pacific Time daily reset."""

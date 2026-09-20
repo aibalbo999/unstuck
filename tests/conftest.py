@@ -9,6 +9,15 @@ sys.path.insert(0, str(ROOT / "backend"))
 
 
 @pytest.fixture(autouse=True)
+def isolate_observed_model_congestion(monkeypatch):
+    """Production shares state across jobs, but independent tests must not."""
+    import llm_congestion
+    from llm_congestion_store import CongestionStore
+
+    monkeypatch.setattr(llm_congestion, "_store", CongestionStore(jitter=lambda: 0))
+
+
+@pytest.fixture(autouse=True)
 def isolate_provider_sla_db(monkeypatch, tmp_path):
     import provider_sla
 
