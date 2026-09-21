@@ -29,14 +29,14 @@ def _legacy_key(agent, data, context):
     return "agent_step:" + hashlib.sha256(encoded.encode()).hexdigest()
 
 
-@pytest.mark.parametrize("agent", [7, 16, 18, 19, 20, 21])
+@pytest.mark.parametrize("agent", [7, 16, 18, 19, 20, 21, 24])
 def test_changed_output_roles_do_not_reuse_legacy_keys(agent):
     data, context = _inputs()
     current = step_cache.build_agent_step_cache_key(agent, data, context, "gemini-test", "unchanged source")
     assert current != _legacy_key(agent, data, context)
 
 
-@pytest.mark.parametrize("agent", [1, 4, 13, 17, 22, 24])
+@pytest.mark.parametrize("agent", [1, 4, 13, 17, 22])
 def test_unaffected_roles_keep_exact_legacy_keys(agent):
     data, context = _inputs()
     current = step_cache.build_agent_step_cache_key(agent, data, context, "gemini-test", "unchanged source")

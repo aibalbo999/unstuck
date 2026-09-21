@@ -108,7 +108,7 @@ def test_agent18_complete_output_keeps_4096_budget_and_explicit_low_thinking(mod
     assert adjusted.system_instruction == "full original system"
     assert adjusted.tools == config.tools
     assert generation.generation_event_metadata(18, model)["thinking_level"] == "low"
-    assert generation.GENERATION_POLICY_VERSION == "agent-generation:v3"
+    assert generation.GENERATION_POLICY_VERSION == "agent-generation:v4"
 
 
 def test_agent18_thinking_policy_stays_within_known_google_routes():

@@ -8,6 +8,7 @@ from random import Random
 from typing import Any
 from evidence_technical_claims import technical_snapshot_values, valid_technical_date
 from evidence_claim_types import public_metadata_claim
+from evidence_trade_plan_claims import COVER_STOP_PATH, saved_cover_stop_number
 
 from evidence_exit_gate_claims import (
     _HORIZON_PREFIX_RE,
@@ -127,6 +128,11 @@ def flatten_snapshot_numbers(snapshot: Any) -> list[dict[str, Any]]:
     """Collect numeric values from a sanitized snapshot."""
     values: list[dict[str, Any]] = []
     def walk(value: Any, path: str) -> None:
+        if path == COVER_STOP_PATH:
+            number = saved_cover_stop_number(value, snapshot)
+            if number is not None:
+                values.append({"path": path, "value": number})
+            return
         if isinstance(value, bool) or value is None:
             return
         if isinstance(value, (int, float)):
@@ -248,7 +254,7 @@ def _convert_snapshot_value_for_claim(claim: dict[str, Any], item: dict[str, Any
 def _relevant_snapshot_values(claim: dict[str, Any], snapshot_values: list[dict[str, Any]]) -> list[dict[str, Any]]:
     path_markers = _path_markers_for_claim(claim)
     if not path_markers: return []
-    if path_markers[0].startswith(("data.daily_market_data.bars[", "data.technical_indicators.sma_", "rerun_context.parsed.recommendation.")):
+    if path_markers[0] == COVER_STOP_PATH or path_markers[0].startswith(("data.daily_market_data.bars[", "data.technical_indicators.sma_", "rerun_context.parsed.recommendation.")):
         return [item for item in snapshot_values if item.get("path") == path_markers[0]]
     return [
         _convert_snapshot_value_for_claim(claim, item, path_markers)

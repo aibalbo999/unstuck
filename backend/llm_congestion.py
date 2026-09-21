@@ -55,15 +55,15 @@ def congestion_wait(model_id):
     return max(0.0, float(_get_store().operate(model, "peek")["wait"]))
 
 
-def _is_actual_429(exc):
+def _actual_provider_status(exc):
     for value in (getattr(exc, "status_code", None), getattr(exc, "code", None),
                   getattr(getattr(exc, "response", None), "status_code", None)):
         try:
-            if int(value) == 429:
-                return not is_requests_per_day_error(exc)
+            if int(value) in {429, 503}:
+                return int(value)
         except (TypeError, ValueError, OverflowError):
             pass
-    return False
+    return None
 
 
 @dataclass
@@ -80,8 +80,10 @@ class _Attempt:
         if self.completed:
             return
         self.completed = True
-        action = "success" if error is None else "failure" if _is_actual_429(error) else "release"
-        delay = max(0.0, retry_delay_seconds(error, default=0)) if action == "failure" else 0.0
+        status = _actual_provider_status(error)
+        action = ("success" if error is None else "server_failure" if status == 503 else
+                  "failure" if status == 429 and not is_requests_per_day_error(error) else "release")
+        delay = max(0.0, retry_delay_seconds(error, default=0)) if action in {"failure", "server_failure"} else 0.0
         self.store.operate(self.model, action, key_hash=self.key_hash, owner=self.owner,
                            generation=self.generation, delay=delay, lease=self.lease)
 

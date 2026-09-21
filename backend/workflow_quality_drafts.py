@@ -77,6 +77,12 @@ async def initial_or_checkpointed_draft(agent_num, data, context, rotator, gener
         manifests.pop(str(agent_num), None)
         if isinstance(record.get("market_context_manifest"), dict):
             manifests[agent_num] = copy.deepcopy(record["market_context_manifest"])
+        if agent_num == 24:
+            context.pop("_trade_source_manifest", None)
+            trade_manifest = record.get("trade_source_manifest")
+            if isinstance(trade_manifest, dict) and trade_manifest.get("version") == "trade-sources:v1":
+                # The draft namespace already binds full input/upstream fingerprint.
+                context["_trade_source_manifest"] = copy.deepcopy(trade_manifest)
         outputs = context.setdefault("structured_outputs", {})
         outputs.pop(agent_num, None)
         outputs.pop(str(agent_num), None)
@@ -105,6 +111,8 @@ async def checkpoint_unvalidated_draft(agent_num: int, result: str, context: dic
         "rag_context": _agent_value(context, "rag_context", agent_num, ""),
         "context_digest": _agent_value(context, "context_digests", agent_num, ""),
     }
+    if agent_num == 24:
+        record["trade_source_manifest"] = copy.deepcopy(context.get("_trade_source_manifest"))
     if record == node["record"]:
         return
     checkpoint = empty_checkpoint()

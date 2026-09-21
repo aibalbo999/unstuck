@@ -64,6 +64,8 @@ Gemma dense 編碼的相容稀疏表在 `prompt_record_tables.py`：`absent` 區
 
 追蹤表的「一鍵處理警示」先使用共用品質 policy 的 `reportAutomaticRerunAction()`，細部條件集中在 `report_automatic_rerun_policy.js`：已有明確 freshness 重跑標記且無來源錯誤／快照損壞時，經原 `scope=full_report` 路徑送件，即使舊報告有品質警示也不轉成人工略過。一般預覽與採用建議仍使用原 `reportRecommendedAction()`，舊報告的品質警示、資料及閱讀限制不變；這不放寬新報告發布 gate、不自動點擊／送件、不新增背景排程或修改已凍結 OOS cohort。
 
+模式 D 的完成與來源契約在 `trade_source_contract.py`、`agent_runtime/trade_source_repair.py`：截斷不進成功 cache，完整可見引用缺口只修復最後 Agent，草稿冷恢復保存同 input 的 manifest。`report_analysis_completeness.py` 將分析完整度和品質 gate 分開投影。實際 HTTP 503 也進入 `llm_congestion_store.py` 的共享冷卻及單 probe 恢復；實作與限制見 [模型完成度與報告品質修復](model-completion-quality-2026-09-21.md)。
+
 以下為本機預設設定。若環境變數覆寫，請以 `config` 實際輸出為準。
 
 | 類別 | Canonical 位置 | 主要 Module | 備註 |

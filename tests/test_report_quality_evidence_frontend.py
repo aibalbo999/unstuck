@@ -31,7 +31,7 @@ def test_shared_quality_evidence_helper_loads_before_all_consumers():
     assert f"{freshness_helper}?v=20260902-integer-summary-counts" in index_html
     assert "/static/report_quality_gate_policy.js?v=20260902-reason-code-normalization" in index_html
     assert "/static/ui_data_trust.js?v=20260902-reason-label-parity" in index_html
-    assert "/static/report_preview_helpers.js?v=20260820-shared-evidence-detail" in index_html
+    assert "/static/report_preview_helpers.js?v=20260921-analysis-completeness" in index_html
     assert "/static/report_preview_panel.js?v=20260820-rerun-execution" in index_html
     assert "/static/history_quality_audit_render.js?v=20260902-distribution-scope" in index_html
     assert "/static/history_current_quality_helpers.js?v=20260902-target-item-scope" in index_html

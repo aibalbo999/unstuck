@@ -19,6 +19,7 @@ from prompt_rules import (
 from state_memory import state_view_for
 from structured_output_models import build_structured_output_instruction
 from temporal_memory_service import build_valuation_memory_slice
+from trade_source_contract import source_block, bind_source_prompt
 from market_context_manifest import CONTRACT_VERSION, FINAL_AGENTS, build_source_blocks, record_prompt_manifest
 
 from .prompt_budget import (
@@ -215,6 +216,7 @@ def build_prompt(agent_num: int, data: StockData, context: AnalysisContext) -> s
         state_view_section = compact_state_reference_section(fin_data, state_view_section)
 
     structured_instruction = build_structured_output_instruction(agent_num)
+    trade_block, trade_catalog, trade_fingerprint = source_block(data) if agent_num == 24 else ("", {}, "")
     prompt_parts = [
         analysis_prompt,
         "\n".join(block["text"] for block in source_blocks),
@@ -223,6 +225,7 @@ def build_prompt(agent_num: int, data: StockData, context: AnalysisContext) -> s
         "" if gemma_prompt and rag_context in analysis_prompt else rag_context,
         "⚠️ 若上方任務文字包含 [護城河評分]、[目標股價]、[投資建議] 等舊式區塊格式，請忽略舊式格式；本次只遵守下方 JSON 結構化輸出規則。" if structured_instruction else "",
         structured_instruction,
+        trade_block,
         numeric_tool_instruction,
         enrichment_instruction,
         temporal_memory_section,
@@ -238,4 +241,6 @@ def build_prompt(agent_num: int, data: StockData, context: AnalysisContext) -> s
         final_prompt = _enforce_prompt_token_budget(
             final_prompt, agent_num, token_budget_func=get_agent_prompt_token_budget,
         )
+    if agent_num == 24:
+        bind_source_prompt(source_context, final_prompt, trade_block, trade_catalog, trade_fingerprint)
     return record_prompt_manifest(source_context, data, agent_num, final_prompt, source_blocks)

@@ -41,6 +41,12 @@ if action == 'admit' then
     s.probe_until = now + lease
     admitted, probe = true, true
   end
+elseif action == 'server_failure' and matched then
+  -- An actual 503 is service availability, not quota evidence. Share it at
+  -- the transport boundary instead of waiting for each route's retry budget.
+  if not s.active or owned then
+    reopen(math.max(math.min(60*2^s.stage,300)+jitter,delay), true)
+  end
 elseif action == 'failure' and matched then
   if s.active then
     if owned then reopen(math.max(math.min(60*2^s.stage,300)+jitter,delay), true) end
@@ -97,6 +103,9 @@ def _local_operate(state, now, action, key, owner, generation, delay, lease, jit
         elif _wait(state, now) <= 0 and owner:
             state.update(owner=owner, probe_until=now+lease)
             admitted = probe = True
+    elif action == 'server_failure' and generation == state['generation']:
+        if not state['active'] or owned:
+            _reopen(state, now, max(min(60*2**state['stage'], 300)+jitter, delay), increase=True)
     elif action == 'failure' and generation == state['generation']:
         if state['active']:
             if owned:
@@ -152,7 +161,7 @@ class CongestionStore:
         tombstone. First-use outage quarantine is a conservative exception to
         otherwise read-only availability inspection.
         """
-        if action not in {'peek', 'admit', 'failure', 'success', 'release'}:
+        if action not in {'peek', 'admit', 'failure', 'server_failure', 'success', 'release'}:
             raise ValueError('Unknown congestion operation')
         delay, lease = _finite(delay), _finite(lease, minimum=0.001)
         jitter = min(_finite(self._jitter()), 30.0)
@@ -179,6 +188,6 @@ class CongestionStore:
             state = self._states.setdefault(identity, _state())
             if self._shared_required and identity not in self._quarantined:
                 self._quarantined.add(identity)
-                provider_wait = delay if action == 'failure' and generation == state['generation'] else 0.0
+                provider_wait = delay if action in {'failure', 'server_failure'} and generation == state['generation'] else 0.0
                 _reopen(state, now, max(60.0, _wait(state, now), provider_wait), increase=not state['active'])
             return _local_operate(state, now, action, str(key_hash), str(owner), generation, delay, lease, jitter)

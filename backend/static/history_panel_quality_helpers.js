@@ -38,7 +38,7 @@
             label = hasProviderSlaOnlyPartial(report) ? '來源提醒' : '資料需留意';
             tone = 'warning'; detail = '資料已是最新快照，請查看來源審計與健康度';
         }
-        return `<span class="history-action-badge is-${tone}" title="${escapeHtml(detail)}">${escapeHtml(label)}</span>`;
+        return (window.StockAgentReportPreviewHelpers?.withAnalysisCompletenessBadge || ((_report, badge) => badge))(report, `<span class="history-action-badge is-${tone}" title="${escapeHtml(detail)}">${escapeHtml(label)}</span>`, label === '可直接使用', escapeHtml);
     }
     function trackingActionNote(report, escapeHtml) {
         const action = qualityPolicy().reportRecommendedAction?.(report);

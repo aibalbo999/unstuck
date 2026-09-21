@@ -228,3 +228,54 @@ def test_redis_release_parity_and_no_normal_success_reset(redis_socket):
     r = store.operate('model', 'admit', owner='cancelled')
     result = store.operate('model', 'release', owner='cancelled', generation=r['generation'])
     assert 29 <= result['wait'] <= 30
+
+
+def test_redis_503_cross_worker_skip_single_probe_and_success(redis_socket, monkeypatch):
+    import config
+    import llm_congestion as guard
+    from llm_model_circuits import ModelCircuitOpenError
+
+    class Unavailable(RuntimeError):
+        status_code = 503
+
+    first = CongestionStore(redis_socket, jitter=lambda: 0)
+    second = CongestionStore(redis_socket, jitter=lambda: 0)
+    monkeypatch.setattr(config, 'LLM_CONGESTION_GUARD_ENABLED', True)
+    monkeypatch.setattr(guard, '_store', first)
+    with pytest.raises(Unavailable):
+        with guard.provider_attempt_scope('gemini-test', 'synthetic-a'):
+            raise Unavailable('busy')
+    monkeypatch.setattr(guard, '_store', second)
+    assert 59 <= guard.congestion_wait('gemini-test') <= 60
+    with pytest.raises(ModelCircuitOpenError):
+        with guard.provider_attempt_scope('gemini-test', 'synthetic-b'):
+            pytest.fail('second worker bypassed shared 503 cooldown')
+    expire_cooldown(redis_socket)
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        results = list(pool.map(lambda i: (str(i), CongestionStore(redis_socket, jitter=lambda: 0).operate(
+            'google:gemini-test', 'admit', owner=str(i))), range(8)))
+    winners = [(owner, result) for owner, result in results if result['admitted']]
+    assert len(winners) == 1 and winners[0][1]['probe']
+    owner, result = winners[0]
+    first.operate('google:gemini-test', 'success', owner=owner, generation=result['generation'])
+    assert second.operate('google:gemini-test', 'admit', owner='next')['admitted']
+    # Late completions from before the cooldown may not reopen recovered state.
+    assert first.operate('google:gemini-test', 'server_failure', owner='old', generation=0)['wait'] == 0
+
+
+def test_mixed_429_503_keep_provider_hint_and_recovery_backoff_separate_from_rpd():
+    store, now = rig()
+    assert fail(store, 'a')['wait'] == 0
+    assert store.operate('model', 'server_failure', delay=600)['wait'] == 600
+    now[0] += 601
+    receipt = store.operate('model', 'admit', owner='recovery')
+    assert fail(store, 'b', owner='recovery', generation=receipt['generation'])['wait'] == 120
+    assert store.operate('healthy', 'admit')['admitted']
+
+
+def test_first_redis_outage_recording_503_preserves_provider_hint():
+    class Broken:
+        def eval(self, *args):
+            raise OSError('unavailable')
+    store = CongestionStore(Broken(), clock=lambda: 1000, jitter=lambda: 0)
+    assert store.operate('model', 'server_failure', delay=600)['wait'] == 600

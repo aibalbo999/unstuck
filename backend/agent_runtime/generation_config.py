@@ -21,7 +21,7 @@ from .retry_policy import AgentTransientError
 from .routing import get_agent_function_tools
 
 
-GENERATION_POLICY_VERSION = "agent-generation:v3"
+GENERATION_POLICY_VERSION = "agent-generation:v4"
 _DEFAULT_GENERATION_PROFILE = {
     "temperature": 0.7,
     "top_p": 0.95,
@@ -52,7 +52,7 @@ AGENT_GENERATION_PROFILES = {
     21: {"temperature": 0.25, "top_p": 0.90, "max_output_tokens": 4096},
     22: {"temperature": 0.35, "top_p": 0.90, "max_output_tokens": 3072},
     23: {"temperature": 0.30, "top_p": 0.90, "max_output_tokens": 3072},
-    24: {"temperature": 0.20, "top_p": 0.85, "max_output_tokens": 2048},
+    24: {"temperature": 0.20, "top_p": 0.85, "max_output_tokens": 4096},
 }
 _BOUNDED_THINKING_MODELS = {"gemini-3.5-flash-lite", "gemini-3.7-flash", "gemini-3.8-flash"}
 _MEDIUM_THINKING_AGENTS = {7, 16, 19, 24}
@@ -88,7 +88,7 @@ def _agent19_recommendation_contract_instruction() -> str:
 
 def _thinking_level(agent_num: int | None, model_id: str) -> str | None:
     model = model_id.removeprefix("google:").removeprefix("models/")
-    if agent_num in {18, 19} and model in _COMPLETION_LOW_THINKING_MODELS:
+    if agent_num in {18, 19, 24} and model in _COMPLETION_LOW_THINKING_MODELS:
         return "low"
     if model_id in _BOUNDED_THINKING_MODELS:
         return "medium" if agent_num in _MEDIUM_THINKING_AGENTS else "low"
@@ -205,6 +205,10 @@ def google_safe_agent_system_instruction(agent_num: int, model_id: str) -> str:
     if agent_num == 19:
         system_instruction += _AGENT19_COMPLETION_INSTRUCTION
         system_instruction += _agent19_recommendation_contract_instruction()
+    elif agent_num == 24:
+        system_instruction += ("\n\n完整性契約：只輸出完整 JSON。先完成八個核心欄位、三組來源引用及結尾大括號，"
+                               "不要重貼原始資料或附加長篇正文；來源只能引用本次完整可見 trade-source 區塊，"
+                               "沒有可驗證來源時明示 Neutral 與具體缺口，不得為完成欄位補造引用或价格。")
     elif "gemini-3-flash-preview" in model_id:
         system_instruction += "\n\nIMPORTANT: You are operating as a fallback model. You MUST provide a comprehensive, highly detailed, and complete analysis. Ensure your response is sufficiently long and detailed to form a formal report section. Do not provide a short or truncated response."
     return sanitize_google_system_instruction(system_instruction)

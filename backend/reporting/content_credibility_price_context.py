@@ -31,6 +31,11 @@ _CONTEXTUAL_RANGE_PATTERN = re.compile(
     flags=re.IGNORECASE,
 )
 _BRACKET_PATTERN = re.compile(r"([\(（\[【])([^\)）\]】]*)([\)）\]】])")
+_MOVING_AVERAGE_PERIOD_PATTERN = re.compile(
+    r"(?<![A-Za-z0-9_])(?:SMA|EMA)[1-9]\d*"
+    r"(?![\dA-Za-z_.]|[,，．]\d|\s*(?:元|塊))",
+    flags=re.IGNORECASE,
+)
 
 
 def strip_contextual_reference_prices(text: str) -> str:
@@ -52,7 +57,9 @@ def has_contextual_price_range(text: str) -> bool:
 
 
 def strip_non_price_metric_tokens(text: str) -> str:
-    """Remove valuation multiples only when their metric context is explicit."""
+    """Remove only explicit metric labels, preserving their actual price values."""
+    # SMA5/EMA20 name indicator periods, while SMA5=30.45 still contains a price.
+    text = _MOVING_AVERAGE_PERIOD_PATTERN.sub(" ", text)
     return _VALUATION_MULTIPLE_PATTERN.sub(" ", text)
 
 

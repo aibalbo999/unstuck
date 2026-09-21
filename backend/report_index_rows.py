@@ -325,6 +325,15 @@ def row_to_report(row) -> dict:
         "markdown_hash": row["markdown_hash"] if "markdown_hash" in row.keys() else "",
         "data_file_hash": row["data_file_hash"] if "data_file_hash" in row.keys() else "",
     }
+    from report_analysis_completeness import assess_report_analysis_completeness
+    report["analysis_completeness"] = assess_report_analysis_completeness({
+        **snapshot, "pipeline_id": pipeline_id,
+        "evidence_exit_gate": report["evidence_exit_gate"],
+        "content_credibility": report["content_credibility"],
+        "report_conformance": report["report_conformance"],
+        "snapshot_integrity": report["snapshot_integrity"],
+        "decision_freshness": report["decision_freshness"],
+    })
     quality_refresh_provenance = snapshot.get("quality_metadata_refresh_provenance")
     if isinstance(quality_refresh_provenance, dict) and quality_refresh_provenance:
         report["quality_metadata_refresh_provenance"] = quality_refresh_provenance

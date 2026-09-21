@@ -11,9 +11,10 @@ from evidence_claim_numbers import (
     valid_claim_number as _valid_claim_number,
 )
 from evidence_daily_price_claims import dated_daily_extreme_path
-from evidence_technical_claims import technical_sma_path
+from evidence_technical_claims import MOVING_AVERAGE_PERIOD_LIST_RE, technical_sma_path
 from evidence_recommendation_claims import recommendation_horizon_path
 from evidence_claim_types import NUMBER_TOKEN, calendar_metadata_label, calendar_metadata_match, score_metadata
+from evidence_trade_plan_claims import saved_cover_stop_path
 
 def _normalize_match_text(value: Any) -> str:
     return re.sub(r"[^0-9a-zA-Z_\u4e00-\u9fff]+", "", str(value or "").lower())
@@ -166,6 +167,9 @@ def extract_numeric_claims(markdown: str) -> list[dict[str, Any]]:
     return claims
 
 def _is_non_claim_match(line: str, match: re.Match[str]) -> bool:
+    # Only a complete, explicitly labelled moving-average period list is metadata.
+    if MOVING_AVERAGE_PERIOD_LIST_RE.match(line[match.start("num"):]):
+        return True
     if calendar_metadata_label(match.group("label")):
         return calendar_metadata_match(match)
     timestamp = re.search(r"\d{4}-\d{2}-\d{2}T\d{1,2}:\d{2}:\d{2}", line)
@@ -236,6 +240,9 @@ def _path_markers_for_claim(claim: dict[str, Any]) -> tuple[str, ...]:
     recommendation_path = recommendation_horizon_path(claim, label)
     if recommendation_path is not None:
         return recommendation_path
+    cover_stop_path = saved_cover_stop_path(claim, label)
+    if cover_stop_path is not None:
+        return cover_stop_path
     sma_path = technical_sma_path(claim)
     if sma_path is not None:
         return sma_path

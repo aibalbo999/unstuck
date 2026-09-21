@@ -5,6 +5,7 @@ from __future__ import annotations
 from data_trust import build_data_snapshot
 from data_trust_snapshot import set_snapshot_integrity
 from evidence_exit_gate import evaluate_report_evidence
+from report_analysis_completeness import assess_report_analysis_completeness
 
 from .conformance import evaluate_report_conformance
 from .content_credibility import evaluate_content_credibility
@@ -82,6 +83,7 @@ class ReportRenderer:
         final_context["report_lint"] = report_lint
         final_context["content_credibility"] = content_credibility
         final_context["report_conformance"] = report_conformance
+        final_context["analysis_completeness"] = assess_report_analysis_completeness(final_context)
         html = await generate_html_report_async(final_context)
         markdown = generate_markdown_report(final_context)
         html, markdown, report_lint = _lint_or_repair(html, markdown)
@@ -95,6 +97,7 @@ class ReportRenderer:
         snapshot["evidence_exit_gate"] = evidence_exit_gate
         snapshot["content_credibility"] = content_credibility
         snapshot["report_conformance"] = report_conformance
+        snapshot["analysis_completeness"] = final_context["analysis_completeness"]
         snapshot = set_snapshot_integrity(snapshot)
         metadata = {
             "filename": request.filename,
@@ -106,6 +109,7 @@ class ReportRenderer:
             "evidence_exit_gate": evidence_exit_gate,
             "content_credibility": content_credibility,
             "report_conformance": report_conformance,
+            "analysis_completeness": final_context["analysis_completeness"],
         }
         return ReportBundle(html=html, markdown=markdown, data_snapshot=snapshot, metadata=metadata)
 

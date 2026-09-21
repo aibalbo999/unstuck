@@ -16,6 +16,7 @@ from structured_output_normalizer import (
     warn_high_confidence_with_low_trust,
 )
 from valuation_output_contract import canonicalize_valuation_output
+from trade_source_contract import missing_trade_fields, bind_trade_payload, trade_json_incomplete
 
 
 def _sanitize_text(text: str) -> str:
@@ -58,9 +59,28 @@ def process_agent_response(
     if agent_num not in STRUCTURED_AGENT_INSTRUCTIONS:
         return _sanitize_text(raw_text or "")
 
+    if agent_num == 24:
+        context.setdefault("structured_outputs", {}).pop(24, None)
+        context["structured_outputs"].pop("24", None)
+    if agent_num == 24 and trade_json_incomplete(raw_text):
+        context["_trade_incomplete_fields"] = ["truncated_json"]
+        return _sanitize_text(raw_text or "")
     payload = extract_json_payload(raw_text or "")
     if payload is None:
+        if agent_num == 24:
+            context["_trade_incomplete_fields"] = ["invalid_json"]
         return _sanitize_text(raw_text or "")
+    trade_assessment = None
+    if agent_num == 24:
+        outputs = context.setdefault("structured_outputs", {})
+        outputs.pop(24, None)
+        outputs.pop("24", None)
+        missing = missing_trade_fields(payload)
+        if missing:
+            context["_trade_incomplete_fields"] = missing
+            return _sanitize_text(raw_text or "")
+        context.pop("_trade_incomplete_fields", None)
+        payload, trade_assessment = bind_trade_payload(payload, context)
     payload = _decode_google_recommendation(agent_num, payload, model_id)
     structured = normalize_structured_output(agent_num, payload)
     if not structured:
@@ -70,6 +90,9 @@ def process_agent_response(
                 return _sanitize_text(fallback)
 
         return _sanitize_text(raw_text or "")
+
+    if trade_assessment is not None:
+        structured["source_assessment"] = trade_assessment
 
     if agent_num in {4, 14}:
         structured = canonicalize_valuation_output(structured, context.get("data", {}))

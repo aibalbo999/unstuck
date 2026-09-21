@@ -14,7 +14,7 @@ def test_numbered_agents_use_role_specific_generation_profiles():
     assert profiles[4].max_output_tokens == 6144
     assert profiles[6].temperature == 0.6
     assert profiles[20].max_output_tokens == 1024
-    assert profiles[24].max_output_tokens == 2048
+    assert profiles[24].max_output_tokens == 4096
     assert len({(config.temperature, config.top_p, config.max_output_tokens) for config in profiles.values()}) > 5
 
 

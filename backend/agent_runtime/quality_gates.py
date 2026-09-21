@@ -25,6 +25,7 @@ from .deferred import AgentDeferredError
 from .deterministic_skips import apply_deterministic_agent_skip
 from .retry_policy import AgentConfigurationError
 from .quality_retry import retry_after_agent_quality_issues
+from .trade_source_repair import repair_trade_sources
 from .quality_structured_outputs import try_parse_structured_output as _try_parse_structured_output
 from .routing import get_runtime_model_sequence, is_agent_execution_failure
 from .single_agent import run_single_agent_async
@@ -126,6 +127,8 @@ async def run_agent_with_quality_gates_async(
         raise
     except Exception as exc:
         emit_log(f"  ⚠️  Agent {agent_num} 結構化輸出即時驗證失敗，略過同節點重試：{str(exc)[:120]}")
+    if agent_num == 24:
+        result = await repair_trade_sources(result, data, context, rotator, run_single_agent_async)
     await emit_status_async(
         progress_callback,
         f"Agent {agent_num}（{agent_position}/{agent_total}）正在執行輸出清洗與品質檢查...",

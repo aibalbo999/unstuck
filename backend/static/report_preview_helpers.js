@@ -25,9 +25,19 @@
         container.innerHTML = items.map(item => metricCard(item, className, escapeHtml)).join('');
     }
 
+    function reportAnalysisCompletenessBadge(report, escapeHtml) {
+        const value = report?.analysis_completeness;
+        if (!value || typeof value !== 'object') return '';
+        const labels = {complete:'分析完整', observation:'正常觀望', degraded:'資料不足降級', quality_warning:'分析品質警告'};
+        const label = value.status === 'quality_warning' && value.quality_warning !== true ? '分析完整度未確認' : (labels[value.status] || '分析完整度未確認');
+        const tone = value.status === 'complete' || value.status === 'observation' ? 'ok' : 'warning';
+        return `<span class="history-action-badge is-${tone}" title="${escapeHtml(value.summary || '分析完整度尚未確認')}" aria-label="${escapeHtml(`分析完整度：${label}`)}">${escapeHtml(label)}</span>`;
+    }
+
     function reportQualityBadge(report, escapeHtml) {
+        const completeness = reportAnalysisCompletenessBadge(report, escapeHtml);
         const action = qualityPolicy().reportQualityGateAction?.(report);
-        if (!action) return '';
+        if (!action) return completeness;
         const evidence = window.StockAgentReportQualityEvidence?.context?.(report);
         const detail = evidence?.detail || action.detail;
         const canOpenAudit = action.label === '結構化品質缺口' && evidence?.hasStructuredGap && report?.filename;
@@ -35,7 +45,12 @@
             ? ` type="button" data-quality-history-audit-target data-quality-history-query="${escapeHtml(report.filename)}" data-quality-history-pipeline="${escapeHtml(report.pipeline_id || 'v1')}" data-quality-evidence-detail="${escapeHtml(detail)}" aria-label="${escapeHtml(`前往 ${report.ticker || '報告'} ${report.pipeline_id || 'v1'} 的歷史品質稽核：${detail}`)}"`
             : '';
         const tag = canOpenAudit ? 'button' : 'span';
-        return `<${tag} class="history-action-badge is-${action.tone}${canOpenAudit ? ' is-clickable' : ''}"${attrs} title="${escapeHtml(detail)}">${escapeHtml(action.label)}</${tag}>`;
+        return `<${tag} class="history-action-badge is-${action.tone}${canOpenAudit ? ' is-clickable' : ''}"${attrs} title="${escapeHtml(detail)}">${escapeHtml(action.label)}</${tag}>${completeness}`;
+    }
+
+    function withAnalysisCompletenessBadge(report, badge, defaultUsable, escapeHtml) {
+        const completeness = reportAnalysisCompletenessBadge(report, escapeHtml);
+        return completeness && defaultUsable && !['complete', 'observation'].includes(report.analysis_completeness?.status) ? completeness : badge + completeness;
     }
 
     function reportReadingNotice(report, escapeHtml) {
@@ -45,6 +60,6 @@
     }
 
     window.StockAgentReportPreviewHelpers = {
-        FALLBACK_SUMMARY, legacyPreview, metricCard, renderMetrics, reportQualityBadge, reportReadingNotice
+        FALLBACK_SUMMARY, legacyPreview, metricCard, renderMetrics, reportQualityBadge, reportReadingNotice, reportAnalysisCompletenessBadge, withAnalysisCompletenessBadge
     };
 })();

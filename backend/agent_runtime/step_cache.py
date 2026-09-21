@@ -38,6 +38,8 @@ def build_agent_step_cache_key(
         "upstream_input_hash": upstream_input_hash(agent_num, context),
         "market_context_contract_version": context.get("market_context_contract_version"),
     }
+    if agent_num == 24:
+        key_parts["trade_source_contract_version"] = "trade-sources:v1-completion:v4"
     if agent_num in _OUTPUT_CONTRACT_AGENTS:
         key_parts["output_contract_version"] = AGENT_OUTPUT_CONTRACT_VERSION
     encoded = json.dumps(key_parts, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
@@ -66,6 +68,8 @@ def store_cached_agent_step(
 ) -> None:
     if not AGENT_STEP_CACHE_ENABLED or AGENT_STEP_CACHE_SECONDS <= 0:
         return
+    if agent_num == 24 and not _structured_output_for_agent(context, agent_num):
+        return  # Incomplete drafts must reach the bounded structured retry, not its cache.
     payload = {
         "schema_version": 1,
         "agent_num": agent_num,

@@ -1364,7 +1364,7 @@ def test_history_workspace_wires_historical_quality_audit_without_daily_queue_si
     assert 'id="history-quality-audit"' in index_html
     assert "/static/api_client_extensions.js?v=20260821-current-quality-summary" in index_html
     assert "/static/watchlist_panel_actions.js?v=20260821-current-quality-background" in index_html
-    assert "/static/history_panel_quality_helpers.js?v=20260902-integer-review-counts" in index_html
+    assert "/static/history_panel_quality_helpers.js?v=20260921-analysis-completeness" in index_html
     assert "/static/history_quality_audit_render.js?v=20260902-distribution-scope" in index_html
     assert "/static/history_quality_audit.js?v=20260820-quality-version-filter" in index_html
     assert index_html.index("/static/history_quality_audit_render.js") < index_html.index("/static/history_quality_audit.js")
