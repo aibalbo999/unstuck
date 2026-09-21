@@ -1,4 +1,4 @@
-"""Exact SMA evidence: no borrowing from volume, other periods or price plans."""
+"""Exact technical evidence: no borrowing from other indicators or price plans."""
 
 import math
 import re
@@ -14,6 +14,52 @@ _OTHER_BASIS = re.compile(r"EMA|指數|volume|成交量|收盤|close|price_histo
 _NON_CURRENT_BASIS = re.compile(r"昨日|前日|前期|預估|預測|假設|如果|若|目標|previous|yesterday|forecast|projected|hypothetical", re.I)
 _PARTIAL_DATE = re.compile(r"(?<!\d)(?:0?[1-9]|1[0-2])\s*[/月]\s*(?:0?[1-9]|[12]\d|3[01])(?:日)?(?!\d)|(?:19|20)\d{2}\s*年")
 _ASSIGNED_VALUE = re.compile(r"\s*[:：=]\s*(?:NT\$|\$|TWD)?\s*(-?\d[\d,]*(?:\.\d+)?)\s*(?:元|TWD)?(?=$|[\s,，;；>><<）)\"。])", re.I)
+MACD_FIELDS = frozenset({"macd", "macd_signal", "macd_histogram"})
+_MACD_KEY = re.compile(r"(?<![A-Za-z0-9_])(?:macd_signal|macd_histogram|histogram|macd)(?![A-Za-z0-9_])", re.I)
+
+
+def technical_indicator_path(claim: dict[str, Any]) -> tuple[str, ...] | None:
+    """Delegate only unrecognized claims; an ambiguous MACD claim stays rejected."""
+    macd_path = technical_macd_path(claim)
+    return technical_sma_path(claim) if macd_path is None else macd_path
+
+
+def technical_macd_path(claim: dict[str, Any]) -> tuple[str, ...] | None:
+    """Bind only explicit key:value assertions; MACD prose does not select a field."""
+    label = str(claim.get("label") or "")
+    # Markdown label cleaning removes underscores; source text keeps exact keys.
+    keys = list(re.finditer(r"(?<![A-Za-z0-9_])(?:macd_?signal|macd_?histogram|histogram|macd)(?![A-Za-z0-9_])", label, re.I))
+    if not keys:
+        return None
+    if keys[-1].end() != len(label.strip()):
+        return ()
+    key = keys[-1].group().lower()
+    canonical = {"histogram": "macd_histogram", "macdhistogram": "macd_histogram", "macdsignal": "macd_signal"}.get(key, key)
+    text = re.sub(r"[*`]", "", str(claim.get("technical_context_text") or claim.get("raw_text") or ""))
+    if _OTHER_BASIS.search(text) or _NON_CURRENT_BASIS.search(text) or str(claim.get("unit") or "").lower() not in {"", "元", "twd"}:
+        return ()
+    dates = list(DAILY_DATE_RE.finditer(text))
+    if len(dates) > 1:
+        return ()
+    if dates:
+        try:
+            observed = date(*(int(part) for part in dates[0].groups())).isoformat()
+        except ValueError:
+            return ()
+        if observed != claim.get("_technical_as_of"):
+            return ()
+    if _PARTIAL_DATE.search(DAILY_DATE_RE.sub(" ", text)):
+        return ()
+    assignments = []
+    for match in _MACD_KEY.finditer(text):
+        field = "macd_histogram" if match.group().lower() == "histogram" else match.group().lower()
+        tail = text[match.end():]
+        if field == canonical and re.match(r"\s*[:：=]", tail):
+            value = _ASSIGNED_VALUE.match(tail)
+            assignments.append(clean_number(value.group(1)) if value else None)
+    if len(assignments) != 1 or assignments[0] != claim.get("reported_value"):
+        return ()
+    return (f"data.technical_indicators.{canonical}",)
 
 
 def _explicit_assignment_path(text: str, label: str, claim: dict) -> tuple[str, ...] | None:
@@ -80,7 +126,7 @@ def technical_sma_path(claim: dict[str, Any]) -> tuple[str, ...] | None:
 
 
 def technical_snapshot_values(value: dict) -> list[dict]:
-    """Only finite, dated, available scalar SMA fields are canonical evidence."""
+    """Only finite, dated, available SMA/MACD scalars are canonical evidence."""
     if value.get("availability") not in {"available", "partial"} or not valid_technical_date(value.get("as_of")):
         return []
     source = value.get("source")
@@ -91,9 +137,9 @@ def technical_snapshot_values(value: dict) -> list[dict]:
         return []
     return [{"path": f"data.technical_indicators.{key}", "value": float(number)}
             for key, number in value.items()
-            if re.fullmatch(r"sma_\d+", key) and key not in missing
+            if (re.fullmatch(r"sma_\d+", key) or key in MACD_FIELDS) and key not in missing
             and isinstance(number, (int, float)) and not isinstance(number, bool)
-            and math.isfinite(number) and number > 0]
+            and math.isfinite(number) and (key in MACD_FIELDS or number > 0)]
 
 
 def valid_technical_date(value: Any) -> str | None:

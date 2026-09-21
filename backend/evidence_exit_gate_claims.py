@@ -11,7 +11,7 @@ from evidence_claim_numbers import (
     valid_claim_number as _valid_claim_number,
 )
 from evidence_daily_price_claims import dated_daily_extreme_path
-from evidence_technical_claims import MOVING_AVERAGE_PERIOD_LIST_RE, technical_sma_path
+from evidence_technical_claims import MOVING_AVERAGE_PERIOD_LIST_RE, technical_indicator_path
 from evidence_recommendation_claims import recommendation_horizon_path
 from evidence_claim_types import NUMBER_TOKEN, calendar_metadata_label, calendar_metadata_match, score_metadata
 from evidence_trade_plan_claims import saved_cover_stop_path
@@ -139,7 +139,7 @@ def extract_numeric_claims(markdown: str) -> list[dict[str, Any]]:
                 "unit": unit,
                 "line_number": line_number,
                 "raw_text": line if ("rketcontext[" in label and "change" in label) or "觀察近三個月價格" in line else line[:160],
-                **({"technical_context_text": line} if re.search(r"SMA|EMA|均線|移動平均線", line, re.I) else {}),
+                **({"technical_context_text": line} if re.search(r"SMA|EMA|均線|移動平均線|MACD|histogram", line, re.I) else {}),
                 **({"series_context_text": "\n".join(lines[max(0, line_number - 20):line_number - 1])} if re.fullmatch(r"(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}", label, re.IGNORECASE) else {"context_text": "\n".join(lines[max(0, line_number - 3):line_number - 1])} if line_number > 1 else {}),
             })
             if any(_normalize_match_text(marker) in _normalize_match_text(label) for marker in ("支撐", "壓力", "高點", "低點", "週高低")):
@@ -243,9 +243,9 @@ def _path_markers_for_claim(claim: dict[str, Any]) -> tuple[str, ...]:
     cover_stop_path = saved_cover_stop_path(claim, label)
     if cover_stop_path is not None:
         return cover_stop_path
-    sma_path = technical_sma_path(claim)
-    if sma_path is not None:
-        return sma_path
+    technical_path = technical_indicator_path(claim)
+    if technical_path is not None:
+        return technical_path
     daily_extreme_path = dated_daily_extreme_path(claim)
     if daily_extreme_path is not None:
         return daily_extreme_path

@@ -41,7 +41,7 @@ def build_agent_step_cache_key(
     if agent_num in {23, 24}:
         key_parts["institutional_evidence_contract"] = "typed-flow:v1"
     if agent_num == 24:
-        key_parts["trade_source_contract_version"] = "trade-sources:v2-completion:v5"
+        key_parts["trade_source_contract_version"] = "trade-sources:v2-completion:v6"
     if agent_num in _OUTPUT_CONTRACT_AGENTS:
         key_parts["output_contract_version"] = AGENT_OUTPUT_CONTRACT_VERSION
     encoded = json.dumps(key_parts, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
@@ -82,6 +82,9 @@ def store_cached_agent_step(
     if agent_num in FINAL_AGENTS and context.get("market_context_contract_version") == CONTRACT_VERSION:
         manifests = context.get("market_context_manifests", {})
         payload["market_context_manifest"] = copy.deepcopy(manifests.get(agent_num, manifests.get(str(agent_num))))
+    if agent_num == 24:
+        payload["trade_source_manifest"] = copy.deepcopy(context.get("_trade_source_manifest"))
+        payload["trade_completion_receipt"] = copy.deepcopy(context.get("_trade_completion_receipt"))
     try:
         set_cache_json(cache_key, payload, AGENT_STEP_CACHE_SECONDS)
     except Exception:
@@ -90,6 +93,18 @@ def store_cached_agent_step(
 
 def restore_cached_agent_step(context: dict, agent_num: int, cached: dict) -> str:
     clear_market_context_output(context, agent_num)
+    if agent_num == 24:
+        context.pop("_trade_source_manifest", None)
+        context.pop("_trade_completion_receipt", None)
+        if not _cached_trade_matches_input(context, cached):
+            outputs = context.setdefault("structured_outputs", {})
+            outputs.pop(24, None)
+            outputs.pop("24", None)
+            return ""
+        context["_trade_source_manifest"] = copy.deepcopy(cached["trade_source_manifest"])
+        receipt = cached.get("trade_completion_receipt")
+        if isinstance(receipt, dict):
+            context["_trade_completion_receipt"] = copy.deepcopy(receipt)
     structured = cached.get("structured_output")
     if isinstance(structured, dict):
         context.setdefault("structured_outputs", {})[agent_num] = copy.deepcopy(structured)
@@ -102,6 +117,9 @@ def restore_cached_agent_step(context: dict, agent_num: int, cached: dict) -> st
 
 
 def cached_market_context_matches(context: dict, agent_num: int, cached: dict, prompt: str) -> bool:
+    if agent_num == 24:
+        return (_cached_trade_matches_input(context, cached)
+                and cached.get("trade_source_manifest") == context.get("_trade_source_manifest"))
     if agent_num not in FINAL_AGENTS or context.get("market_context_contract_version") != CONTRACT_VERSION:
         return True
     manifest = cached.get("market_context_manifest")
@@ -109,6 +127,22 @@ def cached_market_context_matches(context: dict, agent_num: int, cached: dict, p
     expected = attempts.get(agent_num, attempts.get(str(agent_num)))
     return (manifest_matches_input(manifest, context.get("data", {}), agent_num)
             and manifest.get("prompt_hash") == prompt_fingerprint(prompt) and manifest == expected)
+
+
+def _cached_trade_matches_input(context, cached):
+    from workflow_trade_evidence import trade_manifest_matches_input
+    from llm_completion_provenance import completion_is_incomplete
+
+    manifest = cached.get("trade_source_manifest")
+    output = cached.get("structured_output")
+    assessment = output.get("source_assessment") if isinstance(output, dict) else None
+    receipt = cached.get("trade_completion_receipt")
+    if (isinstance(receipt, dict) and completion_is_incomplete(receipt.get("diagnostics"))
+            or isinstance(assessment, dict) and completion_is_incomplete(assessment.get("output_completion"))):
+        return False
+    return (trade_manifest_matches_input(manifest, context.get("data", {}))
+            and isinstance(assessment, dict)
+            and assessment.get("source_fingerprint") == manifest.get("fingerprint"))
 
 
 def record_agent_step_cache_miss(context: dict) -> None:

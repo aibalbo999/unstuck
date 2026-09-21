@@ -73,11 +73,17 @@ def legacy_context_from_graph(state: AgentGraphState, services: Any) -> Analysis
     attach_cancel_check(context, services.cancel_check)
     from analysis_dependencies import invalidate_analysis_results, stale_agent_numbers
     invalidate_analysis_results(context, stale_agent_numbers(context))
+    from workflow_trade_evidence import restore_trade_evidence
+
+    restore_trade_evidence(context, state.get("trade_source_evidence"))
     return context
 
 
 def graph_delta_from_legacy_context(context: AnalysisContext) -> dict[str, Any]:
+    from workflow_trade_evidence import successful_trade_evidence
+
     delta: dict[str, Any] = {
+        "trade_source_evidence": successful_trade_evidence(context),
         "analyses": graph_agent_mapping(context.get("analyses") or {}),
         "structured_outputs": graph_agent_mapping(context.get("structured_outputs") or {}),
         "parsed": copy_json(context.get("parsed") or {}),

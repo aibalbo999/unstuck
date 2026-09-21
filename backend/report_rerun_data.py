@@ -62,4 +62,18 @@ async def prepare_full_rerun_data(
     return refreshed_data
 
 
-__all__ = ["prepare_full_rerun_data", "rerun_data_payload"]
+def freeze_full_rerun_inputs(data: dict, *, pipeline_id: str, progress_callback: Any = None) -> None:
+    """Establish a NEW full run's quant/input boundary; never call on resume."""
+    from quant_engine import QuantEngine
+    from analysis_input_provenance import freeze_analysis_inputs
+
+    data["quant_metrics"] = QuantEngine.compute_all(data)
+    if data["quant_metrics"].get("fallback_fields"):
+        data["quant_metrics"]["__has_fallback"] = True
+    receipt = freeze_analysis_inputs(data)
+    if callable(progress_callback):
+        progress_callback({"type": "provenance", "phase": "analysis_input_frozen",
+                           "pipeline_id": pipeline_id, **receipt})
+
+
+__all__ = ["freeze_full_rerun_inputs", "prepare_full_rerun_data", "rerun_data_payload"]

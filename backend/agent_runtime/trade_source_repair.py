@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import copy
+import json
+from trade_source_contract import allowed_source_refs
 from workflow_quality_drafts import checkpoint_unvalidated_draft
 from .cancellation import raise_if_cancelled
 
@@ -11,22 +13,31 @@ async def repair_trade_sources(result, data, context, rotator, run_agent):
     output = outputs.get(24, outputs.get("24", {}))
     assessment = output.get("source_assessment", {}) if isinstance(output, dict) else {}
     manifest = context.get("_trade_source_manifest") or {}
-    source = manifest.get("catalog", {}).get("short_term_market_context", {})
-    technical = source.get("technical_indicators") or {}
-    events = source.get("event_calendar") or {}
-    has_evidence = technical.get("availability") in {"available", "partial"} or bool(events.get("events"))
+    has_evidence = any(allowed_source_refs(manifest.get("catalog", {})).values())
     if (assessment.get("status") != "degraded" or assessment.get("repair_attempted")
             or not manifest.get("visible") or not has_evidence):
         return result
 
     await checkpoint_unvalidated_draft(24, result, context)
     original = copy.deepcopy(output)
+    original_source_state = {key: copy.deepcopy(context[key]) for key in
+        ("_trade_source_manifest", "_trade_completion_receipt") if key in context}
+
+    def restore_original_source_state():
+        for key in ("_trade_source_manifest", "_trade_completion_receipt"):
+            context.pop(key, None)
+        context.update(copy.deepcopy(original_source_state))
     previous = {key: context[key] for key in ("_audit_retry_instruction", "_trade_source_repair_attempted") if key in context}
     context["_trade_source_repair_attempted"] = True
     context["_audit_retry_instruction"] = (
         "只修復本次 Agent 24，不重寫前序分析。先檢查完整 trade-source 區塊與缺口：" +
         "；".join(str(x) for x in assessment.get("reason_codes", [])) +
         "。輸出完整 JSON，三組 source_refs 只能填本次區塊實際存在且支持相應主張的路徑。"
+        "目前未通過的核心催化主張：" + json.dumps(str(original.get("core_catalyst") or "")[:1200], ensure_ascii=False) +
+        "。逐項核對主張，不要保留沒有證據的敘述再把引用清空。"
+        "法人主張需寫出主體、期間、觀測日、數值與單位，並引用同一 institutional_evidence record；不能只寫外資累積或法人買超。"
+        "event_calendar 整個物件及 availability 不是催化引用；無已確認事件不等於市場没有事件。"
+        "Neutral 也必須符合來源要求：可使用有來源的技術條件說明觀望，無法確認的其他主張保留為未知，不能當成事實。"
         "若資料不支持原方向，保持 Neutral 並具體說明缺口與重新評估条件；不得填假引用或強迫Long/Short。"
     )
     try:
@@ -36,12 +47,14 @@ async def repair_trade_sources(result, data, context, rotator, run_agent):
         candidate = await run_agent(24, data, context, rotator)
         accepted = outputs.get(24, outputs.get("24"))
         if not isinstance(accepted, dict):
+            restore_original_source_state()
             original.setdefault("source_assessment", {})["repair_attempted"] = True
             outputs[24] = original
             return result
         accepted.setdefault("source_assessment", {})["repair_attempted"] = True
         return candidate
     except BaseException:
+        restore_original_source_state()
         outputs.pop(24, None)
         outputs.pop("24", None)
         outputs[24] = original

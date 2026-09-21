@@ -216,6 +216,10 @@ async def run_agent_node_adapter(agent_num: int, state: AgentGraphState, service
         "analysis_provenance": {str(completed_agent_num): copy_json(context["analysis_provenance"][completed_agent_num])},
         "execution_trace": [{"id": f"agent:{completed_agent_num}", "node": f"agent_{completed_agent_num}", "agent_num": completed_agent_num}],
     }
+    if completed_agent_num == 24:
+        from workflow_trade_evidence import successful_trade_evidence
+
+        delta["trade_source_evidence"] = successful_trade_evidence(context)
     if structured_output is not None:
         delta["structured_outputs"] = {str(completed_agent_num): copy_json(structured_output)}
     manifests = context.get("market_context_manifests") or {}

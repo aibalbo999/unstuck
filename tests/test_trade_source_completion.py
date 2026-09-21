@@ -56,7 +56,7 @@ def test_omitted_block_cannot_authorize_references():
 def test_source_repair_is_one_bounded_local_call_and_preserves_upstream():
     from agent_runtime.trade_source_repair import repair_trade_sources
     context={"structured_outputs":{22:{"kept":True},24:{"source_assessment":{"status":"degraded","reason_codes":["missing_support_source_refs"]}}},
-             "_trade_source_manifest":{"visible":True,"catalog":{"short_term_market_context":{"technical_indicators":{"availability":"available","sma_20":95}}}}}
+             "_trade_source_manifest":{"visible":True,"catalog":{"short_term_market_context":{"technical_indicators":{"availability":"available","source":"fixture","as_of":"2026-09-21","sma_20":95}}}}}
     calls=[]
     async def run(agent,data,ctx,rotator):
         calls.append(agent)

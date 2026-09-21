@@ -22,7 +22,7 @@ from report_freshness_summary import normalize_freshness_status, safe_bool
 from report_history_storage import storage_for_existing_output_dir
 from report_index_parsing import is_safe_report_filename
 from report_pipeline_identity import resolve_report_pipeline_id as _source_pipeline_id
-from report_rerun_data import prepare_full_rerun_data, rerun_data_payload
+from report_rerun_data import prepare_full_rerun_data, rerun_data_payload, freeze_full_rerun_inputs
 from report_rerun_checkpoint import full_rerun_checkpoint
 from report_rerun_audit import run_final_rerun_audit
 from report_rerun_context import (
@@ -63,6 +63,7 @@ async def _run_full_pipeline_rerun(
     if data is None:
         data = await prepare_full_rerun_data(snapshot, pipeline_id=pipeline_id,
             refresh_service=refresh_service, progress_callback=progress_callback)
+        freeze_full_rerun_inputs(data, pipeline_id=pipeline_id, progress_callback=progress_callback)
     elif callable(progress_callback):
         progress_callback({"type": "status", "phase": "rerun_resume", "pipeline_id": pipeline_id,
             "message": "已找到重跑進度，沿用原資料快照接續未完成步驟；資料日期保持原值。"})

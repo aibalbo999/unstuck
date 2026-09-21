@@ -88,6 +88,7 @@ class AgentGraphState(TypedDict, total=False):
     prompt_fingerprint: str
     market_context_contract_version: str
     market_context_manifests: Annotated[dict[str, dict[str, Any]], merge_dicts]
+    trade_source_evidence: dict[str, Any]
     code_commit: str
     code_dirty: bool | None
     raw_financial_data: dict[str, Any]

@@ -111,6 +111,10 @@ def _claimed_date(match, records):
 def _claim_window(prefix, records):
     periods = list(_WINDOW.finditer(prefix))
     dates = list(_DATE.finditer(prefix))
+    if periods:
+        # A lookback's as-of date limits observation freshness, not its duration.
+        # Keep explicit single-day dates, even when another as-of date follows.
+        dates = [m for m in dates if not re.search(r"截至[:：]?$", prefix[:m.start()])]
     # Only an explicit later single-day marker can supersede an earlier lookback.
     if dates and (not periods or dates[-1].start() > periods[-1].start()):
         last = dates[-1]
@@ -123,6 +127,21 @@ def _claim_window(prefix, records):
     if re.search(r"今日|當日|最新交易日", prefix):
         observed = max((r['observed_at'] for r in records), default=None)
         return {"kind": "day", "date": observed} if observed else None
+    return None
+
+
+def _claim_population(prefix, populations):
+    group = [populations[-1]]
+    for previous in reversed(populations[:-1]):
+        if not re.fullmatch(r"[與及和、/,，]+", prefix[previous.end():group[0].start()]):
+            break
+        group.insert(0, previous)
+    if len(group) == 1:
+        return _POPULATIONS.get(group[0].group(), "total")
+    # No subgroup aggregation or inference from the final named participant.
+    if (len(group) == 3 and {_POPULATIONS.get(m.group()) for m in group} == _CATEGORIES
+            and "合計" in prefix[group[-1].end():]):
+        return "total"
     return None
 
 
@@ -158,9 +177,7 @@ def institutional_evidence_issues(text, data, *, allowed_paths=None):
         populations = list(_POP.finditer(prefix))
         if not populations:
             continue
-        population = _POPULATIONS.get(populations[-1].group(), "total")
-        if len(populations) > 1 and re.fullmatch(r"[與及和、/]+", prefix[populations[-2].end():populations[-1].start()]):
-            population = None  # A combined subgroup cannot borrow the last component.
+        population = _claim_population(prefix, populations)
         window = _claim_window(prefix, eligible)
         candidates = [r for r in eligible if r["population"] == population and r["window"] == window]
         if window and window.get("kind") == "trailing_trading_days":

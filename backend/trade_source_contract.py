@@ -59,10 +59,8 @@ def source_catalog(data):
     return {"short_term_market_context": value}
 
 
-def source_block(data):
-    catalog = source_catalog(data)
-    encoded = json.dumps(catalog, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False)
-    fingerprint = hashlib.sha256(encoded.encode()).hexdigest()
+def allowed_source_refs(catalog):
+    """The prompt and repair admission use the same actually usable references."""
     paths = []
     def walk(value, path):
         if isinstance(value, dict):
@@ -76,13 +74,23 @@ def source_block(data):
         else:
             paths.append(path)
     walk(catalog, "")
-    allowed = {role: [path for path in paths if reference_is_evidence(catalog, path, role)] for role in REF_FIELDS}
+    return {role: [path for path in paths if reference_is_evidence(catalog, path, role)] for role in REF_FIELDS}
+
+
+def source_block(data):
+    catalog = source_catalog(data)
+    encoded = json.dumps(catalog, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False)
+    fingerprint = hashlib.sha256(encoded.encode()).hexdigest()
+    allowed = allowed_source_refs(catalog)
     text = ("【trade-source:" + fingerprint + "】\n" + encoded +
             "\n可引用路徑：" + json.dumps(allowed, ensure_ascii=False, separators=(",", ":")) +
             "\n【/trade-source】\n來源引用只使用以上完整區塊中實際存在且非空的 short_term_market_context 路徑；"
             "不得自行補造路徑。三組 source_refs 均須輸出。Long/Short 缺少支撐、壓力或催化證據時明示資料限制，"
             "K 線與均線只支持價格與技術條件；RSI、MACD、量能只能作技術催化，不能作價格支撐壓力。"
             "法人主張須引用 institutional_evidence 中對應單位、統計主體、期間的完整record，不能以合計冒充外資；"
+            "具體寫出主體、期間、觀測日、數值與單位；沒有對應record的『外資累積』或『法人買超』不可放進核心催化。"
+            "Neutral 也必須遵守相同證據要求；技術觀望可只引用對應技術指標並列出重新評估條件。"
+            "event_calendar 整個物件及 availability 不可作催化引用；日曆缺資料只能說未知，known_empty只代表提供區間內無紀錄。"
             "recent_news 只支持逐字引用的新聞標題，請明示新聞報導並保留完整標題；出版日期不是未來事件日，不支持確定未來舉行的主張。未知或過期來源不可推定。"
             "core_catalyst 必須使用引用本身可支持的條件，其他未有對應來源的主張不可冒充催化證據。"
             "Neutral 必須說明觀望及重新評估條件；禁止為通過檢查強迫方向。")
@@ -90,10 +98,13 @@ def source_block(data):
 
 
 def bind_source_prompt(context, prompt, block, catalog, fingerprint):
+    from workflow_trade_evidence import trade_input_fingerprint
+
     context["_trade_source_manifest"] = {
         "version": CONTRACT_VERSION, "visible": bool(block and block in prompt),
         "catalog": catalog if block and block in prompt else {},
         "fingerprint": fingerprint,
+        "input_fingerprint": trade_input_fingerprint(context.get("data", {})),
     }
 
 

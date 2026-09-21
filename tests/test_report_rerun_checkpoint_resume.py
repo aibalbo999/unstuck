@@ -19,6 +19,7 @@ from runtime_dependencies import RuntimeSettings
 from storage.report_storage import InMemoryStorage
 from workflow_context import input_data_from_state
 from workflow_services import WorkflowServices, initialize_graph_state
+from report_analysis_evidence import capture_analysis_evidence
 
 
 @pytest.fixture
@@ -157,3 +158,46 @@ def test_changed_source_pipeline_does_not_mix_checkpoint_or_spend_calls(rerun_ha
     assert h.counts == before
     assert h.events[-1]["status_code"] == 409
     assert not h.rendered
+
+
+@pytest.mark.parametrize("scope,pipeline", [
+    ("full_report", "v1"), ("full_report", "v2"), ("full_report", "v3"),
+    ("full_report", "v4"), ("mode_b", "v2"),
+])
+def test_real_full_rerun_freezes_quant_and_input_before_first_agent_and_keeps_on_resume(rerun_harness, scope, pipeline):
+    h = rerun_harness
+    h.control["pipeline"] = pipeline
+    job = h.new_job(scope)
+    with pytest.raises(AgentDeferredError):
+        h.run(job, scope)
+    # Changes outside this job must not replace its checkpoint input or cutoff.
+    h.control.update(available=True, price=200)
+    h.run(job, scope)
+    data = h.rendered[-1]["data"]
+    assert data.get("analysis_input_hash")
+    assert data.get("analysis_input_cutoff")
+    assert data.get("quant_metrics")
+    assert isinstance(data.get("_analysis_input_evidence"), str)
+    packet = capture_analysis_evidence(h.rendered[-1])
+    assert packet["input_verification"] == "hash_verified"
+    assert packet["sections"]["analysis_input"]["data"]["current_price"] == (100 if scope == "full_report" else 80)
+    assert packet["sections"]["quant_metrics"]["status"] == "preserved"
+    receipts = [e for e in h.events if e.get("phase") == "analysis_input_frozen"]
+    assert len(receipts) == 1
+    assert receipts[0]["analysis_input_hash"] == data["analysis_input_hash"]
+    assert receipts[0]["analysis_input_cutoff"] == data["analysis_input_cutoff"]
+
+
+def test_legacy_checkpoint_without_receipt_is_not_retroactively_frozen(rerun_harness, monkeypatch):
+    h = rerun_harness
+    job = h.new_job()
+    # Simulate the pre-fix job boundary creating an old checkpoint without a receipt.
+    monkeypatch.setattr("analysis_input_provenance.freeze_analysis_inputs", lambda data: {})
+    with pytest.raises(AgentDeferredError):
+        h.run(job)
+    monkeypatch.setattr("analysis_input_provenance.freeze_analysis_inputs", lambda data: pytest.fail("legacy input refrozen"))
+    h.control["available"] = True
+    h.run(job)
+    packet = capture_analysis_evidence(h.rendered[-1])
+    assert packet["input_verification"] == "unknown"
+    assert packet["sections"]["analysis_input"]["status"] == "unknown"
