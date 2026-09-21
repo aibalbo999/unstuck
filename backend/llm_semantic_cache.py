@@ -10,6 +10,7 @@ import time
 from typing import Any
 
 from cache_store import get_cache_json, set_cache_json
+from llm_completion_provenance import completion_diagnostics, completion_is_incomplete
 from config import (
     LLM_SEMANTIC_CACHE_ENABLED,
     LLM_SEMANTIC_CACHE_MAX_INDEX_ENTRIES,
@@ -35,7 +36,7 @@ def get_cached_llm_response(model_id: str, prompt: str, config: Any) -> dict | N
         return None
     exact_key = _entry_key(model_id, prompt, config)
     exact = _load_entry(exact_key)
-    if exact is not None:
+    if exact is not None and _completion_entry_matches(exact, config):
         exact["cache_match"] = "exact"
         exact["cache_similarity"] = 1.0
         return exact
@@ -68,7 +69,7 @@ def get_cached_llm_response(model_id: str, prompt: str, config: Any) -> dict | N
     if not best_key or best_score < threshold:
         return None
     entry = _load_entry(best_key)
-    if entry is None:
+    if entry is None or not _completion_entry_matches(entry, config):
         return None
     entry["cache_match"] = "semantic"
     entry["cache_similarity"] = best_score
@@ -82,8 +83,9 @@ def store_llm_response(
     *,
     text: str,
     usage: dict[str, int] | None = None,
+    diagnostics: dict | None = None,
 ) -> None:
-    if not _cache_enabled() or not str(text or "").strip():
+    if not _cache_enabled() or not str(text or "").strip() or completion_is_incomplete(diagnostics):
         return
     features = _prompt_features(prompt)
     entry_key = _entry_key(model_id, prompt, config)
@@ -95,6 +97,9 @@ def store_llm_response(
         "features": features,
         "text": str(text or ""),
         "usage": usage or None,
+        "diagnostics": completion_diagnostics(diagnostics),
+        "response_sha256": _sha256_text(text),
+        "completion_contract": _completion_cache_contract(config),
         "created_at": time.time(),
     }
     try:
@@ -120,12 +125,38 @@ def _load_entry(cache_key: str) -> dict | None:
     text = str(cached.get("text") or "")
     if not text.strip():
         return None
+    response_hash = cached.get("response_sha256")
+    if response_hash is not None and response_hash != _sha256_text(text):
+        return None
+    if completion_is_incomplete(cached.get("diagnostics")):
+        return None
     usage = cached.get("usage")
     return {
         "text": text,
         "usage": usage if isinstance(usage, dict) else None,
         "model_id": str(cached.get("model_id") or ""),
+        "diagnostics": completion_diagnostics(cached.get("diagnostics")),
+        "response_sha256": response_hash,
+        "completion_contract": cached.get("completion_contract"),
     }
+
+
+def _completion_cache_contract(config):
+    """Target only trade-output requests; other response-cache identities stay stable."""
+    schema = getattr(config, "response_schema", None)
+    if callable(getattr(schema, "model_json_schema", None)):
+        schema = schema.model_json_schema()
+    properties = schema.get("properties", {}) if isinstance(schema, dict) else {}
+    if {"trade_direction", "core_catalyst"}.issubset(properties):
+        return "trade-completion:v1"
+    if "trade-source" in str(getattr(config, "system_instruction", "") or ""):
+        return "trade-completion:v1"
+    return None
+
+
+def _completion_entry_matches(entry, config):
+    required = _completion_cache_contract(config)
+    return not required or (entry.get("completion_contract") == required and bool(entry.get("response_sha256")))
 
 
 def _update_index(model_id: str, config: Any, entry_key: str, features: list[str]) -> None:
@@ -164,6 +195,9 @@ def _index_key(model_id: str, config: Any) -> str:
 
 def _config_fingerprint(config: Any) -> str:
     values: dict[str, Any] = {}
+    completion_contract = _completion_cache_contract(config)
+    if completion_contract:
+        values["completion_contract"] = completion_contract
     if config is not None:
         for field in _CONFIG_FIELDS:
             value = getattr(config, field, None)

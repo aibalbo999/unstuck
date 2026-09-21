@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from contextvars import copy_context
 
 import pandas as pd
 
@@ -68,9 +69,9 @@ def _run_named_fetches(fetchers: dict[str, tuple], max_workers: int = 4, include
             source = spec[4] if len(spec) > 4 else name
             provider = spec[5] if len(spec) > 5 else name
             if include_audit:
-                futures[executor.submit(audited_fetch, source, provider, func, args, {}, default)] = (name, default, warning, True)
+                futures[executor.submit(copy_context().run, audited_fetch, source, provider, func, args, {}, default)] = (name, default, warning, True)
             else:
-                futures[executor.submit(func, *args)] = (name, default, warning, False)
+                futures[executor.submit(copy_context().run, func, *args)] = (name, default, warning, False)
 
         for future in as_completed(futures):
             name, default, _warning, audited = futures[future]

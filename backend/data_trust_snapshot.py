@@ -177,6 +177,10 @@ def build_data_snapshot(
     from market_context_snapshot import snapshot_market_fields
 
     snapshot.update(snapshot_market_fields(snapshot["rerun_context"], data, context=context))
+    if "analysis_evidence" in context:
+        from report_analysis_evidence import validate_analysis_evidence
+
+        snapshot["analysis_evidence"] = validate_analysis_evidence(context["analysis_evidence"])
     if quality_metadata_refresh_provenance:
         snapshot["quality_metadata_refresh_provenance"] = sanitize_for_snapshot(
             quality_metadata_refresh_provenance

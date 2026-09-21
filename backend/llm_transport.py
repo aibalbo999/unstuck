@@ -23,36 +23,11 @@ from llm_congestion import provider_attempt_scope
 from llm_semantic_cache import get_cached_llm_response, store_llm_response
 from llm_evidence_request import is_evidence_request, frame_source_prompt
 from llm_usage import extract_usage
+from llm_response_text import response_text
 from llm_provider_routes import split_model_provider
-from llm_response_diagnostics import ResponseDiagnostics, attach_response_diagnostics
+from llm_response_diagnostics import ResponseDiagnostics, attach_response_diagnostics, response_diagnostics
+from llm_completion_provenance import completion_is_incomplete
 from llm_tool_rate_guard import closing_stream, generation_client
-
-
-def response_text(response) -> str:
-    """Extract text from a Google GenAI response without leaking object internals."""
-    if isinstance(response, TextLLMResponse):
-        return response.text
-
-    candidates = getattr(response, "candidates", None) or []
-    parts = []
-    saw_candidate_parts = False
-    for candidate in candidates:
-        content = getattr(candidate, "content", None)
-        for part in getattr(content, "parts", []) or []:
-            saw_candidate_parts = True
-            if getattr(part, "thought", False):
-                continue
-            part_text = getattr(part, "text", None)
-            if part_text:
-                parts.append(part_text)
-    if saw_candidate_parts:
-        return "\n".join(parts)
-
-    try:
-        text = getattr(response, "text", None)
-    except Exception:
-        text = None
-    return text or ""
 
 
 def _genai_http_options():
@@ -223,8 +198,11 @@ async def embed_content_async(api_key: str, model_id: str, contents, config):
 def _cache_generated_response(model_id: str, prompt: str, config, response):
     if is_evidence_request():
         return response
+    diagnostics = response_diagnostics(response)
+    if completion_is_incomplete(diagnostics):
+        return response  # A raw-response cache must not bypass the agent completion gate.
     text = response_text(response)
-    store_llm_response(model_id, prompt, config, text=text, usage=extract_usage(response))
+    store_llm_response(model_id, prompt, config, text=text, usage=extract_usage(response), diagnostics=diagnostics)
     return response
 
 

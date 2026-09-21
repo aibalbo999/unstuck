@@ -8,6 +8,7 @@ from typing import Awaitable, Callable, Optional
 
 from provider_sla import record_source_audit_entries
 from report_freshness_summary import safe_bool
+from provider_correlation import correlate_fetch, current_audit_correlation
 
 from .provider_registry import ProviderRegistry
 from .types import FetchRequest, FetchResult, ProviderResult
@@ -28,6 +29,7 @@ class StockDataService:
         self.registry = registry or ProviderRegistry()
         self._fetcher = fetcher
 
+    @correlate_fetch
     async def fetch_async(self, request: FetchRequest) -> FetchResult:
         started = time.time()
         normalized_request = FetchRequest.from_ticker(
@@ -46,6 +48,7 @@ class StockDataService:
         duration_ms = max(0, int(round((time.time() - started) * 1000)))
         return self._build_result(normalized_request, data or {}, duration_ms)
 
+    @correlate_fetch
     async def fetch_radar_async(self, request: FetchRequest, sources: tuple[str, ...]) -> FetchResult:
         if "full" in sources or self._fetcher is not None:
             return await self.fetch_async(request)
@@ -65,6 +68,12 @@ class StockDataService:
 
     def _build_result(self, request: FetchRequest, data: dict, duration_ms: int) -> FetchResult:
         audit_entries = data.get("source_audit", []) if isinstance(data.get("source_audit"), list) else []
+        # Unstamped/manual provider entries are current fetch-result aggregates,
+        # not proof that every retained source record was fetched by this job.
+        audit_entries = [dict(entry) if any(entry.get(key) for key in ("job_id", "fetch_id", "operation_id"))
+                         else {**current_audit_correlation(), **entry}
+                         for entry in audit_entries if isinstance(entry, dict)]
+        data["source_audit"] = audit_entries
         import sqlite3
         if request.options.record_provider_sla:
             with suppress(sqlite3.Error):

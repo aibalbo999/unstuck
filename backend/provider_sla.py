@@ -7,6 +7,7 @@ import time
 from pathlib import Path
 
 from api_usage_recorders import record_provider_audit_usage
+from provider_correlation import correlation_metadata
 from data_trust_constants import AUDIT_STATUS_DEGRADED_ENRICHMENT, AUDIT_STATUS_UNAVAILABLE
 from provider_sla_alert_policy import (
     SLA_CRITICAL_SUCCESS_RATE,
@@ -53,6 +54,8 @@ def record_source_audit_entries(entries: list[dict] | tuple[dict, ...]) -> None:
         message = str(entry.get("message") or "")[:240]
         rows.append((source, provider, status, duration_ms, record_count, message, now))
         usage_entries.append({
+            **correlation_metadata(entry),
+            "event_kind": str(entry.get("event_kind") or "aggregate"),
             "source": source,
             "provider": provider,
             "status": status,
@@ -63,8 +66,9 @@ def record_source_audit_entries(entries: list[dict] | tuple[dict, ...]) -> None:
     if not rows:
         return
     with _connect() as conn:
-        for source, provider, status, duration_ms, record_count, message, timestamp in rows:
-            conn.execute(
+        for values, usage_entry in zip(rows, usage_entries):
+            source, provider, status, duration_ms, record_count, message, timestamp = values
+            cursor = conn.execute(
                 """
                 INSERT INTO provider_sla_events (
                     source, provider, status, duration_ms, record_count, message, created_at
@@ -81,6 +85,7 @@ def record_source_audit_entries(entries: list[dict] | tuple[dict, ...]) -> None:
                     timestamp,
                 ),
             )
+            usage_entry["provider_sla_event_id"] = cursor.lastrowid
             conn.execute(
                 """
                 INSERT INTO provider_sla_stats (

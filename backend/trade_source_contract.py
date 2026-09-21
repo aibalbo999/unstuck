@@ -10,7 +10,8 @@ from short_term_market_data import build_short_term_market_context
 TEXT_FIELDS = ("trade_direction", "entry_zone", "target_price", "stop_loss",
                "support_level", "resistance_level", "core_catalyst", "risk_level")
 REF_FIELDS = ("support_source_refs", "resistance_source_refs", "catalyst_source_refs")
-CONTRACT_VERSION = "trade-sources:v1"
+CONTRACT_VERSION = "trade-sources:v2"
+SUPPORTED_VERSIONS = {"trade-sources:v1", CONTRACT_VERSION}
 # Price/volume observations cannot establish who traded or ownership changes.
 _INSTITUTIONAL_CATALYST = re.compile(r"外資|投信|自營商|法人(?!說明會)|大戶|持股|買超|賣超|籌碼|foreign\s+investor|institutional|ownership", re.I)
 
@@ -53,7 +54,8 @@ def missing_trade_fields(payload):
 
 def source_catalog(data):
     # Use the existing pure projection; no provider calls, invented events or prices.
-    value = build_short_term_market_context(data, compact=True)
+    from trade_catalog_evidence import add_catalog_observations
+    value = add_catalog_observations(build_short_term_market_context(data, compact=True), data)
     return {"short_term_market_context": value}
 
 
@@ -79,7 +81,9 @@ def source_block(data):
             "\n可引用路徑：" + json.dumps(allowed, ensure_ascii=False, separators=(",", ":")) +
             "\n【/trade-source】\n來源引用只使用以上完整區塊中實際存在且非空的 short_term_market_context 路徑；"
             "不得自行補造路徑。三組 source_refs 均須輸出。Long/Short 缺少支撐、壓力或催化證據時明示資料限制，"
-            "K 線與均線只能支持價格、成交量與技術條件，不能支持外資、法人、大戶買賣或持股主張；"
+            "K 線與均線只支持價格與技術條件；RSI、MACD、量能只能作技術催化，不能作價格支撐壓力。"
+            "法人主張須引用 institutional_evidence 中對應單位、統計主體、期間的完整record，不能以合計冒充外資；"
+            "recent_news 只支持逐字引用的新聞標題，請明示新聞報導並保留完整標題；出版日期不是未來事件日，不支持確定未來舉行的主張。未知或過期來源不可推定。"
             "core_catalyst 必須使用引用本身可支持的條件，其他未有對應來源的主張不可冒充催化證據。"
             "Neutral 必須說明觀望及重新評估條件；禁止為通過檢查強迫方向。")
     return text, catalog, fingerprint
@@ -123,11 +127,22 @@ def reference_is_evidence(catalog, ref, role):
     if ref.startswith("short_term_market_context.technical_indicators."):
         indicators = root.get("technical_indicators", {})
         field = ref.rsplit(".", 1)[-1]
-        if not re.fullmatch(r"(?:sma|ema)_\d+|atr_\d+|(?:high|low)_\d+d", field):
+        usable = (indicators.get("availability") in {"available", "partial"} and
+                  bool(indicators.get("source")) and bool(indicators.get("as_of")) and
+                  isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value))
+        if not usable:
             return False
-        return (indicators.get("availability") in {"available", "partial"} and
-                bool(indicators.get("source")) and bool(indicators.get("as_of")) and
-                isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value) and value > 0)
+        if re.fullmatch(r"(?:sma|ema)_\d+|atr_\d+|(?:high|low)_\d+d", field):
+            return value > 0
+        if role != "catalyst_source_refs":
+            return False
+        if field in {"macd", "macd_signal", "macd_histogram"}:
+            return True  # Signed and zero differences are real observations.
+        if field == "rsi_14":
+            return 0 <= value <= 100
+        if field == "volume_ratio_20":
+            return value >= 0
+        return field in {"volume_latest", "volume_sma_5", "volume_sma_20"} and value >= 0 and indicators.get("volume_unit") in {"shares", "lots"}
     if re.fullmatch(r"short_term_market_context.daily_market_data.bars\[\d+\](?:\.(?:high|low|close))?", ref):
         daily = root.get("daily_market_data", {})
         return (daily.get("availability") in {"available", "partial"} and bool(daily.get("source")) and
@@ -135,7 +150,24 @@ def reference_is_evidence(catalog, ref, role):
                 (isinstance(value, dict) and bool(value.get("date")) or
                  isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value) and value > 0))
     if role == "catalyst_source_refs" and re.fullmatch(r"short_term_market_context.event_calendar.events\[\d+\]", ref):
-        return isinstance(value, dict) and bool(value.get("date")) and bool(value.get("source")) and bool(value.get("label"))
+        calendar = root.get("event_calendar", {})
+        return (not {"event_source_failed", "event_source_date_future"}.intersection(calendar.get("reason_codes") or [])
+                and isinstance(value, dict) and bool(value.get("date")) and bool(value.get("source")) and bool(value.get("label")))
+    if role == "catalyst_source_refs" and re.fullmatch(r"short_term_market_context.institutional_evidence.records\[\d+\]", ref):
+        return (isinstance(value, dict) and value.get("unit") in {"shares", "thousand_shares"}
+                and bool(value.get("population")) and bool(value.get("window"))
+                and bool(value.get("observed_at")) and bool(value.get("provider"))
+                and isinstance(value.get("value"), (int, float)) and not isinstance(value.get("value"), bool)
+                and math.isfinite(value["value"]))
+    if role == "catalyst_source_refs" and re.fullmatch(r"short_term_market_context.ownership_evidence.records\[\d+\]", ref):
+        return (isinstance(value, dict) and value.get("unit") == "percent" and bool(value.get("threshold"))
+                and value.get("population") in {"major_holders", "retail_holders"}
+                and bool(value.get("observed_at")) and bool(value.get("provider"))
+                and isinstance(value.get("value"), (int, float)) and not isinstance(value.get("value"), bool)
+                and 0 <= value["value"] <= 100)
+    if role == "catalyst_source_refs" and re.fullmatch(r"short_term_market_context.recent_news.items\[\d+\]", ref):
+        return (isinstance(value, dict) and value.get("evidence_role") == "reported_news_not_scheduled_event"
+                and all(value.get(key) for key in ("title", "provider", "published_at", "url", "ticker")))
     return False
 
 
@@ -144,10 +176,11 @@ def bind_trade_payload(payload, context):
     result = dict(payload)
     manifest = context.get("_trade_source_manifest")
     reasons = []
-    bound = isinstance(manifest, dict) and manifest.get("version") == CONTRACT_VERSION
+    bound = isinstance(manifest, dict) and manifest.get("version") in SUPPORTED_VERSIONS
     for key in REF_FIELDS:
         refs = payload.get(key)
         if bound:
+            refs = refs if isinstance(refs, list) else []
             valid = [ref for ref in refs if reference_is_evidence(manifest.get("catalog", {}), ref, key)]
             if len(valid) != len(refs):
                 reasons.append("invalid_" + key)
@@ -158,10 +191,26 @@ def bind_trade_payload(payload, context):
             reasons.append("missing_" + key)
     if bound and not manifest.get("visible"):
         reasons.append("source_block_not_visible")
-    if bound and payload.get("trade_direction") in {"Long", "Short"} and _INSTITUTIONAL_CATALYST.search(payload.get("core_catalyst", "")):
-        # This bounded catalog has no institutional-flow/ownership records.
-        reasons.append("catalyst_evidence_scope_mismatch")
-        result["catalyst_source_refs"] = []
+    if bound and _INSTITUTIONAL_CATALYST.search(payload.get("core_catalyst", "")):
+        from institutional_evidence import institutional_evidence_issues
+        refs = result.get("catalyst_source_refs") or []
+        institutional_refs = [ref for ref in refs if ".institutional_evidence.records[" in ref]
+        issues = institutional_evidence_issues(payload.get("core_catalyst", ""), manifest.get("catalog", {}), allowed_paths=institutional_refs)
+        from trade_catalog_evidence import ownership_claim_supported, institutional_catalyst_has_numeric_claim
+        text = payload.get("core_catalyst", "")
+        ownership_refs = [ref for ref in refs if ".ownership_evidence.records[" in ref]
+        has_ownership = bool(re.search(r"大戶|散戶|持股|ownership", text, re.I))
+        has_flow = bool(re.search(r"外資|投信|自營商|法人(?!說明會)|買超|賣超|foreign|institutional", text, re.I))
+        ownership_ok = ownership_claim_supported(text, [resolve_reference(manifest.get("catalog", {}), ref) for ref in ownership_refs]) if has_ownership else True
+        if (has_flow and (not institutional_refs or issues or not institutional_catalyst_has_numeric_claim(text))) or not ownership_ok or (not has_flow and not has_ownership):
+            reasons.append("catalyst_evidence_scope_mismatch")
+            result["catalyst_source_refs"] = []
+    if bound:
+        from trade_catalog_evidence import news_catalyst_supported
+        news_refs = [ref for ref in result.get("catalyst_source_refs", []) if ".recent_news.items[" in ref]
+        if news_refs and not news_catalyst_supported(payload.get("core_catalyst", ""), [resolve_reference(manifest.get("catalog", {}), ref) for ref in news_refs]):
+            reasons.append("news_claim_scope_mismatch")
+            result["catalyst_source_refs"] = []
     if payload.get("trade_direction") in {"Long", "Short"} and any(
         payload.get(key, "").strip().upper() in {"N/A", "NA", "資料不足"} for key in ("entry_zone", "target_price", "stop_loss")
     ):

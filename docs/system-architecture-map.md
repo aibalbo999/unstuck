@@ -1,5 +1,7 @@
 # 系統架構關聯圖
 
+來源證據 v2、完成憑據與刷新保存的入口是 `trade_catalog_evidence.py`、`institutional_evidence.py`、`llm_completion_provenance.py`、`report_analysis_evidence.py`；來源觀測日期、上櫃融資券及工作歸屬分別由 `source_observation_freshness.py`、`tpex_credit_source.py`、`provider_correlation.py` 處理。契約及驗證限制見 [來源證據最佳化](source-evidence-optimization-2026-09-21.md)。
+
 這份文件是維護用的 Runtime Truth Map。`docs/architecture.md` 描述系統設計；本文件描述日常查問題時應該沿著哪條路找 Module、資料庫和輸出檔，避免把 legacy 檔案或相似路徑當成目前系統真相。
 
 模型路由觀測的 fallback 是唯讀 projection：`model_route_observability.py` 以 shared `safe_bool` 解讀 `observability_unavailable`，legacy `"false"` 不得升格成 unavailable；這不會改寫 telemetry、provider、snapshot、artifact、queue 或 rerun state。

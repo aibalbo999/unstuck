@@ -119,7 +119,7 @@ def test_fetch_tdcc_shareholder_distribution_uses_latest_date_when_date_missing(
 
     assert result["as_of_date"] == "20260618"
     assert result["major_holders_gt_1000_lots_pct"] == pytest.approx(45.0)
-    assert result["retail_holders_lt_50_lots_pct"] == pytest.approx(0.30)
+    assert result["retail_holders_lt_50_lots_pct"] is None  # Incomplete levels 1..8.
 
 
 def test_fetch_tdcc_shareholder_distribution_returns_error_payload_on_missing_rows():
@@ -180,7 +180,9 @@ def test_fetch_twse_margin_short_sales_uses_legacy_borrowed_short_endpoint():
 
     result = fetch_twse_margin_short_sales("2308", session=RoutedSession())
 
-    assert result["as_of_date"] == "20260618"
+    assert result["as_of_date"] is None
+    assert result["margin_as_of_date"] is None
+    assert result["borrowed_short_as_of_date"] == "2026-06-18"
     assert result["borrowed_short_sale_today"] == 20000
     assert result["borrowed_short_sale_balance"] == 29000
 

@@ -52,7 +52,8 @@ def fresh_audited_payload(
         "fetch_date": "2026年06月07日",
         "price_history": {"2026-06-05": 121.0, "2026-06-06": 123.45},
         "recent_catalysts": [{"title": "Fake provider catalyst"}],
-        "institutional_trading": {"trend": "neutral", "total_net_buy_thousand_shares": 0},
+        "institutional_trading": {"trend": "neutral", "total_net_buy_thousand_shares": 0,
+                                  "source": "fixture institutional", "latest_date": "2026-06-05"},
         "pe_river_chart": {"source": provider, "series": []},
         "source_freshness": {
             "market_data": {"stale": False, "fetched_at": FRESH_AT, "fetched_at_epoch": FRESH_AT_EPOCH},

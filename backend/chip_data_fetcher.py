@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import io
+import math
 import re
 import ssl
 from datetime import date, datetime
@@ -11,6 +12,7 @@ from typing import Any
 import pandas as pd
 
 from external_http_client import sync_get
+from source_observation_freshness import parse_observation_date
 
 TDCC_SHAREHOLDER_DISTRIBUTION_CSV_URL = "https://opendata.tdcc.com.tw/getOD.ashx?id=1-5"
 TWSE_MARGIN_BALANCE_URL = "https://openapi.twse.com.tw/v1/exchangeReport/MI_MARGN"
@@ -70,15 +72,16 @@ def fetch_tdcc_shareholder_distribution(
         rows = rows.copy()
         rows["持股分級"] = pd.to_numeric(rows["持股分級"], errors="coerce").astype("Int64")
         rows["占集保庫存數比例%"] = rows["占集保庫存數比例%"].map(_parse_float)
-        major_pct = rows.loc[rows["持股分級"].isin(MAJOR_GT_1000_LOTS_LEVELS), "占集保庫存數比例%"].sum()
-        retail_pct = rows.loc[rows["持股分級"].isin(RETAIL_LT_50_LOTS_LEVELS), "占集保庫存數比例%"].sum()
+        major_pct = _distribution_percent(rows, MAJOR_GT_1000_LOTS_LEVELS)
+        retail_pct = _distribution_percent(rows, RETAIL_LT_50_LOTS_LEVELS)
 
         return {
             "status": "success",
             "ticker": code,
             "as_of_date": str(target_date or rows["資料日期"].astype(str).max()),
-            "major_holders_gt_1000_lots_pct": round(float(major_pct), 4),
-            "retail_holders_lt_50_lots_pct": round(float(retail_pct), 4),
+            "major_holders_gt_1000_lots_pct": major_pct,
+            "retail_holders_lt_50_lots_pct": retail_pct,
+            "availability": "partial" if major_pct is None or retail_pct is None else "available",
             "row_count": int(len(rows)),
             "source": "TDCC OpenData",
             "source_url": TDCC_SHAREHOLDER_DISTRIBUTION_CSV_URL,
@@ -95,6 +98,9 @@ def fetch_twse_margin_short_sales(
 ) -> dict[str, Any]:
     """Fetch latest TWSE margin/short and borrowed-short balances for one listed ticker."""
     code = _normalize_taiwan_stock_code(ticker)
+    if str(ticker or "").strip().upper().endswith(".TWO"):
+        from tpex_credit_source import fetch_tpex_margin
+        return fetch_tpex_margin(code, http_get=_http_get, parse_int=_parse_int, session=session, timeout=timeout)
     try:
         margin_response = _http_get(
             TWSE_MARGIN_BALANCE_URL,
@@ -105,7 +111,12 @@ def fetch_twse_margin_short_sales(
         margin_rows = margin_response.json()
         margin_record = _find_twse_margin_record(margin_rows, code)
         if not margin_record:
-            return _unavailable(f"TWSE OpenAPI 找不到 {code} 的融資融券資料。", ticker=code, source="TWSE OpenAPI MI_MARGN")
+            return {**_unavailable(f"TWSE OpenAPI 找不到 {code} 的融資融券資料。", ticker=code, source="TWSE OpenAPI MI_MARGN"),
+                    "reason_code": "record_not_found"}
+
+        margin_day = parse_observation_date(next((margin_record.get(key) for key in
+            ("日期", "資料日期", "交易日期", "Date", "date") if margin_record.get(key)), None))
+        margin_date = margin_day.isoformat() if margin_day else None
 
         result = {
             "status": "success",
@@ -124,11 +135,18 @@ def fetch_twse_margin_short_sales(
             "offset": _parse_int(margin_record.get("資券互抵")),
             "source": "TWSE OpenAPI MI_MARGN",
             "source_url": TWSE_MARGIN_BALANCE_URL,
+            # This endpoint often omits the observation date. Keep it unknown;
+            # the separately fetched borrowed-short date cannot date margin rows.
+            "as_of_date": margin_date,
+            "margin_as_of_date": margin_date,
+            "margin_date_status": "reported" if margin_date else "unknown",
+            "margin_unit": "lots",
         }
         result.update(_fetch_borrowed_short_sales(session, code, timeout=timeout))
         return result
     except Exception as exc:
-        return _unavailable(f"TWSE 融資融券資料抓取失敗：{exc}", ticker=code, source="TWSE OpenAPI MI_MARGN")
+        return {**_unavailable(f"TWSE 融資融券資料抓取失敗：{exc}", ticker=code, source="TWSE OpenAPI MI_MARGN"),
+                "reason_code": "fetch_failed"}
 
 
 def _fetch_borrowed_short_sales(session: Any | None, code: str, *, timeout: float) -> dict[str, Any]:
@@ -141,12 +159,16 @@ def _fetch_borrowed_short_sales(session: Any | None, code: str, *, timeout: floa
         )
         payload = response.json()
         if not isinstance(payload, dict):
-            return {}
+            return {"borrowed_short_status": "unavailable", "borrowed_short_reason_code": "invalid_payload"}
         for row in payload.get("data") or []:
             if not row or str(row[0]).strip() != code:
                 continue
+            borrowed_day = parse_observation_date(payload.get("date"))
             return {
-                "as_of_date": str(payload.get("date") or ""),
+                "borrowed_short_status": "success",
+                "borrowed_short_as_of_date": borrowed_day.isoformat() if borrowed_day else None,
+                "borrowed_short_date_status": "reported" if borrowed_day else "unknown",
+                "borrowed_short_unit": "shares",
                 "borrowed_short_sale_today": _parse_int(_at(row, 9)),
                 "borrowed_short_return_today": _parse_int(_at(row, 10)),
                 "borrowed_short_sale_balance": _parse_int(_at(row, 12)),
@@ -154,8 +176,8 @@ def _fetch_borrowed_short_sales(session: Any | None, code: str, *, timeout: floa
                 "borrowed_short_source_url": TWSE_BORROWED_SHORT_URL,
             }
     except Exception:
-        return {}
-    return {}
+        return {"borrowed_short_status": "unavailable", "borrowed_short_reason_code": "fetch_failed"}
+    return {"borrowed_short_status": "unavailable", "borrowed_short_reason_code": "record_not_found"}
 
 
 def _http_get(
@@ -234,16 +256,25 @@ def _parse_int(value: Any) -> int | None:
         return None
 
 
-def _parse_float(value: Any) -> float:
+def _distribution_percent(rows: pd.DataFrame, levels: set[int]) -> float | None:
+    values = rows.loc[rows["持股分級"].isin(levels), "占集保庫存數比例%"]
+    present = rows.loc[rows["持股分級"].isin(levels), "持股分級"]
+    if set(present.dropna()) != levels or present.duplicated().any() or values.empty or values.isna().any():
+        return None
+    return round(float(values.sum()), 4)
+
+
+def _parse_float(value: Any) -> float | None:
     if value in (None, ""):
-        return 0.0
+        return None
     text = str(value).strip().replace(",", "")
     if text in {"", "-", "--"}:
-        return 0.0
+        return None
     try:
-        return float(text)
+        number = float(text)
+        return number if math.isfinite(number) else None
     except ValueError:
-        return 0.0
+        return None
 
 
 def _at(row: list[Any], index: int) -> Any:

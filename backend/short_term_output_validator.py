@@ -7,6 +7,7 @@ import re
 
 from financial_claim_context import is_actual_claim
 from output_sanitizer import strip_generated_audit_sections
+from institutional_evidence import institutional_evidence_issues
 
 _COUNT = r"(?P<number>\d[\d,]*(?:\.\d+)?)(?P<scale>萬|千)?"
 _VOLUME = re.compile(_COUNT + r"(?P<unit>張|股)")
@@ -105,8 +106,9 @@ def _credit_issues(text, data):
         expected = _number(credit.get(field))
         if expected is None:
             issues.append(f"融資券欄位紅線：{match['label']} 對應 twse_margin_short_sales.{field} 為 null 或缺值，必須標示資料不足，不得借用其他融資／融券欄位或視為 0。")
-        elif match["unit"] and credit.get("source") != "TWSE OpenAPI MI_MARGN":
-            issues.append(f"融資券單位紅線：{match['label']} 來源未確認為 TWSE MI_MARGN，單位未確認，不得自行假定張數或換算股數。")
+        elif match["unit"] and not (credit.get("source") == "TWSE OpenAPI MI_MARGN" or
+                                      credit.get("source") == "TPEx OpenAPI tpex_mainboard_margin_balance" and credit.get("margin_unit") == "thousand_shares"):
+            issues.append(f"融資券單位紅線：{match['label']} 來源未確認為 TWSE MI_MARGN 或已驗證的 TPEx 融資券單位，單位未確認，不得自行假定張數或換算股數。")
         elif not _close(_count(match), expected * (1000 if match["unit"] == "股" else 1)):
             issues.append(f"融資券欄位紅線：{match['label']} 必須使用 twse_margin_short_sales.{field}={expected:g}，不可混用融資與融券數值。")
     return issues
@@ -120,4 +122,5 @@ def short_term_evidence_issues(agent_num, text, data):
     issues = _volume_issues(text, data) if agent_num in {22, 24} else []
     if agent_num in {23, 24}:
         issues.extend(_credit_issues(text, data))
+        issues.extend(institutional_evidence_issues(text, data))
     return list(dict.fromkeys(issues))

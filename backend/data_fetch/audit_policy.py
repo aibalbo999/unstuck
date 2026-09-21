@@ -140,7 +140,7 @@ def _append_full_fetch_audit(
             finished_at_epoch=fetched_at_epoch,
             record_count=source_record_count(source, data),
             cache_hit=False,
-            stale=False,
+            stale=_source_freshness_stale(data, source),
             error_kind="missing_data" if fallback_status == AUDIT_STATUS_ERROR and not ok else "",
             message="本次重新抓取完成。" if ok else fallback_message,
         )

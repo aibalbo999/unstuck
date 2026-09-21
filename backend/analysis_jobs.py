@@ -30,6 +30,7 @@ from report_publication_gate import ReportPublicationBlockedError, publication_b
 from quant_engine import QuantEngine
 from runtime_dependencies import create_report_storage_for_output_dir, runtime_settings_for_output_dir
 from temporal_memory_service import build_temporal_memory
+from provider_correlation import correlate_job
 
 
 STOCK_DATA_SERVICE = StockDataService()
@@ -46,6 +47,7 @@ def _raise_if_cancelled(job_id: str) -> None:
         raise AnalysisJobCancelled("分析任務已取消。")
 
 
+@correlate_job
 async def run_stock_analysis_job_async(
     job_id: str,
     ticker: str,

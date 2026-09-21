@@ -20,6 +20,7 @@ from report_index import is_safe_report_filename, upsert_report_metadata
 from report_pipeline_identity import resolve_report_pipeline_id
 from report_persistence import DATA_SNAPSHOT_CONTENT_TYPE
 from report_quality_refresh_provenance import build_quality_metadata_refresh_provenance
+from report_analysis_evidence import preserve_analysis_evidence
 from mapping_fields import safe_mapping_dict
 from storage.report_storage import ReportStorage
 
@@ -86,6 +87,7 @@ async def refresh_report_data_snapshot(
         "company_name": company_display_name(refreshed_data, previous_snapshot.get("company_name") or ticker),
         "pipeline_id": pipeline_id,
         "data": refreshed_data,
+        "analysis_evidence": preserve_analysis_evidence(previous_snapshot),
         "evidence_matrix": previous_snapshot.get("evidence_matrix", []),
         "rerun_context": previous_snapshot.get("rerun_context", {}),
         "conclusion_generated_at": previous_snapshot.get("conclusion_generated_at") or previous_snapshot.get("generated_at"),

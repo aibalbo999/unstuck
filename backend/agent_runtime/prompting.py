@@ -217,7 +217,9 @@ def build_prompt(agent_num: int, data: StockData, context: AnalysisContext) -> s
 
     structured_instruction = build_structured_output_instruction(agent_num)
     trade_block, trade_catalog, trade_fingerprint = source_block(data) if agent_num == 24 else ("", {}, "")
+    from trade_catalog_evidence import INSTITUTIONAL_PROMPT_RULE
     prompt_parts = [
+        INSTITUTIONAL_PROMPT_RULE if agent_num in {23, 24} else "",
         analysis_prompt,
         "\n".join(block["text"] for block in source_blocks),
         forensic_warning,   # v2 Agent 14 財務排雷品質警示

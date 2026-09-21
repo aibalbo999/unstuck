@@ -6,6 +6,7 @@ from data_trust import build_data_snapshot
 from data_trust_snapshot import set_snapshot_integrity
 from evidence_exit_gate import evaluate_report_evidence
 from report_analysis_completeness import assess_report_analysis_completeness
+from report_analysis_evidence import capture_analysis_evidence
 
 from .conformance import evaluate_report_conformance
 from .content_credibility import evaluate_content_credibility
@@ -89,6 +90,9 @@ class ReportRenderer:
         html, markdown, report_lint = _lint_or_repair(html, markdown)
         snapshot_context = dict(final_context)
         snapshot_context["report_lint"] = report_lint
+        snapshot_context["analysis_evidence"] = capture_analysis_evidence(
+            snapshot_context, generated_at=request.generated_at or snapshot.get("generated_at", ""),
+        )
         snapshot = build_data_snapshot(
             snapshot_context,
             pipeline_id=pipeline_id,

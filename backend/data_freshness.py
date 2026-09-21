@@ -19,6 +19,7 @@ from data_freshness_policy import (
 )
 from data_trust_audit import source_record_count
 from report_freshness_summary import safe_bool
+from source_observation_freshness import observation_recency
 
 FINANCIAL_DATA_MARKET_CACHE_SECONDS = _DEFAULT_FINANCIAL_DATA_MARKET_CACHE_SECONDS
 FINANCIAL_DATA_OFFHOURS_CACHE_SECONDS = _DEFAULT_FINANCIAL_DATA_OFFHOURS_CACHE_SECONDS
@@ -87,6 +88,7 @@ def build_source_freshness_entry(
     cache_hit: bool,
     now_epoch: Optional[float] = None,
     market_session: Optional[bool] = None,
+    source_data: Optional[dict] = None,
 ) -> dict:
     now_epoch = float(now_epoch or time_module.time())
     max_age_seconds = source_max_age_seconds(source, ticker, market_session=market_session)
@@ -100,6 +102,7 @@ def build_source_freshness_entry(
         "max_age_seconds": max_age_seconds,
         "age_seconds": age_seconds,
         "is_fresh": is_fresh,
+        "fetch_is_fresh": is_fresh,
         "stale": not is_fresh,
         "fetched_at_epoch": fetched_at_epoch,
         "fetched_at": datetime.fromtimestamp(fetched_at_epoch, timezone.utc).isoformat()
@@ -110,6 +113,11 @@ def build_source_freshness_entry(
         policy = freshness_policy(ticker, market_session=market_session)
         entry["market_session"] = policy["market_session"]
         entry["policy"] = policy["policy"]
+    if source == "institutional_trading" and isinstance(source_data, dict) and source_data:
+        entry.update(observation_recency(source_data.get("latest_date"), ticker=ticker,
+                                         now_epoch=now_epoch, max_age_days=7))
+        entry["is_fresh"] = is_fresh and entry["observation_status"] == "recent"
+        entry["stale"] = not entry["is_fresh"]
     return entry
 
 
@@ -129,6 +137,7 @@ def build_source_freshness(
             cache_hit=cache_hit,
             now_epoch=now_epoch,
             market_session=market_session,
+            source_data=data.get(source),
         )
         for source in SOURCE_FRESHNESS_SOURCES
     }
@@ -151,6 +160,7 @@ def source_is_stale(
         cache_hit=safe_bool(data.get("_cache_hit")),
         now_epoch=now_epoch,
         market_session=market_session,
+        source_data=data.get(source),
     )
     return bool(entry["stale"])
 
@@ -173,6 +183,7 @@ def mark_sources_fetched(
             cache_hit=cache_hit,
             now_epoch=fetched_at_epoch,
             market_session=market_session,
+            source_data=data.get(source),
         )
     data["source_freshness"] = source_freshness
     return data

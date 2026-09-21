@@ -25,7 +25,8 @@ class TextLLMResponse:
     def from_cache(cls, cached: dict) -> TextLLMResponse:
         """Preserve the stored model and usage without claiming a provider call."""
         return cls(str(cached.get("text") or ""), cached.get("usage"),
-                   {"cache_hit": True, "model_id": cached.get("model_id")})
+                   {**(cached.get("diagnostics") if isinstance(cached.get("diagnostics"), dict) else {}),
+                    "cache_hit": True, "model_id": cached.get("model_id")})
 
 
 def generate_openai_content(api_key: str, model_id: str, prompt: str, config) -> TextLLMResponse:

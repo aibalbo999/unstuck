@@ -18,6 +18,7 @@ from tenacity import (
 )
 
 from provider_circuit_cache import load_persisted_circuit, persist_circuit_state
+from provider_correlation import provider_attempt
 from provider_throttle import (
     ProviderRateLimitOpenError,
     clear_provider_throttles,
@@ -243,7 +244,8 @@ def call_provider_with_resilience(provider: str, func: Callable, args: tuple = (
             reraise=True,
         ):
             with attempt:
-                result = func(*args, **(kwargs or {}))
+                with provider_attempt(provider, attempt.retry_state.attempt_number):
+                    result = func(*args, **(kwargs or {}))
                 _record_provider_success(provider)
                 return result
     except Exception as exc:
@@ -273,7 +275,8 @@ async def call_provider_with_resilience_async(provider: str, func_or_awaitable, 
             reraise=True,
         ):
             with attempt:
-                result = await invoke()
+                with provider_attempt(provider, attempt.retry_state.attempt_number):
+                    result = await invoke()
                 _record_provider_success(provider)
                 return result
     except Exception as exc:

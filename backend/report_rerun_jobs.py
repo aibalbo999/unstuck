@@ -23,6 +23,7 @@ import report_rerun_service
 from reporting import ReportRenderer
 from runtime_dependencies import create_report_storage_for_output_dir
 from storage.report_storage import ReportStorage
+from provider_correlation import correlate_job
 
 
 PIPELINE_RUNNER = AnalysisPipelineRunner()
@@ -122,6 +123,7 @@ def _append_progress_event(job_id: str, filename: str, scope: str, raw_event: An
     append_event(job_id, event)
 
 
+@correlate_job
 async def run_report_rerun_job_async(
     job_id: str,
     filename: str,

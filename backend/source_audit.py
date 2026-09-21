@@ -5,6 +5,7 @@ from __future__ import annotations
 import inspect
 import time
 from typing import Any, Callable, Optional
+from provider_correlation import correlate_source
 
 from data_trust import (
     AUDIT_STATUS_ERROR,
@@ -38,6 +39,7 @@ def record_count_from_value(value: Any) -> int:
     return 1
 
 
+@correlate_source
 def audited_fetch(
     source: str,
     provider: str,
@@ -116,6 +118,7 @@ def audited_fetch(
     }
 
 
+@correlate_source
 async def audited_fetch_async(
     source: str,
     provider: str,

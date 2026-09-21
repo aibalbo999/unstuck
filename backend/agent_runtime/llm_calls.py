@@ -13,7 +13,7 @@ from config import LLM_AGENT_CALL_TIMEOUT_SECONDS
 from llm_client import KeyRotator, estimate_text_tokens
 from llm_congestion import provider_attempt_scope
 from llm_key_admission import propagate_admission_cancel
-from llm_response_diagnostics import response_kind
+from llm_response_diagnostics import response_kind, response_diagnostics
 from llm_tool_rate_guard import tool_request_scope
 from runtime_events import (
     emit_context_error,
@@ -100,7 +100,7 @@ def _run_agent_once(
             with tool_request_scope(rotator, api_key, model_id, **budget):
                 response = _generate_content(api_key, model_id, agent_num, prompt)
         _record_llm_token_usage(context, agent_num, response)
-        result = process_agent_response(agent_num, _response_text(response), context, model_id=model_id)
+        result = process_agent_response(agent_num, _response_text(response), context, model_id=model_id, completion_diagnostics=response_diagnostics(response))
         _validate_agent_result(result)
     except Exception as exc:
         propagate_admission_cancel(exc)
@@ -206,7 +206,7 @@ async def _run_agent_once_async(
                         timeout_seconds=timeout_seconds,
                     )
         _record_llm_token_usage(context, agent_num, response)
-        result = process_agent_response(agent_num, _response_text(response), context, model_id=model_id)
+        result = process_agent_response(agent_num, _response_text(response), context, model_id=model_id, completion_diagnostics=response_diagnostics(response))
         _validate_agent_result(result)
     except (Exception, asyncio.CancelledError) as exc:
         propagate_admission_cancel(exc)

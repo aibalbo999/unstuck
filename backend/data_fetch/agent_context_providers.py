@@ -44,7 +44,7 @@ class MacroIndicatorsProvider(DataProvider):
 
 
 class ChipDataProvider(DataProvider):
-    name = "TDCC/TWSE chip data"
+    name = "TDCC/TWSE/TPEx chip data"
     source = "chip_data"
     markets = {"tw"}
     cost_tier = "free"
@@ -76,7 +76,7 @@ class ChipDataProvider(DataProvider):
                 "record_count": successful,
                 "cache_hit": False,
                 "stale": False,
-                "message": "TDCC/TWSE 籌碼資料已回傳。" if successful else "TDCC/TWSE 籌碼資料暫無可用結果。",
+                "message": "TDCC/TWSE/TPEx 籌碼資料已回傳。" if successful else "TDCC/TWSE/TPEx 籌碼資料暫無可用結果。",
             },
         )
 

@@ -9,7 +9,7 @@ from typing import Any
 from pydantic import BaseModel
 
 
-INTERNAL_PROMPT_KEYS = frozenset({"rag_index", "embedding", "embeddings", "vector", "vectors"})
+INTERNAL_PROMPT_KEYS = frozenset({"rag_index", "embedding", "embeddings", "vector", "vectors", "analysis_input_evidence"})
 
 
 def is_internal_prompt_key(key: Any) -> bool:

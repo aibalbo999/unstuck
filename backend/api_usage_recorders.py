@@ -6,6 +6,7 @@ from pathlib import Path
 
 from api_usage_store import record_api_usage
 from llm_daily_usage import LOCAL_BLOCK_KINDS
+from provider_correlation import correlation_metadata
 
 
 def record_runtime_event_usage(
@@ -112,6 +113,8 @@ def record_provider_audit_usage(
         status=status,
         units=units,
         metadata={
+            **correlation_metadata(entry),
+            "units_basis": "source_audit_entry_not_http_request_count",
             "duration_ms": entry.get("duration_ms"),
             "record_count": entry.get("record_count"),
             "message": entry.get("message"),

@@ -1,0 +1,22 @@
+# 來源證據、完成狀態與刷新保存
+
+來源不足包含不同原因：沒有取得資料、有資料但未進入可引用目錄、引用的單位或主體錯誤、輸出截斷，以及刷新後無法確認原分析輸入。本次沿用原品質閘門，分別處理這些原因。
+
+## 已實作的契約
+
+- `trade_source_contract.py` 的 `trade-sources:v2` 目錄增加法人、持股、RSI、MACD、量比及有日期與連結的新聞。只有適合的價格資料可作進出場價位依據；非價格數值不能成為價格來源。
+- `institutional_evidence.py` 與 `trade_catalog_evidence.py` 將值、單位、主體、期間、觀測日及來源綁在一起。法人合計不能代替外資，千股不能直接寫成股，持股比例不能跨門檻或日期借用。單點資料不證明連續趨勢。新聞採逐字標題引用，不把已發生新聞當成未來事件排程。這是有界契約，不是全面自然語言事實驗證。
+- `llm_completion_provenance.py` 與 `structured_output_runtime.py` 保存綁定原回應及本機清理結果雜湊的完成憑據。已知 `MAX_TOKENS`、其他不完整結束或未完成串流，不因重新解析、草稿恢復、語意快取而升格為完整。Agent 23/24 使用新 step cache 身分；Agent 24 語意快取另有完成契約。
+- `report_analysis_evidence.py` 在分析前凍結輸入證據，隨既有 checkpoint 保存，輸出時另記原始量化資料、manifest 與必要的 render 量化資料。刷新不覆蓋原輸入，也不以舊輸入解除 `needs_rerun`。上限 512 KiB，超量明示省略並保留雜湊；歷史無法確認的輸入保持未知。雜湊不是供應商真實性的簽章。
+- `source_observation_freshness.py` 將抓取時間和資料觀測日分開。法人資料使用七個日曆日的保守檢查，不能宣稱已核對最新交易日；缺日期、未來日期和過期資料不當新鮮。TDCC 缺少持股級距不補零。
+- `.TWO` 融資券改走 [TPEx 官方 OpenAPI](https://www.tpex.org.tw/openapi/)，使用 `tpex_mainboard_margin_balance`，依官方欄位與 EDIS S23 的仟股單位解析。借券不在此端點，維持 unavailable；上市股票沿用既有 TWSE 來源。無匹配、重複標的、連線失敗不當成零。
+- 事件日曆只有在來源成功且涵蓋明確區間時，才可表達該區間沒有事件；來源失敗、日期不明或未來 as-of 不等於沒有事件。此狀態不代表全市場沒有任何事件。
+- `provider_correlation.py` 讓新工作經 job/fetch/operation/attempt 身分關聯 source audit 與 usage，usage 的既有 SLA event ID 可精確連接 SLA 紀錄。實際 callback 嘗試與 aggregate 列分開；不把 callback 次數當 HTTP 請求次數，也不補造歷史工作歸屬。取消、執行緒與並行工作各自保留身分。
+
+## 驗證與正式修復邊界
+
+隔離測試涵蓋上述契約、持久 checkpoint、快取、刷新、來源與品質閘門；歷史離線回放不呼叫模型或改寫 artifact。正式修復使用既有完整重跑 API，依原 quota、fallback 和 deferred retry 規則執行。已排程不等於完成，服務 ready 也不證明模型或品質通過。
+
+本次稽核對 3105 模式 B 的補充：既有規則正確排除「等待進場條件」，不能將它認定為零部位仍下買單；該案例仍有獨立 DCF 來源問題，須依實際品質結果处理。
+
+詳細離線與部署證據存於本機 `stock-source-optimization-20260921.8ayim7zj`，各階段結果以該次實際 revision、測試紀錄及新報告為準。

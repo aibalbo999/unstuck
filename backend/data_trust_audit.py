@@ -110,7 +110,9 @@ def build_source_audit_entry(
     fallback_finished_at_epoch = finished_at_epoch if iso_from_epoch(finished_at_epoch) is not None else time.time()
     duration_finished_at_epoch = fallback_finished_at_epoch if raw_finished_at_epoch is None else raw_finished_at_epoch
     fetched_at_value = _safe_text(fetched_at).strip() or iso_from_epoch(fetched_at_epoch) or iso_from_epoch(fallback_finished_at_epoch)
+    from provider_correlation import current_audit_correlation
     return {
+        **current_audit_correlation(),
         "source": _safe_text(source).strip() or "unknown",
         "provider": _safe_text(provider).strip(),
         "status": normalized_status,

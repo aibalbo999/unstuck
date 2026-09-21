@@ -204,7 +204,7 @@ def _optional_provider_label(source: str) -> str:
     if source == "macro_indicators":
         return "FRED macro indicators"
     if source == "chip_data":
-        return "TDCC/TWSE chip data"
+        return "TDCC/TWSE/TPEx chip data"
     if source == "alternative_data":
         return "Alternative data providers"
     if source == "social_sentiment":

@@ -27,4 +27,7 @@ def freeze_analysis_inputs(data: dict[str, Any], *, cutoff: str | None = None) -
         "analysis_input_hash": hashlib.sha256(encoded).hexdigest(),
     }
     data.update(receipt)
+    from report_analysis_evidence import freeze_input_evidence
+
+    data["_analysis_input_evidence"] = freeze_input_evidence(data)
     return receipt

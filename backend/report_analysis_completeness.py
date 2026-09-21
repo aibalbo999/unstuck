@@ -43,7 +43,11 @@ def assess_report_analysis_completeness(payload) -> dict:
     status, basis = 'quality_warning', 'unconfirmed'
     catalyst = safe_text(setup.get('core_catalyst')).strip()
     if pipeline == 'v4':
-        if source_status == 'degraded':
+        completion = safe_mapping_dict(assessment.get('output_completion')) or {}
+        if completion.get('status') == 'incomplete':
+            status, basis = 'degraded', 'output_completion'
+            reason_codes.append('output_incomplete')
+        elif source_status == 'degraded':
             status, basis = 'degraded', 'source_assessment'
         elif catalyst.startswith(('來源不足，原方向不可執行', '資料不足，原方向不可執行')):
             status, basis = 'degraded', 'legacy_system_prefix'
