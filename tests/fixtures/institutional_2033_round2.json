@@ -1,0 +1,73 @@
+{
+  "provenance": "round2 2033 checkpoint source 2026-09-21; raw candidates preserved",
+  "data": {
+    "ticker": "2033.TW",
+    "institutional_trading": {
+      "source": "FinMind TaiwanStockInstitutionalInvestorsBuySell",
+      "lookback_trading_days": 30,
+      "latest_date": "2026-09-21",
+      "net_buy_shares_by_category": {
+        "dealer": 70668,
+        "foreign": 1528577,
+        "investment_trust": 0
+      },
+      "net_buy_thousand_shares_by_category": {
+        "dealer": 70.67,
+        "foreign": 1528.58,
+        "investment_trust": 0.0
+      },
+      "total_net_buy_shares": 1599245,
+      "total_net_buy_thousand_shares": 1599.24,
+      "last_5_trading_days_net_buy_thousand_shares": 1576.69,
+      "trend": "accumulation",
+      "daily_total_net_buy_last_10": [
+        {
+          "date": "2026-09-08",
+          "net_buy_thousand_shares": -29.46
+        },
+        {
+          "date": "2026-09-09",
+          "net_buy_thousand_shares": 542.56
+        },
+        {
+          "date": "2026-09-10",
+          "net_buy_thousand_shares": 233.3
+        },
+        {
+          "date": "2026-09-11",
+          "net_buy_thousand_shares": -293.47
+        },
+        {
+          "date": "2026-09-14",
+          "net_buy_thousand_shares": -280.05
+        },
+        {
+          "date": "2026-09-15",
+          "net_buy_thousand_shares": -64.98
+        },
+        {
+          "date": "2026-09-16",
+          "net_buy_thousand_shares": 344.96
+        },
+        {
+          "date": "2026-09-17",
+          "net_buy_thousand_shares": 309.94
+        },
+        {
+          "date": "2026-09-18",
+          "net_buy_thousand_shares": 965.04
+        },
+        {
+          "date": "2026-09-21",
+          "net_buy_thousand_shares": 21.74
+        }
+      ]
+    }
+  },
+  "original_responses": [
+    "{\n  \"as_of_date\": \"2026-09-21\",\n  \"confidence\": \"high\",\n  \"evidence_items\": [\n    {\n      \"finding\": \"外資於近 5 個交易日呈現極端集中買超，累計買超達 1,576.69 千股，佔近 30 日總買超量之 98% 以上。\",\n      \"source_refs\": [\n        \"normalized_financials.institutional_trading.last_5_trading_days_net_buy_thousand_shares\",\n        \"normalized_financials.institutional_trading.daily_total_net_buy_last_10\"\n      ],\n      \"freshness_note\": \"資料截至 2026-09-21，具備即時性。\",\n      \"counterevidence\": \"2026-09-21 單日法人合計買超大幅縮減至 21.74 千股，顯示追價力道在連續漲停後出現觀望。\"\n    },\n    {\n      \"finding\": \"大戶持股集中度高，1000 張以上大戶持股比例達 66.76%，籌碼結構相對穩固。\",\n      \"source_refs\": [\n        \"chip_context.tdcc_shareholder_distribution.major_holders_gt_1000_lots_pct\"\n      ],\n      \"freshness_note\": \"資料截至 2026-09-18，為最新週報數據。\",\n      \"counterevidence\": \"散戶（50 張以下）持股比例僅 11.12%，雖有利於籌碼鎖定，但也暗示市場流動性可能受限於少數大戶手中。\"\n    },\n    {\n      \"finding\": \"融資餘額出現顯著退潮，由 2,889 張降至 2,537 張，顯示槓桿籌碼在股價上漲過程中進行獲利了結。\",\n      \"source_refs\": [\n        \"chip_context.twse_margin_short_sales.margin_balance\",\n        \"chip_context.twse_margin_short_sales.margin_previous_balance\"\n      ],\n      \"freshness_note\": \"資料時點為 2026-09-21 盤後。\",\n      \"counterevidence\": \"融券餘額僅 146 張，券資比極低，目前缺乏軋空（Short Squeeze）動力。\"\n    }\n  ],\n  \"analysis_markdown\": \"## 佳大 (2033.TW) 1-2 週主力籌碼分析報告\\n\\n### 一、外資與投信連續買賣超\\n- **外資發動極短線強攻**：根據 `institutional_trading` 資料，外資在近 5 個交易日（09/15-09/21）出現爆發性買超，累計達 1,576.69 千股。特別是在 09/18 單日法人合計買超達 965.04 千股，與當日股價拉至漲停 33.9 元的走勢高度同步，顯示外資為此波漲勢的核心推手。\\n- **投信與自營商參與度低**：投信近 30 日買超為 0，自營商僅微幅參與（累計 70.67 千股），顯示此標的目前純屬外資與特定主力之短線行為，缺乏內資法人長線背書。\\n- **力道邊際遞減**：09/21 法人合計買超僅剩 21.74 千股，相較前三日（344k、309k、965k）顯著縮減，需警惕短線動能衰竭風險。\\n\\n### 二、大戶持股與籌碼集中度\\n- **籌碼高度集中**：截至 2026/09/18，`tdcc_shareholder_distribution` 顯示 1000 張以上大戶持股佔比高達 66.76%。在鋼鐵工業同業中，此集中度有利於主力控盤。\\n- **散戶參與度極低**：50 張以下散戶持股僅 11.12%，顯示籌碼並未流向散戶，目前仍由大戶主導。此結構在 1-2 週內若無大戶反手拋售，股價下行壓力相對較小，但一旦大戶鬆動，流動性風險將劇增。\\n\\n### 三、融資券與借券壓力\\n- **融資退潮，籌碼洗清**：`margin_balance` 從 2,889 張降至 2,537 張（減少 352 張），在股價連續漲停期間融資反而減少，反映部分槓桿資金選擇逢高獲利了結，這有助於減輕高檔賣壓，使籌碼趨向健康。\\n- **軋空燃料不足**：`short_balance` 僅 146 張，券資比極低。借券賣出餘額（borrowed_short_sale_balance）為 320,000 股（320 張），規模尚不足以引發大規模軋空行情。\\n\\n### 四、未來 1-2 週籌碼劇本\\n- **主力偏多證據**：外資近 5 日急買、大戶持股比例高、融資餘額下降（籌碼換手至強勢方）。\\n- **主力偏空/分歧證據**：09/21 法人買盤急縮、股價 PE 達 99.85 倍嚴重偏離基本面、成交量在漲停後若無法持續放大可能形成量價背離。\\n- **反向風險觀察**：需監控外資是否轉為連續賣超。若 1000 張以上大戶持股比例在下週數據中出現顯著下滑（>2%），則需警惕主力派發風險。此外，鋼鐵族群若整體輪動結束，單一標的孤軍奮戰之風險將提升。\"\n}",
+    "{\n  \"as_of_date\": \"2026-09-21\",\n  \"confidence\": \"high\",\n  \"evidence_items\": [\n    {\n      \"finding\": \"外資極短線爆發性買超，近5個交易日合計買超達1,576.69千股，佔近30日買超總量之絕大部分。\",\n      \"source_refs\": [\n        \"normalized_financials.institutional_trading.last_5_trading_days_net_buy_thousand_shares\",\n        \"normalized_financials.institutional_trading.net_buy_thousand_shares_by_category.foreign\"\n      ],\n      \"freshness_note\": \"資料更新至 2026-09-21\",\n      \"counterevidence\": \"09-21 單日法人買超力道驟減至 21.74 千股，追價動能出現斷層。\"\n    },\n    {\n      \"finding\": \"股權結構高度集中，1000張以上大戶持股比例達 66.76%，散戶持股僅約 11.12%。\",\n      \"source_refs\": [\n        \"chip_context.tdcc_shareholder_distribution.major_holders_gt_1000_lots_pct\",\n        \"chip_context.tdcc_shareholder_distribution.retail_holders_lt_50_lots_pct\"\n      ],\n      \"freshness_note\": \"資料截至 2026-09-18\",\n      \"counterevidence\": \"高集中度雖有利拉抬，但在流動性不足時亦可能造成劇烈波動。\"\n    },\n    {\n      \"finding\": \"融資餘額呈現退潮，由 2,889 張降至 2,537 張，顯示短線槓桿資金在股價走強時獲利了結。\",\n      \"source_refs\": [\n        \"chip_context.twse_margin_short_sales.margin_balance\",\n        \"chip_context.twse_margin_short_sales.margin_previous_balance\"\n      ],\n      \"freshness_note\": \"資料更新至 2026-09-21\",\n      \"counterevidence\": \"融資退潮雖減輕浮額壓力，但也反映內資短線追價意願轉弱。\"\n    }\n  ],\n  \"analysis_markdown\": \"## 一、外資與投信連續買賣超\\n- **外資為短線核心推手**：根據 institutional_trading 資料，外資在近 30 個交易日累計買超 1,528.58 千股，且買盤高度集中於近 5 日（1,576.69 千股），顯示法人在 9 月中旬後有明顯的卡位動作。\\n- **買盤力道出現放緩**：觀察 daily_total_net_buy，法人買超在 09-18 達到 965.04 千股的高峰，但至 09-21 已萎縮至 21.74 千股，需警惕法人是否進入買盤觀察期。\\n- **投信與自營商參與度低**：投信近 30 日買超為 0，自營商僅微幅買超 70.67 千股，顯示此波行情主要由外資與特定主力帶動。\\n\\n## 二、大戶持股與籌碼集中度\\n- **籌碼結構穩固**：截至 2026-09-18 的 TDCC 資料顯示，1000 張以上大戶持股比例高達 66.76%，而 50 張以下散戶持股僅佔 11.12%，籌碼多掌握在少數大戶手中，有利於股價在利多消息下快速反應。\\n- **集中趨勢觀察**：由於大戶比例處於高位，且近期股價多次觸及漲停，顯示籌碼正由散戶流向具備拉抬能力的主力手中。\\n\\n## 三",
+    "{\n  \"as_of_date\": \"2026-09-21\",\n  \"confidence\": \"medium\",\n  \"evidence_items\": [\n    {\n      \"finding\": \"法人近30交易日合計呈現淨買超，累積買超1,599.24千股，其中外資淨買超1,528.58千股、自營商淨買超70.67千股、投信為0，最近5個交易日合計淨買超1,576.69千股，顯示短線力道集中。\",\n      \"source_refs\": [\n        \"normalized_financials.institutional_trading\"\n      ],\n      \"freshness_note\": \"資料截至2026-09-21\",\n      \"counterevidence\": \"部分單日出現調節賣超（如9月11日與9月14日），需留意法人續航力與短線波動風險。\"\n    },\n    {\n      \"finding\": \"大戶持股集中度方面，根據2026年09月18日TDCC股權分散資料，持股大於1000張之大戶持股比例為66.76%，散戶持股比例（小於50張）為11.12%。\",\n      \"source_refs\": [\n        \"chip_context.tdcc_shareholder_distribution\"\n      ],\n      \"freshness_note\": \"資料截至2026-09-18\",\n      \"counterevidence\": \"單一期別持股比例無法直接證明長期的動態增加或持續集中趨勢。\"\n    },\n    {\n      \"finding\": \"融資券與借券方面，融資餘額為2537張（融資買進527張、融資賣出879張），融券餘額為146張（融券買進25張、融券賣出32張）；借券賣出餘額為320,000股。\",\n      \"source_refs\": [\n        \"chip_context.twse_margin_short_sales\"\n      ],\n      \"freshness_note\": \"融資券觀察期別狀態未知，借券資料截至2026-09-21\",\n      \"counterevidence\": \"融資餘額較前一期減少，融券水準偏低，尚無明顯高券資比軋空燃料。\"\n    }\n  ],\n  \"analysis_markdown\": \"## 一、外資與投信連續買賣超\\n- **外資與整體法人短線偏向累積**：根據institutional_trading資料，近30個交易日內法人合計淨買超1,599.24千股（約1,599張），其中外資淨買超1,528.58千股，自營商淨買超70.67千股，投信無明顯著墨。最近5個交易日合計淨買超達1,576.69千股，顯示買盤力道集中在近期釋放。\\n- **方向一致性與力道變化**：觀察近10日每日法人買賣超，9月中旬（如9月16日至18日）出現較大金額之單日買超（例如9月18日淨買超965.04千股），但先前（如9月11日、14日）亦有單日調節賣超，顯示短線存在波動雜訊，非全面性的無腦連續敲進。\\n\\n## 二、大戶持股與籌碼集中度\\n- **大戶持股比率維持高檔**：依據2026年09月18日之TDCC股權分散資料，持股大於1,000張之大戶持股比例為66.76%，散戶持股比例（小於50張）為11.12%。\\n- **籌碼集中特徵與限制**：大戶持股集中度處於相對特定水準，但因僅具備單一期別快照，無法直接據此判定長線集中的動態增減趨勢，需搭配後續幾週的股權分散表進行驗證。\\n\\n## 三、融資券與借券壓力\\n- **融資退潮與槓桿觀察**：融資餘額為2,537張（融資買進527張、融資賣出879張），融資餘額較前一期減少（前一期融資餘額為2,889張），顯示散戶追價槓桿伴隨股價波動有所降溫或清洗。\\n- **融券與借券水準**：融券餘額為146張，借券賣出餘額為320,000股；整體券資比偏低，尚未構成明顯的軋空燃料或強烈融券回補壓力。\\n\\n## 四、未來 1-2 週籌碼劇本\\n- **主力偏多與支撐力道**：法人近5日顯著買超與大戶持股比例維持在66.76%，搭配近期市場訊息顯示鋼鐵族群輪動時有買盤點火，提供短線下檔支撐。\\n- **反向風險與變數**：部分交易日法人買賣超呈現震盪，且融資餘額略有減碼，若後續法人買超動能放緩或國際總經消息干擾，籌碼可能面臨短線短多獲利了結的賣壓。\"\n}",
+    "{\n  \"as_of_date\": \"2026-09-21\",\n  \"confidence\": \"medium\",\n  \"evidence_items\": [\n    {\n      \"finding\": \"外資近30日累積買超1,528.58千股，自營商買超70.67千股，投信無明顯著墨，整體法人呈買超趨勢。\",\n      \"source_refs\": [\n        \"institutional_trading.net_buy_thousand_shares_by_category\"\n      ],\n      \"freshness_note\": \"資料截至2026-09-21\",\n      \"counterevidence\": \"法人買超集中於特定日，部分交易日仍見調節。\"\n    },\n    {\n      \"finding\": \"TDCC股權分散資料顯示，持股大於1000張的大戶集中度為66.76%，散戶持股小於50張比例為11.12%。\",\n      \"source_refs\": [\n        \"chip_context.tdcc_shareholder_distribution\"\n      ],\n      \"freshness_note\": \"資料截至2026-09-18\",\n      \"counterevidence\": \"單一期數持股比例無法完全證明短期增減趨勢。\"\n    },\n    {\n      \"finding\": \"融資餘額為2537張，融券餘額為146張，借券賣出餘額為320,000股。\",\n      \"source_refs\": [\n        \"chip_context.twse_margin_short_sales\"\n      ],\n      \"freshness_note\": \"融資券日期未定，借券截至2026-09-21\",\n      \"counterevidence\": \"融資維持一定水位，須留意融資退潮或追價槓桿壓力。\"\n    }\n  ],\n  \"analysis_markdown\": \"## 一、外資與投信連續買賣超\\n- **法人整體呈現買超趨勢**：根據 institutional_trading 資料，近 30 個交易日內，外資累積買超 1,528.58 千股（1,528,577 股），自營商買超 70.67 千股（70,668 股），投信無佈局（0 千股），合計總買超達 1,599.24 千股。\\n- **近期力道與連續性觀察**：最近 5 個交易日合計淨買超 1,576.69 千股，顯示近期買盤力道集中；每日淨買超數據顯示 2026-09-18 呈現單日較大買超量（965.04 千股），其餘交易日則呈互見，需留意單日波動與追價力道續航性。\\n\\n## 二、大戶持股與籌碼集中度\\n- **大戶持股集中度穩定**：依據 chip_context.tdcc_shareholder_distribution（截至 2026-09-18），持股大於 1,000 張的大戶持股比例為 66.76%，散戶（小於 50 張）持股比例為 11.12%。\\n- **資料限制說明**：此為單一期數之股權分散統計，尚缺乏連續多期比較，無法直接確知大戶近期之增減方向，但 66.76% 的集中度顯示籌碼具一定程度集中。\\n\\n## 三、融資券與借券壓力\\n- **融資與融券水位**：根據 chip_context.twse_margin_short_sales，融資餘額為 2,537 張（融資買進 527 張、融資賣出 879 張、前日餘額 2,889 張），融券餘額為 146 張（融券買進 25 張、融券賣出 32 張、前日餘額 139 張）。\\n- **借券與槓桿風險**：借券賣出餘額為 320,000 股（當日賣出 2,000 股、還券 2,000 股）。整體融資餘額高於融券，需留意短線股價波動時的融資追價槓桿與退潮壓力。\\n\\n## 四、未來 1-2 週籌碼劇本\\n- **主力偏多與分歧證據**：籌碼面正向支持包含外資近月累積買超與近期單日放量買超，搭配大戶持股集中度達 66.76%；然而部分交易日法人買賣超呈現拉鋸，且融資餘額處於 2,537 張水準，顯示追價力道與獲利回吐賣壓並存。\\n- **反向風險提示**：若後續外資買超力道縮手或融資餘額快速滑落，可能導致籌碼鬆動；另須留意短線漲幅過後的波動風險，相關數據應持續以交易所最新公布為準。\"\n}"
+  ]
+}

@@ -14,7 +14,7 @@ _POP = re.compile(r"三大法人|三類法人|法人合計|法人總計|法人|�
 _POPULATIONS = {"外資": "foreign", "投信": "investment_trust", "自營商": "dealer"}
 _CLAIM = re.compile(
     r"(?P<verb>淨買超|淨賣超|買賣超|買超|賣超|淨買入|淨賣出)"
-    r"[^\d。；;\n]{0,12}?(?P<number>[+\-−]?\d[\d,]*(?:\.\d+)?)"
+    r"(?:(?!融資|融券)[^\d。；;\n]){0,12}?(?P<number>[+\-−]?\d[\d,]*(?:\.\d+)?)"
     r"(?P<scale>千|萬)?(?P<unit>股|張)(?![A-Za-z])"
 )
 _WINDOW = re.compile(r"(?:近|最近|過去)(?P<n>\d+)(?:個)?(?:交易)?日")
@@ -131,6 +131,8 @@ def _claim_window(prefix, records):
 
 
 def _claim_population(prefix, populations):
+    if _enumerated_total(prefix, populations):
+        return "total"
     group = [populations[-1]]
     for previous in reversed(populations[:-1]):
         if not re.fullmatch(r"[與及和、/,，]+", prefix[previous.end():group[0].start()]):
@@ -143,6 +145,25 @@ def _claim_population(prefix, populations):
             and "合計" in prefix[group[-1].end():]):
         return "total"
     return None
+
+
+def _enumerated_total(prefix, populations):
+    """A terminal total after three dated-window components has its own subject."""
+    total = re.search(r"[，,](?:合計總?|總計)$", prefix)
+    periods = list(_WINDOW.finditer(prefix))
+    if not total or not periods:
+        return False
+    members = [p for p in populations if periods[-1].end() <= p.start() < total.start()]
+    if len(members) != 3 or {_POPULATIONS.get(p.group()) for p in members} != _CATEGORIES:
+        return False
+    # The window must precede every component; no date or window switch inside.
+    if _DATE.search(prefix[members[0].end():total.start()]):
+        return False
+    for i, member in enumerate(members):
+        end = members[i+1].start() if i < 2 else total.start()
+        if not re.search(r"[+\-−]?\d[\d,]*(?:\.\d+)?(?:千|萬)?(?:股|張)", prefix[member.end():end]):
+            return False
+    return True
 
 
 def institutional_evidence_issues(text, data, *, allowed_paths=None):
