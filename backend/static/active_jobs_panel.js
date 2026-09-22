@@ -59,10 +59,12 @@
                 const phase = stage.phase || (job.status === 'done' ? '完成' : 'idle');
                 const progress = progressLabel(stage);
                 const details = [phase, progress, modelHealth, window.StockAgentJobExecutionLabels?.details(job)].filter(Boolean).join(' · ');
-                const pipelineLabel = job.pipeline_id ? pipelineModeLabel(job.pipeline_id) : 'N/A';
+                const identity = window.StockAgentJobExecutionLabels?.identity(job)
+                    || {ticker: '來源股票未知', pipeline: null};
+                const pipelineLabel = identity.pipeline ? pipelineModeLabel(identity.pipeline) : '模式未知';
                 return `
                     <span class="provider-sla-chip is-${tone}" title="${escapeHtml(stage.message || job.error || '')}">
-                        ${escapeHtml(job.ticker || 'N/A')} · ${escapeHtml(pipelineLabel)}
+                        ${escapeHtml(identity.ticker)} · ${escapeHtml(pipelineLabel)}
                         <strong>${escapeHtml(statusLabel(job, showingHistory))}</strong>
                         <em>${escapeHtml(details)}</em>
                     </span>

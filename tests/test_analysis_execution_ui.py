@@ -34,3 +34,39 @@ assert.equal(options.loadingStatus.textContent,'品質檢查未通過，任務�
 '''
     paths=[ROOT/'backend/static'/name for name in ('job_execution_labels.js','active_jobs_panel.js','analysis_stream_events.js')]
     subprocess.run([node,'-e',script,*map(str,paths)],check=True,capture_output=True,text=True)
+
+
+@pytest.mark.parametrize('pipeline', ['v1', 'v2', 'v3', 'v4'])
+def test_rerun_display_uses_source_report_identity_without_mutating_job(pipeline):
+    node = shutil.which('node')
+    if not node: pytest.skip('Node unavailable')
+    script = r'''
+const fs=require('fs'),vm=require('vm'),assert=require('assert');
+global.window={};
+for (const path of process.argv.slice(2)) vm.runInThisContext(fs.readFileSync(path,'utf8'));
+const mode=process.argv[1], labels={v1:'模式 A',v2:'模式 B',v3:'模式 C',v4:'模式 D'};
+const panel=window.StockAgentActiveJobsPanel;
+function render(job) {
+ const summary={textContent:''},list={innerHTML:''},original=JSON.stringify(job);
+ panel.render({jobs:[job]}, {summaryEl:summary,listEl:list,escapeHtml:String,pipelineModeLabel:p=>labels[p]||'模式 A'});
+ assert.equal(JSON.stringify(job),original);
+ return list.innerHTML;
+}
+for (const suffix of ['job_37d4255d2b0d', '20260922_231526']) {
+ const filename=`2305_TW_${mode}_report_${suffix}.html`;
+ const html=render({ticker:filename,pipeline_id:'rerun:full_report',status:'waiting_retry',execution_state:'waiting_retry'});
+ assert.match(html,/2305\.TW/);assert.ok(html.includes(labels[mode]));
+ assert.ok(!html.includes(filename));assert.match(html,/等待重試/);
+ const otc=render({ticker:`5314_TWO_${mode}_report_${suffix}.html`,pipeline_id:'rerun:final_report',status:'running'});
+ assert.match(otc,/5314\.TWO/);assert.ok(otc.includes(labels[mode]));
+}
+for (const filename of ['../2305_TW_v4_report_job_37d4255d2b0d.html', '2305_TW_v5_report_job_37d4255d2b0d.html', '2305_TW_report_20260922_231526.html', '2305_TW_v4_report_job_bad.html', '<img src=x onerror=alert(1)>', '2305_TW_v4_report_job_37d4255d2b0d.html/extra']) {
+ const html=render({ticker:filename,pipeline_id:'rerun:full_report',status:'running'});
+ assert.match(html,/來源股票未知/);assert.match(html,/模式未知/);assert.ok(!html.includes('模式 A'));
+}
+const ordinary=render({ticker:'2305.TW',pipeline_id:mode,status:'running'});
+assert.match(ordinary,/2305\.TW/);assert.ok(ordinary.includes(labels[mode]));
+assert.match(render({ticker:'2305.TW',pipeline_id:'unrecognized',status:'running'}),/模式未知/);
+'''
+    paths = [ROOT/'backend/static'/name for name in ('job_execution_labels.js', 'active_jobs_panel.js')]
+    subprocess.run([node, '-e', script, pipeline, *map(str, paths)], check=True, capture_output=True, text=True)
