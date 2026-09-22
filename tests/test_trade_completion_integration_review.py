@@ -103,7 +103,7 @@ def test_success_cache_roundtrip_preserves_finish_and_original_raw_hash(monkeypa
     config=build_generation_config(24);raw=json.dumps(setup_payload())
     cache.store_llm_response('offline','prompt',config,text=raw,diagnostics={'finish_reasons':['STOP']})
     cached=cache.get_cached_llm_response('offline','prompt',config)
-    assert cached['completion_contract']=='trade-completion:v1'
+    assert cached['completion_contract']=='trade-completion:v2'
     response=TextLLMResponse.from_cache(cached);ctx={}
     process_agent_response(24,response.text,ctx,completion_diagnostics=response_diagnostics(response))
     receipt=ctx['structured_outputs'][24]['source_assessment']['output_completion']
@@ -126,3 +126,16 @@ def test_completion_cache_contract_invalidates_trade_only(monkeypatch):
         cache.store_llm_response('offline','other',other,text='old nontrade response')
     assert cache.get_cached_llm_response('offline','trade',trade) is None
     assert cache.get_cached_llm_response('offline','other',other)['text']=='old nontrade response'
+
+
+def test_previous_trade_source_policy_cache_cannot_bypass_new_source_rules(monkeypatch):
+    cache, _ = _memory_semantic_cache(monkeypatch)
+    from agent_runtime.generation_config import build_generation_config
+    trade = build_generation_config(24)
+    other = SimpleNamespace(temperature=0.2)
+    with monkeypatch.context() as old:
+        old.setattr(cache, '_completion_cache_contract', lambda config: 'trade-completion:v1' if config is trade else None)
+        cache.store_llm_response('offline', 'trade', trade, text=json.dumps(setup_payload()), diagnostics={'finish_reasons': ['STOP']})
+        cache.store_llm_response('offline', 'other', other, text='unchanged other cache')
+    assert cache.get_cached_llm_response('offline', 'trade', trade) is None
+    assert cache.get_cached_llm_response('offline', 'other', other)['text'] == 'unchanged other cache'

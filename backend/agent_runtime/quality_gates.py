@@ -127,8 +127,6 @@ async def run_agent_with_quality_gates_async(
         raise
     except Exception as exc:
         emit_log(f"  ⚠️  Agent {agent_num} 結構化輸出即時驗證失敗，略過同節點重試：{str(exc)[:120]}")
-    if agent_num == 24:
-        result = await repair_trade_sources(result, data, context, rotator, run_single_agent_async)
     await emit_status_async(
         progress_callback,
         f"Agent {agent_num}（{agent_position}/{agent_total}）正在執行輸出清洗與品質檢查...",
@@ -239,6 +237,10 @@ async def run_agent_with_quality_gates_async(
             )
             result = append_identity_warnings(result, retry_identity_issues)
 
+    if agent_num == 24 and not context.get("blocking_issues"):
+        result = await repair_trade_sources(result, data, context, rotator, run_single_agent_async,
+            validate_candidate=lambda text: validate_prompt_leakage(text) +
+            validate_company_identity(text, data) + validate_analysis_output(24, text, data))
     result = append_quality_warnings(agent_num, result, data)
     elapsed = time.time() - start
     context["analyses"][agent_num] = result

@@ -90,6 +90,7 @@ def source_block(data):
             "法人主張須引用 institutional_evidence 中對應單位、統計主體、期間的完整record，不能以合計冒充外資；"
             "具體寫出主體、期間、觀測日、數值與單位；沒有對應record的『外資累積』或『法人買超』不可放進核心催化。"
             "Neutral 也必須遵守相同證據要求；技術觀望可只引用對應技術指標並列出重新評估條件。"
+            "現況與未來條件分開：先寫附有引用的已觀測事實，最後用『；等待…後再重新評估』表達尚未發生的條件，不能當成現況證據。"
             "event_calendar 整個物件及 availability 不可作催化引用；日曆缺資料只能說未知，known_empty只代表提供區間內無紀錄。"
             "recent_news 只支持逐字引用的新聞標題，請明示新聞報導並保留完整標題；出版日期不是未來事件日，不支持確定未來舉行的主張。未知或過期來源不可推定。"
             "core_catalyst 必須使用引用本身可支持的條件，其他未有對應來源的主張不可冒充催化證據。"
@@ -185,6 +186,8 @@ def reference_is_evidence(catalog, ref, role):
 def bind_trade_payload(payload, context):
     """Check refs before normalization; never populate a missing model assertion."""
     result = dict(payload)
+    from trade_catalyst_claims import catalyst_observation_text
+    observation = catalyst_observation_text(payload.get("core_catalyst", ""))
     manifest = context.get("_trade_source_manifest")
     reasons = []
     bound = isinstance(manifest, dict) and manifest.get("version") in SUPPORTED_VERSIONS
@@ -202,13 +205,13 @@ def bind_trade_payload(payload, context):
             reasons.append("missing_" + key)
     if bound and not manifest.get("visible"):
         reasons.append("source_block_not_visible")
-    if bound and _INSTITUTIONAL_CATALYST.search(payload.get("core_catalyst", "")):
+    if bound and _INSTITUTIONAL_CATALYST.search(observation):
         from institutional_evidence import institutional_evidence_issues
         refs = result.get("catalyst_source_refs") or []
         institutional_refs = [ref for ref in refs if ".institutional_evidence.records[" in ref]
-        issues = institutional_evidence_issues(payload.get("core_catalyst", ""), manifest.get("catalog", {}), allowed_paths=institutional_refs)
+        issues = institutional_evidence_issues(observation, manifest.get("catalog", {}), allowed_paths=institutional_refs)
         from trade_catalog_evidence import ownership_claim_supported, institutional_catalyst_has_numeric_claim
-        text = payload.get("core_catalyst", "")
+        text = observation
         ownership_refs = [ref for ref in refs if ".ownership_evidence.records[" in ref]
         has_ownership = bool(re.search(r"大戶|散戶|持股|ownership", text, re.I))
         has_flow = bool(re.search(r"外資|投信|自營商|法人(?!說明會)|買超|賣超|foreign|institutional", text, re.I))

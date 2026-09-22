@@ -34,6 +34,7 @@ from .routing import get_audit_rewrite_model_sequence, is_agent_execution_failur
 from .deferred import AgentDeferredError
 from .single_agent import run_single_agent, run_single_agent_async
 from .structured_repair_contracts import structured_output_missing as _structured_output_missing
+from .trade_audit_source_contract import mark_audit_source_attempt
 
 
 @preserve_failed_repair
@@ -81,6 +82,7 @@ def _repair_agent_output(agent_num: int, data: StockData, context: AnalysisConte
             )
             try:
                 result = sanitize_model_output(run_single_agent(agent_num, data, context, rotator, max_retries=1))
+                mark_audit_source_attempt(agent_num, context, current_issues)
                 raise_if_cancelled(context)
             finally:
                 increment_repair_attempt_count(context, agent_num)
@@ -192,6 +194,7 @@ async def _repair_agent_output_async(agent_num: int, data: StockData, context: A
             )
             try:
                 result = sanitize_model_output(await run_single_agent_async(agent_num, data, context, rotator, max_retries=1))
+                mark_audit_source_attempt(agent_num, context, current_issues)
                 raise_if_cancelled(context)
             finally:
                 increment_repair_attempt_count(context, agent_num)

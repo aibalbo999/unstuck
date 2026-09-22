@@ -148,9 +148,9 @@ def _completion_cache_contract(config):
         schema = schema.model_json_schema()
     properties = schema.get("properties", {}) if isinstance(schema, dict) else {}
     if {"trade_direction", "core_catalyst"}.issubset(properties):
-        return "trade-completion:v1"
+        return "trade-completion:v2"
     if "trade-source" in str(getattr(config, "system_instruction", "") or ""):
-        return "trade-completion:v1"
+        return "trade-completion:v2"
     return None
 
 

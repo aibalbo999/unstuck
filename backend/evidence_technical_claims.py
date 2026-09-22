@@ -7,6 +7,7 @@ from typing import Any
 
 from evidence_claim_numbers import NUMBER_IN_STRING_RE, clean_number
 from evidence_daily_price_claims import DAILY_DATE_RE
+from evidence_technical_assignments import technical_assignment_path
 
 _SMA = re.compile(r"(?<![A-Za-z0-9_])SMA[_ ]?(\d+)(?!\d)|(?<!\d)(\d+)\s*日\s*(?:簡單移動平均線|移動平均線|均線|SMA)", re.I)
 MOVING_AVERAGE_PERIOD_LIST_RE = re.compile(r"\d+(?:\s*[/／、]\s*\d+)+\s*日\s*(?:均線|移動平均線|簡單移動平均線|SMA)(?![A-Za-z])", re.I)
@@ -15,11 +16,15 @@ _NON_CURRENT_BASIS = re.compile(r"昨日|前日|前期|預估|預測|假設|如�
 _PARTIAL_DATE = re.compile(r"(?<!\d)(?:0?[1-9]|1[0-2])\s*[/月]\s*(?:0?[1-9]|[12]\d|3[01])(?:日)?(?!\d)|(?:19|20)\d{2}\s*年")
 _ASSIGNED_VALUE = re.compile(r"\s*[:：=]\s*(?:NT\$|\$|TWD)?\s*(-?\d[\d,]*(?:\.\d+)?)\s*(?:元|TWD)?(?=$|[\s,，;；>><<）)\"。])", re.I)
 MACD_FIELDS = frozenset({"macd", "macd_signal", "macd_histogram"})
+CANONICAL_TECHNICAL_FIELDS = MACD_FIELDS | {"atr_14"}
 _MACD_KEY = re.compile(r"(?<![A-Za-z0-9_])(?:macd_signal|macd_histogram|histogram|macd)(?![A-Za-z0-9_])", re.I)
 
 
 def technical_indicator_path(claim: dict[str, Any]) -> tuple[str, ...] | None:
     """Delegate only unrecognized claims; an ambiguous MACD claim stays rejected."""
+    assignment = technical_assignment_path(claim)
+    if assignment is not None:
+        return assignment
     macd_path = technical_macd_path(claim)
     return technical_sma_path(claim) if macd_path is None else macd_path
 
@@ -137,9 +142,9 @@ def technical_snapshot_values(value: dict) -> list[dict]:
         return []
     return [{"path": f"data.technical_indicators.{key}", "value": float(number)}
             for key, number in value.items()
-            if (re.fullmatch(r"sma_\d+", key) or key in MACD_FIELDS) and key not in missing
+            if (re.fullmatch(r"sma_\d+", key) or key in CANONICAL_TECHNICAL_FIELDS) and key not in missing
             and isinstance(number, (int, float)) and not isinstance(number, bool)
-            and math.isfinite(number) and (key in MACD_FIELDS or number > 0)]
+            and math.isfinite(number) and (key in MACD_FIELDS or (number >= 0 if key == "atr_14" else number > 0))]
 
 
 def valid_technical_date(value: Any) -> str | None:

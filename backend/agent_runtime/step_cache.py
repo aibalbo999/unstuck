@@ -39,9 +39,9 @@ def build_agent_step_cache_key(
         "market_context_contract_version": context.get("market_context_contract_version"),
     }
     if agent_num in {23, 24}:
-        key_parts["institutional_evidence_contract"] = "typed-flow:v1"
+        key_parts["institutional_evidence_contract"] = "typed-flow:v2"
     if agent_num == 24:
-        key_parts["trade_source_contract_version"] = "trade-sources:v2-completion:v6"
+        key_parts["trade_source_contract_version"] = "trade-sources:v2-completion:v7"
     if agent_num in _OUTPUT_CONTRACT_AGENTS:
         key_parts["output_contract_version"] = AGENT_OUTPUT_CONTRACT_VERSION
     encoded = json.dumps(key_parts, ensure_ascii=False, sort_keys=True, separators=(",", ":"))

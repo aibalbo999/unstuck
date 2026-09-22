@@ -14,10 +14,10 @@ _POP = re.compile(r"三大法人|三類法人|法人合計|法人總計|法人|�
 _POPULATIONS = {"外資": "foreign", "投信": "investment_trust", "自營商": "dealer"}
 _CLAIM = re.compile(
     r"(?P<verb>淨買超|淨賣超|買賣超|買超|賣超|淨買入|淨賣出)"
-    r"(?:(?!融資|融券)[^\d。；;\n]){0,12}?(?P<number>[+\-−]?\d[\d,]*(?:\.\d+)?)"
+    r"(?:(?!融資|融券|外資|投信|自營商|法人|淨買超|淨賣超|買賣超|買超|賣超|淨買入|淨賣出)[^\d。；;\n]){0,12}?(?P<number>[+\-−]?\d[\d,]*(?:\.\d+)?)"
     r"(?P<scale>千|萬)?(?P<unit>股|張)(?![A-Za-z])"
 )
-_WINDOW = re.compile(r"(?:近|最近|過去)(?P<n>\d+)(?:個)?(?:交易)?日")
+_WINDOW = re.compile(r"(?:近|最近|過去)?(?<![\d./年月\-第])(?P<n>\d+)(?:個)?(?:交易)?日")
 _DATE = re.compile(r"(?:(?P<year>20\d{2})[年/\-])?(?P<month>\d{1,2})[月/\-](?P<day>\d{1,2})日?")
 
 
@@ -130,8 +130,8 @@ def _claim_window(prefix, records):
     return None
 
 
-def _claim_population(prefix, populations):
-    if _enumerated_total(prefix, populations):
+def _claim_population(prefix, populations, records=()):
+    if _enumerated_total(prefix, populations, records):
         return "total"
     group = [populations[-1]]
     for previous in reversed(populations[:-1]):
@@ -147,13 +147,16 @@ def _claim_population(prefix, populations):
     return None
 
 
-def _enumerated_total(prefix, populations):
+def _enumerated_total(prefix, populations, records=()):
     """A terminal total after three dated-window components has its own subject."""
     total = re.search(r"[，,](?:合計總?|總計)$", prefix)
     periods = list(_WINDOW.finditer(prefix))
     if not total or not periods:
         return False
     members = [p for p in populations if periods[-1].end() <= p.start() < total.start()]
+    before = [p for p in populations if p.end() <= periods[-1].start()]
+    if len(members) == 2 and before and re.fullmatch(r"(?:在|於)?", prefix[before[-1].end():periods[-1].start()]):
+        members.insert(0, before[-1])
     if len(members) != 3 or {_POPULATIONS.get(p.group()) for p in members} != _CATEGORIES:
         return False
     # The window must precede every component; no date or window switch inside.
@@ -161,9 +164,35 @@ def _enumerated_total(prefix, populations):
         return False
     for i, member in enumerate(members):
         end = members[i+1].start() if i < 2 else total.start()
-        if not re.search(r"[+\-−]?\d[\d,]*(?:\.\d+)?(?:千|萬)?(?:股|張)", prefix[member.end():end]):
+        detail = prefix[member.end():end]
+        if re.search(r"[+\-−]?\d[\d,]*(?:\.\d+)?(?:千|萬)?(?:股|張)", detail):
+            continue
+        window = _claim_window(prefix, records)
+        total_dates = {r['observed_at'] for r in records if r['population'] == 'total' and r['window'] == window}
+        if not (re.fullmatch(r"(?:無買賣超|無成交紀錄)[，,、]*", detail)
+                and any(r['population'] == _POPULATIONS[member.group()] and r['window'] == window
+                        and r['observed_at'] in total_dates and r['value'] == 0 for r in records)):
             return False
     return True
+
+
+def _inherited_scope(text, position, prefix, verified):
+    """Carry only a single verified window within a line or explicit 同期間 bullet."""
+    if _WINDOW.search(prefix) or _DATE.search(prefix):
+        return None
+    line_start = text.rfind('\n', 0, position) + 1
+    scopes = [v for v in verified if v['end'] >= line_start]
+    if not scopes and '同期間' in prefix and line_start:
+        previous_start = text.rfind('\n', 0, line_start - 1) + 1
+        previous = text[previous_start:line_start].strip()
+        if previous and not previous.startswith('#'):
+            scopes = [v for v in verified if previous_start <= v['end'] < line_start]
+    if not scopes or len({(repr(v['window']), v['observed_at']) for v in scopes}) != 1:
+        return None
+    intervening = text[scopes[-1]['end']:position]
+    if _WINDOW.search(intervening) or _DATE.search(intervening):
+        return None
+    return scopes[-1]
 
 
 def institutional_evidence_issues(text, data, *, allowed_paths=None):
@@ -190,6 +219,7 @@ def institutional_evidence_issues(text, data, *, allowed_paths=None):
                  or _map(data.get("company")).get("ticker") or "").upper()
     taiwan = ticker.endswith((".TW", ".TWO"))
     issues = []
+    verified = []
     for match in _CLAIM.finditer(text):
         if not is_actual_claim(text, match.start(), match.end()):
             continue
@@ -198,9 +228,21 @@ def institutional_evidence_issues(text, data, *, allowed_paths=None):
         populations = list(_POP.finditer(prefix))
         if not populations:
             continue
-        population = _claim_population(prefix, populations)
+        population = _claim_population(prefix, populations, eligible)
+        if verified and verified[-1]['aggregate'] and verified[-1]['start'] == start:
+            tail = text[verified[-1]['end']:match.start()]
+            if len(list(_WINDOW.finditer(tail))) == 1 and not _WINDOW.sub('', tail).strip('，,'):
+                population = 'total'
         window = _claim_window(prefix, eligible)
+        inherited = _inherited_scope(text, match.start(), prefix, verified) if window is None else None
+        if inherited:
+            window = inherited['window']
         candidates = [r for r in eligible if r["population"] == population and r["window"] == window]
+        if _enumerated_total(prefix, populations, eligible):
+            candidates = [r for r in candidates if _enumerated_total(prefix, populations,
+                [source for source in eligible if source['observed_at'] == r['observed_at']])]
+        if inherited:
+            candidates = [r for r in candidates if r['observed_at'] == inherited['observed_at']]
         if window and window.get("kind") == "trailing_trading_days":
             dates = list(_DATE.finditer(prefix))
             suffix = text[match.end():end]
@@ -215,12 +257,20 @@ def institutional_evidence_issues(text, data, *, allowed_paths=None):
         if match["unit"] == "張" and not taiwan:
             issues.append("法人單位紅線：標的市場未確認，不能假定1張=1000股。")
             continue
+        if not re.fullmatch(r"[+\-−]?(?:\d+|\d{1,3}(?:,\d{3})+)(?:\.\d+)?", match['number']):
+            issues.append("法人數字格式紅線：千分位分組不合法，不得刪除逗號後猜測數值。")
+            continue
         value = float(match["number"].replace(",", "").replace("−", "-"))
         if "賣" in match["verb"] and match["verb"] != "買賣超":
             value = -abs(value)
         value *= {None: 1, "千": 1000, "萬": 10000}[match["scale"]] * (1000 if match["unit"] == "張" else 1)
-        if not any(abs(value - r["value"] * _UNITS[r["unit"]]) <= max(0.0051 * _UNITS[r["unit"]], abs(r["value"] * _UNITS[r["unit"]]) * 0.0001) for r in candidates):
+        matched = [r for r in candidates if abs(value - r["value"] * _UNITS[r["unit"]]) <= max(0.0051 * _UNITS[r["unit"]], abs(r["value"] * _UNITS[r["unit"]]) * 0.0001)]
+        if not matched:
             issues.append("法人單位／數值紅線：同主體同期間淨額不符；千股=1000股，台股1張=1000股，千張=1000000股，買超／賣超正負方向不可混用。")
+        elif len({r['observed_at'] for r in matched}) == 1:
+            verified.append({'start': start, 'end': match.end(), 'window': window,
+                             'observed_at': matched[0]['observed_at'],
+                             'aggregate': _enumerated_total(prefix, populations, eligible)})
     return list(dict.fromkeys(issues))
 
 

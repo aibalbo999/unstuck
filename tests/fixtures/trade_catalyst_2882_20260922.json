@@ -1,0 +1,359 @@
+{
+  "manifest": {
+    "version": "trade-sources:v2",
+    "visible": true,
+    "catalog": {
+      "short_term_market_context": {
+        "as_of": "2026-09-22",
+        "daily_market_data": {
+          "as_of": "2026-09-22",
+          "requested_as_of": "2026-09-22",
+          "source": "yfinance 5y history",
+          "volume_unit": "shares",
+          "interval": "1d",
+          "sample_count": 120,
+          "max_samples": 120,
+          "availability": "available",
+          "missing_fields": [],
+          "excluded_row_count": 0,
+          "bars": [
+            {
+              "date": "2026-09-16",
+              "open": 110.5,
+              "high": 112.5,
+              "low": 109.5,
+              "close": 112.5,
+              "volume": 27293819.0
+            },
+            {
+              "date": "2026-09-17",
+              "open": 113.0,
+              "high": 114.0,
+              "low": 111.0,
+              "close": 112.0,
+              "volume": 19472232.0
+            },
+            {
+              "date": "2026-09-18",
+              "open": 113.0,
+              "high": 113.0,
+              "low": 109.0,
+              "close": 110.5,
+              "volume": 43280347.0
+            },
+            {
+              "date": "2026-09-21",
+              "open": 110.5,
+              "high": 114.0,
+              "low": 109.5,
+              "close": 113.0,
+              "volume": 15823315.0
+            },
+            {
+              "date": "2026-09-22",
+              "open": 114.5,
+              "high": 114.5,
+              "low": 111.0,
+              "close": 112.0,
+              "volume": 15754034.0
+            }
+          ],
+          "displayed_sample_count": 5
+        },
+        "technical_indicators": {
+          "as_of": "2026-09-22",
+          "sample_count": 120,
+          "source": "yfinance 5y history",
+          "volume_unit": "shares",
+          "availability": "available",
+          "missing_indicators": [],
+          "calculation_policy": {
+            "input": "daily_market_data.bars; no missing-session or OHLC interpolation",
+            "sma": "Arithmetic mean of final N closes",
+            "rsi_14": "14 price changes; SMA seed then Wilder smoothing; flat=50, zero loss=100",
+            "macd": "EMA12-EMA26; SMA-seeded EMAs; signal EMA9 requires 34 closes",
+            "atr_14": "14 true ranges using previous close; SMA seed then Wilder smoothing; requires 15 bars",
+            "volume_ratio_20": "Latest volume / mean of final 20 volumes; zero mean yields null"
+          },
+          "sma_5": 112.0,
+          "sma_10": 111.4,
+          "sma_20": 110.525,
+          "sma_60": 101.90500005,
+          "rsi_14": 58.29771192,
+          "macd": 2.64033821,
+          "macd_signal": 2.982449,
+          "macd_histogram": -0.34211079,
+          "atr_14": 3.59193948,
+          "volume_latest": 15754034.0,
+          "volume_sma_5": 24324749.4,
+          "volume_sma_20": 23734136.25,
+          "volume_ratio_20": 0.66377111
+        },
+        "event_calendar": {
+          "as_of": "2026-09-22",
+          "window_end": "2026-10-06",
+          "horizon_calendar_days": 14,
+          "source_as_of": "2026-09-22",
+          "availability": "known_empty",
+          "reason_codes": [
+            "no_events_in_provided_calendar_window"
+          ],
+          "empty_scope": "provided_calendar_window",
+          "events": [],
+          "undated_events": [],
+          "excluded_outside_window_count": 4,
+          "notes": [
+            "日期未定事件不得視為已確認的未來 14 日催化劑；歷史新聞日期不是事件發生日。"
+          ]
+        },
+        "ticker": "2882.TW",
+        "recent_news": {
+          "items": [],
+          "availability": "unavailable"
+        },
+        "ownership_evidence": {
+          "records": [
+            {
+              "value": 83.53,
+              "unit": "percent",
+              "population": "major_holders",
+              "threshold": "gt_1000_lots",
+              "observed_at": "2026-09-18",
+              "provider": "TDCC OpenData",
+              "window": {
+                "kind": "point_in_time"
+              },
+              "path": "chip_data.tdcc_shareholder_distribution.major_holders_gt_1000_lots_pct"
+            },
+            {
+              "value": 9.15,
+              "unit": "percent",
+              "population": "retail_holders",
+              "threshold": "lt_50_lots",
+              "observed_at": "2026-09-18",
+              "provider": "TDCC OpenData",
+              "window": {
+                "kind": "point_in_time"
+              },
+              "path": "chip_data.tdcc_shareholder_distribution.retail_holders_lt_50_lots_pct"
+            }
+          ],
+          "availability": "available"
+        },
+        "institutional_evidence": {
+          "records": [
+            {
+              "path": "institutional_trading.net_buy_shares_by_category.dealer",
+              "value": 2093850.0,
+              "unit": "shares",
+              "population": "dealer",
+              "window": {
+                "kind": "trailing_trading_days",
+                "trading_days": 30
+              },
+              "observed_at": "2026-09-21",
+              "provider": "FinMind TaiwanStockInstitutionalInvestorsBuySell"
+            },
+            {
+              "path": "institutional_trading.net_buy_shares_by_category.foreign",
+              "value": 13121304.0,
+              "unit": "shares",
+              "population": "foreign",
+              "window": {
+                "kind": "trailing_trading_days",
+                "trading_days": 30
+              },
+              "observed_at": "2026-09-21",
+              "provider": "FinMind TaiwanStockInstitutionalInvestorsBuySell"
+            },
+            {
+              "path": "institutional_trading.net_buy_shares_by_category.investment_trust",
+              "value": 16361209.0,
+              "unit": "shares",
+              "population": "investment_trust",
+              "window": {
+                "kind": "trailing_trading_days",
+                "trading_days": 30
+              },
+              "observed_at": "2026-09-21",
+              "provider": "FinMind TaiwanStockInstitutionalInvestorsBuySell"
+            },
+            {
+              "path": "institutional_trading.total_net_buy_shares",
+              "value": 31576363.0,
+              "unit": "shares",
+              "population": "total",
+              "window": {
+                "kind": "trailing_trading_days",
+                "trading_days": 30
+              },
+              "observed_at": "2026-09-21",
+              "provider": "FinMind TaiwanStockInstitutionalInvestorsBuySell"
+            },
+            {
+              "path": "institutional_trading.net_buy_thousand_shares_by_category.dealer",
+              "value": 2093.85,
+              "unit": "thousand_shares",
+              "population": "dealer",
+              "window": {
+                "kind": "trailing_trading_days",
+                "trading_days": 30
+              },
+              "observed_at": "2026-09-21",
+              "provider": "FinMind TaiwanStockInstitutionalInvestorsBuySell"
+            },
+            {
+              "path": "institutional_trading.net_buy_thousand_shares_by_category.foreign",
+              "value": 13121.3,
+              "unit": "thousand_shares",
+              "population": "foreign",
+              "window": {
+                "kind": "trailing_trading_days",
+                "trading_days": 30
+              },
+              "observed_at": "2026-09-21",
+              "provider": "FinMind TaiwanStockInstitutionalInvestorsBuySell"
+            },
+            {
+              "path": "institutional_trading.net_buy_thousand_shares_by_category.investment_trust",
+              "value": 16361.21,
+              "unit": "thousand_shares",
+              "population": "investment_trust",
+              "window": {
+                "kind": "trailing_trading_days",
+                "trading_days": 30
+              },
+              "observed_at": "2026-09-21",
+              "provider": "FinMind TaiwanStockInstitutionalInvestorsBuySell"
+            },
+            {
+              "path": "institutional_trading.total_net_buy_thousand_shares",
+              "value": 31576.36,
+              "unit": "thousand_shares",
+              "population": "total",
+              "window": {
+                "kind": "trailing_trading_days",
+                "trading_days": 30
+              },
+              "observed_at": "2026-09-21",
+              "provider": "FinMind TaiwanStockInstitutionalInvestorsBuySell"
+            },
+            {
+              "path": "institutional_trading.last_5_trading_days_net_buy_thousand_shares",
+              "value": -2313.29,
+              "unit": "thousand_shares",
+              "population": "total",
+              "window": {
+                "kind": "trailing_trading_days",
+                "trading_days": 5
+              },
+              "observed_at": "2026-09-21",
+              "provider": "FinMind TaiwanStockInstitutionalInvestorsBuySell"
+            },
+            {
+              "path": "institutional_trading.daily_total_net_buy_last_10[5].net_buy_thousand_shares",
+              "value": -4640.81,
+              "unit": "thousand_shares",
+              "population": "total",
+              "window": {
+                "kind": "day",
+                "date": "2026-09-15"
+              },
+              "observed_at": "2026-09-15",
+              "provider": "FinMind TaiwanStockInstitutionalInvestorsBuySell"
+            },
+            {
+              "path": "institutional_trading.daily_total_net_buy_last_10[6].net_buy_thousand_shares",
+              "value": 4248.71,
+              "unit": "thousand_shares",
+              "population": "total",
+              "window": {
+                "kind": "day",
+                "date": "2026-09-16"
+              },
+              "observed_at": "2026-09-16",
+              "provider": "FinMind TaiwanStockInstitutionalInvestorsBuySell"
+            },
+            {
+              "path": "institutional_trading.daily_total_net_buy_last_10[7].net_buy_thousand_shares",
+              "value": -1413.88,
+              "unit": "thousand_shares",
+              "population": "total",
+              "window": {
+                "kind": "day",
+                "date": "2026-09-17"
+              },
+              "observed_at": "2026-09-17",
+              "provider": "FinMind TaiwanStockInstitutionalInvestorsBuySell"
+            },
+            {
+              "path": "institutional_trading.daily_total_net_buy_last_10[8].net_buy_thousand_shares",
+              "value": -7329.88,
+              "unit": "thousand_shares",
+              "population": "total",
+              "window": {
+                "kind": "day",
+                "date": "2026-09-18"
+              },
+              "observed_at": "2026-09-18",
+              "provider": "FinMind TaiwanStockInstitutionalInvestorsBuySell"
+            },
+            {
+              "path": "institutional_trading.daily_total_net_buy_last_10[9].net_buy_thousand_shares",
+              "value": 6822.57,
+              "unit": "thousand_shares",
+              "population": "total",
+              "window": {
+                "kind": "day",
+                "date": "2026-09-21"
+              },
+              "observed_at": "2026-09-21",
+              "provider": "FinMind TaiwanStockInstitutionalInvestorsBuySell"
+            }
+          ],
+          "availability": "available"
+        }
+      }
+    },
+    "fingerprint": "386fa3e3be4a02696df104a5703a3fea39eb2004913de77c1086b8199d1735b2",
+    "input_fingerprint": "683c5ef4d798fadaa561bcb1eed39f43afcaa4fc75e8301238c839ad06a4af4e"
+  },
+  "payload": {
+    "trade_direction": "Neutral",
+    "entry_zone": "N/A",
+    "target_price": "N/A",
+    "stop_loss": "N/A",
+    "support_level": "110.525",
+    "resistance_level": "114.5",
+    "core_catalyst": "由於最近 5 個交易日三大法人合計淨買超為 -2313.29 千股（institutional_trading.last_5_trading_days_net_buy_thousand_shares），且成交量 15,754,034 股低於 20 日均量 23,734,136.25 股（volume_ratio_20 為 0.66），多空訊號分歧，短線採取 Neutral 觀望；須等待法人轉為連續性買超且成交量超越 20 日均量後再重新評估。",
+    "risk_level": "High",
+    "support_source_refs": [
+      "short_term_market_context.technical_indicators.sma_20"
+    ],
+    "resistance_source_refs": [
+      "short_term_market_context.daily_market_data.bars[4].high"
+    ],
+    "catalyst_source_refs": [],
+    "transaction_cost": null,
+    "source_assessment": {
+      "status": "degraded",
+      "reason_codes": [
+        "catalyst_evidence_scope_mismatch"
+      ],
+      "original_direction": "Neutral",
+      "contract_version": "trade-sources:v2",
+      "repair_attempted": true,
+      "source_fingerprint": "386fa3e3be4a02696df104a5703a3fea39eb2004913de77c1086b8199d1735b2",
+      "output_completion": {
+        "status": "complete",
+        "basis": "required_fields_and_raw_structure",
+        "finish_reasons": [
+          "STOP"
+        ],
+        "provider_finish_observed": true,
+        "raw_sha256": "fa96fd264b5a876324b86fb0e933032d9582332a9b8db3fd33e37e5ba730d362",
+        "generation_policy_version": "agent-generation:v4"
+      }
+    }
+  }
+}

@@ -6,7 +6,8 @@ import re
 from collections import Counter
 from random import Random
 from typing import Any
-from evidence_technical_claims import MACD_FIELDS, technical_snapshot_values, valid_technical_date
+from evidence_technical_claims import CANONICAL_TECHNICAL_FIELDS, technical_snapshot_values, valid_technical_date
+from evidence_technical_assignments import explicit_atr14_policy
 from evidence_claim_types import public_metadata_claim
 from evidence_trade_plan_claims import COVER_STOP_PATH, saved_cover_stop_number
 
@@ -46,7 +47,7 @@ def evaluate_report_evidence(
     data = snapshot.get("data")
     technical = data.get("technical_indicators") if isinstance(data, dict) else None
     technical = technical if isinstance(technical, dict) else {}
-    claims = [{**claim, "_technical_as_of": valid_technical_date(technical.get("as_of"))} for claim in claims]
+    claims = [{**claim, "_technical_as_of": valid_technical_date(technical.get("as_of")), "_technical_default_atr14": explicit_atr14_policy(technical)} for claim in claims]
     metadata_claims = [public_metadata_claim(claim) for claim in claims if claim.get("claim_type") == "analysis_score"]
     claims = [claim for claim in claims if claim.get("claim_type") != "analysis_score"]
     sample = sample_numeric_claims(claims, sample_ratio=sample_ratio, min_sample=min_sample, max_sample=max_sample, seed=seed)
@@ -156,7 +157,7 @@ def flatten_snapshot_numbers(snapshot: Any) -> list[dict[str, Any]]:
             if path == "data.technical_indicators":
                 values.extend(technical_snapshot_values(value))
                 for key, item in value.items():
-                    if not re.fullmatch(r"sma_\d+", key) and key not in MACD_FIELDS:
+                    if not re.fullmatch(r"sma_\d+", key) and key not in CANONICAL_TECHNICAL_FIELDS:
                         walk(item, f"{path}.{key}")
                 return
             if path.endswith("price_history") and {"dates", "prices"} <= value.keys():
@@ -233,7 +234,7 @@ def _check_claim(claim: dict[str, Any], snapshot_values: list[dict[str, Any]], *
     else:
         verification_reason_code = "snapshot_value_mismatch"
     return {
-        **{key: value for key, value in claim.items() if key not in {"context_text", "series_context_text", "technical_context_text", "_price_history_months", "_legacy_conclusion_context_missing", "_technical_as_of"}},
+        **{key: value for key, value in claim.items() if key not in {"context_text", "series_context_text", "technical_context_text", "_price_history_months", "_legacy_conclusion_context_missing", "_technical_as_of", "_technical_default_atr14"}},
         "status": status, "verification_reason_code": verification_reason_code, "candidate_count": len(candidate_values),
         "matched_path": best.get("path") if best else "",
         "matched_value": best.get("value") if best else None,
@@ -254,7 +255,7 @@ def _convert_snapshot_value_for_claim(claim: dict[str, Any], item: dict[str, Any
 def _relevant_snapshot_values(claim: dict[str, Any], snapshot_values: list[dict[str, Any]]) -> list[dict[str, Any]]:
     path_markers = _path_markers_for_claim(claim)
     if not path_markers: return []
-    if path_markers[0] == COVER_STOP_PATH or path_markers[0].startswith(("data.daily_market_data.bars[", "data.technical_indicators.sma_", "data.technical_indicators.macd", "rerun_context.parsed.recommendation.")):
+    if path_markers[0] == COVER_STOP_PATH or path_markers[0].startswith(("data.daily_market_data.bars[", "data.technical_indicators.", "rerun_context.parsed.recommendation.")):
         return [item for item in snapshot_values if item.get("path") == path_markers[0]]
     return [
         _convert_snapshot_value_for_claim(claim, item, path_markers)

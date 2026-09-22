@@ -1,0 +1,116 @@
+[
+  {
+    "filename": "2305_TW_v4_report_job_37d4255d2b0d.html",
+    "markdown_key": "unknown-month/2305.TW/2305_TW_v4_report_job_37d4255d2b0d.md",
+    "snapshot_key": "unknown-month/2305.TW/2305_TW_v4_report_job_37d4255d2b0d.data.json",
+    "snapshot_sha256": "9f3fc401862d33dd062d945bbc9b18d4c7d42ace3ed32fd2e11e286065550246",
+    "lines": [
+      "- **發現**：RSI_14 處於 88.45 的高檔區，MACD 指標正向擴張（MACD: 7.32, Signal: 4.63, Histogram: 2.70），動能強勁但短線進入過熱區。（來源：/short_term_market_context/technical_indicators；技術指標截至 2026-09-22。）；反證：高 RSI 伴隨量能萎縮（Volume Ratio 20: 0.37），需留意動能鈍化。"
+    ],
+    "technical_indicators": {
+      "as_of": "2026-09-22",
+      "sample_count": 120,
+      "source": "yfinance 5y history",
+      "volume_unit": "shares",
+      "availability": "available",
+      "missing_indicators": [],
+      "calculation_policy": {
+        "input": "daily_market_data.bars; no missing-session or OHLC interpolation",
+        "sma": "Arithmetic mean of final N closes",
+        "rsi_14": "14 price changes; SMA seed then Wilder smoothing; flat=50, zero loss=100",
+        "macd": "EMA12-EMA26; SMA-seeded EMAs; signal EMA9 requires 34 closes",
+        "atr_14": "14 true ranges using previous close; SMA seed then Wilder smoothing; requires 15 bars",
+        "volume_ratio_20": "Latest volume / mean of final 20 volumes; zero mean yields null"
+      },
+      "sma_5": 56.24000015,
+      "sma_10": 48.58500023,
+      "sma_20": 39.62500019,
+      "sma_60": 34.44250002,
+      "rsi_14": 88.45481152,
+      "macd": 7.32428874,
+      "macd_signal": 4.62659148,
+      "macd_histogram": 2.69769726,
+      "atr_14": 3.42126118,
+      "volume_latest": 6782824.0,
+      "volume_sma_5": 12430186.0,
+      "volume_sma_20": 18467990.9,
+      "volume_ratio_20": 0.3672746
+    }
+  },
+  {
+    "filename": "6226_TW_v4_report_job_d89d35226dba.html",
+    "markdown_key": "unknown-month/6226.TW/6226_TW_v4_report_job_d89d35226dba.md",
+    "snapshot_key": "unknown-month/6226.TW/6226_TW_v4_report_job_d89d35226dba.data.json",
+    "snapshot_sha256": "9d0743dc56d79b1f1963c61830876809663ed403631ef56e5777cad21f4aef9c",
+    "lines": [
+      "- **發現**：RSI 達 71.69 進入超買區，MACD 柱狀體（1.089）持續擴張，動能指標處於強勢鈍化區間。（來源：short_term_market_context.technical_indicators.rsi_14、short_term_market_context.technical_indicators.macd_histogram；指標計算截至 2026-09-22）；反證：RSI 高檔鈍化雖代表強勢，但也暗示短線波動率（ATR: 2.867）擴大，易出現劇烈震盪。"
+    ],
+    "technical_indicators": {
+      "as_of": "2026-09-22",
+      "sample_count": 120,
+      "source": "yfinance 5y history",
+      "volume_unit": "shares",
+      "availability": "available",
+      "missing_indicators": [],
+      "calculation_policy": {
+        "input": "daily_market_data.bars; no missing-session or OHLC interpolation",
+        "sma": "Arithmetic mean of final N closes",
+        "rsi_14": "14 price changes; SMA seed then Wilder smoothing; flat=50, zero loss=100",
+        "macd": "EMA12-EMA26; SMA-seeded EMAs; signal EMA9 requires 34 closes",
+        "atr_14": "14 true ranges using previous close; SMA seed then Wilder smoothing; requires 15 bars",
+        "volume_ratio_20": "Latest volume / mean of final 20 volumes; zero mean yields null"
+      },
+      "sma_5": 43.63000031,
+      "sma_10": 37.96999989,
+      "sma_20": 35.00250015,
+      "sma_60": 26.44499992,
+      "rsi_14": 71.68965856,
+      "macd": 4.9876854,
+      "macd_signal": 3.89835528,
+      "macd_histogram": 1.08933012,
+      "atr_14": 2.8674006,
+      "volume_latest": 4027652.0,
+      "volume_sma_5": 33407166.6,
+      "volume_sma_20": 25494563.8,
+      "volume_ratio_20": 0.15798082
+    }
+  },
+  {
+    "filename": "2327_TW_v4_report_job_5ab78a7d0a97.html",
+    "markdown_key": "unknown-month/2327.TW/2327_TW_v4_report_job_5ab78a7d0a97.md",
+    "snapshot_key": "unknown-month/2327.TW/2327_TW_v4_report_job_5ab78a7d0a97.data.json",
+    "snapshot_sha256": "c45c7e21e98ffa21bb538ed214eefb4f0d29091834c0ca9e86d97261d22f321d",
+    "lines": [
+      "- **發現**：RSI_14為 50.67，MACD 柱狀體（histogram）為 5.33，顯示動能處於中性偏多但力道溫和。（來源：short_term_market_context.technical_indicators；指標數據截至 2026-09-22。）；反證：MACD 主線仍處於負值區間（MACD: -12.96, Signal: -18.29），中期動能仍受壓抑。"
+    ],
+    "technical_indicators": {
+      "as_of": "2026-09-22",
+      "sample_count": 120,
+      "source": "yfinance 5y history",
+      "volume_unit": "shares",
+      "availability": "available",
+      "missing_indicators": [],
+      "calculation_policy": {
+        "input": "daily_market_data.bars; no missing-session or OHLC interpolation",
+        "sma": "Arithmetic mean of final N closes",
+        "rsi_14": "14 price changes; SMA seed then Wilder smoothing; flat=50, zero loss=100",
+        "macd": "EMA12-EMA26; SMA-seeded EMAs; signal EMA9 requires 34 closes",
+        "atr_14": "14 true ranges using previous close; SMA seed then Wilder smoothing; requires 15 bars",
+        "volume_ratio_20": "Latest volume / mean of final 20 volumes; zero mean yields null"
+      },
+      "sma_5": 548.6,
+      "sma_10": 550.6,
+      "sma_20": 553.85,
+      "sma_60": 643.875,
+      "rsi_14": 50.66519494,
+      "macd": -12.96338515,
+      "macd_signal": -18.28880431,
+      "macd_histogram": 5.32541916,
+      "atr_14": 33.56772462,
+      "volume_latest": 42657699.0,
+      "volume_sma_5": 28525450.0,
+      "volume_sma_20": 38376958.4,
+      "volume_ratio_20": 1.11154455
+    }
+  }
+]

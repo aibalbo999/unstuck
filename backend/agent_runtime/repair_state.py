@@ -14,6 +14,9 @@ from .structured_repair_contracts import structured_output_missing
 def repair_contract_issues(agent_num: int, context: dict) -> list[str]:
     """Use existing per-agent contracts; the complete report audit still follows."""
     issues = []
+    if agent_num == 24:
+        from .trade_audit_source_contract import audit_source_issues
+        issues.extend(audit_source_issues(context))
     if structured_output_missing(context, agent_num):
         issues.append(f"Agent {agent_num} 結構化輸出未通過本模式契約檢查。")
         if get_structured_agent_num("short_setup", context) == agent_num:

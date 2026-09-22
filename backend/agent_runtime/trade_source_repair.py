@@ -8,13 +8,14 @@ from workflow_quality_drafts import checkpoint_unvalidated_draft
 from .cancellation import raise_if_cancelled
 
 
-async def repair_trade_sources(result, data, context, rotator, run_agent):
+async def repair_trade_sources(result, data, context, rotator, run_agent, *, validate_candidate=None):
     outputs = context.setdefault("structured_outputs", {})
     output = outputs.get(24, outputs.get("24", {}))
     assessment = output.get("source_assessment", {}) if isinstance(output, dict) else {}
     manifest = context.get("_trade_source_manifest") or {}
     has_evidence = any(allowed_source_refs(manifest.get("catalog", {})).values())
-    if (assessment.get("status") != "degraded" or assessment.get("repair_attempted")
+    if ((assessment.get("output_completion") or {}).get("status") == "local_fallback"
+            or assessment.get("status") != "degraded" or assessment.get("repair_attempted")
             or not manifest.get("visible") or not has_evidence):
         return result
 
@@ -38,6 +39,8 @@ async def repair_trade_sources(result, data, context, rotator, run_agent):
         "法人主張需寫出主體、期間、觀測日、數值與單位，並引用同一 institutional_evidence record；不能只寫外資累積或法人買超。"
         "event_calendar 整個物件及 availability 不是催化引用；無已確認事件不等於市場没有事件。"
         "Neutral 也必須符合來源要求：可使用有來源的技術條件說明觀望，無法確認的其他主張保留為未知，不能當成事實。"
+        "把已觀測事實與未來條件分開：core_catalyst 先逐項寫可核驗的現況，最後用『；等待…後再重新評估』表達尚未發生的條件。"
+        "現況不得使用單一累計值推定連續買超；未來重新評估條件也不能取代現況的來源引用。"
         "若資料不支持原方向，保持 Neutral 並具體說明缺口與重新評估条件；不得填假引用或強迫Long/Short。"
     )
     try:
@@ -52,6 +55,10 @@ async def repair_trade_sources(result, data, context, rotator, run_agent):
             outputs[24] = original
             return result
         accepted.setdefault("source_assessment", {})["repair_attempted"] = True
+        if validate_candidate is not None:
+            context.setdefault("blocking_issues", []).extend(
+                f"Agent 24 source repair: {issue}" for issue in validate_candidate(candidate)
+            )
         return candidate
     except BaseException:
         restore_original_source_state()

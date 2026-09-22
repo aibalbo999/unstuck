@@ -11,7 +11,8 @@ from .deterministic_fallback_audit import (
     record_deterministic_fallback as _record_deterministic_fallback,
 )
 from .deterministic_fallback_evidence import financial_evidence_fallback
-from .deterministic_fallback_mode_contracts import event_swing_fallback, position_plan_fallback, short_setup_fallback
+from .deterministic_fallback_mode_contracts import position_plan_fallback, short_setup_fallback
+from .deterministic_fallback_trade_evidence import attributed_event_swing_fallback
 
 
 def _deterministic_structured_fallback(
@@ -95,7 +96,7 @@ def _deterministic_structured_fallback(
         return True, "已套用 deterministic 護城河 fallback"
 
     if agent_num == 24:
-        structured = event_swing_fallback()
+        structured = attributed_event_swing_fallback(data, context)
         structured_outputs[agent_num] = structured
         context["analyses"][agent_num] = structured_output_to_report_text(agent_num, structured, "")
         _clear_agent_blocking_issues(context, agent_num)
