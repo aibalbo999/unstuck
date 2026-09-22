@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 import subprocess
 import sys
@@ -296,6 +296,14 @@ def test_formal_schedule_pins_all_known_cutoffs_and_deferred_horizons():
 
 def test_schedule_cli_selects_from_pinned_machine_readable_schedule(tmp_path):
     schedule = _schedule()
+    # This subprocess uses the real clock; keep its waiting fixture in the future.
+    # Fixed-clock maturity boundaries are covered by plan_next_checkpoint tests.
+    cutoff = datetime.now(ZoneInfo("Asia/Taipei")).date() + timedelta(days=3)
+    for offset, checkpoint in enumerate(schedule["checkpoints"]):
+        checkpoint["cutoff_session"] = (cutoff + timedelta(days=offset)).isoformat()
+    schedule["schedule_sha256"] = content_hash({
+        key: value for key, value in schedule.items() if key != "schedule_sha256"
+    })
     schedule_path = tmp_path / "schedule.json"
     schedule_path.write_text(json.dumps(schedule), encoding="utf-8")
     checkpoints = tmp_path / "checkpoints"
@@ -327,7 +335,7 @@ def test_schedule_cli_selects_from_pinned_machine_readable_schedule(tmp_path):
     assert completed.stderr == ""
     result = json.loads(completed.stdout)
     assert result["status"] == "waiting"
-    assert result["cutoff_session"] == "2026-09-15"
+    assert result["cutoff_session"] == cutoff.isoformat()
 
 
 def test_schedule_cli_rejects_wrong_external_pin(tmp_path):

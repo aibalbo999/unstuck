@@ -11,25 +11,17 @@ from evidence_claim_numbers import (
     valid_claim_number as _valid_claim_number,
 )
 from evidence_daily_price_claims import dated_daily_extreme_path
-from evidence_technical_claims import MOVING_AVERAGE_PERIOD_LIST_RE, technical_indicator_path
+from evidence_technical_claims import technical_indicator_path
 from evidence_technical_assignments import technical_assignment_label
 from evidence_recommendation_claims import recommendation_horizon_path
-from evidence_claim_types import NUMBER_TOKEN, calendar_metadata_label, calendar_metadata_match, score_metadata
+from evidence_claim_types import NUMBER_TOKEN, score_metadata
 from evidence_trade_plan_claims import saved_cover_stop_path
-def _normalize_match_text(value: Any) -> str:
-    return re.sub(r"[^0-9a-zA-Z_\u4e00-\u9fff]+", "", str(value or "").lower())
-
-
-_NUMERIC_UNIT_PATTERN = r"(?:TWD|%|x|X|倍|億|元|張|B|M|K|k|T)"
+from evidence_claim_boundaries import _NUMERIC_UNIT_PATTERN, _normalize_match_text, is_non_claim_match
 _KV_RE = re.compile(
     rf"(?P<label>[\u4e00-\u9fffA-Za-z][^:\n：|]{{0,30}})[:：]\s*[*_`]*\s*(?:[~約])?(?:NT\$|\$)?(?P<num>{NUMBER_TOKEN})\s*(?P<unit>{_NUMERIC_UNIT_PATTERN})?(?:[.．](?=\s*(?:[)）(（]|$)))?(?![\dA-Za-z]|[.．](?!\s*(?:[)）(（]|$|\s+[A-Za-z\u4e00-\u9fff])))"
 )
 _TABLE_CELL_RE = re.compile(
     rf"\|\s*(?P<label>[^|\n]{{1,30}})\s*\|\s*[*_`]*\s*(?:[~約])?(?:NT\$|\$)?(?P<num>{NUMBER_TOKEN})\s*(?P<unit>{_NUMERIC_UNIT_PATTERN})?(?:\s*/\s*(?P<score_denominator>{NUMBER_TOKEN}))?(?:[.．](?=\s*\|))?(?![\dA-Za-z.])\s*\|"
-)
-_TABLE_VALUE_LABEL_RE = re.compile(
-    rf"^\s*(?:NT\$|\$)?\s*-?\d[\d,]*(?:\.\d+)?\s*(?:{_NUMERIC_UNIT_PATTERN}|billion[_ ]?twd|million[_ ]?twd|thousand[_ ]?twd)\s*$",
-    re.IGNORECASE,
 )
 _CHIP_EXTERNAL_PREVIOUS_RE = re.compile(
     r"(?:Margin|Short)\s+balance\s*:\s*-?\d[\d,]*(?:\.\d+)?\s*\([^)]*\)\s*\.?\s*Previous\s*:\s*(?P<num>-?\d[\d,]*(?:\.\d+)?)",
@@ -52,11 +44,6 @@ _EPS_VALUE_RE = re.compile(
     re.IGNORECASE,
 )
 _NON_CLAIM_SUFFIX_RE = re.compile(r"^\s*(?:[A-Za-z\u4e00-\u9fff]|週|周|個月|月|年|天|日)")
-_NON_CLAIM_LABEL_MARKERS = (
-    "code", "duration", "error", "hash", "pipeline", "prompt", "provider", "recordcount", "twse", "tradingview",
-    "normalized financials", "交易計畫健康度", "核心論點", "數據/證據", "近 10 日每日趨勢", "daily trend",
-    "Recent catalysts", "近期催化劑", "抓取", "資料日期", "時間", "程式碼", "版本", "錯誤", "耗時", "雜湊",
-)
 _SNAPSHOT_METADATA_PATH_MARKERS = (
     "cache_generated_at_epoch", "conclusion_generated_at", "conclusion_guardrails", "content_hash", "data_snapshot_hash",
     "duration_ms", "evidence_exit_gate", "fetched_at", "final_audit", "generated_at", "hash", "record_count",
@@ -65,7 +52,6 @@ _SNAPSHOT_METADATA_PATH_MARKERS = (
 _CONFIDENCE_METADATA_PATH_MARKERS = (
     "content_credibility", "confidence", "data_confidence", "max_recommended_confidence", "min_data_confidence", "confidence_data_trust", "report_conformance",
 )
-_NORMALIZED_NON_CLAIM_LABEL_MARKERS = tuple(_normalize_match_text(marker) for marker in _NON_CLAIM_LABEL_MARKERS)
 _NORMALIZED_SNAPSHOT_METADATA_PATH_MARKERS = tuple(_normalize_match_text(marker) for marker in _SNAPSHOT_METADATA_PATH_MARKERS)
 _NORMALIZED_CONFIDENCE_METADATA_PATH_MARKERS = tuple(_normalize_match_text(marker) for marker in _CONFIDENCE_METADATA_PATH_MARKERS)
 _NORMALIZED_CANONICAL_STRING_PATH_MARKERS = tuple(_normalize_match_text(marker) for marker in ("target_price", "analyst_target", "current_price", "forward_eps", "trailing_eps"))
@@ -107,7 +93,7 @@ def extract_numeric_claims(markdown: str) -> list[dict[str, Any]]:
             continue
         series_matches = list(_DATE_SERIES_RE.finditer(line)) if "觀察近三個月價格" in line else []
         for match in list(_KV_RE.finditer(line)) + list(_TABLE_CELL_RE.finditer(line)):
-            if _is_non_claim_match(line, match):
+            if is_non_claim_match(line, match, table_cell=match.re is _TABLE_CELL_RE):
                 continue
             label = technical_assignment_label(_clean_label(match.group("label")))
             horizon_prefix = re.search(r"(?P<horizon>\d+)\s*[*_`]*$", line[:match.start("label")])
@@ -165,26 +151,6 @@ def extract_numeric_claims(markdown: str) -> list[dict[str, Any]]:
     for claim in claims:
         claim.setdefault("claim_type", "financial")
     return claims
-
-def _is_non_claim_match(line: str, match: re.Match[str]) -> bool:
-    # Only a complete, explicitly labelled moving-average period list is metadata.
-    if MOVING_AVERAGE_PERIOD_LIST_RE.match(line[match.start("num"):]):
-        return True
-    if calendar_metadata_label(match.group("label")):
-        return calendar_metadata_match(match)
-    timestamp = re.search(r"\d{4}-\d{2}-\d{2}T\d{1,2}:\d{2}:\d{2}", line)
-    if (timestamp and timestamp.start() <= match.start("label") <= timestamp.end()) or (line[max(0, match.start("label") - 1):match.start("label")] == "_" and re.search(r"`normalized[_ ]financials`", line[max(0, match.start("label") - 40):match.end("label")], re.IGNORECASE)) or re.search(r"`institutional_trading`\s*[:：]\s*\d+\s*-\s*day\s+lookback\b", line, re.IGNORECASE) or re.search(r"(?:不可用|unavailable|fallback|error|錯誤)\s*[:：]?\s*(?:4\d{2}|5\d{2})\b", line[max(0, match.start("num") - 80):match.end("num") + 1], re.IGNORECASE) or re.match(r"(?:\s*-\s*(?:day|days|week|weeks|month|months)\b|\s*(?:日|天|週|周|個月|月)\b)", line[match.end("num"):], re.IGNORECASE) or (match.re is _TABLE_CELL_RE and _TABLE_VALUE_LABEL_RE.fullmatch(match.group("label"))):
-        return True
-    label = _normalize_match_text(match.group("label"))
-    number_start = match.start("num")
-    if any(marker in label for marker in _NORMALIZED_NON_CLAIM_LABEL_MARKERS) or re.search(r"[()（）].*(?:previous|前值)\s*$", match.group("label"), re.IGNORECASE):
-        return True
-    if re.search(r"\d{1,2}:\s*$", line[:number_start]) and any(marker in label for marker in ("marketdata", "截至", "資料日期", "資料時間", "抓取時間")):
-        return True
-    if number_start <= 0 or line[number_start - 1] != "T":
-        return False
-    suffix = line[match.end("num"):]
-    return bool(re.match(r":\d{2}(?::\d{2})?(?:[.,+\-Z]|$)", suffix))
 
 
 def _claim_value(match: re.Match[str], label: str, line: str) -> tuple[float | None, str]:

@@ -23,12 +23,31 @@ def test_original_reports_bind_explicit_subject_and_verified_period(ticker):
     assert check(changed)  # A pass must still depend on the actual numeric source.
 
 
-@pytest.mark.parametrize('row', [r for r in ROWS if r['ticker'] in {'6168.TW','2321.TW','2891.TW','3605.TW'}], ids=lambda r:r['job_id'][:8])
+@pytest.mark.parametrize('row', [r for r in ROWS if r['ticker'] in {'6168.TW','2321.TW','2891.TW','3605.TW'}
+                              and r['job_id'] not in {'cefda8b5272240089b1881fe181c90bf',
+                                                      'afa91c6762974ca6b5addadfdf293fac'}], ids=lambda r:r['job_id'][:8])
 def test_original_wrong_or_ambiguous_reports_remain_blocked(row):
     assert check(row)
     if row['ticker'] in {'6168.TW','2321.TW','2891.TW'}:
         assert institutional_evidence_issues(row['raw_responses'][-1],
             {'ticker':row['ticker'],'institutional_trading':row['institutional_data']})
+
+
+def test_retained_one_day_source_is_equivalent_to_explicit_same_date():
+    row = next(r for r in ROWS if r['job_id'] == 'cefda8b5272240089b1881fe181c90bf')
+    assert check(row) == []
+    changed = copy.deepcopy(row)
+    changed['institutional_data']['latest_date'] = '2026-09-09'
+    assert check(changed)
+
+
+def test_retained_respectively_pair_matches_both_original_sources():
+    row = next(r for r in ROWS if r['job_id'] == 'afa91c6762974ca6b5addadfdf293fac')
+    assert check(row) == []
+    changed = copy.deepcopy(row)
+    changed['institutional_data']['net_buy_thousand_shares_by_category']['dealer'] = -7050.84
+    changed['institutional_data']['net_buy_shares_by_category']['dealer'] = -7050840
+    assert check(changed)
 
 
 def test_bare_trading_days_are_a_statistical_window():

@@ -68,6 +68,7 @@ def evaluate_candidate(
             expected_prompt_fingerprint=expected_prompt_fingerprint,
             expected_model_route_policy_sha256=expected_model_route_policy_sha256,
         ))
+        reasons.extend(_render_endpoint_reasons(report, allow_dirty=allow_dirty))
         reasons.extend(_selection_reasons(report, selection_period, timezone_name))
     if report.get("code_dirty") is True and not allow_dirty:
         reasons.append("dirty_code_not_allowed")
@@ -109,6 +110,30 @@ def evaluate_candidate(
 
 def candidate_bundle_hash(candidate: Mapping[str, Any]) -> str:
     return content_hash(candidate)
+
+
+def _render_endpoint_reasons(report: Mapping[str, Any], *, allow_dirty: bool) -> list[str]:
+    # Legacy packets keep their prior admission policy; an explicit new endpoint
+    # cannot be discarded or represented as execution entirely at the start SHA.
+    fields = {"render_runtime_commit", "render_runtime_dirty", "analysis_start_vs_render_revision_mismatch", "revision_provenance_scope"}
+    if not fields.intersection(report):
+        return []
+    reasons = []
+    if not isinstance(report.get("analysis_start_vs_render_revision_mismatch"), bool):
+        reasons.append("missing_analysis_start_render_revision_binding")
+    render = report.get("render_runtime_commit")
+    if not isinstance(render, str) or not COMMIT_RE.fullmatch(render):
+        reasons.append("invalid_render_runtime_commit")
+    elif render != report.get("code_commit"):
+        reasons.append("mixed_start_render_code_revisions")
+    if report.get("analysis_start_vs_render_revision_mismatch") is True:
+        reasons.append("mixed_start_render_code_revisions")
+    dirty = report.get("render_runtime_dirty")
+    if not isinstance(dirty, bool):
+        reasons.append("missing_render_runtime_dirty")
+    elif dirty and not allow_dirty:
+        reasons.append("dirty_render_code_not_allowed")
+    return list(dict.fromkeys(reasons))
 
 
 def _prospective_identity_reasons(

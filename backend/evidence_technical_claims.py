@@ -12,6 +12,7 @@ from evidence_technical_assignments import technical_assignment_path
 _SMA = re.compile(r"(?<![A-Za-z0-9_])SMA[_ ]?(\d+)(?!\d)|(?<!\d)(\d+)\s*日\s*(?:簡單移動平均線|移動平均線|均線|SMA)", re.I)
 MOVING_AVERAGE_PERIOD_LIST_RE = re.compile(r"\d+(?:\s*[/／、]\s*\d+)+\s*日\s*(?:均線|移動平均線|簡單移動平均線|SMA)(?![A-Za-z])", re.I)
 _OTHER_BASIS = re.compile(r"EMA|指數|volume|成交量|收盤|close|price_history|高點|低點|新聞|news|catalyst|券商|研究|factset|unavailable|n/?a\b|null|不可用|無資料", re.I)
+_ASSIGNMENT_OTHER_BASIS = re.compile(_OTHER_BASIS.pattern.replace("收盤|close|", ""), re.I)
 _NON_CURRENT_BASIS = re.compile(r"昨日|前日|前期|預估|預測|假設|如果|若|目標|previous|yesterday|forecast|projected|hypothetical", re.I)
 _PARTIAL_DATE = re.compile(r"(?<!\d)(?:0?[1-9]|1[0-2])\s*[/月]\s*(?:0?[1-9]|[12]\d|3[01])(?:日)?(?!\d)|(?:19|20)\d{2}\s*年")
 _ASSIGNED_VALUE = re.compile(r"\s*[:：=]\s*(?:NT\$|\$|TWD)?\s*(-?\d[\d,]*(?:\.\d+)?)\s*(?:元|TWD)?(?=$|[\s,，;；>><<）)\"。])", re.I)
@@ -95,7 +96,7 @@ def technical_sma_path(claim: dict[str, Any]) -> tuple[str, ...] | None:
     if not re.search(r"支撐|壓力|價格|股價|均線|SMA|EMA|support|resistance", label, re.I):
         return None
     matches = list(_SMA.finditer(text))
-    if _OTHER_BASIS.search(text) or _NON_CURRENT_BASIS.search(text) or str(claim.get("unit") or "").lower() not in {"", "元", "twd"}:
+    if _NON_CURRENT_BASIS.search(text) or str(claim.get("unit") or "").lower() not in {"", "元", "twd"}:
         return ()
     dates = list(DAILY_DATE_RE.finditer(text))
     if len(dates) > 1:
@@ -111,7 +112,11 @@ def technical_sma_path(claim: dict[str, Any]) -> tuple[str, ...] | None:
         return ()  # A historical month/day without a year cannot prove the snapshot date.
     assignment = _explicit_assignment_path(text, label, claim)
     if assignment is not None:
-        return assignment
+        # A separately named SMA:value owns its scalar even when the sentence
+        # also reports a close price. Other bases still cannot borrow price SMA.
+        return () if _ASSIGNMENT_OTHER_BASIS.search(text) else assignment
+    if _OTHER_BASIS.search(text):
+        return ()
     if len(matches) != 1:
         return ()
     # Remove only the identified period and optional date; exactly one price remains.

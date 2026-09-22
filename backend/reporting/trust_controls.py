@@ -61,13 +61,41 @@ def build_trust_controls_markdown(data: dict, context: dict | None = None) -> li
 
 
 def _code_status(packet: dict) -> str:
+    if (
+        packet.get("revision_provenance_scope") == "analysis_start_and_report_render_endpoints_only"
+        and packet.get("analysis_start_vs_render_revision_mismatch") is None
+    ):
+        # code_commit may be the legacy environment fallback, not a saved start SHA.
+        if packet.get("render_runtime_commit"):
+            render = _packet_text(packet, "render_runtime_commit")[:12]
+            return (
+                "程式碼狀態：N/A（任務起始版本未知）；"
+                f"報告產出：{render}（{_dirty_status(packet.get('render_runtime_dirty'))}）；"
+                "僅記錄兩端，不代表所有節點使用同一版本"
+            )
+        return "程式碼狀態：報告產出版本未知，無法完整核對任務版本端點"
     commit = _packet_text(packet, "code_commit")[:12] or "N/A"
-    dirty = packet.get("code_dirty")
+    start_status = f"程式碼狀態：{commit}（{_dirty_status(packet.get('code_dirty'))}）"
+    dirty_changed = (
+        "render_runtime_dirty" in packet
+        and packet.get("render_runtime_dirty") != packet.get("code_dirty")
+    )
+    if packet.get("analysis_start_vs_render_revision_mismatch") is True or dirty_changed:
+        render = _packet_text(packet, "render_runtime_commit")[:12] or "N/A"
+        return (
+            f"{start_status}（任務起始）；"
+            f"報告產出：{render}（{_dirty_status(packet.get('render_runtime_dirty'))}）；"
+            "僅記錄兩端，不代表所有節點使用同一版本"
+        )
+    return start_status
+
+
+def _dirty_status(dirty) -> str:
     if dirty is True:
-        return f"程式碼狀態：{commit}（含未提交變更）"
+        return "含未提交變更"
     if dirty is False:
-        return f"程式碼狀態：{commit}（乾淨）"
-    return f"程式碼狀態：{commit}（工作樹狀態未知）"
+        return "乾淨"
+    return "工作樹狀態未知"
 
 
 def _generated_at_text(context: dict) -> str:

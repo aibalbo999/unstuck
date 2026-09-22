@@ -94,7 +94,7 @@ def _submission(scope, *, job_id="job-1"):
     }
 
 
-def _write_report_bundle(report_root: Path, filename: str):
+def _write_report_bundle(report_root: Path, filename: str, *, render_endpoint=None):
     quality = {"status": "sufficient", "score": 90}
     packet = {
         "prompt_fingerprint": "a" * 64,
@@ -110,6 +110,8 @@ def _write_report_bundle(report_root: Path, filename: str):
         "source_publication_at": "",
         "source_provenance_coverage": "incomplete",
     }
+    if render_endpoint is not None:
+        packet.update(render_endpoint)
     snapshot = {
         "ticker": TICKERS[0],
         "pipeline": "v1",
@@ -275,3 +277,29 @@ def test_finalize_rejects_tampered_content_addressed_blob(tmp_path):
             registration_evidence=None,
             selection_closed=False,
         )
+
+
+def test_seal_preserves_actual_render_endpoint_and_rejects_mixed_revision_cohort(tmp_path):
+    scope = _scope()
+    manifest = _manifest(scope)
+    submission = _submission(scope)
+    filename = f"{TICKERS[0]}_v1_report_20260909_093000.html"
+    endpoint = {
+        'render_runtime_commit': 'e' * 40, 'render_runtime_dirty': False,
+        'analysis_start_vs_render_revision_mismatch': True,
+        'revision_provenance_scope': 'analysis_start_and_report_render_endpoints_only',
+    }
+    report_root = tmp_path / 'output'
+    _write_report_bundle(report_root, filename, render_endpoint=endpoint)
+    db = tmp_path / 'operational.sqlite3'
+    _operational_db(db, filename)
+    status = seal_ready(manifest=manifest, scope=scope, submission=submission,
+        operational_db=db, report_root=report_root, sessions=['2026-09-09', '2026-09-10'],
+        study_root=tmp_path / 'study')
+    assert status['sealed'] == 1
+    inventory = finalize_inventory(manifest=manifest, scope=scope, submission=submission,
+        study_root=tmp_path / 'study', registration_evidence=None, selection_closed=False)
+    sealed = inventory['candidates'][0]
+    assert {key: sealed['report'].get(key) for key in endpoint} == endpoint
+    assert sealed['report']['code_commit'] == 'c' * 40
+    assert 'mixed_start_render_code_revisions' in sealed['admission_reasons']

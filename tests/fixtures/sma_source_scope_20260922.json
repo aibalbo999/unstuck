@@ -1,0 +1,146 @@
+[
+  {
+    "identity": "6706_TW_v4_report_job_803fc407d517.html",
+    "fixture_sha256": "0a558837338193c4b5c9e0d38bfc0179b1eb0e72710f1482fd3f1fa8050fc7b6",
+    "input_hash": "47f81d5d87c5debfed12e5443a6c913979cd7ce7160c6cbd987c52a6182b2617",
+    "lines": [
+      "- **發現**：惠特（6706.TW）5日、10日、20日與60日均線呈現標準多頭排列，收盤價（147.0元）高於各期均線（SMA5: 140.8元, SMA10: 132.2元, SMA20: 127.0元, SMA60: 124.05元）。（來源：short_term_market_context.technical_indicators.sma_5、short_term_market_context.technical_indicators.sma_10、short_term_market_context.technical_indicators.sma_20、short_term_market_context.technical_indicators.sma_60；行情資料截至 2026-09-16 盤後）；反證：目前股價距離 20 日均線乖離率達 +15.75%，短線存在向均線收斂回測之可能性。"
+    ],
+    "technical_indicators": {
+      "as_of": "2026-09-16",
+      "atr_14": 8.75112852,
+      "availability": "available",
+      "calculation_policy": {
+        "atr_14": "14 true ranges using previous close; SMA seed then Wilder smoothing; requires 15 bars",
+        "input": "daily_market_data.bars; no missing-session or OHLC interpolation",
+        "macd": "EMA12-EMA26; SMA-seeded EMAs; signal EMA9 requires 34 closes",
+        "rsi_14": "14 price changes; SMA seed then Wilder smoothing; flat=50, zero loss=100",
+        "sma": "Arithmetic mean of final N closes",
+        "volume_ratio_20": "Latest volume / mean of final 20 volumes; zero mean yields null"
+      },
+      "macd": 5.9276268,
+      "macd_histogram": 2.77954962,
+      "macd_signal": 3.14807719,
+      "missing_indicators": [],
+      "rsi_14": 65.94099828,
+      "sample_count": 120,
+      "sma_10": 132.2,
+      "sma_20": 127.0,
+      "sma_5": 140.8,
+      "sma_60": 124.04833336,
+      "source": "yfinance 5y history",
+      "volume_latest": 11505974.0,
+      "volume_ratio_20": 2.69306075,
+      "volume_sma_20": 4272452.45,
+      "volume_sma_5": 12092577.4
+    }
+  },
+  {
+    "identity": "2305_TW_v4_report_job_d2919f3d7fb2.html",
+    "fixture_sha256": "7974a9079e8813624b8f7b8d0bd3ea8f76341bb77e3e15ef22b788a12881f959",
+    "input_hash": "90b05da63861934af6bdea68747da5dd96d09e0e60f5f5dcc1aeabd41b43e243",
+    "lines": [
+      "      \"finding\": \"全友(2305.TW)於2026年9月17日收盤價54.30元，均線呈現標準多頭排列(SMA5: 46.97 > SMA10: 40.58 >"
+    ],
+    "technical_indicators": {
+      "as_of": "2026-09-17",
+      "atr_14": 3.05739755,
+      "availability": "available",
+      "calculation_policy": {
+        "atr_14": "14 true ranges using previous close; SMA seed then Wilder smoothing; requires 15 bars",
+        "input": "daily_market_data.bars; no missing-session or OHLC interpolation",
+        "macd": "EMA12-EMA26; SMA-seeded EMAs; signal EMA9 requires 34 closes",
+        "rsi_14": "14 price changes; SMA seed then Wilder smoothing; flat=50, zero loss=100",
+        "sma": "Arithmetic mean of final N closes",
+        "volume_ratio_20": "Latest volume / mean of final 20 volumes; zero mean yields null"
+      },
+      "macd": 4.9485441,
+      "macd_histogram": 2.36776055,
+      "macd_signal": 2.58078355,
+      "missing_indicators": [],
+      "rsi_14": 85.77937233,
+      "sample_count": 120,
+      "sma_10": 40.5800005,
+      "sma_20": 34.79250021,
+      "sma_5": 46.97000046,
+      "sma_60": 33.31333335,
+      "source": "yfinance 5y history",
+      "volume_latest": 6926929.0,
+      "volume_ratio_20": 0.39854565,
+      "volume_sma_20": 17380515.95,
+      "volume_sma_5": 43478158.2
+    }
+  },
+  {
+    "identity": "2892_TW_v4_report_job_632d354198fc.html",
+    "fixture_sha256": "bb7efba10ee119a8e2685a13e56acc6265ae4069220f5f0b6460427fb61f58b7",
+    "input_hash": "1303eb5f47cae5da5f272d987563f4916498abf643f2b3aa8f41a2bf7e889a7e",
+    "lines": [
+      "      \"finding\": \"第一金（2892.TW）短中長期均線呈現標準多頭排列（SMA5: 39.99 > SMA10: 38.98 > SMA20: 36.99 > SMA60: 34.35），趨勢維持多頭格局，惟收盤價 39.80 元回"
+    ],
+    "technical_indicators": {
+      "as_of": "2026-09-18",
+      "atr_14": 1.01189652,
+      "availability": "available",
+      "calculation_policy": {
+        "atr_14": "14 true ranges using previous close; SMA seed then Wilder smoothing; requires 15 bars",
+        "input": "daily_market_data.bars; no missing-session or OHLC interpolation",
+        "macd": "EMA12-EMA26; SMA-seeded EMAs; signal EMA9 requires 34 closes",
+        "rsi_14": "14 price changes; SMA seed then Wilder smoothing; flat=50, zero loss=100",
+        "sma": "Arithmetic mean of final N closes",
+        "volume_ratio_20": "Latest volume / mean of final 20 volumes; zero mean yields null"
+      },
+      "macd": 1.68626262,
+      "macd_histogram": 0.27340736,
+      "macd_signal": 1.41285525,
+      "missing_indicators": [],
+      "rsi_14": 72.80755715,
+      "sample_count": 120,
+      "sma_10": 38.97999954,
+      "sma_20": 36.99499969,
+      "sma_5": 39.98999939,
+      "sma_60": 34.34922775,
+      "source": "yfinance 5y history",
+      "volume_latest": 52416617.0,
+      "volume_ratio_20": 1.41002859,
+      "volume_sma_20": 37174151.95,
+      "volume_sma_5": 34391680.8
+    }
+  },
+  {
+    "identity": "9904_TW_v4_report_job_387662eee82e.html",
+    "fixture_sha256": "ad5f346df3ce1d9c1cddc81c95f608780e6f3f291bebe764f829860c697c84f6",
+    "input_hash": "6cb4c2046c0ce952de7e066c9c91002849772df824edc9f99e2878b93a879e88",
+    "lines": [
+      "- **發現**：外資近30個交易日呈現明顯派發趨勢，累計賣超達55,107張，且近10日中有8日為賣超。（來源：normalized_financials.institutional_trading；資料截至2026-09-15盤後）；反證：2"
+    ],
+    "technical_indicators": {
+      "as_of": "2026-09-16",
+      "atr_14": 0.3641266,
+      "availability": "available",
+      "calculation_policy": {
+        "atr_14": "14 true ranges using previous close; SMA seed then Wilder smoothing; requires 15 bars",
+        "input": "daily_market_data.bars; no missing-session or OHLC interpolation",
+        "macd": "EMA12-EMA26; SMA-seeded EMAs; signal EMA9 requires 34 closes",
+        "rsi_14": "14 price changes; SMA seed then Wilder smoothing; flat=50, zero loss=100",
+        "sma": "Arithmetic mean of final N closes",
+        "volume_ratio_20": "Latest volume / mean of final 20 volumes; zero mean yields null"
+      },
+      "macd": -0.05151602,
+      "macd_histogram": -0.06039745,
+      "macd_signal": 0.00888142,
+      "missing_indicators": [],
+      "rsi_14": 50.34274023,
+      "sample_count": 120,
+      "sma_10": 24.41000004,
+      "sma_20": 24.6499999,
+      "sma_5": 24.22000008,
+      "sma_60": 24.36160002,
+      "source": "yfinance 5y history",
+      "volume_latest": 12957700.0,
+      "volume_ratio_20": 1.12316385,
+      "volume_sma_20": 11536785.1,
+      "volume_sma_5": 10659107.8
+    }
+  }
+]

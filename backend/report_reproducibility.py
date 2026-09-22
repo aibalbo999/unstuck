@@ -13,6 +13,7 @@ from report_target_price_detection import detect_explicit_target_price_fields
 from model_execution_provenance import normalized_model_executions, report_model_id
 from report_input_provenance import input_bundle_observed_at
 from model_route_policy_identity import model_route_policy_sha256
+from runtime_code_identity import runtime_code_identity
 
 
 EXPLICIT_TARGET_PRICE_MIN_SCORE = 60
@@ -102,6 +103,11 @@ def build_reproducibility_packet(context: dict, data_trust: Any, generated_at: s
     data = safe_mapping_dict(dict.get(context, "data")) or {}
     prompt_fingerprint = validated_prompt_fingerprint(_first_text(context, data, "prompt_fingerprint"))
     model_executions = normalized_model_executions(context)
+    # Endpoints only: persisted start identity does not identify every resumed node.
+    start_commit = _first_text(context, data, "code_commit")
+    render_identity = runtime_code_identity()
+    render_commit = _safe_text(render_identity.get("commit")).strip() or None
+    render_dirty = render_identity.get("dirty")
     return {
         "ticker": _first_value_text(
             dict.get(context, "ticker") if isinstance(context, dict) else None,
@@ -120,6 +126,12 @@ def build_reproducibility_packet(context: dict, data_trust: Any, generated_at: s
         ),
         "code_commit": _first_text(context, data, "code_commit") or os.getenv("GIT_COMMIT", ""),
         "code_dirty": _first_bool(context, data, "code_dirty"),
+        "render_runtime_commit": render_commit,
+        "render_runtime_dirty": render_dirty if isinstance(render_dirty, bool) else None,
+        "analysis_start_vs_render_revision_mismatch": (
+            start_commit != render_commit if start_commit and render_commit else None
+        ),
+        "revision_provenance_scope": "analysis_start_and_report_render_endpoints_only",
         "generated_at": _safe_text(generated_at),
         "analysis_input_cutoff": _first_text(context, data, "analysis_input_cutoff"),
         "analysis_input_hash": _first_text(context, data, "analysis_input_hash"),

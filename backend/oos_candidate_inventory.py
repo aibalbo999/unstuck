@@ -177,6 +177,10 @@ def _seal_candidate(
         "analysis_input_hash", "input_first_available_at", "source_publication_at",
         "source_provenance_coverage",
     )}
+    report.update({key: packet[key] for key in (
+        "render_runtime_commit", "render_runtime_dirty",
+        "analysis_start_vs_render_revision_mismatch", "revision_provenance_scope",
+    ) if key in packet})
     report.update({"ticker": planned["ticker"], "pipeline_id": planned["pipeline_id"],
                    "data_snapshot_hash": integrity["hash"],
                    "conclusion_generated_at": snapshot.get("conclusion_generated_at"),

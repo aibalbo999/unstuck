@@ -1,0 +1,142 @@
+[
+  {
+    "identity": "2441_TW_v4_report_job_fcf21739a72d.html",
+    "input_hash": "67ffa64a7198913c36a587e2b4c2bce18fb8d38bfd9d924a1eb2ed72ce874813",
+    "fixture_sha256": "f8308adc43627b979b0ecc6e2b3e8a25d6c50b0cb32dec41bde936e9887ad5ca",
+    "text": "- **短線力道轉強**：近 5 個交易日法人合計買超達 1,061.19 張，特別是 9 月 14 日與 15 日連續兩天出現大額回補（分別買超 634 張與 1,318 張），顯示短線主力有卡位跡象，力道較 9 月初明顯轉強。",
+    "data": {
+      "ticker": "2441.TW",
+      "institutional_trading": {
+        "daily_total_net_buy_last_10": [
+          {
+            "date": "2026-09-02",
+            "net_buy_thousand_shares": -751.3
+          },
+          {
+            "date": "2026-09-03",
+            "net_buy_thousand_shares": -787.51
+          },
+          {
+            "date": "2026-09-04",
+            "net_buy_thousand_shares": -507.26
+          },
+          {
+            "date": "2026-09-07",
+            "net_buy_thousand_shares": 297.58
+          },
+          {
+            "date": "2026-09-08",
+            "net_buy_thousand_shares": -2413.09
+          },
+          {
+            "date": "2026-09-09",
+            "net_buy_thousand_shares": -283.75
+          },
+          {
+            "date": "2026-09-10",
+            "net_buy_thousand_shares": 169.69
+          },
+          {
+            "date": "2026-09-11",
+            "net_buy_thousand_shares": -777.54
+          },
+          {
+            "date": "2026-09-14",
+            "net_buy_thousand_shares": 634.53
+          },
+          {
+            "date": "2026-09-15",
+            "net_buy_thousand_shares": 1318.28
+          }
+        ],
+        "last_5_trading_days_net_buy_thousand_shares": 1061.19,
+        "latest_date": "2026-09-15",
+        "lookback_trading_days": 30,
+        "net_buy_shares_by_category": {
+          "dealer": -367573,
+          "foreign": -540569,
+          "investment_trust": 1222766
+        },
+        "net_buy_thousand_shares_by_category": {
+          "dealer": -367.57,
+          "foreign": -540.57,
+          "investment_trust": 1222.77
+        },
+        "source": "FinMind TaiwanStockInstitutionalInvestorsBuySell",
+        "total_net_buy_shares": 314624,
+        "total_net_buy_thousand_shares": 314.62,
+        "trend": "accumulation"
+      }
+    }
+  },
+  {
+    "identity": "6715_TW_v4_report_job_39d12de20644.html",
+    "input_hash": "94a2c37386fe6ef748525b0f751e169fd2f8859f5f275bd91e9922ccd61900a6",
+    "fixture_sha256": "67b05b006c88169f72605b464f2d0b6762da6b4094f80225b5ff3f789fc3eb48",
+    "text": "- **近 5 個交易日法人力道轉強**：根據 2026-09-17 資料，法人近 5 日合計買超 597.92 張，且呈現連續 4 個交易日（09-14 至 09-17）淨買超，單日買超量由 55.77 張放大至最高 354.47 張（09-16），顯示短線買盤具備連續性與增溫趨勢。",
+    "data": {
+      "ticker": "6715.TW",
+      "institutional_trading": {
+        "daily_total_net_buy_last_10": [
+          {
+            "date": "2026-09-04",
+            "net_buy_thousand_shares": 94.33
+          },
+          {
+            "date": "2026-09-07",
+            "net_buy_thousand_shares": 192.71
+          },
+          {
+            "date": "2026-09-08",
+            "net_buy_thousand_shares": -233.83
+          },
+          {
+            "date": "2026-09-09",
+            "net_buy_thousand_shares": 376.58
+          },
+          {
+            "date": "2026-09-10",
+            "net_buy_thousand_shares": -275.13
+          },
+          {
+            "date": "2026-09-11",
+            "net_buy_thousand_shares": -158.79
+          },
+          {
+            "date": "2026-09-14",
+            "net_buy_thousand_shares": 55.77
+          },
+          {
+            "date": "2026-09-15",
+            "net_buy_thousand_shares": 170.55
+          },
+          {
+            "date": "2026-09-16",
+            "net_buy_thousand_shares": 354.47
+          },
+          {
+            "date": "2026-09-17",
+            "net_buy_thousand_shares": 175.93
+          }
+        ],
+        "last_5_trading_days_net_buy_thousand_shares": 597.92,
+        "latest_date": "2026-09-17",
+        "lookback_trading_days": 30,
+        "net_buy_shares_by_category": {
+          "dealer": 179956,
+          "foreign": 6138,
+          "investment_trust": -544000
+        },
+        "net_buy_thousand_shares_by_category": {
+          "dealer": 179.96,
+          "foreign": 6.14,
+          "investment_trust": -544.0
+        },
+        "source": "FinMind TaiwanStockInstitutionalInvestorsBuySell",
+        "total_net_buy_shares": -357906,
+        "total_net_buy_thousand_shares": -357.91,
+        "trend": "mixed"
+      }
+    }
+  }
+]

@@ -6,6 +6,9 @@ import re
 from datetime import date
 
 from financial_claim_context import is_actual_claim, sentence_span
+from institutional_evidence_enumeration import flow_claims
+from institutional_evidence_date_pairs import date_pair_claims, date_pair_window
+from institutional_evidence_windows import _WINDOW, _DATE, _claimed_date, _claim_window, _same_window, two_day_candidates
 
 _PROVIDER = "FinMind TaiwanStockInstitutionalInvestorsBuySell"
 _CATEGORIES = {"foreign", "investment_trust", "dealer"}
@@ -17,8 +20,7 @@ _CLAIM = re.compile(
     r"(?:(?!融資|融券|外資|投信|自營商|法人|淨買超|淨賣超|買賣超|買超|賣超|淨買入|淨賣出)[^\d。；;\n]){0,12}?(?P<number>[+\-−]?\d[\d,]*(?:\.\d+)?)"
     r"(?P<scale>千|萬)?(?P<unit>股|張)(?![A-Za-z])"
 )
-_WINDOW = re.compile(r"(?:近|最近|過去)?(?<![\d./年月\-第])(?P<n>\d+)(?:個)?(?:交易)?日")
-_DATE = re.compile(r"(?:(?P<year>20\d{2})[年/\-])?(?P<month>\d{1,2})[月/\-](?P<day>\d{1,2})日?")
+
 
 
 def _map(value):
@@ -94,40 +96,6 @@ def _valid_record(record):
                  or window.get("kind") == "trailing_trading_days"
                  and _number(window.get("trading_days")) is not None and _number(window["trading_days"]) > 0
                  and _number(window["trading_days"]).is_integer()))
-
-
-def _claimed_date(match, records):
-    if match['year']:
-        try:
-            return date(int(match['year']), int(match['month']), int(match['day'])).isoformat()
-        except ValueError:
-            return None
-    matches = {r['observed_at'] for r in records
-               if int(r['observed_at'][5:7]) == int(match['month'])
-               and int(r['observed_at'][8:10]) == int(match['day'])}
-    return next(iter(matches)) if len(matches) == 1 else None
-
-
-def _claim_window(prefix, records):
-    periods = list(_WINDOW.finditer(prefix))
-    dates = list(_DATE.finditer(prefix))
-    if periods:
-        # A lookback's as-of date limits observation freshness, not its duration.
-        # Keep explicit single-day dates, even when another as-of date follows.
-        dates = [m for m in dates if not re.search(r"截至[:：]?$", prefix[:m.start()])]
-    # Only an explicit later single-day marker can supersede an earlier lookback.
-    if dates and (not periods or dates[-1].start() > periods[-1].start()):
-        last = dates[-1]
-        if re.search(r"(?:至|到|[-～~])$", prefix[:last.start()]):
-            return None
-        observed = _claimed_date(last, records)
-        return {"kind": "day", "date": observed} if observed else None
-    if periods:
-        return {"kind": "trailing_trading_days", "trading_days": int(periods[-1]['n'])}
-    if re.search(r"今日|當日|最新交易日", prefix):
-        observed = max((r['observed_at'] for r in records), default=None)
-        return {"kind": "day", "date": observed} if observed else None
-    return None
 
 
 def _claim_population(prefix, populations, records=()):
@@ -228,7 +196,7 @@ def institutional_evidence_issues(text, data, *, allowed_paths=None, _diagnostic
         if _diagnostics is not None:
             _diagnostics.append(claim_diagnostic(reason, original, offsets, match, prefix,
                                                 population, window, eligible, candidates))
-    for match in _CLAIM.finditer(text):
+    for match, paired_population in date_pair_claims(text, flow_claims(text, _CLAIM), _CLAIM):
         if not is_actual_claim(text, match.start(), match.end()):
             continue
         start, end = sentence_span(text, match.start(), match.end())
@@ -236,16 +204,24 @@ def institutional_evidence_issues(text, data, *, allowed_paths=None, _diagnostic
         populations = list(_POP.finditer(prefix))
         if not populations:
             continue
-        population = _claim_population(prefix, populations, eligible)
+        population = paired_population or _claim_population(prefix, populations, eligible)
         if verified and verified[-1]['aggregate'] and verified[-1]['start'] == start:
             tail = text[verified[-1]['end']:match.start()]
             if len(list(_WINDOW.finditer(tail))) == 1 and not _WINDOW.sub('', tail).strip('，,'):
                 population = 'total'
-        window = _claim_window(prefix, eligible)
+        window = date_pair_window(match, eligible) or _claim_window(prefix, eligible)
+        if not getattr(match, 'scope_valid', True):
+            window = {'kind': 'explicit_pair_tail_unknown'}
         inherited = _inherited_scope(text, match.start(), prefix, verified) if window is None else None
         if inherited:
             window = inherited['window']
-        candidates = [r for r in eligible if r["population"] == population and r["window"] == window]
+        candidates = [r for r in eligible if r["population"] == population and _same_window(r, window)]
+        if window and window.get('kind') == 'two_explicit_days':
+            candidates = two_day_candidates(window, population, eligible)
+        if paired_population:
+            peer_dates = {r['observed_at'] for r in eligible
+                          if r['population'] == match.peer_population and _same_window(r, window)}
+            candidates = [r for r in candidates if r['observed_at'] in peer_dates]
         if _enumerated_total(prefix, populations, eligible):
             candidates = [r for r in candidates if _enumerated_total(prefix, populations,
                 [source for source in eligible if source['observed_at'] == r['observed_at']])]

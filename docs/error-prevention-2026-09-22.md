@@ -31,3 +31,15 @@ Agent23 prompt逐record明寫主體、期間、觀測日、數值、單位和sou
 正式發布以實際commit、runtime identity、health、原報告hash、設定、RQ排程和RPD標記核對。分批canary只有在前批完成並核對來源／品質後才擴大；waiting_retry不是品質通過，模型可用性不足時保持未驗證，不重複強制提交。
 
 本機實作及正式驗證證據目錄：`stock-error-prevention-release-20260922.bbjudp_a`；當日原始稽核與方案在`stock-error-prevention-20260922.r5y1rr_f`。各項驗證結果以該目錄實際紀錄為準。
+
+## 逐案回放追加修正
+
+其餘23件job與18份report另以保存的原文/來源人工核對，不把gate結果本身當真偽標籤。新增修正涵蓋：同日SMA明確key:value與收盤描述共句；引用尾端裸「反證：2」的假財務claim；一交易日與相同觀測日期；有序「外資與自營商…分別」二主體二數值；明示兩個相鄰日期的完整來源加總；省略第二個月份的日曆日期；區間首日及另有明示日期的最高值。缺失、衝突或不可見的來源仍阻擋，第二個數值也要逐項驗證，不提高原數值容差。
+
+這些是個別claim解析修正。截尾精度、跨來源引用、合計冒充分項、千張/千股、缺市場評估、缺原始輸入等仍獨立處理，不因此將整份歷史報告改判通過。已保存artifact與原判定不覆寫。
+
+## 跨版本續跑的版本歸屬
+
+`code_commit`/`code_dirty`保留原任務起始身分，新增`render_runtime_commit`/`render_runtime_dirty`記錄實際產出worker的process-stable身分；`analysis_start_vs_render_revision_mismatch`在任一端未知時為null。`revision_provenance_scope`明示只知道任務起始與報告產出兩端，不能用它推論每個中間節點的版本。不同版本時HTML/Markdown同時呈現兩端。
+
+原persistent checkpoint、原始輸入與已完成節點不變。OOS封存保留新端點欄位；前瞻研究不得把明示跨版本或起始/產出歸屬未知的報告算成單一版本樣本。舊封存資料完全沒有新欄位時沿用原准入政策，不回寫歷史研究資料。

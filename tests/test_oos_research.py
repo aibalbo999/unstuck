@@ -262,6 +262,39 @@ def test_prospective_admission_rejects_placeholder_identity_and_late_publication
     assert "missing_model_execution_receipt" in result["reason_codes"]
 
 
+@pytest.mark.parametrize('claimed_mismatch', [True, False, None])
+def test_prospective_admission_does_not_attribute_mixed_render_revision_to_start(claimed_mismatch):
+    candidate = _candidate()
+    candidate['report'].update(code_commit='a' * 40, render_runtime_commit='b' * 40,
+                               render_runtime_dirty=False,
+                               analysis_start_vs_render_revision_mismatch=claimed_mismatch)
+    result = evaluate_candidate(candidate, study_kind='prospective')
+    assert 'mixed_start_render_code_revisions' in result['reason_codes']
+    assert result['status'] != 'admitted'
+
+
+@pytest.mark.parametrize('render_commit,dirty,reason', [
+    (None, False, 'invalid_render_runtime_commit'),
+    ('unknown', False, 'invalid_render_runtime_commit'),
+    ('a' * 40, None, 'missing_render_runtime_dirty'),
+    ('a' * 40, True, 'dirty_render_code_not_allowed'),
+])
+def test_explicit_render_endpoint_requires_known_identity(render_commit, dirty, reason):
+    candidate = _candidate()
+    candidate['report'].update(code_commit='a' * 40, render_runtime_commit=render_commit,
+                               render_runtime_dirty=dirty)
+    assert reason in evaluate_candidate(candidate, study_kind='prospective')['reason_codes']
+
+
+def test_same_render_endpoint_adds_no_revision_failure_and_legacy_policy_stays_unchanged():
+    candidate = _candidate()
+    candidate['report']['code_commit'] = 'a' * 40
+    before = evaluate_candidate(candidate, study_kind='prospective')['reason_codes']
+    candidate['report'].update(render_runtime_commit='a' * 40, render_runtime_dirty=False,
+                               analysis_start_vs_render_revision_mismatch=False)
+    assert evaluate_candidate(candidate, study_kind='prospective')['reason_codes'] == before
+
+
 def test_prospective_admission_preserves_selection_and_registered_horizon_boundaries():
     candidate = _candidate("v2", available="2026-09-12T00:00:00+08:00")
     candidate["ticker"] = candidate["report"]["ticker"]

@@ -3261,7 +3261,9 @@ def test_data_snapshot_reproducibility_source_audit_fields_do_not_depend_on_trut
     assert packet["source_data_time"] == "2026-06-07T01:00:00+00:00"
 
 
-def test_reproducibility_packet_uses_dict_native_mapping_reads():
+def test_reproducibility_packet_uses_dict_native_mapping_reads(monkeypatch):
+    monkeypatch.setattr(report_reproducibility, "runtime_code_identity",
+                        lambda: {"commit": "b" * 40, "dirty": False})
     packet = report_reproducibility.build_reproducibility_packet(
         BrokenGetDict(
             {
@@ -3302,6 +3304,10 @@ def test_reproducibility_packet_uses_dict_native_mapping_reads():
         "pipeline_id": "v2",
         "code_commit": "abc123",
         "code_dirty": None,
+        "render_runtime_commit": "b" * 40,
+        "render_runtime_dirty": False,
+        "analysis_start_vs_render_revision_mismatch": True,
+        "revision_provenance_scope": "analysis_start_and_report_render_endpoints_only",
         "generated_at": "2026-06-07T00:10:00+00:00",
         "analysis_input_cutoff": "",
         "analysis_input_hash": "",
@@ -3314,7 +3320,9 @@ def test_reproducibility_packet_uses_dict_native_mapping_reads():
     }
 
 
-def test_reproducibility_packet_accepts_mapping_safe_contexts():
+def test_reproducibility_packet_accepts_mapping_safe_contexts(monkeypatch):
+    monkeypatch.setattr(report_reproducibility, "runtime_code_identity",
+                        lambda: {"commit": "b" * 40, "dirty": False})
     packet = report_reproducibility.build_reproducibility_packet(
         MappingProxyType(
             {
@@ -3356,6 +3364,10 @@ def test_reproducibility_packet_accepts_mapping_safe_contexts():
         "pipeline_id": "v2",
         "code_commit": "abc123",
         "code_dirty": True,
+        "render_runtime_commit": "b" * 40,
+        "render_runtime_dirty": False,
+        "analysis_start_vs_render_revision_mismatch": True,
+        "revision_provenance_scope": "analysis_start_and_report_render_endpoints_only",
         "generated_at": "2026-06-07T00:10:00+00:00",
         "analysis_input_cutoff": "",
         "analysis_input_hash": "",
