@@ -49,7 +49,8 @@
                 return;
             }
             if (data.type === 'status') {
-                options.loadingStatus.textContent = data.message;
+                options.loadingStatus.textContent = data.phase === 'workflow_retry' && data.retry_scheduled ? '等待模型恢復後重試' : data.message;
+                if (data.phase === 'workflow_retry') options.loadingMsg.textContent = data.message;
                 if (data.detail) options.loadingMsg.textContent = data.detail;
             } else if (data.type === 'pipeline_start') {
                 options.loadingStatus.textContent = data.message || '開始下一段分析';
@@ -66,7 +67,7 @@
             } else if (data.type === 'done') {
                 handleDone(data, ticker);
             } else if (data.type === 'error') {
-                options.loadingStatus.textContent = '發生錯誤';
+                options.loadingStatus.textContent = data.phase === 'report_quality_blocked' ? '品質檢查未通過，任務已停止' : '發生錯誤';
                 options.loadingMsg.textContent = data.message;
                 options.close();
                 setTimeout(() => options.switchView('home-view'), 5000);

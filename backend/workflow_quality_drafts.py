@@ -5,6 +5,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import logging
 from contextlib import asynccontextmanager, contextmanager
 from contextvars import ContextVar
 
@@ -47,6 +48,8 @@ async def quality_draft_node(agent_num: int, state: dict, context: dict):
                 raise RuntimeError("Invalid stored quality draft; refusing to regenerate or publish")
             context.setdefault("rag_context", {})[agent_num] = copy.deepcopy(record.get("rag_context", ""))
             context.setdefault("context_digests", {})[agent_num] = copy.deepcopy(record.get("context_digest", ""))
+            if isinstance(record.get("repair_candidate_history"), dict):
+                context.setdefault("repair_candidate_history", {})[str(agent_num)] = copy.deepcopy(record["repair_candidate_history"])
         version = saved.checkpoint.get("channel_versions", {}).get("quality_draft") if saved else None
         node = {"saver": saver, "config": saved.config if saved else config, "record": record, "version": version,
                 "agent_num": agent_num, "input_fingerprint": fingerprint}
@@ -54,7 +57,15 @@ async def quality_draft_node(agent_num: int, state: dict, context: dict):
     try:
         yield
     finally:
-        _node.reset(token)
+        try:
+            if node is not None and node["record"] is not None:
+                record = copy.deepcopy(node["record"])
+                record["repair_candidate_history"] = _agent_value(context, "repair_candidate_history", agent_num)
+                await _save_record(node, record)
+        except Exception:
+            logging.getLogger(__name__).warning("Could not persist quality repair diagnostics for agent %s", agent_num)
+        finally:
+            _node.reset(token)
 
 
 def _agent_value(context: dict, section: str, agent_num: int, default=None):
@@ -118,6 +129,11 @@ async def checkpoint_unvalidated_draft(agent_num: int, result: str, context: dic
     if agent_num == 24:
         record["trade_source_manifest"] = copy.deepcopy(context.get("_trade_source_manifest"))
         record["trade_completion_receipt"] = copy.deepcopy(context.get("_trade_completion_receipt"))
+    record["repair_candidate_history"] = _agent_value(context, "repair_candidate_history", agent_num)
+    await _save_record(node, record)
+
+
+async def _save_record(node, record):
     if record == node["record"]:
         return
     checkpoint = empty_checkpoint()

@@ -190,6 +190,7 @@ def build_api_quota_payload(provider_summary_fetcher) -> dict:
             "availability_retry_policy": "persistent_with_backoff" if LLM_PROVIDER_QUOTA_AUTHORITATIVE else "bounded_queue_retries",
             "project_quota_assumption": MODEL_ROUTES.get("project_quota_assumption", "unspecified"),
             "assumed_project_count": MODEL_ROUTES.get("assumed_project_count"),
+            "quota_project_mapping_status": "unknown", "verified_project_count": None,
             "quota_max_attempts_per_model": LLM_QUOTA_MAX_ATTEMPTS_PER_MODEL,
             "server_error_max_attempts": LLM_ROUTE_SERVER_ERROR_MAX_ATTEMPTS or LLM_SERVER_ERROR_MAX_ATTEMPTS,
         },
@@ -204,11 +205,12 @@ def build_api_quota_payload(provider_summary_fetcher) -> dict:
                 daily_limit=RPD_LIMITS or None,
                 usage=gemini_usage,
                 notes=[
-                    (f"依使用者指定，按 {MODEL_ROUTES.get('assumed_project_count')} 個獨立免費專案規劃；每日用量逐 key/model 記錄。"
+                    (f"依使用者宣告，按 {MODEL_ROUTES.get('assumed_project_count')} 個獨立免費專案規劃；此為規劃假設，key slot 與 project 對應尚未驗證。"
                      if MODEL_ROUTES.get("project_quota_assumption") == "user_declared_independent_free_projects"
                      else "Gemini RPD 依 Google project 計算，不是依單支 API key 分開計算。"),
                     ("本機每日數字僅供觀測；僅供應商明確回報每日額度耗盡時停用該 key/model，暫時錯誤持續退避重試。" if LLM_PROVIDER_QUOTA_AUTHORITATIVE else "本機每日預算會限制送出請求。"),
                     "本機預算納入已記錄請求；歷史漏記、其他程式用量無法完整扣帳，並非 Google 實際剩餘額度。",
+                    "本機預算按 key slot/model 記錄；slot 數量不是已驗證的 project 數量。",
                 ],
             ), "limit_basis": "local_configuration_not_verified_provider_quota"},
             _quota_row(

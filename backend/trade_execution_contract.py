@@ -14,7 +14,8 @@ def observation_reason_is_explicit(value) -> bool:
     """An honest missing-data explanation may still contain a concrete recheck."""
     text = safe_text(value)
     return has_value(text) and bool(re.search(
-        r"法說|財報|財測|營收|公告|量能|成交量|突破|跌破|回測|均線|指引|外資|法人|籌碼|借券|融券|毛利|現金流|應收|軋空|重新(?:檢查|評估)|earnings|recheck|squeeze",
+        r"法說|財報|財測|營收|公告|量能|成交量|突破|跌破|回測|均線|指引|外資|法人|籌碼|借券|融券|毛利|現金流|應收|軋空|重新(?:檢查|評估)|earnings|recheck|squeeze"
+        r"|營業利益率[^。；\n]{0,25}(?:以上|以下|上升|下降)|費用率[^。；\n]{0,20}(?:上升|下降|改善|惡化)",
         text, re.I,
     ))
 
@@ -25,6 +26,8 @@ def contains_trade_order(value) -> bool:
     # This names information still missing, rather than instructing an entry.
     # Remove only the bounded noun phrase; any following actual order remains.
     text = re.sub(r"等待(?:可驗證|明確)的?進場條件(?=$|[，。；、\n])", "", text)
+    text = re.sub(r"重新評估(?:是否有)?(?:明確的?|可驗證的?)?進場(?:時點|條件)(?=$|[，。；、！？\n])", "", text)
+    text = re.sub(r"等待(?:可驗證|明確)的?做空觸發(?:條件)?後再評估(?=$|[，。；、！？\n])", "", text)
     verbs = r"(?:建立空方部位|建立空單|買入|賣出|做多|做空|放空|開倉|建倉|進場|下單)"
     text = re.sub(r"(?:暫不|尚不|不可|不|勿|禁止|不得)\s*(?:立即|馬上|考慮)?\s*" + verbs, "", text)
     text = re.sub(r"\b(?:no|not|do not|don't)\s+(?:buy|sell|short|trade)\b", "", text, flags=re.I)

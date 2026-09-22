@@ -29,16 +29,17 @@
     function budgetLabel(budget) {
         if (!budget) return '';
         if (budget.available === false) return '本機每日用量暫時無法讀取';
+        const scope = '（key slot 記錄；project 對應未驗證）';
         if (budget.enforced === false) {
             const observed = Object.entries(budget.models || {})
                 .filter(([, value]) => count(value.observed_requests) !== null)
                 .map(([model, value]) => `${model} ${value.observed_requests} 次`);
-            return `供應商回饋決定每日額度是否耗盡；本機用量僅供觀測${observed.length ? '：' + observed.join('；') : ''}`;
+            return `供應商回饋決定每日額度是否耗盡；本機用量僅供觀測${scope}${observed.length ? '：' + observed.join('；') : ''}`;
         }
         const models = Object.entries(budget.models || {})
-            .filter(([, value]) => count(value.remaining) !== null && count(value.total_budget) !== null)
-            .map(([model, value]) => `${model} ${value.remaining}/${value.total_budget}`);
-        return models.length ? `本機剩餘／每日總預算：${models.join('；')}` : '';
+            .filter(([, value]) => count(value.remaining) !== null && count(value.total_slot_budget ?? value.total_budget) !== null)
+            .map(([model, value]) => `${model} ${value.remaining}/${value.total_slot_budget ?? value.total_budget}`);
+        return models.length ? `本機剩餘／每日 slot 總預算${scope}：${models.join('；')}` : '';
     }
     window.StockAgentApiQuotaUsage = { usageLabel, errorCount, limitLabel, budgetLabel };
 })();

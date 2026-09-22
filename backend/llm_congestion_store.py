@@ -13,6 +13,7 @@ import time
 CONGESTION_LUA = r"""
 local raw = redis.call('GET', KEYS[1])
 local s = raw and cjson.decode(raw) or {generation=0, stage=0, active=false, until_at=0, probe_until=0, owner='', failures={}, hint_until=0}
+local previous_generation, was_active = s.generation, s.active
 local stamp = redis.call('TIME')
 local now = tonumber(stamp[1]) + tonumber(stamp[2])/1000000
 local action, key, owner = ARGV[1], ARGV[2], ARGV[3]
@@ -68,7 +69,17 @@ elseif action == 'success' and owned then
 elseif action == 'release' and owned then
   reopen(30, false)
 end
-local result = {generation=s.generation, wait=wait(), probe=probe, admitted=admitted}
+local transition = 'unchanged'
+if action == 'admit' then
+  transition = probe and 'probe_admitted' or admitted and 'admitted' or 'blocked'
+elseif s.generation ~= previous_generation then
+  if action == 'success' then transition = 'recovered'
+  elseif action == 'release' then transition = 'probe_released'
+  else transition = was_active and 'reopened' or 'opened' end
+elseif action == 'failure' and matched and not was_active and key ~= '' then
+  transition = 'failure_observed'
+end
+local result = {generation=s.generation, wait=wait(), probe=probe, admitted=admitted, transition=transition}
 -- Keep the generation tombstone beyond the longest admitted request; expired
 -- state must not let an old generation-zero completion become current again.
 local ttl = math.ceil(math.max(86400, s.until_at-now+86400, s.probe_until-now+86400, lease+86400)*1000)
@@ -94,6 +105,7 @@ def _reopen(state, now, seconds, *, increase):
 
 
 def _local_operate(state, now, action, key, owner, generation, delay, lease, jitter):
+    previous_generation, was_active = state['generation'], state['active']
     admitted = probe = False
     owned = (generation == state['generation'] and bool(owner) and owner == state['owner']
              and state['probe_until'] > now)
@@ -126,7 +138,15 @@ def _local_operate(state, now, action, key, owner, generation, delay, lease, jit
         state.update(_state(), generation=generation)
     elif action == 'release' and owned:
         _reopen(state, now, 30, increase=False)
-    return dict(generation=state['generation'], wait=_wait(state, now), probe=probe, admitted=admitted)
+    transition = 'unchanged'
+    if action == 'admit':
+        transition = 'probe_admitted' if probe else 'admitted' if admitted else 'blocked'
+    elif state['generation'] != previous_generation:
+        transition = ('recovered' if action == 'success' else 'probe_released' if action == 'release'
+                      else 'reopened' if was_active else 'opened')
+    elif action == 'failure' and generation == previous_generation and not was_active and key:
+        transition = 'failure_observed'
+    return dict(generation=state['generation'], wait=_wait(state, now), probe=probe, admitted=admitted, transition=transition)
 
 
 def _finite(value, *, minimum=0.0):

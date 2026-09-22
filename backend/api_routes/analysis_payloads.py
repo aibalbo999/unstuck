@@ -9,9 +9,11 @@ from mapping_fields import safe_int, safe_mapping_dict, safe_sequence_items, saf
 
 
 def _serialize_job(deps: Any, job: dict) -> dict:
-    if deps.serialize_analysis_job is not None:
-        return deps.serialize_analysis_job(job)
-    return dict(job)
+    result = deps.serialize_analysis_job(job) if deps.serialize_analysis_job is not None else dict(job)
+    observe = getattr(deps, 'inspect_job_execution', None)
+    if callable(observe):
+        result = {**result, **observe(job)}
+    return result
 
 
 def _serialize_create_result(deps: Any, created: dict, pipeline_id: str) -> dict:

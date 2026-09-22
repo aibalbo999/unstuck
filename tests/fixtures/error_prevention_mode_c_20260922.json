@@ -1,0 +1,136 @@
+[
+  {
+    "job_id": "e18f459c6f3a4ef0aea1363dfe35def8",
+    "receipt": {
+      "blob_sha256": "135c7357282ff4edf234168181f139ea52a8dddfac140e6a7ee37e804f2d3df4",
+      "checkpoint_id": "1f1b33a7-f3da-6652-800d-e3a53d7cb9c0",
+      "checkpoint_ns": "",
+      "raw_blob": "checkpoint-e18f459c6f3a4ef0aea1363dfe35def8.msgpack",
+      "thread_id": "e18f459c6f3a4ef0aea1363dfe35def8:report-rerun:full_report:fe7df9c72f7e9b964e8538807190495cac4959624f4ddcd16f9657203f8e9054",
+      "type": "msgpack"
+    },
+    "input_hash": "52ce422c06bb52fad6215917e57e3fd8aa0c4a9e331313627a1e70a19a2670b2",
+    "original_version": "980c579afa07a7a2ac75f0d6976b6ef5de3e887d",
+    "short_setup": {
+      "cover_stop": "N/A",
+      "downside_target": "N/A",
+      "entry_trigger": "目前不建立空方部位；等待可驗證做空觸發後再評估。",
+      "horizon_trading_days": 60,
+      "squeeze_risk": "極高。因營收動能強勁，任何利潤率改善的跡象都可能引發快速反彈。",
+      "thesis_invalidation": "單季營業利益率連續兩季站穩 2.5% 以上，或併購整合效益顯現導致費用率大幅下降。",
+      "transaction_cost": null
+    },
+    "recommendation": {
+      "confidence_basis": {
+        "data_gaps": [
+          "法說會逐字稿缺失",
+          "2026年Q3具體毛利指引缺失"
+        ],
+        "evidence_items": [
+          "TTM 營業利益率僅 1.467%，顯示獲利能力極度脆弱，易受費用波動影響（來源：ttm_financials）。",
+          "近 30 個交易日三大法人合計淨賣超 15,277 張，其中外資賣超佔 13,557 張，籌碼面呈現派發趨勢（來源：institutional_trading）。",
+          "淨負債比達 68.63%，在升息環境下財務壓力增加（來源：balance_sheet）。"
+        ],
+        "key_risks_acknowledged": [
+          "軋空風險：8 月營收年增 38.47% 遠超 Forward EPS 隱含的 16.67% 成長率，若利潤率改善將引發估值修復。",
+          "資料缺口：法說會逐字稿缺漏，無法評估管理層對費用控管的具體承諾。"
+        ]
+      },
+      "中期目標（6個月）": "NT$35.0",
+      "信心指數": "6/10",
+      "建議": "持有",
+      "短期目標（3個月）": "NT$40.0 - NT$45.0",
+      "長期潛力（5年）": "NT$50.0",
+      "長期目標（12個月）": "NT$30.0"
+    }
+  },
+  {
+    "job_id": "7e9b72ae99674d2297a02eaa2bee8d9b",
+    "receipt": {
+      "blob_sha256": "a8dd2fe369bf446f664f0f928049f63f42dce56970b345718f005e083c93032f",
+      "checkpoint_id": "1f1b3478-0d81-6986-800d-1f13756599cf",
+      "checkpoint_ns": "",
+      "raw_blob": "checkpoint-7e9b72ae99674d2297a02eaa2bee8d9b.msgpack",
+      "thread_id": "7e9b72ae99674d2297a02eaa2bee8d9b:report-rerun:full_report:e1705bc2bab4cd9c368e1046ad397825018968e54cd9ac0c7984c66eb1c1f7fe",
+      "type": "msgpack"
+    },
+    "input_hash": "61985769143e6506c8287d3d7d0379868968690eac31813fc250c7f107340422",
+    "original_version": "980c579afa07a7a2ac75f0d6976b6ef5de3e887d",
+    "short_setup": {
+      "cover_stop": "NT$1035.0",
+      "downside_target": "NT$574.2",
+      "entry_trigger": "單月營收跌破 17 億 TWD 或毛利率惡化至 25% 以下",
+      "horizon_trading_days": 120,
+      "squeeze_risk": "高。投信近 30 日積極承接，且 Factset 目標價提供心理支撐，需嚴格執行停損。",
+      "thesis_invalidation": "單月營收連續三個月超過 22 億 TWD 或毛利率回升至 32% 以上。",
+      "transaction_cost": null
+    },
+    "recommendation": {
+      "confidence_basis": {
+        "data_gaps": [
+          "法說會逐字稿缺漏，無法評估管理層對產能擴張與客戶議價的具體 Guidance"
+        ],
+        "evidence_items": [
+          "市場隱含營收成長率 66.8% 與歷史 5 年 CAGR -3.3% 存在極端背離（來源：cross_checks）",
+          "TTM 毛利率 27.3% 為近年低點，且 2024-2025 年趨勢向下（來源：ttm_financials）",
+          "DCF 基本情境內在價值僅 273.96 TWD，現價溢價逾 230%（來源：deterministic_financial_tool_results）"
+        ],
+        "key_risks_acknowledged": [
+          "投信近 30 日淨買超 354.84 千股，若外資賣壓竭盡可能引發強烈軋空風險",
+          "4 月至 7 月月營收呈現復甦趨勢，若 Q3 財報優於預期將證偽空方論點"
+        ]
+      },
+      "中期目標（6個月）": "NT$574.2",
+      "信心指數": "6/10",
+      "建議": "放空",
+      "短期目標（3個月）": "NT$908.0",
+      "長期潛力（5年）": "NT$434.8",
+      "長期目標（12個月）": "NT$274.0"
+    }
+  },
+  {
+    "job_id": "88cee1aaeef9437fada69b01c41f0fd5",
+    "receipt": {
+      "blob_sha256": "d20c0f374bbad8fe266a88eb0d620f42878c63e2e121aed9dd62231c753f4234",
+      "checkpoint_id": "1f1b3fd3-94df-6ed0-800d-25738b10dd0e",
+      "checkpoint_ns": "",
+      "raw_blob": "checkpoint-88cee1aaeef9437fada69b01c41f0fd5.msgpack",
+      "thread_id": "88cee1aaeef9437fada69b01c41f0fd5:report-rerun:full_report:4003ed05d470c466b4975dcfcdb161883b2f52d1832ca0b9eafb9ef801bf45a7",
+      "type": "msgpack"
+    },
+    "input_hash": "6510e6514c1708b203ad14a0ae271bfe48178ae04428446470167d9ac21a9b23",
+    "original_version": "980c579afa07a7a2ac75f0d6976b6ef5de3e887d",
+    "short_setup": {
+      "cover_stop": "N/A",
+      "downside_target": "N/A",
+      "entry_trigger": "目前不建立空方部位；等待可驗證做空觸發後再評估。",
+      "horizon_trading_days": 60,
+      "squeeze_risk": "極高。外資目前處於買超慣性，且 Forward P/E 僅 14.1x，任何基本面利多皆可能引發劇烈反彈。",
+      "thesis_invalidation": "毛利率連續兩季站穩 18% 以上，或低軌衛星訂單確認大幅增長，證明 Forward EPS 2.89 元具備高度實現性。",
+      "transaction_cost": null
+    },
+    "recommendation": {
+      "confidence_basis": {
+        "data_gaps": [
+          "缺乏 2026 年具體產能利用率指引",
+          "低軌衛星與伺服器營收佔比之精確拆解資料不足"
+        ],
+        "evidence_items": [
+          "8 月營收年增 26.13% 顯示基本面確實具備轉機動能（來源：monthly_revenue）",
+          "Forward P/E 14.1x 遠低於歷史均值區間 18.9x-67.1x（來源：pe_river_chart）",
+          "外資近 30 日累計買超 9,099 千股，籌碼面具備支撐（來源：institutional_trading）"
+        ],
+        "key_risks_acknowledged": [
+          "軋空風險：外資持續買超且股價位階低，空方極易遭遇估值修復式軋空。",
+          "資料缺口：法說會逐字稿缺失，無法驗證管理層對 2026 年毛利率回升的具體路徑。"
+        ]
+      },
+      "中期目標（6個月）": "NT$35.0",
+      "信心指數": "6/10",
+      "建議": "持有",
+      "短期目標（3個月）": "NT$38.0",
+      "長期潛力（5年）": "NT$50.0",
+      "長期目標（12個月）": "NT$42.0"
+    }
+  }
+]

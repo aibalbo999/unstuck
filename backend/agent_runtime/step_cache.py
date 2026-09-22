@@ -8,6 +8,7 @@ import copy
 from typing import Any
 
 from cache_store import get_cache_json, set_cache_json
+from llm_cache_policy import candidate_cache_read_allowed
 from config import AGENT_STEP_CACHE_ENABLED, AGENT_STEP_CACHE_SECONDS
 from data_trust_snapshot import sanitize_for_snapshot
 from analysis_dependencies import upstream_input_hash
@@ -49,7 +50,7 @@ def build_agent_step_cache_key(
 
 
 def get_cached_agent_step(cache_key: str) -> dict | None:
-    if not AGENT_STEP_CACHE_ENABLED:
+    if not candidate_cache_read_allowed("step") or not AGENT_STEP_CACHE_ENABLED:
         return None
     try:
         cached = get_cache_json(cache_key)

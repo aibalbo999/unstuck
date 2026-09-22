@@ -1,0 +1,1515 @@
+{
+  "schema_version": 1,
+  "scope": "41 retained failed jobs and49 content warning reports; offline only",
+  "corpus_manifest_sha256": "e9d9ced93f97b11572fc3c3bc2c9b571a78f53350a1d4571fae77fd7ef908a7b",
+  "reproduction": "STOCK_ERROR_PREVENTION_CORPUS=<external-corpus> project_python tests/run_prompt_boundary_tests.py tests/test_error_prevention_replay.py -q",
+  "cases": [
+    {
+      "identity": "9235ac92a6584e979b55732996f97e27",
+      "kind": "job",
+      "labels": [
+        "short_observation"
+      ],
+      "payload": "job-3b21fee86447cdd6b4b7.json",
+      "sha256": "53cbb4db23b2acca226991ac4dfa492f0d162fdf2fd77a0b74e4ee1a365454e0",
+      "input_hash": "ff4a11136dfc75c20690df2e14d0fb1b9f2e90c1ad5278e2a54f3235bb8231d4",
+      "input_hash_basis": "canonical JSON of exact checkpoint raw_financial_data.input",
+      "original_version": "758242290e795146520f58f68ffa113cac35e52c",
+      "original_version_available": true,
+      "current_classification": "true_error_still_blocked",
+      "missing": [],
+      "confirmed_true_error": true
+    },
+    {
+      "identity": "98e13010da7a4cada743fd0f67654b44",
+      "kind": "job",
+      "labels": [
+        "short_observation"
+      ],
+      "payload": "job-f2539b8adb40c0a62c04.json",
+      "sha256": "f05d47403799ce12027df0ae2c8980ff6c9d6f01532ba6677238e22ba000fcf8",
+      "input_hash": "1f3bd66e200593c248a30ffa6cee012625d7ea9315a41906ce78159636b9dc07",
+      "input_hash_basis": "canonical JSON of exact checkpoint raw_financial_data.input",
+      "original_version": "758242290e795146520f58f68ffa113cac35e52c",
+      "original_version_available": true,
+      "current_classification": "true_error_still_blocked",
+      "missing": [],
+      "confirmed_true_error": true
+    },
+    {
+      "identity": "56cd839cb10e4ea0a46dc41ee2897eb1",
+      "kind": "job",
+      "labels": [
+        "short_observation"
+      ],
+      "payload": "job-154b8d03a6675e054197.json",
+      "sha256": "73db79c4e1c439cb1351d0711cae726c190c262402313e211899b16787f6d10b",
+      "input_hash": null,
+      "input_hash_basis": null,
+      "original_version": null,
+      "original_version_available": false,
+      "current_classification": "evidence_missing",
+      "missing": [
+        "source input unavailable",
+        "original output unavailable"
+      ],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "0fa4c5f36ad34397bbeed4d457261f46",
+      "kind": "job",
+      "labels": [
+        "short_observation"
+      ],
+      "payload": "job-8f996c155c18165fe0a5.json",
+      "sha256": "475b88bf69880ca6f92e26cde0259c2bfabdf2ad5c8b530e4547d2ac1344ab6e",
+      "input_hash": null,
+      "input_hash_basis": null,
+      "original_version": null,
+      "original_version_available": false,
+      "current_classification": "evidence_missing",
+      "missing": [
+        "source input unavailable",
+        "original output unavailable"
+      ],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "2b11140d21114004b1465ffc37c29215",
+      "kind": "job",
+      "labels": [
+        "market_manifest",
+        "missing_target"
+      ],
+      "payload": "job-b7094347d355b2dcc071.json",
+      "sha256": "7490628cc18bdff7ded0285d0a106066716467d9bcef264929f29e83b6ab5bba",
+      "input_hash": null,
+      "input_hash_basis": null,
+      "original_version": null,
+      "original_version_available": false,
+      "current_classification": "evidence_missing",
+      "missing": [
+        "source input unavailable",
+        "original output unavailable"
+      ],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "f4be036f61f44bc69ff274c546e9f9a3",
+      "kind": "job",
+      "labels": [
+        "market_manifest"
+      ],
+      "payload": "job-662c212cb4045b8506a3.json",
+      "sha256": "2792f9a375c5ec57110fac89278211113b7987e38e51ebd37135a082471d728c",
+      "input_hash": "abe80488ae7eaa02f0401586d41919b33d2b6f0b2e35ce567bd9734900c9bdd2",
+      "input_hash_basis": "canonical JSON of exact checkpoint raw_financial_data.input",
+      "original_version": "980c579afa07a7a2ac75f0d6976b6ef5de3e887d",
+      "original_version_available": true,
+      "current_classification": "still_reproduced",
+      "missing": [],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "e71dc04c4eb546c8950d4ea34b46797c",
+      "kind": "job",
+      "labels": [
+        "market_manifest"
+      ],
+      "payload": "job-c90e8c0a8fdd225f5398.json",
+      "sha256": "3fb0db2247fcdf872893fabed4f1f7ead62ac01c9b81a684dad42e74af677c7d",
+      "input_hash": null,
+      "input_hash_basis": null,
+      "original_version": null,
+      "original_version_available": false,
+      "current_classification": "evidence_missing",
+      "missing": [
+        "source input unavailable",
+        "original output unavailable"
+      ],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "d8f111d68fe143fa9fca14edbf8febfa",
+      "kind": "job",
+      "labels": [
+        "position_contradiction",
+        "recommendation_return"
+      ],
+      "payload": "job-26cae17762a9b66228ff.json",
+      "sha256": "b67a8a1e482916fbe29b5e312d0f214e5755b0fe5da78b3d5f92e46ae1f2d1ae",
+      "input_hash": "275578f5c13da328fa6d6122fd1359a29e55f8a23a217aedd306741961f139ad",
+      "input_hash_basis": "canonical JSON of exact checkpoint raw_financial_data.input",
+      "original_version": "980c579afa07a7a2ac75f0d6976b6ef5de3e887d",
+      "original_version_available": true,
+      "current_classification": "still_reproduced",
+      "missing": [],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "eb4010fe922347af986cae6273577ff9",
+      "kind": "job",
+      "labels": [
+        "short_observation"
+      ],
+      "payload": "job-daecbea0a8f26e66bb29.json",
+      "sha256": "2e3e632747feddb10775285d36e8ceaf1d9c3ec2fd79f5f8bb6a6abab95ea4bb",
+      "input_hash": "736f88e24f594c614fd1fe7434610d0a9601f5064226a59a7698efa40db56daa",
+      "input_hash_basis": "canonical JSON of exact checkpoint raw_financial_data.input",
+      "original_version": "980c579afa07a7a2ac75f0d6976b6ef5de3e887d",
+      "original_version_available": true,
+      "current_classification": "true_error_still_blocked",
+      "missing": [],
+      "confirmed_true_error": true
+    },
+    {
+      "identity": "7ad44a189e8449928fe7353ae9a1a481",
+      "kind": "job",
+      "labels": [
+        "position_contradiction"
+      ],
+      "payload": "job-959f05a11f6b03ff338e.json",
+      "sha256": "558b7fdbfb3827882dfd5b5a4530c9038c2731b471a77529824d7f0d5e011149",
+      "input_hash": "2dbb0ff1041d8296a60ded051c90b846c4eb4fbe420769a962fad21611a1f62b",
+      "input_hash_basis": "canonical JSON of exact checkpoint raw_financial_data.input",
+      "original_version": "980c579afa07a7a2ac75f0d6976b6ef5de3e887d",
+      "original_version_available": true,
+      "current_classification": "still_reproduced",
+      "missing": [],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "bc8945b432fd44468a1f117d7885680a",
+      "kind": "job",
+      "labels": [
+        "market_manifest"
+      ],
+      "payload": "job-1f4a6c404aba8dd21289.json",
+      "sha256": "0de3fff8ec1a4080d348d132125d8a03e8bef9d12cca40cb4a6f3d9832c48115",
+      "input_hash": "bce3c4a5de4bd8667b49bf2b6a6413d6809999aedbd0a637cb147ffba03301c8",
+      "input_hash_basis": "canonical JSON of exact checkpoint raw_financial_data.input",
+      "original_version": "980c579afa07a7a2ac75f0d6976b6ef5de3e887d",
+      "original_version_available": true,
+      "current_classification": "still_reproduced",
+      "missing": [],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "0ea77993569247d3895dda52ea6031ac",
+      "kind": "job",
+      "labels": [
+        "market_manifest",
+        "missing_target"
+      ],
+      "payload": "job-2afbc571b092671b7f5e.json",
+      "sha256": "03d0caadfbe6c8dbcb2900cd54ea4ad6808cacdac24c9d386d0ba59a633e7a1e",
+      "input_hash": "5db28ebdb03b930eb826a8a42126eca64658dfbb6ecf7ef140f86d4eda1e96aa",
+      "input_hash_basis": "canonical JSON of exact checkpoint raw_financial_data.input",
+      "original_version": "980c579afa07a7a2ac75f0d6976b6ef5de3e887d",
+      "original_version_available": true,
+      "current_classification": "still_reproduced",
+      "missing": [],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "a4d22fe56f0c40a29a4ee7078e454852",
+      "kind": "job",
+      "labels": [
+        "short_observation"
+      ],
+      "payload": "job-cc633688670c78504b20.json",
+      "sha256": "82ff03be8a0084b5c8a2893020bcb81ee60c2c4460d743f9b659337065e14f19",
+      "input_hash": "cf87a0fd4acb7bfc68441918f336bbcd796d1aa1432449787ea66ea5eb3a0a02",
+      "input_hash_basis": "canonical JSON of exact checkpoint raw_financial_data.input",
+      "original_version": "980c579afa07a7a2ac75f0d6976b6ef5de3e887d",
+      "original_version_available": true,
+      "current_classification": "true_error_still_blocked",
+      "missing": [],
+      "confirmed_true_error": true
+    },
+    {
+      "identity": "f5fa7f61fcec4d3eb97afe0c180bb4fd",
+      "kind": "job",
+      "labels": [
+        "missing_target"
+      ],
+      "payload": "job-c13d5c241b8861018eb5.json",
+      "sha256": "d17d2fd7361358938e40a22525a0535a4f82176580090d19711aab3456779e3f",
+      "input_hash": "6249b926e14b9fef7faa028889385e7aade7ad98813128d217dbc97fbc883f19",
+      "input_hash_basis": "canonical JSON of exact checkpoint raw_financial_data.input",
+      "original_version": "980c579afa07a7a2ac75f0d6976b6ef5de3e887d",
+      "original_version_available": true,
+      "current_classification": "still_reproduced",
+      "missing": [],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "e18f459c6f3a4ef0aea1363dfe35def8",
+      "kind": "job",
+      "labels": [
+        "short_observation"
+      ],
+      "payload": "job-e23192ef568f02ea2235.json",
+      "sha256": "015109edafcb689b62f692aa54c2a8e96f82806fefbfd1604095a778510201fc",
+      "input_hash": "52ce422c06bb52fad6215917e57e3fd8aa0c4a9e331313627a1e70a19a2670b2",
+      "input_hash_basis": "canonical JSON of exact checkpoint raw_financial_data.input",
+      "original_version": "980c579afa07a7a2ac75f0d6976b6ef5de3e887d",
+      "original_version_available": true,
+      "current_classification": "still_reproduced",
+      "missing": [],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "bf314c399277485e8b5271823a275b48",
+      "kind": "job",
+      "labels": [
+        "market_manifest"
+      ],
+      "payload": "job-b16a6b86b3c0b384542b.json",
+      "sha256": "acda8236a7624a669b494e8067f24461e94657062c1172e374b9bba97257c69a",
+      "input_hash": "68da25e2d4648b4c844d38256268a54a3823d35d05859d430b91b053d93e87af",
+      "input_hash_basis": "canonical JSON of exact checkpoint raw_financial_data.input",
+      "original_version": "980c579afa07a7a2ac75f0d6976b6ef5de3e887d",
+      "original_version_available": true,
+      "current_classification": "still_reproduced",
+      "missing": [],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "edffaf6526c84e26b262e1b3e3e4cdaa",
+      "kind": "job",
+      "labels": [
+        "market_manifest",
+        "recommendation_return"
+      ],
+      "payload": "job-eccc37158ecb556a5ac9.json",
+      "sha256": "d8ebd0d927669039717bd531134b3a0e6606f6ad85a81175a110e051f92dade4",
+      "input_hash": "78bf79129191fec97afd433981b6cc6ed6f70086943e755eb60a3db1b81ec607",
+      "input_hash_basis": "canonical JSON of exact checkpoint raw_financial_data.input",
+      "original_version": "980c579afa07a7a2ac75f0d6976b6ef5de3e887d",
+      "original_version_available": true,
+      "current_classification": "still_reproduced",
+      "missing": [],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "7e9b72ae99674d2297a02eaa2bee8d9b",
+      "kind": "job",
+      "labels": [
+        "short_observation"
+      ],
+      "payload": "job-832deff5d67246edd80d.json",
+      "sha256": "2ddbf552de4fe073ef92b5d208442f86795cd2e179dcf76c44af608a845a5077",
+      "input_hash": "61985769143e6506c8287d3d7d0379868968690eac31813fc250c7f107340422",
+      "input_hash_basis": "canonical JSON of exact checkpoint raw_financial_data.input",
+      "original_version": "980c579afa07a7a2ac75f0d6976b6ef5de3e887d",
+      "original_version_available": true,
+      "current_classification": "true_error_still_blocked",
+      "missing": [],
+      "confirmed_true_error": true
+    },
+    {
+      "identity": "125aa591643149dcb162eec4b96b280e",
+      "kind": "job",
+      "labels": [
+        "short_observation"
+      ],
+      "payload": "job-593b2a547aa18d26fc54.json",
+      "sha256": "e3f67628e0b141d6524dd42c81cac7866143fae62e1e9c5c4036281e2b55da53",
+      "input_hash": "fe0e082ca787c99eda97f76d658b2820e12ec02e64b797b5abb03408e45064b5",
+      "input_hash_basis": "canonical JSON of exact checkpoint raw_financial_data.input",
+      "original_version": "980c579afa07a7a2ac75f0d6976b6ef5de3e887d",
+      "original_version_available": true,
+      "current_classification": "true_error_still_blocked",
+      "missing": [],
+      "confirmed_true_error": true
+    },
+    {
+      "identity": "068a445c4e35454999e94665d1d11369",
+      "kind": "job",
+      "labels": [
+        "recommendation_return"
+      ],
+      "payload": "job-67a7d5049ae5d72a4808.json",
+      "sha256": "d345557919d998450dc8c93dac36c215ac45d7de9506e00db709f17a8b1e4983",
+      "input_hash": "f5f73ee2a0e3963b3f7f2bbfc404e6e824ec6627b5d08435b942de6f6d844ece",
+      "input_hash_basis": "canonical JSON of exact checkpoint raw_financial_data.input",
+      "original_version": "980c579afa07a7a2ac75f0d6976b6ef5de3e887d",
+      "original_version_available": true,
+      "current_classification": "still_reproduced",
+      "missing": [],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "417a8d33c3fb4cfbade12fa2d4b0d8f4",
+      "kind": "job",
+      "labels": [
+        "position_contradiction",
+        "recommendation_return"
+      ],
+      "payload": "job-d0074943dddf33c24bd9.json",
+      "sha256": "040c373a47962831457e0a3326e06a4d79f0657f92eccd93e95ac75ca903dbd4",
+      "input_hash": "8bf75ca1b62e56562067c81270a5dfbc2a42b3ecd5559822f5c818d8cd8ea6e9",
+      "input_hash_basis": "canonical JSON of exact checkpoint raw_financial_data.input",
+      "original_version": "980c579afa07a7a2ac75f0d6976b6ef5de3e887d",
+      "original_version_available": true,
+      "current_classification": "still_reproduced",
+      "missing": [],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "88cee1aaeef9437fada69b01c41f0fd5",
+      "kind": "job",
+      "labels": [
+        "short_observation"
+      ],
+      "payload": "job-89d1934c291811d3fbe0.json",
+      "sha256": "ab6ded943e646d544083550e443631c262c32bcce3b14ff411c872b2b16b64ee",
+      "input_hash": "6510e6514c1708b203ad14a0ae271bfe48178ae04428446470167d9ac21a9b23",
+      "input_hash_basis": "canonical JSON of exact checkpoint raw_financial_data.input",
+      "original_version": "980c579afa07a7a2ac75f0d6976b6ef5de3e887d",
+      "original_version_available": true,
+      "current_classification": "still_reproduced",
+      "missing": [],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "2d49a5e6379a417eac5305997d1b03da",
+      "kind": "job",
+      "labels": [
+        "short_observation"
+      ],
+      "payload": "job-35b6a259f550e943c00e.json",
+      "sha256": "35f34a6bfb6b26959c5901b01160b7d9876a6bb952689f29d0c665921b3a6282",
+      "input_hash": "f4b10b2fe39eeaa5d2da0c0d9193251defb044f3c5a5c22227b4750b6b04348d",
+      "input_hash_basis": "canonical JSON of exact checkpoint raw_financial_data.input",
+      "original_version": "980c579afa07a7a2ac75f0d6976b6ef5de3e887d",
+      "original_version_available": true,
+      "current_classification": "still_reproduced",
+      "missing": [],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "9fc1c1016bcb4673bae47e98da1518be",
+      "kind": "job",
+      "labels": [],
+      "payload": "job-5271ed9205365e71d685.json",
+      "sha256": "8f751a54757f5b5ca0184228410698a5c67180d4f7393d8f5b3f4dcf9822fc4e",
+      "input_hash": "56ecacc6b98739d8e3d3f0e824deda0cc8e88ba9de546ecac1348d44262786a6",
+      "input_hash_basis": "canonical JSON of exact checkpoint raw_financial_data.input",
+      "original_version": "980c579afa07a7a2ac75f0d6976b6ef5de3e887d",
+      "original_version_available": true,
+      "current_classification": "evidence_missing",
+      "missing": [
+        "original failure family/output not covered by this job replay; report evidence/contract gates need original markdown"
+      ],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "dffdfbf512ef48f2ba88eba32f34329d",
+      "kind": "job",
+      "labels": [
+        "short_observation"
+      ],
+      "payload": "job-88332ea07d3c5a93a66c.json",
+      "sha256": "f714f271098d195ed40573d82d67b4da7ce55e1c1dd44db43704962c63953618",
+      "input_hash": "bd0ccb01f7bc6b9cf51fc436a5b468148142742b536d8bead023cbdf14684058",
+      "input_hash_basis": "canonical JSON of exact checkpoint raw_financial_data.input",
+      "original_version": "980c579afa07a7a2ac75f0d6976b6ef5de3e887d",
+      "original_version_available": true,
+      "current_classification": "still_reproduced",
+      "missing": [],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "655a2e009a534c57a8f40bc8d24a99fc",
+      "kind": "job",
+      "labels": [
+        "recommendation_return"
+      ],
+      "payload": "job-d2225ca7b65950a0c6b2.json",
+      "sha256": "5f6fa0bc5aa082a48e39f9055d7f0d6b841b6d4d4a9a433f700c2d9a2c440780",
+      "input_hash": "06e9bc13758d8a9ff66e3e055869d767579ccbaa665d4b1fdddeaded7250f230",
+      "input_hash_basis": "canonical JSON of exact checkpoint raw_financial_data.input",
+      "original_version": "980c579afa07a7a2ac75f0d6976b6ef5de3e887d",
+      "original_version_available": true,
+      "current_classification": "still_reproduced",
+      "missing": [],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "01b599a330c54949a1ff3354d2350dd2",
+      "kind": "job",
+      "labels": [
+        "institutional"
+      ],
+      "payload": "job-3e505ea66bb5e0a772aa.json",
+      "sha256": "b52fe3a66a630ab079beffc165948089e1ab5f3dd4ff80c5d5104fae5574907c",
+      "input_hash": "6561f1264fface9caf820213f9e8f87701756174398b0c356f5cbc1a77ad1737",
+      "input_hash_basis": "canonical JSON of exact checkpoint raw_financial_data.input",
+      "original_version": "46041625ef134420079a06d0ce2501a346d12e30",
+      "original_version_available": true,
+      "current_classification": "fixed_in_scoped_replay",
+      "missing": [],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "8b8db34acb9f4aa780d8d10c9c87f6af",
+      "kind": "job",
+      "labels": [
+        "institutional"
+      ],
+      "payload": "job-bc92ac204d3bf58df7fa.json",
+      "sha256": "83b16949e52d8fd673a1fded12364f764344442b72c9f689ea5d6138eab88122",
+      "input_hash": "1dd6313da45c6cb4d349d22ed038016e491cee6e084ae1d061bc0c2760ebcf69",
+      "input_hash_basis": "canonical JSON of exact checkpoint raw_financial_data.input",
+      "original_version": "12bc31fd67a735a9c80ab9249603335f3b3c5fd7",
+      "original_version_available": true,
+      "current_classification": "still_reproduced",
+      "missing": [],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "288d30abb8da444fa7ae093065a38f0d",
+      "kind": "job",
+      "labels": [
+        "institutional"
+      ],
+      "payload": "job-fb43f7b07d675bd45289.json",
+      "sha256": "161b9374bfca4ff464a3ff55f5a2fb1d3f7aa98471c5dbcd840461ca10e535e8",
+      "input_hash": "5760f2a4b4e6c156bb903ceac2afa58321f943b37b47473d7ab6fb854baa15b0",
+      "input_hash_basis": "canonical JSON of exact checkpoint raw_financial_data.input",
+      "original_version": "34fb5b5c5961c26d7f4bcdcf3a562679229eb44d",
+      "original_version_available": true,
+      "current_classification": "fixed_in_scoped_replay",
+      "missing": [],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "14055beabc32483b88d3659549ab49da",
+      "kind": "job",
+      "labels": [
+        "institutional"
+      ],
+      "payload": "job-cb6d1c658c1856f181e7.json",
+      "sha256": "af49900185d65664a396f8119d2a741d6bdabbcf8e1ec0b7aa0950227913f403",
+      "input_hash": "304080d9dc45c91a48a4af7a925bfc5ac62bc156bca2695eb0310b2ad664ae38",
+      "input_hash_basis": "canonical JSON of exact checkpoint raw_financial_data.input",
+      "original_version": "34fb5b5c5961c26d7f4bcdcf3a562679229eb44d",
+      "original_version_available": true,
+      "current_classification": "fixed_in_scoped_replay",
+      "missing": [],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "d7d55276836140fba86473c0c024cde4",
+      "kind": "job",
+      "labels": [
+        "institutional"
+      ],
+      "payload": "job-ff000583ed998e8539de.json",
+      "sha256": "3d63fa076a344ab746d4b9379fcd195c4e6153d7f4e7d4e3ca8ab66e22799ed8",
+      "input_hash": "6878bc020ee0309189300e65c7455802b280819bd6312592ad49791ea9e0ce6b",
+      "input_hash_basis": "canonical JSON of exact checkpoint raw_financial_data.input",
+      "original_version": "34fb5b5c5961c26d7f4bcdcf3a562679229eb44d",
+      "original_version_available": true,
+      "current_classification": "still_reproduced",
+      "missing": [],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "800a7b2cb6224de48bca4a2f86c883b7",
+      "kind": "job",
+      "labels": [
+        "institutional"
+      ],
+      "payload": "job-d2b3bbb41dbe52b4f33d.json",
+      "sha256": "b40fbf2e2f22150bac4b03aec7c656ea0cd9d8a031bb7f1a1246fe8731da69a7",
+      "input_hash": "2069301431343a44f0c318ae5d24f0f802a9c6c34f969b413292994776488485",
+      "input_hash_basis": "canonical JSON of exact checkpoint raw_financial_data.input",
+      "original_version": "34fb5b5c5961c26d7f4bcdcf3a562679229eb44d",
+      "original_version_available": true,
+      "current_classification": "still_reproduced",
+      "missing": [],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "47b96e466da34546a7b080243f3c9f0b",
+      "kind": "job",
+      "labels": [
+        "institutional"
+      ],
+      "payload": "job-337e4400b317cb347c29.json",
+      "sha256": "b9bab53ae8758cad6ecf54784324fae8401465f7cd30a7f71441dfbc46bcf974",
+      "input_hash": "208bff82cf45d71f5bc106aa4166c6da3d24b6dae0730e9803ffc97898c08767",
+      "input_hash_basis": "canonical JSON of exact checkpoint raw_financial_data.input",
+      "original_version": "34fb5b5c5961c26d7f4bcdcf3a562679229eb44d",
+      "original_version_available": true,
+      "current_classification": "fixed_in_scoped_replay",
+      "missing": [],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "cefda8b5272240089b1881fe181c90bf",
+      "kind": "job",
+      "labels": [
+        "institutional"
+      ],
+      "payload": "job-11a2a9964a6da0dd228a.json",
+      "sha256": "a72837548a04aaec703d65704f0a2209af22453bf7bb752f01eca85daf89966f",
+      "input_hash": "ce30415b109a32ee3e2fd185336d6ed8f1ff196265eb655af2f879990a6f9691",
+      "input_hash_basis": "canonical JSON of exact checkpoint raw_financial_data.input",
+      "original_version": "34fb5b5c5961c26d7f4bcdcf3a562679229eb44d",
+      "original_version_available": true,
+      "current_classification": "still_reproduced",
+      "missing": [],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "46f57fa5aa1a4a30af81a1f75118562d",
+      "kind": "job",
+      "labels": [
+        "institutional"
+      ],
+      "payload": "job-ace1632b33fc90c2b7c4.json",
+      "sha256": "4fe0ca977168eb175d40333eaf69273e04dbc3da6b4b1b8fa5ea19da3d69eed5",
+      "input_hash": "3a17eb25660d96045c19231e8089cceb3cf99de11eefa9d50fdc2112b34fc01f",
+      "input_hash_basis": "canonical JSON of exact checkpoint raw_financial_data.input",
+      "original_version": "34fb5b5c5961c26d7f4bcdcf3a562679229eb44d",
+      "original_version_available": true,
+      "current_classification": "fixed_in_scoped_replay",
+      "missing": [],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "2258a13a2136439786326922ef7a768d",
+      "kind": "job",
+      "labels": [
+        "institutional"
+      ],
+      "payload": "job-b547e8fdde15f3aaf939.json",
+      "sha256": "e299d64f3f234f275225f65ac25eff69e63cc5749cbe63e3d7dfd8c2bcdb09a2",
+      "input_hash": "3a4a6ad2d06c869b7ef3097b03b10fca25cfc1e580c6e5b047727c9b3a858a20",
+      "input_hash_basis": "canonical JSON of exact checkpoint raw_financial_data.input",
+      "original_version": "34fb5b5c5961c26d7f4bcdcf3a562679229eb44d",
+      "original_version_available": true,
+      "current_classification": "fixed_in_scoped_replay",
+      "missing": [],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "afa91c6762974ca6b5addadfdf293fac",
+      "kind": "job",
+      "labels": [
+        "institutional"
+      ],
+      "payload": "job-9c192f35b1ea511a6cd5.json",
+      "sha256": "3b9ecb6e773d08b0976f0d988f6d9b99c94966ed5e6186e48871eb1cb313522a",
+      "input_hash": "7d1d012b99866d05975eccb70326b39d1c79bf66d4d46a5d7daf4b58476e60ae",
+      "input_hash_basis": "canonical JSON of exact checkpoint raw_financial_data.input",
+      "original_version": "34fb5b5c5961c26d7f4bcdcf3a562679229eb44d",
+      "original_version_available": true,
+      "current_classification": "still_reproduced",
+      "missing": [],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "18260b5bd6634c82969df276a623db68",
+      "kind": "job",
+      "labels": [
+        "institutional"
+      ],
+      "payload": "job-0f184562219d7050dd51.json",
+      "sha256": "bb24601ee893358e1977192fbfb70d8bcc3918ceeef4532ad316192309a04a47",
+      "input_hash": "6bd0d57977cb4b2fcf4dce2fa4493e6ab393f4b9dcb8140d54c78666de0cc076",
+      "input_hash_basis": "canonical JSON of exact checkpoint raw_financial_data.input",
+      "original_version": "34fb5b5c5961c26d7f4bcdcf3a562679229eb44d",
+      "original_version_available": true,
+      "current_classification": "fixed_in_scoped_replay",
+      "missing": [],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "f0a1559e9e1a4290917fc5251ddc041d",
+      "kind": "job",
+      "labels": [
+        "institutional"
+      ],
+      "payload": "job-e4d0b227fcd03b1b1055.json",
+      "sha256": "4d80a7275581b0cfbafaef4ab4c1e8e25f396161e6c3ede3a25ce43a492ed042",
+      "input_hash": "c7a33a6aee26715281233c2e9cbbed175404ee37fc54e1a90525fdb0dd47b1aa",
+      "input_hash_basis": "canonical JSON of exact checkpoint raw_financial_data.input",
+      "original_version": "34fb5b5c5961c26d7f4bcdcf3a562679229eb44d",
+      "original_version_available": true,
+      "current_classification": "still_reproduced",
+      "missing": [],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "91c58273beb9497ba348fff91e25b668",
+      "kind": "job",
+      "labels": [
+        "institutional"
+      ],
+      "payload": "job-7a66d9e80dd289ca0e27.json",
+      "sha256": "79e57c55ea9c4e43de228043c22d933e60f80581944c5f989dac1ea70ddef26e",
+      "input_hash": "a50e481337b730bbf2c2932d76afa331b875a3e102580a594b50a0ae2170f43d",
+      "input_hash_basis": "canonical JSON of exact checkpoint raw_financial_data.input",
+      "original_version": "34fb5b5c5961c26d7f4bcdcf3a562679229eb44d",
+      "original_version_available": true,
+      "current_classification": "still_reproduced",
+      "missing": [],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "88af5ff6cda245ce9a6089b600274020",
+      "kind": "job",
+      "labels": [
+        "institutional"
+      ],
+      "payload": "job-433ee6b046477cd0dda9.json",
+      "sha256": "4f7a81268e519e11f5c180a396222aca28813f0d6d7b9fbbbdde988e6fff0f57",
+      "input_hash": "c13c4b2d9a986e420a43232b0954aee071dfe65ae618bf341a87d8354e2eac46",
+      "input_hash_basis": "canonical JSON of exact checkpoint raw_financial_data.input",
+      "original_version": "1cabcf147414d3f1b83f7cad918dc9ac5b0b0c2f",
+      "original_version_available": true,
+      "current_classification": "still_reproduced",
+      "missing": [],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "5314_TWO_v3_report_job_4477c04d3434.html",
+      "kind": "report",
+      "labels": [
+        "content_warning"
+      ],
+      "payload": "report-1cff51b044f5e1855a88.json",
+      "sha256": "346fa79b2dc7d854772fbf4fc02a740057f37579685676e054a90e7c2f0fb8e7",
+      "input_hash": "506c3c007bfd2f83cfad55405a0f5e50d3ee951f721a440d0a3451278df56949",
+      "input_hash_basis": "saved artifact data, not proof of original model input",
+      "original_version": "758242290e795146520f58f68ffa113cac35e52c",
+      "original_version_available": true,
+      "current_classification": "still_reproduced",
+      "missing": [],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "6706_TW_v4_report_job_803fc407d517.html",
+      "kind": "report",
+      "labels": [
+        "content_warning"
+      ],
+      "payload": "report-6f021fdaf46402d30099.json",
+      "sha256": "0a558837338193c4b5c9e0d38bfc0179b1eb0e72710f1482fd3f1fa8050fc7b6",
+      "input_hash": "47f81d5d87c5debfed12e5443a6c913979cd7ce7160c6cbd987c52a6182b2617",
+      "input_hash_basis": "saved artifact data, not proof of original model input",
+      "original_version": "758242290e795146520f58f68ffa113cac35e52c",
+      "original_version_available": true,
+      "current_classification": "still_reproduced",
+      "missing": [],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "6994_TW_v4_report_job_7f177b63955c.html",
+      "kind": "report",
+      "labels": [
+        "content_warning"
+      ],
+      "payload": "report-7187b08e93f71504e64e.json",
+      "sha256": "81b4b7a8f1c71c94fec85286ec9e4ca2f67e86a7a026deca9f007b8aaea89985",
+      "input_hash": "6194ed6332f4d65f893a3182e3d839224b40a5df38dc6937b8229a47423cfda1",
+      "input_hash_basis": "saved artifact data, not proof of original model input",
+      "original_version": "758242290e795146520f58f68ffa113cac35e52c",
+      "original_version_available": true,
+      "current_classification": "fixed_in_scoped_replay",
+      "missing": [],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "9904_TW_v4_report_job_387662eee82e.html",
+      "kind": "report",
+      "labels": [
+        "content_warning"
+      ],
+      "payload": "report-f6daa64d30c8f795af08.json",
+      "sha256": "ad5f346df3ce1d9c1cddc81c95f608780e6f3f291bebe764f829860c697c84f6",
+      "input_hash": "6cb4c2046c0ce952de7e066c9c91002849772df824edc9f99e2878b93a879e88",
+      "input_hash_basis": "saved artifact data, not proof of original model input",
+      "original_version": "758242290e795146520f58f68ffa113cac35e52c",
+      "original_version_available": true,
+      "current_classification": "still_reproduced",
+      "missing": [],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "2441_TW_v4_report_job_fcf21739a72d.html",
+      "kind": "report",
+      "labels": [
+        "content_warning"
+      ],
+      "payload": "report-eccf76bc53532c8c991f.json",
+      "sha256": "f8308adc43627b979b0ecc6e2b3e8a25d6c50b0cb32dec41bde936e9887ad5ca",
+      "input_hash": "67ffa64a7198913c36a587e2b4c2bce18fb8d38bfd9d924a1eb2ed72ce874813",
+      "input_hash_basis": "saved artifact data, not proof of original model input",
+      "original_version": "758242290e795146520f58f68ffa113cac35e52c",
+      "original_version_available": true,
+      "current_classification": "still_reproduced",
+      "missing": [],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "2305_TW_v4_report_job_d2919f3d7fb2.html",
+      "kind": "report",
+      "labels": [
+        "content_warning"
+      ],
+      "payload": "report-297f8eacc0b6c7a30b7d.json",
+      "sha256": "7974a9079e8813624b8f7b8d0bd3ea8f76341bb77e3e15ef22b788a12881f959",
+      "input_hash": "90b05da63861934af6bdea68747da5dd96d09e0e60f5f5dcc1aeabd41b43e243",
+      "input_hash_basis": "saved artifact data, not proof of original model input",
+      "original_version": "758242290e795146520f58f68ffa113cac35e52c",
+      "original_version_available": true,
+      "current_classification": "still_reproduced",
+      "missing": [],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "6861_TW_v4_report_job_f67ee51b2e88.html",
+      "kind": "report",
+      "labels": [
+        "content_warning"
+      ],
+      "payload": "report-aeecc351e6b358ac388f.json",
+      "sha256": "547d088f1ed91e17bde0df7b8ff2cd04d8dfccb404865b53fcff8e459f08780a",
+      "input_hash": "2b0e5f77b9298b0a283b1dbabe6b3df80503b8e5c0019656c3f18cd77826db0d",
+      "input_hash_basis": "saved artifact data, not proof of original model input",
+      "original_version": "758242290e795146520f58f68ffa113cac35e52c",
+      "original_version_available": true,
+      "current_classification": "still_reproduced",
+      "missing": [],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "0050_TW_v4_report_job_8559656d5c7a.html",
+      "kind": "report",
+      "labels": [
+        "content_warning"
+      ],
+      "payload": "report-445b6f6d3d02f30f6311.json",
+      "sha256": "4e79f29748025ed80855f3a427865c5f58e9e68b06d08f510fd5ffc7844e4219",
+      "input_hash": "bf095a1edf929083c54535f86f7e83751588544fae4223c7c826f56a51fa9e06",
+      "input_hash_basis": "saved artifact data, not proof of original model input",
+      "original_version": "758242290e795146520f58f68ffa113cac35e52c",
+      "original_version_available": true,
+      "current_classification": "evidence_missing",
+      "missing": [
+        "original conclusion input binding unknown or mismatched; snapshot hash alone is not proof"
+      ],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "6715_TW_v4_report_job_39d12de20644.html",
+      "kind": "report",
+      "labels": [
+        "content_warning"
+      ],
+      "payload": "report-425ed8dc6f81b60f27c5.json",
+      "sha256": "67b05b006c88169f72605b464f2d0b6762da6b4094f80225b5ff3f789fc3eb48",
+      "input_hash": "94a2c37386fe6ef748525b0f751e169fd2f8859f5f275bd91e9922ccd61900a6",
+      "input_hash_basis": "saved artifact data, not proof of original model input",
+      "original_version": "758242290e795146520f58f68ffa113cac35e52c",
+      "original_version_available": true,
+      "current_classification": "still_reproduced",
+      "missing": [],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "3653_TW_v1_report_20260918_152518.html",
+      "kind": "report",
+      "labels": [
+        "content_warning"
+      ],
+      "payload": "report-0668a8644df8271f9248.json",
+      "sha256": "1ddc30314cedb63c26a08b3b95bdd5fce5b46482324cf4700eca80e401859e0e",
+      "input_hash": "cc8698c438a5aef18111a880ea47f0f44e78344780162f7f612e42a453f6ff1f",
+      "input_hash_basis": "saved artifact data, not proof of original model input",
+      "original_version": null,
+      "original_version_available": false,
+      "current_classification": "evidence_missing",
+      "missing": [
+        "original conclusion input binding unknown or mismatched; snapshot hash alone is not proof"
+      ],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "3324_TWO_v1_report_20260918_161136.html",
+      "kind": "report",
+      "labels": [
+        "content_warning"
+      ],
+      "payload": "report-87ee1b4a15dcfc2cf506.json",
+      "sha256": "dc4cdfd9918346e11e8a71f86746e491f96171236de65a30957c8df189484e76",
+      "input_hash": "f77c1b655a5e7da94a6a4aa4c66fe3a2a5bac077cd2ee53ad1b6b9ca2c192fa4",
+      "input_hash_basis": "saved artifact data, not proof of original model input",
+      "original_version": null,
+      "original_version_available": false,
+      "current_classification": "evidence_missing",
+      "missing": [
+        "original conclusion input binding unknown or mismatched; snapshot hash alone is not proof"
+      ],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "2308_TW_v2_report_20260918_173157.html",
+      "kind": "report",
+      "labels": [
+        "content_warning"
+      ],
+      "payload": "report-0a2fe7a36a588c63b469.json",
+      "sha256": "1765d0f90f478f45c57126a9ff4e53f09c59d6dd23156aa57e5e72ab3752570a",
+      "input_hash": "406789e1eac0d38a4f961acb1bf6dfba46985e5bc1b5d567356d4aeb01d22f90",
+      "input_hash_basis": "saved artifact data, not proof of original model input",
+      "original_version": null,
+      "original_version_available": false,
+      "current_classification": "evidence_missing",
+      "missing": [
+        "original conclusion input binding unknown or mismatched; snapshot hash alone is not proof"
+      ],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "3017_TW_v1_report_20260918_181843.html",
+      "kind": "report",
+      "labels": [
+        "content_warning"
+      ],
+      "payload": "report-ecd61c931edf89cd13b7.json",
+      "sha256": "1ee53745c535c0237d25b0bc38852023e0dce9fae874ad969b6a1d39dbd6e0de",
+      "input_hash": "b20aed6977884b2b85f2ffcc326afacf01edef2417e356cd0e1c730306e4eea9",
+      "input_hash_basis": "saved artifact data, not proof of original model input",
+      "original_version": null,
+      "original_version_available": false,
+      "current_classification": "evidence_missing",
+      "missing": [
+        "original conclusion input binding unknown or mismatched; snapshot hash alone is not proof"
+      ],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "6282_TW_v2_report_20260918_182651.html",
+      "kind": "report",
+      "labels": [
+        "content_warning"
+      ],
+      "payload": "report-9734604d22b4ad5615fd.json",
+      "sha256": "e50fb6654b402b85b29a497f68fbe7a692559d1e5f8bcef0ab2c5b6d86c208b5",
+      "input_hash": "e74aabda7591e6678f14f8df92771d53e48b7f7bb03535324d72472f6023b347",
+      "input_hash_basis": "saved artifact data, not proof of original model input",
+      "original_version": null,
+      "original_version_available": false,
+      "current_classification": "evidence_missing",
+      "missing": [
+        "original conclusion input binding unknown or mismatched; snapshot hash alone is not proof"
+      ],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "1623_TW_v1_report_20260918_183212.html",
+      "kind": "report",
+      "labels": [
+        "content_warning"
+      ],
+      "payload": "report-a3a7c829654eadee76d2.json",
+      "sha256": "696f095da6182357fd2b867ea533c469b3afb52678687d3cb041ee784bcdd415",
+      "input_hash": "be33652e6a18c0f60c33671e8c29a66c126a8fe2ea223e265935b9dabc63af9e",
+      "input_hash_basis": "saved artifact data, not proof of original model input",
+      "original_version": null,
+      "original_version_available": false,
+      "current_classification": "evidence_missing",
+      "missing": [
+        "original conclusion input binding unknown or mismatched; snapshot hash alone is not proof"
+      ],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "2308_TW_v1_report_20260918_183834.html",
+      "kind": "report",
+      "labels": [
+        "content_warning"
+      ],
+      "payload": "report-7f6cb69d6ed5297efe08.json",
+      "sha256": "677b343b829cc5f04e34589e7033ef1426d44ec3bab80757d734275f1bb519ea",
+      "input_hash": "406789e1eac0d38a4f961acb1bf6dfba46985e5bc1b5d567356d4aeb01d22f90",
+      "input_hash_basis": "saved artifact data, not proof of original model input",
+      "original_version": null,
+      "original_version_available": false,
+      "current_classification": "evidence_missing",
+      "missing": [
+        "original conclusion input binding unknown or mismatched; snapshot hash alone is not proof"
+      ],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "1623_TW_v2_report_20260918_184141.html",
+      "kind": "report",
+      "labels": [
+        "content_warning"
+      ],
+      "payload": "report-6314cae75d6ba39d18d6.json",
+      "sha256": "1b0caf33e6bc09aa932c54c01e5a0a5b087312369ad3b96dba4c0d6316c98214",
+      "input_hash": "be33652e6a18c0f60c33671e8c29a66c126a8fe2ea223e265935b9dabc63af9e",
+      "input_hash_basis": "saved artifact data, not proof of original model input",
+      "original_version": null,
+      "original_version_available": false,
+      "current_classification": "evidence_missing",
+      "missing": [
+        "original conclusion input binding unknown or mismatched; snapshot hash alone is not proof"
+      ],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "0050_TW_v4_report_job_b6864ef3ae37.html",
+      "kind": "report",
+      "labels": [
+        "content_warning"
+      ],
+      "payload": "report-2abce468a0bf41f071c3.json",
+      "sha256": "effb71f1d2e719f480871581b308b61c58da4a0fd65d47b28c8c26be73fd8777",
+      "input_hash": "f73067587cc4d189fcef15f1e470baf036dc3e172775551e974b50b8b0cd8bed",
+      "input_hash_basis": "saved artifact data, not proof of original model input",
+      "original_version": "980c579afa07a7a2ac75f0d6976b6ef5de3e887d",
+      "original_version_available": true,
+      "current_classification": "still_reproduced",
+      "missing": [],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "6226_TW_v4_report_job_b2bb58785aa2.html",
+      "kind": "report",
+      "labels": [
+        "content_warning"
+      ],
+      "payload": "report-6df4ce8564834d60cc51.json",
+      "sha256": "7a12e5f2dabe7ad80cfd50b68fe5b1b1706aa28ab7ade25afafa56dc93dce88d",
+      "input_hash": "ed3ce58ebf1837a1119f93e31e2918324ac6fe6a5dc07c6c0a8497110be675bf",
+      "input_hash_basis": "saved artifact data, not proof of original model input",
+      "original_version": "980c579afa07a7a2ac75f0d6976b6ef5de3e887d",
+      "original_version_available": true,
+      "current_classification": "still_reproduced",
+      "missing": [],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "6409_TW_v3_report_20260919_151215.html",
+      "kind": "report",
+      "labels": [
+        "content_warning"
+      ],
+      "payload": "report-5ad8dbe117d1fb51c634.json",
+      "sha256": "9a64909a3ab468189d42429656c5bf8ee27fed23bc29a54bd9fd8617b6e83a51",
+      "input_hash": "6f05db5198e0c2f80c2d282caf9041ee41b83748e28a88b9046da757a8172332",
+      "input_hash_basis": "saved artifact data, not proof of original model input",
+      "original_version": null,
+      "original_version_available": false,
+      "current_classification": "evidence_missing",
+      "missing": [
+        "original conclusion input binding unknown or mismatched; snapshot hash alone is not proof"
+      ],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "3653_TW_v3_report_20260919_152442.html",
+      "kind": "report",
+      "labels": [
+        "content_warning"
+      ],
+      "payload": "report-3b282fe3f03e4d104bec.json",
+      "sha256": "53cd7af3d0ded8754914791d83719f1b9e4ca38d3817454e6e2e6e18a5f32c9e",
+      "input_hash": "0c7160762707787d66ef5d98f3dc3f8ecb9064a2dd8b3695d741c391672d7d5c",
+      "input_hash_basis": "saved artifact data, not proof of original model input",
+      "original_version": null,
+      "original_version_available": false,
+      "current_classification": "evidence_missing",
+      "missing": [
+        "original conclusion input binding unknown or mismatched; snapshot hash alone is not proof"
+      ],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "3324_TWO_v2_report_20260919_154558.html",
+      "kind": "report",
+      "labels": [
+        "content_warning"
+      ],
+      "payload": "report-ed6f9cbf4c65c18fe986.json",
+      "sha256": "ada656323c3f6d8db1cd2956bde2a3cbb575e77da093ad5a49e002f25f5cf857",
+      "input_hash": "603b3207ffeaff47d38add1d3fbe85787a6de2898f5094fe684c85c94d71682f",
+      "input_hash_basis": "saved artifact data, not proof of original model input",
+      "original_version": null,
+      "original_version_available": false,
+      "current_classification": "evidence_missing",
+      "missing": [
+        "original conclusion input binding unknown or mismatched; snapshot hash alone is not proof"
+      ],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "6426_TW_v4_report_job_5fbe0f077920.html",
+      "kind": "report",
+      "labels": [
+        "content_warning"
+      ],
+      "payload": "report-40573f2d5e3c1577f795.json",
+      "sha256": "a677be433cafd391b97f83ca14343dd80540d0bbf288f24fe807b25ccd4e5edb",
+      "input_hash": "85e00f5665a26590b9b753b2fb8471b62299cf588d6c773db5f74566cf617fd0",
+      "input_hash_basis": "saved artifact data, not proof of original model input",
+      "original_version": "980c579afa07a7a2ac75f0d6976b6ef5de3e887d",
+      "original_version_available": true,
+      "current_classification": "still_reproduced",
+      "missing": [],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "2305_TW_v4_report_job_577cb004dd04.html",
+      "kind": "report",
+      "labels": [
+        "content_warning"
+      ],
+      "payload": "report-ab6196856387fbdc7782.json",
+      "sha256": "915549d5ae005a065110925a31640405c7dfdd58917f7ce5067e215a5f7a276e",
+      "input_hash": "b7c65e2bcb00373fa17f8c907ec40561de51fd4521ec410d2dbf2d2a6f8c54da",
+      "input_hash_basis": "saved artifact data, not proof of original model input",
+      "original_version": "980c579afa07a7a2ac75f0d6976b6ef5de3e887d",
+      "original_version_available": true,
+      "current_classification": "still_reproduced",
+      "missing": [],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "2892_TW_v4_report_job_632d354198fc.html",
+      "kind": "report",
+      "labels": [
+        "content_warning"
+      ],
+      "payload": "report-bcf66ddd1023997d462b.json",
+      "sha256": "bb7efba10ee119a8e2685a13e56acc6265ae4069220f5f0b6460427fb61f58b7",
+      "input_hash": "1303eb5f47cae5da5f272d987563f4916498abf643f2b3aa8f41a2bf7e889a7e",
+      "input_hash_basis": "saved artifact data, not proof of original model input",
+      "original_version": "980c579afa07a7a2ac75f0d6976b6ef5de3e887d",
+      "original_version_available": true,
+      "current_classification": "still_reproduced",
+      "missing": [],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "3324_TWO_v3_report_20260919_212600.html",
+      "kind": "report",
+      "labels": [
+        "content_warning"
+      ],
+      "payload": "report-e8e3318e5874fe1057e7.json",
+      "sha256": "22464f4f146bdc78d72f725efc56de58bf1889c934f215b154c5b3e92d3a0777",
+      "input_hash": "603b3207ffeaff47d38add1d3fbe85787a6de2898f5094fe684c85c94d71682f",
+      "input_hash_basis": "saved artifact data, not proof of original model input",
+      "original_version": null,
+      "original_version_available": false,
+      "current_classification": "evidence_missing",
+      "missing": [
+        "original conclusion input binding unknown or mismatched; snapshot hash alone is not proof"
+      ],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "3653_TW_v2_report_20260919_212643.html",
+      "kind": "report",
+      "labels": [
+        "content_warning"
+      ],
+      "payload": "report-f010c47522c7a9952972.json",
+      "sha256": "38f4632b29bb0330e60b16f78dccb26e9780d0c4c57cacb058f451dcb2ff9495",
+      "input_hash": "0c7160762707787d66ef5d98f3dc3f8ecb9064a2dd8b3695d741c391672d7d5c",
+      "input_hash_basis": "saved artifact data, not proof of original model input",
+      "original_version": null,
+      "original_version_available": false,
+      "current_classification": "evidence_missing",
+      "missing": [
+        "original conclusion input binding unknown or mismatched; snapshot hash alone is not proof"
+      ],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "2367_TW_v4_report_20260919_212710.html",
+      "kind": "report",
+      "labels": [
+        "content_warning"
+      ],
+      "payload": "report-916b7cf13750728f4d2b.json",
+      "sha256": "9b5513469828f7fc552e8e71eee5a6729f7b091dfad33781a4a69403e96ec145",
+      "input_hash": "d7cce7a09a84457b8ab125afb95894cc9ec8a802b703d5cf7483ad53abdcd34d",
+      "input_hash_basis": "saved artifact data, not proof of original model input",
+      "original_version": null,
+      "original_version_available": false,
+      "current_classification": "evidence_missing",
+      "missing": [
+        "original conclusion input binding unknown or mismatched; snapshot hash alone is not proof"
+      ],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "1623_TW_v3_report_20260919_213023.html",
+      "kind": "report",
+      "labels": [
+        "content_warning"
+      ],
+      "payload": "report-812c8e4a4847f99bde7b.json",
+      "sha256": "3d3aed189b48d9d254ad1b71ab7d6bcc116ff6465ce91d392d00f0b92df1b885",
+      "input_hash": "321379459b8a33e16e222c601c98e76b53f24249b4812edea26ac7971bff592a",
+      "input_hash_basis": "saved artifact data, not proof of original model input",
+      "original_version": null,
+      "original_version_available": false,
+      "current_classification": "evidence_missing",
+      "missing": [
+        "original conclusion input binding unknown or mismatched; snapshot hash alone is not proof"
+      ],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "1623_TW_v4_report_20260919_213040.html",
+      "kind": "report",
+      "labels": [
+        "content_warning"
+      ],
+      "payload": "report-2eafa175968597b3e157.json",
+      "sha256": "15d341cb5c22ffb47e7ca2c29a2ea170195a2988d883ff11b21e6cefbe478332",
+      "input_hash": "be33652e6a18c0f60c33671e8c29a66c126a8fe2ea223e265935b9dabc63af9e",
+      "input_hash_basis": "saved artifact data, not proof of original model input",
+      "original_version": null,
+      "original_version_available": false,
+      "current_classification": "evidence_missing",
+      "missing": [
+        "original conclusion input binding unknown or mismatched; snapshot hash alone is not proof"
+      ],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "3017_TW_v2_report_20260919_213154.html",
+      "kind": "report",
+      "labels": [
+        "content_warning"
+      ],
+      "payload": "report-5014c0ba5e754615447e.json",
+      "sha256": "d5585d55ae79a8ac291e17a13e3298729fcac0fad3ba2fb4f1aee962d91bd4e7",
+      "input_hash": "b20aed6977884b2b85f2ffcc326afacf01edef2417e356cd0e1c730306e4eea9",
+      "input_hash_basis": "saved artifact data, not proof of original model input",
+      "original_version": null,
+      "original_version_available": false,
+      "current_classification": "evidence_missing",
+      "missing": [
+        "original conclusion input binding unknown or mismatched; snapshot hash alone is not proof"
+      ],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "6409_TW_v2_report_20260919_213339.html",
+      "kind": "report",
+      "labels": [
+        "content_warning"
+      ],
+      "payload": "report-3653c0dad78693a6bb1f.json",
+      "sha256": "3e0171039f54eec68061c4b788d505150366784f4436c6b778d81e73e55bab39",
+      "input_hash": "6f05db5198e0c2f80c2d282caf9041ee41b83748e28a88b9046da757a8172332",
+      "input_hash_basis": "saved artifact data, not proof of original model input",
+      "original_version": null,
+      "original_version_available": false,
+      "current_classification": "evidence_missing",
+      "missing": [
+        "original conclusion input binding unknown or mismatched; snapshot hash alone is not proof"
+      ],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "5314_TWO_v3_report_job_ab24fe53ced9.html",
+      "kind": "report",
+      "labels": [
+        "content_warning"
+      ],
+      "payload": "report-c8224c3542553405b7d4.json",
+      "sha256": "49c4a452565437631bf14b9446655550af81518dcfaf68a1bf7423eff18d190e",
+      "input_hash": "21f40e0fe5a6fbf07a29d66ac99b37093f3191ad7c091478371fca3b3c96737b",
+      "input_hash_basis": "saved artifact data, not proof of original model input",
+      "original_version": "980c579afa07a7a2ac75f0d6976b6ef5de3e887d",
+      "original_version_available": true,
+      "current_classification": "still_reproduced",
+      "missing": [],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "5314_TWO_v3_report_job_4f25c64c01f5.html",
+      "kind": "report",
+      "labels": [
+        "content_warning"
+      ],
+      "payload": "report-1ca57a07d5d0d5baed0e.json",
+      "sha256": "6c574e4b296ae47ed956e53506c1b818f21ecfb52e8379765c235c1b01943336",
+      "input_hash": "83bb2b07d925d8a63eb75438da59e9566252983c5b9e6403a8aa9627da3f8827",
+      "input_hash_basis": "saved artifact data, not proof of original model input",
+      "original_version": "841931020ccab3765fc149fc8e99f3c0f958a84e",
+      "original_version_available": true,
+      "current_classification": "still_reproduced",
+      "missing": [],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "6257_TW_v4_report_job_ab798be19739.html",
+      "kind": "report",
+      "labels": [
+        "content_warning"
+      ],
+      "payload": "report-f492de06eecc49f89004.json",
+      "sha256": "a5b6b78b6cc068c49335ed0fdf5df74483015d02a16f16c44010dd43ef021438",
+      "input_hash": "b5457c84e7d0ede6663c930292bead89e6f1e214023a9538380b11bd566fee42",
+      "input_hash_basis": "saved artifact data, not proof of original model input",
+      "original_version": "841931020ccab3765fc149fc8e99f3c0f958a84e",
+      "original_version_available": true,
+      "current_classification": "fixed_in_scoped_replay",
+      "missing": [],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "6409_TW_v2_report_20260920_233512.html",
+      "kind": "report",
+      "labels": [
+        "content_warning"
+      ],
+      "payload": "report-10654bd451a4e18b8246.json",
+      "sha256": "e4b39b24f82048fc422644a246c4dc694c4322ca8dbf8dba33485ec9ee19ea40",
+      "input_hash": "fb289112a8ddcf72c553d1fe47ae6c3245a107dd5a8a45f731f5b75a98d4427c",
+      "input_hash_basis": "saved artifact data, not proof of original model input",
+      "original_version": null,
+      "original_version_available": false,
+      "current_classification": "evidence_missing",
+      "missing": [
+        "original conclusion input binding unknown or mismatched; snapshot hash alone is not proof"
+      ],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "3653_TW_v2_report_20260920_233948.html",
+      "kind": "report",
+      "labels": [
+        "content_warning"
+      ],
+      "payload": "report-b7e5f0cee00b00602157.json",
+      "sha256": "ed92dd7e12142239ef23b4b2906a7f327463a031a03dc9f6745ff96e3e96b4c1",
+      "input_hash": "0c7160762707787d66ef5d98f3dc3f8ecb9064a2dd8b3695d741c391672d7d5c",
+      "input_hash_basis": "saved artifact data, not proof of original model input",
+      "original_version": null,
+      "original_version_available": false,
+      "current_classification": "evidence_missing",
+      "missing": [
+        "original conclusion input binding unknown or mismatched; snapshot hash alone is not proof"
+      ],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "3324_TWO_v2_report_20260920_234242.html",
+      "kind": "report",
+      "labels": [
+        "content_warning"
+      ],
+      "payload": "report-1e74c78e9b9d1bfa90af.json",
+      "sha256": "59f3fe1c08932e56277f21a1ac6e96b63e5bf645527686c2b4c6e0b307918ec5",
+      "input_hash": "f77c1b655a5e7da94a6a4aa4c66fe3a2a5bac077cd2ee53ad1b6b9ca2c192fa4",
+      "input_hash_basis": "saved artifact data, not proof of original model input",
+      "original_version": null,
+      "original_version_available": false,
+      "current_classification": "evidence_missing",
+      "missing": [
+        "original conclusion input binding unknown or mismatched; snapshot hash alone is not proof"
+      ],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "3653_TW_v3_report_20260920_234603.html",
+      "kind": "report",
+      "labels": [
+        "content_warning"
+      ],
+      "payload": "report-4827903fc79602b12eb2.json",
+      "sha256": "079d2e42ee4062c23c8964c3a3ccf56bd6b9b53f3e51e4c813dd2f23ed6177f2",
+      "input_hash": "cc8698c438a5aef18111a880ea47f0f44e78344780162f7f612e42a453f6ff1f",
+      "input_hash_basis": "saved artifact data, not proof of original model input",
+      "original_version": null,
+      "original_version_available": false,
+      "current_classification": "evidence_missing",
+      "missing": [
+        "original conclusion input binding unknown or mismatched; snapshot hash alone is not proof"
+      ],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "3653_TW_v2_report_20260920_235410.html",
+      "kind": "report",
+      "labels": [
+        "content_warning"
+      ],
+      "payload": "report-d2e7c4f454f1d58aab96.json",
+      "sha256": "f80f3730e3340f6d9ca4b2c26c5587a66cdb97d8df1cf1aaf11403cf5e3724f2",
+      "input_hash": "cc8698c438a5aef18111a880ea47f0f44e78344780162f7f612e42a453f6ff1f",
+      "input_hash_basis": "saved artifact data, not proof of original model input",
+      "original_version": null,
+      "original_version_available": false,
+      "current_classification": "evidence_missing",
+      "missing": [
+        "original conclusion input binding unknown or mismatched; snapshot hash alone is not proof"
+      ],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "2033_TW_v4_report_job_24b46eafd767.html",
+      "kind": "report",
+      "labels": [
+        "content_warning"
+      ],
+      "payload": "report-5db3753e87f0848b0a0d.json",
+      "sha256": "6db594967c0767c7b36575a4383959984e262270daa4ea5f0070e7288ab6501e",
+      "input_hash": "f71daab54b2b792521db5c81d5eff86c1952e7a05b28e97826b6e31050907447",
+      "input_hash_basis": "saved artifact data, not proof of original model input",
+      "original_version": "57981fe5721423e794c2b9749b5bb60310d176ed",
+      "original_version_available": true,
+      "current_classification": "still_reproduced",
+      "missing": [],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "5314_TWO_v3_report_job_4141d4b954d3.html",
+      "kind": "report",
+      "labels": [
+        "content_warning"
+      ],
+      "payload": "report-3734385d4629ab73b70a.json",
+      "sha256": "4d7a3097337d6eafb673c9b110ef5217a40c413d5283b4fc69b6229559896339",
+      "input_hash": "f1f7a535c42cba9f5fc2bf5fc08a5cafd2946872d3f4d040ccdffc4d0cb81c32",
+      "input_hash_basis": "saved artifact data, not proof of original model input",
+      "original_version": "57981fe5721423e794c2b9749b5bb60310d176ed",
+      "original_version_available": true,
+      "current_classification": "fixed_in_scoped_replay",
+      "missing": [],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "2305_TW_v4_report_job_39e009c1fda8.html",
+      "kind": "report",
+      "labels": [
+        "content_warning"
+      ],
+      "payload": "report-0b0ca91a354e4c30bb4d.json",
+      "sha256": "0fb772376d29f7bb367d782abb8f4c0863c1cc39e8a3808954080d157d7800b7",
+      "input_hash": "4718e7affaef53e2ae042f823991f1f182f4444358a65568cdbcf6d7e3e88e49",
+      "input_hash_basis": "saved artifact data, not proof of original model input",
+      "original_version": "57981fe5721423e794c2b9749b5bb60310d176ed",
+      "original_version_available": true,
+      "current_classification": "still_reproduced",
+      "missing": [],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "2891_TW_v4_report_job_7408d832cffb.html",
+      "kind": "report",
+      "labels": [
+        "content_warning"
+      ],
+      "payload": "report-a0f15c6afe10f083cd9c.json",
+      "sha256": "f8c63f86d8f44b422f5e0afc437bbf4cc33a89e6cd2a123f713bffa841a43beb",
+      "input_hash": "9ed1ffc2d1f2d28f251f62fc976dbfeda47a50b76f15f1020dcfd9df13e3f56c",
+      "input_hash_basis": "saved artifact data, not proof of original model input",
+      "original_version": "57981fe5721423e794c2b9749b5bb60310d176ed",
+      "original_version_available": true,
+      "current_classification": "still_reproduced",
+      "missing": [],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "2033_TW_v4_report_20260921_223658.html",
+      "kind": "report",
+      "labels": [
+        "content_warning"
+      ],
+      "payload": "report-d77cd0238f65593971cf.json",
+      "sha256": "a4488260307b05ac12bcd92bc06c0c63f553310cd7df7386bd67a28d2f9b75a0",
+      "input_hash": "bf062f68d191d5b9a45fce0eddf2d3d1d919ac7117706ff988ce28fd24d41912",
+      "input_hash_basis": "saved artifact data, not proof of original model input",
+      "original_version": "46041625ef134420079a06d0ce2501a346d12e30",
+      "original_version_available": true,
+      "current_classification": "evidence_missing",
+      "missing": [
+        "original conclusion input binding unknown or mismatched; snapshot hash alone is not proof"
+      ],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "2305_TW_v4_report_job_37d4255d2b0d.html",
+      "kind": "report",
+      "labels": [
+        "content_warning"
+      ],
+      "payload": "report-b531e478ba8ef8ec4fdc.json",
+      "sha256": "bca3d5d7c413ca92d295625ffb2bcefa39afa24dc036e2bb931294ac2940e2e7",
+      "input_hash": "c98aed804fdfa099dc38fb2e43aefea282924e8d0a971db0edad2648185508e0",
+      "input_hash_basis": "saved artifact data, not proof of original model input",
+      "original_version": "34fb5b5c5961c26d7f4bcdcf3a562679229eb44d",
+      "original_version_available": true,
+      "current_classification": "fixed_in_scoped_replay",
+      "missing": [],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "6226_TW_v4_report_job_d89d35226dba.html",
+      "kind": "report",
+      "labels": [
+        "content_warning"
+      ],
+      "payload": "report-7f548f3c73ef1b89c5e4.json",
+      "sha256": "d219e65a41629a803378c34b17b2c4b181d4864733b9a2fd8d80bc925db56a66",
+      "input_hash": "3eb396cecd0d27e545a6e37c765e8e713a1f8ad5bb972289f2e16c4cbfca1cb9",
+      "input_hash_basis": "saved artifact data, not proof of original model input",
+      "original_version": "34fb5b5c5961c26d7f4bcdcf3a562679229eb44d",
+      "original_version_available": true,
+      "current_classification": "fixed_in_scoped_replay",
+      "missing": [],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "0050_TW_v4_report_job_27bdb4accb34.html",
+      "kind": "report",
+      "labels": [
+        "content_warning"
+      ],
+      "payload": "report-75ce689a0b9a07e3eb82.json",
+      "sha256": "2ba1fa5a09d72411d929508fecc617e42ff331c1e276f7cdd2c16e09a0483a1f",
+      "input_hash": "5450ab1fc1488962ee0de893e3d749c43488dd1d426b6f1290746eb9755cf1b6",
+      "input_hash_basis": "saved artifact data, not proof of original model input",
+      "original_version": "34fb5b5c5961c26d7f4bcdcf3a562679229eb44d",
+      "original_version_available": true,
+      "current_classification": "still_reproduced",
+      "missing": [],
+      "confirmed_true_error": false
+    },
+    {
+      "identity": "2327_TW_v4_report_job_5ab78a7d0a97.html",
+      "kind": "report",
+      "labels": [
+        "content_warning"
+      ],
+      "payload": "report-842036a4873fa65373c6.json",
+      "sha256": "074f2ab9469357ad5519c085de6d5fe1cf0d29df5dbc7dd40439803c5afc8cee",
+      "input_hash": "6ac24baa00dcaa40d258b44c59ea3d8a336eeafbd10c1d5993ca8ec6123a4cdc",
+      "input_hash_basis": "saved artifact data, not proof of original model input",
+      "original_version": "34fb5b5c5961c26d7f4bcdcf3a562679229eb44d",
+      "original_version_available": true,
+      "current_classification": "fixed_in_scoped_replay",
+      "missing": [],
+      "confirmed_true_error": false
+    }
+  ]
+}

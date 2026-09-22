@@ -195,7 +195,7 @@ def _inherited_scope(text, position, prefix, verified):
     return scopes[-1]
 
 
-def institutional_evidence_issues(text, data, *, allowed_paths=None):
+def institutional_evidence_issues(text, data, *, allowed_paths=None, _diagnostics=None):
     """Check actual numeric net-flow assertions; never infer unrecorded subgroup flows.
 
     allowed_paths limits checks to cited records in a visible trade-source catalog.
@@ -213,13 +213,21 @@ def institutional_evidence_issues(text, data, *, allowed_paths=None):
         ):
             continue
         if _valid_record(record):
-            eligible.append({**record, "value": _number(record["value"])})
-    text = re.sub(r"[^\S\n]+|[*`]", "", str(text or ""))
+            eligible.append({**record, "value": _number(record["value"]), "evidence_ref": ref})
+    original = str(text or "")
+    from institutional_evidence_diagnostics import normalized_claim_text, claim_diagnostic
+    text, offsets = (normalized_claim_text(original) if _diagnostics is not None
+                     else (re.sub(r"[^\S\n]+|[*`]", "", original), None))
     ticker = str(data.get("ticker") or _map(data.get("short_term_market_context")).get("ticker")
                  or _map(data.get("company")).get("ticker") or "").upper()
     taiwan = ticker.endswith((".TW", ".TWO"))
     issues = []
     verified = []
+    def reject(reason):
+        issues.append(reason)
+        if _diagnostics is not None:
+            _diagnostics.append(claim_diagnostic(reason, original, offsets, match, prefix,
+                                                population, window, eligible, candidates))
     for match in _CLAIM.finditer(text):
         if not is_actual_claim(text, match.start(), match.end()):
             continue
@@ -252,13 +260,13 @@ def institutional_evidence_issues(text, data, *, allowed_paths=None):
                 observed = _claimed_date(dates[-1], eligible)
                 candidates = [r for r in candidates if r['observed_at'] == observed]
         if not candidates:
-            issues.append("法人證據紅線：主體／日期／期間缺少同語意來源，不得將法人合計借作外資、投信或自營商分項，或混用單日與多日累計。")
+            reject("法人證據紅線：主體／日期／期間缺少同語意來源，不得將法人合計借作外資、投信或自營商分項，或混用單日與多日累計。")
             continue
         if match["unit"] == "張" and not taiwan:
-            issues.append("法人單位紅線：標的市場未確認，不能假定1張=1000股。")
+            reject("法人單位紅線：標的市場未確認，不能假定1張=1000股。")
             continue
         if not re.fullmatch(r"[+\-−]?(?:\d+|\d{1,3}(?:,\d{3})+)(?:\.\d+)?", match['number']):
-            issues.append("法人數字格式紅線：千分位分組不合法，不得刪除逗號後猜測數值。")
+            reject("法人數字格式紅線：千分位分組不合法，不得刪除逗號後猜測數值。")
             continue
         value = float(match["number"].replace(",", "").replace("−", "-"))
         if "賣" in match["verb"] and match["verb"] != "買賣超":
@@ -266,7 +274,7 @@ def institutional_evidence_issues(text, data, *, allowed_paths=None):
         value *= {None: 1, "千": 1000, "萬": 10000}[match["scale"]] * (1000 if match["unit"] == "張" else 1)
         matched = [r for r in candidates if abs(value - r["value"] * _UNITS[r["unit"]]) <= max(0.0051 * _UNITS[r["unit"]], abs(r["value"] * _UNITS[r["unit"]]) * 0.0001)]
         if not matched:
-            issues.append("法人單位／數值紅線：同主體同期間淨額不符；千股=1000股，台股1張=1000股，千張=1000000股，買超／賣超正負方向不可混用。")
+            reject("法人單位／數值紅線：同主體同期間淨額不符；千股=1000股，台股1張=1000股，千張=1000000股，買超／賣超正負方向不可混用。")
         elif len({r['observed_at'] for r in matched}) == 1:
             verified.append({'start': start, 'end': match.end(), 'window': window,
                              'observed_at': matched[0]['observed_at'],
@@ -274,4 +282,10 @@ def institutional_evidence_issues(text, data, *, allowed_paths=None):
     return list(dict.fromkeys(issues))
 
 
-__all__ = ["institutional_evidence_records", "institutional_evidence_issues"]
+def institutional_evidence_diagnostics(text, data, *, allowed_paths=None):
+    diagnostics = []
+    institutional_evidence_issues(text, data, allowed_paths=allowed_paths, _diagnostics=diagnostics)
+    return diagnostics
+
+
+__all__ = ["institutional_evidence_records", "institutional_evidence_issues", "institutional_evidence_diagnostics"]

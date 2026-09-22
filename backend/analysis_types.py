@@ -61,6 +61,7 @@ class AnalysisContext(TypedDict, total=False):
     blocking_issues: list[str]
     audit_repair_log: list[str]
     repair_attempt_counts: dict[int, int]
+    repair_candidate_history: dict
     repair_iteration_count: int
     final_audit: AuditResult
     executive_thesis: str

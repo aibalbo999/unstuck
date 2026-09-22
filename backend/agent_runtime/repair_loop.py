@@ -15,20 +15,18 @@ from validators import (
     validate_company_identity,
     validate_prompt_leakage,
 )
-
 from .deterministic_fallbacks import _clear_agent_blocking_issues
 from .repair_circuit_breaker import is_repair_429_error, record_repair_429_failure, repair_429_circuit_state
 from .repair_context import capture_repair_context, install_repair_attempt_context, restore_repair_context
 from .repair_quality_fallback import record_quality_fallback
+from .repair_candidates import repair_candidate_call, observe_candidate, reject_candidate, validate_repair_candidate
 from .repair_state import adopt_repair_result, repair_contract_issues
 from .repair_transaction import preserve_failed_repair
 from .cancellation import raise_if_cancelled
 from .repair_attempt_limits import apply_429_fallback, increment_repair_attempt_count, per_job_repair_limit_fallback, repair_attempt_count
 from .repair_reflection import (
-    build_audit_reflection_instruction,
-    build_audit_retry_instruction,
-    generate_audit_reflection,
-    generate_audit_reflection_async,
+    build_audit_reflection_instruction, build_audit_retry_instruction,
+    generate_audit_reflection, generate_audit_reflection_async,
 )
 from .routing import get_audit_rewrite_model_sequence, is_agent_execution_failure
 from .deferred import AgentDeferredError
@@ -42,6 +40,7 @@ def _repair_agent_output(agent_num: int, data: StockData, context: AnalysisConte
     """Synchronously ask the relevant agent to rewrite after final audit failure."""
     previous = capture_repair_context(context)
     original_analysis = str(context.get("analyses", {}).get(agent_num, ""))
+    reject_candidate(context, agent_num, data, original_analysis, issues)
     try:
         raise_if_cancelled(context)
         limit_result = per_job_repair_limit_fallback(agent_num, data, context, original_analysis, list(issues))
@@ -77,11 +76,14 @@ def _repair_agent_output(agent_num: int, data: StockData, context: AnalysisConte
                 context,
                 agent_num,
                 reflection_instruction=build_audit_reflection_instruction(reflection),
-                retry_instruction=build_audit_retry_instruction(agent_num, current_issues),
+                retry_instruction=build_audit_retry_instruction(agent_num, current_issues,
+                    previous_text=last_result or context.get("analyses", {}).get(agent_num, ""), data=data),
                 model_sequence=get_audit_rewrite_model_sequence(agent_num),
             )
             try:
-                result = sanitize_model_output(run_single_agent(agent_num, data, context, rotator, max_retries=1))
+                with repair_candidate_call(context, agent_num, data):
+                    result = sanitize_model_output(run_single_agent(agent_num, data, context, rotator, max_retries=1))
+                observe_candidate(context, agent_num, data, result)
                 mark_audit_source_attempt(agent_num, context, current_issues)
                 raise_if_cancelled(context)
             finally:
@@ -102,15 +104,11 @@ def _repair_agent_output(agent_num: int, data: StockData, context: AnalysisConte
                     if fallback_ok:
                         return adopt_repair_result(agent_num, context, (True, f"{fallback_message}（模型修復暫不可用：429）"))
                 return False, result
-            prompt_issues = validate_prompt_leakage(result)
-            identity_issues = validate_company_identity(result, data)
-            if prompt_issues or identity_issues:
-                return False, "；".join(prompt_issues + identity_issues)
-            quality_issues = validate_analysis_output(agent_num, result, data)
-            quality_issues.extend(repair_contract_issues(agent_num, {
-                **context, "data": data,
-                "analyses": {**context.get("analyses", {}), agent_num: result},
-            }))
+            fatal, quality_issues = validate_repair_candidate(agent_num, result, data, context,
+                validators=(validate_prompt_leakage, validate_company_identity, validate_analysis_output),
+                contract=repair_contract_issues)
+            if fatal:
+                return False, "；".join(fatal)
             if quality_issues:
                 last_result = append_quality_warnings(agent_num, result, data)
                 last_quality_issues = quality_issues
@@ -154,6 +152,7 @@ async def _repair_agent_output_async(agent_num: int, data: StockData, context: A
     """Asynchronously ask the relevant agent to rewrite after final audit failure."""
     previous = capture_repair_context(context)
     original_analysis = str(context.get("analyses", {}).get(agent_num, ""))
+    reject_candidate(context, agent_num, data, original_analysis, issues)
     try:
         raise_if_cancelled(context)
         limit_result = per_job_repair_limit_fallback(agent_num, data, context, original_analysis, list(issues))
@@ -189,11 +188,14 @@ async def _repair_agent_output_async(agent_num: int, data: StockData, context: A
                 context,
                 agent_num,
                 reflection_instruction=build_audit_reflection_instruction(reflection),
-                retry_instruction=build_audit_retry_instruction(agent_num, current_issues),
+                retry_instruction=build_audit_retry_instruction(agent_num, current_issues,
+                    previous_text=last_result or context.get("analyses", {}).get(agent_num, ""), data=data),
                 model_sequence=get_audit_rewrite_model_sequence(agent_num),
             )
             try:
-                result = sanitize_model_output(await run_single_agent_async(agent_num, data, context, rotator, max_retries=1))
+                with repair_candidate_call(context, agent_num, data):
+                    result = sanitize_model_output(await run_single_agent_async(agent_num, data, context, rotator, max_retries=1))
+                observe_candidate(context, agent_num, data, result)
                 mark_audit_source_attempt(agent_num, context, current_issues)
                 raise_if_cancelled(context)
             finally:
@@ -214,15 +216,11 @@ async def _repair_agent_output_async(agent_num: int, data: StockData, context: A
                     if fallback_ok:
                         return adopt_repair_result(agent_num, context, (True, f"{fallback_message}（模型修復暫不可用：429）"))
                 return False, result
-            prompt_issues = validate_prompt_leakage(result)
-            identity_issues = validate_company_identity(result, data)
-            if prompt_issues or identity_issues:
-                return False, "；".join(prompt_issues + identity_issues)
-            quality_issues = validate_analysis_output(agent_num, result, data)
-            quality_issues.extend(repair_contract_issues(agent_num, {
-                **context, "data": data,
-                "analyses": {**context.get("analyses", {}), agent_num: result},
-            }))
+            fatal, quality_issues = validate_repair_candidate(agent_num, result, data, context,
+                validators=(validate_prompt_leakage, validate_company_identity, validate_analysis_output),
+                contract=repair_contract_issues)
+            if fatal:
+                return False, "；".join(fatal)
             if quality_issues:
                 last_result = append_quality_warnings(agent_num, result, data)
                 last_quality_issues = quality_issues

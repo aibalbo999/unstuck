@@ -21,6 +21,7 @@ from analysis_job_service import (
     task_queue_has_task,
 )
 from analysis_jobs import run_stock_analysis_job
+from analysis_job_execution_state import inspect_job_execution
 from api_routes.analysis import AnalysisRouteDeps, create_analysis_router
 from api_routes.decision_tracking import DecisionTrackingRouteDeps, create_decision_tracking_router
 from api_routes.health import HealthRouteDeps, create_health_router
@@ -198,8 +199,7 @@ def create_app() -> FastAPI:
         create_job=lambda ticker, pipeline_id: create_runtime_job(ticker, pipeline_id),
         get_job=lambda job_id: get_job(job_id),
         get_events_since=lambda job_id, after_id=0: get_events_since(job_id, after_id),
-        update_job=update_job,
-        append_event=append_event,
+        update_job=update_job, append_event=append_event,
         request_job_cancel=lambda job_id, reason: request_job_cancel(job_id, reason),
         print_streamed_event=print_streamed_event,
         require_mutation_authorized=require_mutation_authorized,
@@ -271,8 +271,8 @@ def create_app() -> FastAPI:
         require_mutation_authorized=require_mutation_authorized,
         create_or_attach_analysis_job=create_or_attach_analysis_job,
         cancel_analysis_job=cancel_analysis_job_service,
-        serialize_analysis_job=serialize_analysis_job,
-        serialize_node_telemetry=serialize_node_telemetry,
+        serialize_analysis_job=serialize_analysis_job, serialize_node_telemetry=serialize_node_telemetry,
+        inspect_job_execution=lambda job: inspect_job_execution(job, analysis_task_queue),
     )))
     install_openapi_contract(app, mutation_header_name=MUTATION_HEADER_NAME)
     return app

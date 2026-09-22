@@ -41,8 +41,8 @@ from queue_dashboard_payload import (
 from queue_observability import snapshot_task_queue
 
 CORE_PROVIDER_ALERT_SOURCES = set(CORE_DATA_SOURCES)
-async def build_active_jobs_payload(limit: int = 10, event_limit: int = 80) -> dict:
-    return await asyncio.to_thread(build_active_jobs_snapshot, limit, event_limit)
+async def build_active_jobs_payload(limit: int = 10, event_limit: int = 80, *, task_queue=None) -> dict:
+    return await asyncio.to_thread(build_active_jobs_snapshot, limit, event_limit, task_queue=task_queue)
 
 
 async def build_api_quota_payload(summary_fetcher: Callable[[int], list[dict]]) -> dict:

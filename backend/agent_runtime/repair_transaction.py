@@ -54,7 +54,7 @@ def _finish_audit_transaction(context: dict, candidate: dict, audit: dict) -> di
         if audit.get("critical"):
             candidate.setdefault("blocking_issues", []).append("final_audit:unresolved_critical")
         # Failure metadata can advance a blocked state; analysis versions cannot.
-        for key in ("status", "blocking_issues", "audit_repair_log", "repair_attempt_counts",
+        for key in ("status", "blocking_issues", "audit_repair_log", "repair_attempt_counts", "repair_candidate_history",
                     "repair_iteration_count", "final_audit", "_runtime_events"):
             if key in candidate:
                 context[key] = copy.deepcopy(candidate[key])
@@ -147,7 +147,7 @@ def preserve_failed_repair(function):
 
 
 COPY_FIELDS = set(RESULT_FIELDS) | {
-    "data", "blocking_issues", "audit_repair_log", "repair_attempt_counts", "repair_iteration_count",
+    "data", "blocking_issues", "audit_repair_log", "repair_attempt_counts", "repair_candidate_history", "repair_iteration_count",
     "final_audit", "llm_token_usage", "_llm_model_circuits", "_runtime_events", "rag_status",
     "agent_quality_retry_counts", "agent_step_cache", "deterministic_fallbacks", "_model_sequence_override",
     "_market_context_attempt_manifests", "_audit_retry_instruction", "_audit_reflection_instruction",
@@ -183,7 +183,7 @@ class RepairRound:
 
     def accept(self, agent: int, candidate: dict, ok: bool, message: str):
         if not ok:
-            for key in ("repair_attempt_counts", "agent_quality_retry_counts", "_llm_model_circuits", "llm_token_usage"):
+            for key in ("repair_attempt_counts", "repair_candidate_history", "agent_quality_retry_counts", "_llm_model_circuits", "llm_token_usage"):
                 if key in candidate:
                     self.context[key] = candidate[key]
             if agent in self.required or agent in self.context.get("invalidated_agents", []):
@@ -211,7 +211,7 @@ class RepairRound:
                 issues.append("final_audit:dependency_rebuild_failed")
             self.original["audit_repair_log"] = list(self.context.get("audit_repair_log", []))
             self.original["audit_repair_log"].extend(self.failed or [f"尚未完成依賴重建：{stale}"])
-            for key in ("repair_attempt_counts", "agent_quality_retry_counts", "_llm_model_circuits", "llm_token_usage"):
+            for key in ("repair_attempt_counts", "repair_candidate_history", "agent_quality_retry_counts", "_llm_model_circuits", "llm_token_usage"):
                 if key in self.context:
                     self.original[key] = self.context[key]
             self.original["_repair_round_failed"] = True

@@ -1,0 +1,183 @@
+{
+  "provenance": {
+    "thread_id": "88af5ff6cda245ce9a6089b600274020:report-rerun:full_report:b531e478ba8ef8ec4fdcf531b3a9ecfd26ef6e5521e0756800d927f1532db9c9",
+    "checkpoint_id": "1f1b6894-e7e9-6cae-8009-2ce9bf7a734b",
+    "blob_sha256": "098aaa20d8e8e5b5bf1780ec20db6a07b34ea4a5ca52ca8798af91ee9045bf29"
+  },
+  "data": {
+    "ticker": "2305.TW",
+    "institutional_trading": {
+      "source": "FinMind TaiwanStockInstitutionalInvestorsBuySell",
+      "lookback_trading_days": 30,
+      "latest_date": "2026-09-22",
+      "net_buy_shares_by_category": {
+        "dealer": 619908,
+        "foreign": 10252255,
+        "investment_trust": -19000
+      },
+      "net_buy_thousand_shares_by_category": {
+        "dealer": 619.91,
+        "foreign": 10252.25,
+        "investment_trust": -19.0
+      },
+      "total_net_buy_shares": 10853163,
+      "total_net_buy_thousand_shares": 10853.16,
+      "last_5_trading_days_net_buy_thousand_shares": 10892.36,
+      "trend": "accumulation",
+      "daily_total_net_buy_last_10": [
+        {
+          "date": "2026-09-09",
+          "net_buy_thousand_shares": 443.42
+        },
+        {
+          "date": "2026-09-10",
+          "net_buy_thousand_shares": 1736.04
+        },
+        {
+          "date": "2026-09-11",
+          "net_buy_thousand_shares": 928.13
+        },
+        {
+          "date": "2026-09-14",
+          "net_buy_thousand_shares": 747.83
+        },
+        {
+          "date": "2026-09-15",
+          "net_buy_thousand_shares": -1468.38
+        },
+        {
+          "date": "2026-09-16",
+          "net_buy_thousand_shares": 4865.08
+        },
+        {
+          "date": "2026-09-17",
+          "net_buy_thousand_shares": 1547.56
+        },
+        {
+          "date": "2026-09-18",
+          "net_buy_thousand_shares": 2478.48
+        },
+        {
+          "date": "2026-09-21",
+          "net_buy_thousand_shares": 121.26
+        },
+        {
+          "date": "2026-09-22",
+          "net_buy_thousand_shares": 1879.97
+        }
+      ]
+    }
+  },
+  "candidates": [
+    {
+      "agent": 23,
+      "event_id": 1176212,
+      "model": "gemini-3.5-flash-lite",
+      "raw": "{\n  \"as_of_date\": \"2026-09-22\",\n  \"confidence\": \"high\",\n  \"evidence_items\": [\n    {\n      \"finding\": \"外資在觀察期間內呈現持續買超，近5個交易日維持淨買超趨勢，合計累積買超張數顯著。\",\n      \"source_refs\": [\n        \"institutional_trading\"\n      ],\n      \"freshness_note\": \"資料截至2026-09-22，為最近交易日\",\n      \"counterevidence\": \"投信同期間呈現微幅賣超，法人內部方向略有分歧。\"\n    },\n    {\n      \"finding\": \"大戶持股比例（大於1000張）達62.22%，散戶持股比例（小於50張）為22.52%，籌碼集中度相對偏高。\",\n      \"source_refs\": [\n        \"chip_data.tdcc_shareholder_distribution\"\n      ],\n      \"freshness_note\": \"資料截至2026-09-18\",\n      \"counterevidence\": \"需持續追蹤後續每週股權分散變化以確認是否有派發跡象。\"\n    },\n    {\n      \"finding\": \"融資餘額8,878張，融券餘額2,457張，借券賣出餘額為3,053,000股，具備一定的券資比與借券空頭壓力。\",\n      \"source_refs\": [\n        \"chip_data.twse_margin_short_sales\"\n      ],\n      \"freshness_note\": \"融券與借券資料截至2026-09-22\",\n      \"counterevidence\": \"融資使用率與買賣超金額變動需搭配成交量綜合評估。\"\n    }\n  ],\n  \"analysis_markdown\": \"## 一、外資與投信連續買賣超\\n- **外資主導買超趨勢**：根據 FinMind 統計，外資在近 30 個交易日內累積淨買超達 10,252,255 股（約 10,252.25 張），近 5 個交易日維持連續買超態勢（如 9 月 16 日單日淨買超 4,865.08 張、9 月 18 日 2,478.48 張、9 月 22 日 1,879.97 張），顯示外資在波段中具備持續性的卡位與買進力道。\\n- **投信與自營商動向**：投信近 30 個交易日呈現微幅賣超 19,000 股（19.0 張），自營商則小幅買超 619,908 股（619.91 張）。整體法人合計近 5 個交易日淨買超達 10,892.36 千股，法人方向以買超為主，但投信參與度相對較低。\\n\\n## 二、大戶持股與籌碼集中度\\n- **大戶持股集中度偏高**：依據 TDCC 集中保管戶權分散資料（截至 2026-09-18），持股大於 1,000 張的大戶持股比例為 62.22%，顯示核心籌碼高度集中於特定大戶手中。\\n- **散戶持股比率相對穩定**：小於 50 張的散戶持股比例為 22.52%，在股價經歷波動與處置期間，大戶持股結構未見明顯鬆動，但仍需觀察後續每週更新的集中度變化以防範高檔派發風險。\\n\\n## 三、融資券與借券壓力\\n- **融資與融券餘額變化**：截至最新統計，融資餘額為 8,878 張（融資維持小幅增減），融券餘額為 2,457 張；融券張數維持一定規模，潛在券資比與軋空燃料仍需視後續股價波動與借券賣出餘額（3,053,000 股）變化共同觀察。\\n- **借券與短線槓桿觀察**：借券賣出餘額保持在 300 餘張（3,053,000 股），單日還券張數為 142,000 股，顯示高檔震盪期間融券與借券賣方持續進行避險或回補操作，籌碼多空拔河仍在進行。\\n\\n## 四、未來 1-2 週籌碼劇本\\n- **偏多動能支持**：外資近期的連續買超與大戶持股比率維持在 62.22% 之高檔，顯示中實戶與外資在波段中具備主導權，若量能與法人買超得以延續，籌碼結構有利於維持高檔驚驚漲或區間整理格局。\\n- **反向風險與變數**：由於股價處於處置期間且處於相對高檔，融券與借券餘額帶來的波動風險不可忽視；若外資買超縮手或轉為賣超，搭配散戶追價力道減弱，需提防籌碼鬆動引發的修正壓力。本報告僅供資訊整理與情境分類，不構成任何投資建議或交易指令。\"\n}",
+      "diagnostics": {
+        "finish_reasons": [
+          "STOP"
+        ],
+        "block_reason": null,
+        "candidate_count": 1,
+        "function_call_count": 0,
+        "function_call_names": [],
+        "afc_history_present": false,
+        "afc_function_call_count": 0,
+        "afc_function_call_names": [],
+        "usage": {},
+        "stream_chunk_count": 51,
+        "stream_completed": true,
+        "output_chars": 1908
+      }
+    },
+    {
+      "agent": 23,
+      "event_id": 1176278,
+      "model": "gemini-3.5-flash-lite",
+      "raw": "{\n  \"as_of_date\": \"2026-09-22\",\n  \"confidence\": \"medium\",\n  \"evidence_items\": [\n    {\n      \"finding\": \"法人近5個交易日維持買超趨勢，合計買超10,892.36千股，其中外資與自營商方向偏多，無投信分項買超數據支持單一外資細項。觀察近10日法人累計淨買超，顯示資金呈連續集中跡象。\",\n      \"source_refs\": [\n        \"normalized_financials.institutional_trading\"\n      ],\n      \"freshness_note\": \"資料截至 2026-09-22，為最新觀察日資料。\",\n      \"counterevidence\": \"投信呈現小幅賣超-19千股，且部分交易日如2026-09-15出現單日淨賣超-1,468.38千股，顯示短線籌碼仍有波動雜訊。\"\n    },\n    {\n      \"finding\": \"大戶持股比例（持股大於1000張者）達62.22%，散戶持股比例（小於50張者）為22.52%，顯示股權結構具一定集中度。\",\n      \"source_refs\": [\n        \"chip_context.tdcc_shareholder_distribution\"\n      ],\n      \"freshness_note\": \"資料截至 2026-09-18，符合近期集保庫存更新頻率。\",\n      \"counterevidence\": \"單一期別持股集中度數據無法直接證明增減趨勢，尚需後續幾期集保資料對照。\"\n    },\n    {\n      \"finding\": \"融資餘額為8,878張（較前一期微減），融券餘額為2,457張，借券賣出餘額為3,053,000股。\",\n      \"source_refs\": [\n        \"chip_context.twse_margin_short_sales\"\n      ],\n      \"freshness_note\": \"融資券資料截至 2026-09-22（借券餘額為當日回報）。\",\n      \"counterevidence\": \"融券與借券餘額處於一定水位，若股價波動加劇可能伴隨短線軋空或融資多殺多壓力。\"\n    }\n  ],\n  \"analysis_markdown\": \"## 一、外資與投信連續買賣超\\n- **法人整體呈現連續買超趨勢**：根據 institutional_trading 資料，全友（2305.TW）近 5 個交易日（截至 2026-09-22）合計淨買超達 10,892.36 千股，近 30 個交易日總計淨買超達 10,853.16 千股（含外資與自營商偏多、投信小幅賣超 -19 千股）。\\n- **短線力道具波動性**：觀察近 10 日法人每日總淨買超，多數交易日保持買超，例如 2026-09-16 創下單日淨買超 4,865.08 千股的高峰，但也伴隨 2026-09-15 的單日淨賣超 -1,468.38 千股，顯示盤勢中存在單日雜訊，需區分事件前卡位與持續性趨勢。\\n\\n## 二、大戶持股與籌碼集中度\\n- **大戶持股集中度偏高**：依據 TDCC 股權分散資料（截至 2026-09-18），持股大於 1,000 張之大戶持股比例為 62.22%。\\n- **散戶持股比重相對穩定**：小於 50 張之散戶持股比例為 22.52%，顯示籌碼主要集中於大戶手中，但因缺乏多期歷史對照，尚無法直接定論集保趨勢為絕對增加或派發。\\n\\n## 三、融資券與借券壓力\\n- **融資融券維持一定水位**：根據 TWSE 信用交易與借券數據，融資餘額為 8,878 張（融資買進 940 張、賣出 950 張），融券餘額為 2,457 張（融券買進 316 張、賣出 155 張）。\\n- **借券賣出餘額提供額外觀察指標**：借券賣出餘額為 3,053,000 股（當日還券 142,000 股），在籌碼緊俏時須防範融資追價槓桿與高券資比帶來的雙向波動壓力。\\n\\n## 四、未來 1-2 週籌碼劇本\\n- **主力偏多與分歧證據並存**：法人近數個交易日持續站在買方且大戶持股集中度達 62.22%，提供基本籌碼支撐；然而部分交易日出現較大賣超金額與處置期題材，顯示短線追價力道可能面臨分歧。\\n- **反向風險提示**：若融資餘額快速增減或借券賣出水位變化導致多空拉鋸，短線震盪幅度可能加大，相關數據應持續以證交所與集保最新公告為準。\"\n}",
+      "diagnostics": {
+        "finish_reasons": [
+          "STOP"
+        ],
+        "block_reason": null,
+        "candidate_count": 1,
+        "function_call_count": 0,
+        "function_call_names": [],
+        "afc_history_present": false,
+        "afc_function_call_count": 0,
+        "afc_function_call_names": [],
+        "usage": {},
+        "stream_chunk_count": 52,
+        "stream_completed": true,
+        "output_chars": 1951
+      }
+    },
+    {
+      "agent": 24,
+      "event_id": 1176302,
+      "model": "gemini-3.5-flash-lite",
+      "raw": "{\n  \"trade_direction\": \"Neutral\",\n  \"entry_zone\": \"N/A\",\n  \"target_price\": \"N/A\",\n  \"stop_loss\": \"N/A\",\n  \"support_level\": \"48.59\",\n  \"resistance_level\": \"61.9\",\n  \"core_catalyst\": \"目前短線技術指標 RSI 處於 88.45 之超買鈍化區，且乖離率偏高，潛在回測壓力增加；等待股價量縮回測 10 日均線（48.59元）附近且籌碼沈澱後，再重新評估是否有明確進場時點。\",\n  \"risk_level\": \"High\",\n  \"support_source_refs\": [\n    \"short_term_market_context.technical_indicators.sma_10\"\n  ],\n  \"resistance_source_refs\": [\n    \"short_term_market_context.daily_market_data.bars[3].high\"\n  ],\n  \"catalyst_source_refs\": [\n    \"short_term_market_context.technical_indicators.rsi_14\",\n    \"short_term_market_context.technical_indicators.sma_10\"\n  ],\n  \"transaction_cost\": null\n}",
+      "diagnostics": {
+        "finish_reasons": [
+          "STOP"
+        ],
+        "block_reason": null,
+        "candidate_count": 1,
+        "function_call_count": 0,
+        "function_call_names": [],
+        "afc_history_present": false,
+        "afc_function_call_count": 0,
+        "afc_function_call_names": [],
+        "usage": {},
+        "stream_chunk_count": 13,
+        "stream_completed": true,
+        "output_chars": 673
+      }
+    },
+    {
+      "agent": 24,
+      "event_id": 1176323,
+      "model": "gemini-3.5-flash-lite",
+      "raw": "{\n  \"trade_direction\": \"Neutral\",\n  \"entry_zone\": \"N/A\",\n  \"target_price\": \"N/A\",\n  \"stop_loss\": \"N/A\",\n  \"support_level\": \"48.59\",\n  \"resistance_level\": \"61.90\",\n  \"core_catalyst\": \"短線技術指標 RSI 處於 88.45 之超買鈍化區且乖離率偏高，潛在回測壓力增加；等待股價量縮回測 10 日均線附近且籌碼沈澱後，再重新評估是否有明確進場時點。\",\n  \"risk_level\": \"High\",\n  \"support_source_refs\": [\n    \"short_term_market_context.technical_indicators.sma_10\"\n  ],\n  \"resistance_source_refs\": [\n    \"short_term_market_context.daily_market_data.bars[3].high\"\n  ],\n  \"catalyst_source_refs\": [\n    \"short_term_market_context.technical_indicators.rsi_14\"\n  ],\n  \"transaction_cost\": null\n}",
+      "diagnostics": {
+        "finish_reasons": [
+          "STOP"
+        ],
+        "block_reason": null,
+        "candidate_count": 1,
+        "function_call_count": 0,
+        "function_call_names": [],
+        "afc_history_present": false,
+        "afc_function_call_count": 0,
+        "afc_function_call_names": [],
+        "usage": {},
+        "stream_chunk_count": 12,
+        "stream_completed": true,
+        "output_chars": 602
+      }
+    },
+    {
+      "agent": 23,
+      "event_id": 1176405,
+      "model": "gemini-3.5-flash-lite",
+      "raw": "{\n  \"as_of_date\": \"2026-09-22\",\n  \"confidence\": \"medium\",\n  \"evidence_items\": [\n    {\n      \"finding\": \"法人近10個交易日整體呈現買超趨勢，最近5個交易日合計淨買超10,892.36千股，其中外資與自營商近期多日站買方，投信則小幅賣超。\",\n      \"source_refs\": [\n        \"normalized_financials.institutional_trading\"\n      ],\n      \"freshness_note\": \"資料截至 2026-09-22，為近期觀察資料\",\n      \"counterevidence\": \"部分交易日出現單日調節賣壓（如9月15日淨買超為負數），且未細分外資每日個別進出明細。\"\n    },\n    {\n      \"finding\": \"大戶持股比例（持股大於1000張者）達62.22%，散戶持股比例（小於50張者）為22.52%。\",\n      \"source_refs\": [\n        \"chip_context.tdcc_shareholder_distribution\"\n      ],\n      \"freshness_note\": \"資料截至 2026-09-18\",\n      \"counterevidence\": \"僅有單一期點之集保發布數據，缺乏連續期數比較以證明集中度持續上升。\"\n    },\n    {\n      \"finding\": \"融資餘額為8,878張，融券餘額為2,457張，借券賣出餘額為3,053,000股。\",\n      \"source_refs\": [\n        \"chip_context.twse_margin_short_sales\"\n      ],\n      \"freshness_note\": \"融資券資料截至 2026-09-22，借券資料同日\",\n      \"counterevidence\": \"券資比與融資使用率處於特定水準，需持續關注追價槓桿與潛在回補壓力。\"\n    }\n  ],\n  \"analysis_markdown\": \"## 一、外資與投信連續買賣超\\n- **法人整體呈現買超趨勢**：根據 institutional_trading 統計，最近 5 個交易日（截至 2026-09-22）合計淨買超達 10,892.36 千股，近 30 個交易日累積總淨買超達 10,853.16 千股（註：千股與張數值相同）。\\n- **分項與單日力道變化**：外資累積淨買超 10,252.25 千股，自營商淨買超 619.91 千股，投信小幅賣超 19.0 千股。觀察近 10 日買賣超明細，多數交易日維持正向流入，但如 2026-09-15 曾出現單日淨買超 -1,468.38 千股之調節，顯示短線具備波動雜訊。\\n\\n## 二、大戶持股與籌碼集中度\\n- **股權集中度維持特定水準**：依據 TDCC 集中保管戶權分散數據（截至 2026-09-18），持股大於 1,000 張的大戶持股比例為 62.22%，小於 50 張的散戶持股比例則為 22.52%。\\n- **資料限制說明**：因僅提供單一期點之集保分散表數據，缺乏跨期比較基準，無法直接佐證近期集中度呈擴增或鬆動趨勢。\\n\\n## 三、融資券與借券壓力\\n- **融資與融券餘額現況**：截至 2026-09-22，融資餘額為 8,878 張（融資買進 940 張、賣出 950 張），融券餘額為 2,457 張（融券買進 316 張、賣出 155 張）。\\n- **借券與槓桿觀察**：借券賣出結存數量為 3,053,000 股，當日還券 142,000 股。整體信用交易餘額反映市場存有一定程度之追價與避險槓桿，需留意融資變化帶來的短線籌碼浮動壓力。\\n\\n## 四、未來 1-2 週籌碼劇本\\n- **偏多支持證據**：法人近期的連續性買超與外資累積淨流入，顯示特定資金在觀察窗內對該標的保持參與意願。\\n- **反向風險與分歧**：短線曾出現單日法人調節紀錄，且融資券與借券餘額代表市場多空分歧與槓桿存在，若後續法人買超力道放緩或融資維持高檔，可能增加籌碼震盪風險。\"\n}",
+      "diagnostics": {
+        "finish_reasons": [
+          "STOP"
+        ],
+        "block_reason": null,
+        "candidate_count": 1,
+        "function_call_count": 0,
+        "function_call_names": [],
+        "afc_history_present": false,
+        "afc_function_call_count": 0,
+        "afc_function_call_names": [],
+        "usage": {},
+        "stream_chunk_count": 47,
+        "stream_completed": true,
+        "output_chars": 1818
+      }
+    }
+  ]
+}

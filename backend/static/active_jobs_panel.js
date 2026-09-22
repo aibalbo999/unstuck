@@ -26,6 +26,8 @@
     }
 
     function statusLabel(job, showingHistory) {
+        const execution = window.StockAgentJobExecutionLabels?.label(job);
+        if (execution) return execution;
         if (showingHistory && job.status === 'done') return '最近完成';
         if (job.status === 'running') return '執行中';
         if (job.status === 'queued') return '排隊中';
@@ -47,8 +49,8 @@
         const active = jobs.filter(job => ['queued', 'running', 'waiting_retry'].includes(job.status));
         const showingHistory = !active.length && jobs.length;
         summaryEl.textContent = active.length
-            ? `${active.length} 個分析任務執行中`
-            : (jobs.length ? '目前無執行中任務，以下為最近完成任務' : '尚無任務紀錄');
+            ? `${active.length} 個未結束任務（含排隊與等待重試）`
+            : (jobs.length ? '目前無執行中任務，以下為最近結束任務' : '尚無任務紀錄');
         listEl.innerHTML = jobs.length
             ? jobs.slice(0, 5).map(job => {
                 const stage = job.stage_summary || {};
@@ -56,7 +58,7 @@
                 const tone = ['running', 'waiting_retry'].includes(job.status) ? 'warning' : job.status === 'done' ? 'ok' : 'critical';
                 const phase = stage.phase || (job.status === 'done' ? '完成' : 'idle');
                 const progress = progressLabel(stage);
-                const details = [phase, progress, modelHealth].filter(Boolean).join(' · ');
+                const details = [phase, progress, modelHealth, window.StockAgentJobExecutionLabels?.details(job)].filter(Boolean).join(' · ');
                 const pipelineLabel = job.pipeline_id ? pipelineModeLabel(job.pipeline_id) : 'N/A';
                 return `
                     <span class="provider-sla-chip is-${tone}" title="${escapeHtml(stage.message || job.error || '')}">

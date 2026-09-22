@@ -38,6 +38,8 @@ def test_daily_budget_label_is_explicitly_local_and_keeps_zero_remaining():
     assert '本機剩餘' in result.stdout
     assert 'flash 0/256' in result.stdout
     assert 'Google 剩餘' not in result.stdout
+    assert 'key slot' in result.stdout
+    assert 'project 對應未驗證' in result.stdout
 
 
 def test_quota_api_exposes_enforced_budget_not_provider_entitlement(monkeypatch):
@@ -50,6 +52,7 @@ def test_quota_api_exposes_enforced_budget_not_provider_entitlement(monkeypatch)
     assert payload['model_policy']['rpd_limits'] == {'m': 16}
     assert payload['model_policy']['provider_limits_verified'] is False
     assert payload['services'][0]['usage']['daily_budget']['models']['m']['remaining'] == 32
+    assert payload['model_policy']['quota_project_mapping_status'] == 'unknown'
 
 
 def test_provider_feedback_policy_shows_observed_usage_without_local_stop(monkeypatch):
@@ -63,3 +66,16 @@ def test_provider_feedback_policy_shows_observed_usage_without_local_stop(monkey
     text=subprocess.run(['node','-e',script],capture_output=True,text=True,check=True).stdout
     assert '供應商回饋' in text and 'flash 25 次' in text
     assert '本機剩餘' not in text and '暫停' not in text
+    assert 'project 對應未驗證' in text
+
+
+def test_declared_project_plan_remains_assumption_not_verified_mapping(monkeypatch):
+    import api_quota_service as service
+    monkeypatch.setattr(service, 'MODEL_ROUTES', {'project_quota_assumption': 'user_declared_independent_free_projects',
+                                                'assumed_project_count': 16})
+    payload = service.build_api_quota_payload(lambda _: [])
+    assert payload['model_policy']['assumed_project_count'] == 16
+    assert payload['model_policy']['verified_project_count'] is None
+    assert payload['model_policy']['quota_project_mapping_status'] == 'unknown'
+    notes = ' '.join(payload['services'][0]['notes'])
+    assert '使用者宣告' in notes and '規劃假設' in notes and '尚未驗證' in notes

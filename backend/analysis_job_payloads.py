@@ -17,6 +17,7 @@ from analysis_job_payload_values import (
 )
 from job_store import list_node_telemetry, sanitize_error_message
 from mapping_fields import safe_mapping_dict, safe_text
+from analysis_job_execution_state import execution_projection
 
 
 STATUS_MAP = {
@@ -40,6 +41,7 @@ def serialize_analysis_job(job: dict) -> dict:
     status = safe_text(job.get("status")).strip()
     status_key = status.lower()
     return {
+        **(execution_projection(job) if job_id else {}),
         "job_id": job_id,
         "ticker": ticker,
         "pipeline_id": pipeline_id,

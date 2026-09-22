@@ -120,6 +120,7 @@ class AgentGraphState(TypedDict, total=False):
     blocking_issues: Annotated[list[str], append_unique]
     audit_repair_log: Annotated[list[str], append_unique]
     repair_attempt_counts: dict[str, int]
+    repair_candidate_history: Annotated[dict[str, dict[str, Any]], merge_dicts]
     agent_quality_retry_counts: Annotated[dict[str, int], merge_dicts]
     repair_iteration_count: int
     final_audit: dict[str, Any]

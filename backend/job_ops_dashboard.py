@@ -9,6 +9,8 @@ from pathlib import Path
 from typing import Any
 
 from analysis_job_queue_state import task_queue_job_state
+from analysis_job_execution_state import execution_projection
+from analysis_job_registry import inspect_job_registries
 from config import TASK_DB_PATH
 from job_store import ACTIVE_JOB_STATUSES
 from job_ops_dashboard_metrics import job_latency_summary, node_telemetry_summary, prompt_budget_summary
@@ -18,6 +20,11 @@ from report_execution_metrics import report_execution_metrics
 from security_sanitizer import sanitize_error_message
 
 STUCK_JOB_STATUSES = ("running", "waiting_retry")
+STALL_ASSESSMENT = {
+    "assessment": "suspected_stall",
+    "basis": "updated_at_heuristic",
+    "label": "疑似停滯，需核對",
+}
 
 def build_ops_dashboard_snapshot(
     *,
@@ -60,6 +67,7 @@ def build_ops_dashboard_snapshot(
             "completed_sample_size": len(jobs),
         },
         "stuck_jobs": {
+            **STALL_ASSESSMENT,
             "stuck_after_seconds": safe_stuck_after,
             "count": len(stuck_jobs),
             "jobs": stuck_jobs,
@@ -97,6 +105,7 @@ def _empty_ops_dashboard(*, db_exists: bool, stuck_after_seconds: int) -> dict:
             "completed_sample_size": 0,
         },
         "stuck_jobs": {
+            **STALL_ASSESSMENT,
             "stuck_after_seconds": stuck_after_seconds,
             "count": 0,
             "jobs": [],
@@ -177,6 +186,11 @@ def _stuck_job_rows(
                 "runtime_seconds": round(max(0.0, now - float(row["started_at"] or row["created_at"] or now)), 1),
             }
         )
+    registries = inspect_job_registries(task_queue, result) if result else {}
+    for job in result:
+        job.update(execution_projection(job, registry=registries.get(job["job_id"]), now=now))
+        job.update(stall_assessment=STALL_ASSESSMENT["assessment"],
+                   stall_basis=STALL_ASSESSMENT["basis"], stall_label=STALL_ASSESSMENT["label"])
     return result
 
 

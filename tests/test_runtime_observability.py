@@ -1966,7 +1966,7 @@ def test_active_jobs_observability_summarizes_latest_events(monkeypatch, tmp_pat
 
 
 def test_active_jobs_api(monkeypatch):
-    async def fake_active_jobs_payload(limit=10, event_limit=80):
+    async def fake_active_jobs_payload(limit=10, event_limit=80, *, task_queue=None):
         return {"jobs": [], "active_count": 0}
 
     monkeypatch.setattr(api_observability_service, "build_active_jobs_payload", fake_active_jobs_payload)

@@ -32,6 +32,21 @@ def test_default_budget_stores_share_path_aware_connection_resource():
     assert DailyBudgetStore()._resource is DailyBudgetStore()._resource
 
 
+def test_summary_counts_slots_without_claiming_verified_projects(tmp_path):
+    store = store_at(tmp_path / 'summary.sqlite3')
+    assert store.reserve('secret-a', 'm', 2, ['secret-a', 'secret-b'])
+    summary = store.summary(['secret-a', 'secret-b'], {'m': 2})
+    assert summary['budget_scope'] == 'key_slot_model'
+    assert summary['quota_project_mapping_status'] == 'unknown'
+    model = summary['models']['m']
+    assert model['per_slot_budget'] == 2 and model['available_slots'] == 2
+    assert model['total_slot_budget'] == 4 and model['remaining'] == 3
+    assert model['per_project_budget'] == model['per_slot_budget']
+    assert model['available_projects'] == model['available_slots']
+    assert summary['deprecated_fields']['per_project_budget'] == 'per_slot_budget'
+    assert 'secret-' not in json.dumps(summary)
+
+
 def test_budget_persists_and_is_scoped_to_key_model(tmp_path):
     path = tmp_path / 'budget.sqlite3'
     store = store_at(path)

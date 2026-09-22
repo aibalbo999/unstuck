@@ -1,7 +1,6 @@
 # Split from legacy_agent_runner.py. Keep this module logic-only; root compatibility lives in backend/agent_runner.py.
 
 import asyncio
-
 import config
 from tenacity import AsyncRetrying, Retrying, retry_if_exception_type
 
@@ -17,6 +16,7 @@ from .llm_calls import (
     _run_agent_once,
     _run_agent_once_async,
 )
+from .repair_candidates import fresh_candidate_for_retry
 from .cancellation import raise_if_cancelled
 from .attempt_telemetry import record_node_cache_response
 from .deferred import failed_route_result, unavailable_model
@@ -56,6 +56,7 @@ def _build_model_prompt(agent_num, data, context, model_id, compact_primary):
     )
 
 
+@fresh_candidate_for_retry
 def run_single_agent(
     agent_num: int,
     data: StockData,
@@ -164,6 +165,7 @@ def run_single_agent(
     return failed_route_result(agent_num, last_error, deferred_routes)
 
 
+@fresh_candidate_for_retry
 async def run_single_agent_async(
     agent_num: int,
     data: StockData,

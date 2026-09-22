@@ -177,10 +177,16 @@ class DailyBudgetStore:
             rows = self._rows(self._resource.connect(), keys, model, self._now())
             models[model] = {
                 "observed_requests": sum(rows[guard_hash(key)]["used"] for key in keys),
+                "per_slot_budget": limit, "total_slot_budget": limit * len(keys),
+                "available_slots": sum(value > 0 for value in remaining.values()),
+                # Compatibility aliases only: these never established projects.
                 "per_project_budget": limit, "total_budget": limit * len(keys),
                 "remaining": sum(remaining.values()),
                 "available_projects": sum(value > 0 for value in remaining.values()),
             }
         return {"available": True, "quota_day": self._now().date().isoformat(),
                 "timezone": "America/Los_Angeles", "basis": "local_reservations_plus_observed_request_seed",
+                "budget_scope": "key_slot_model", "quota_project_mapping_status": "unknown",
+                "deprecated_fields": {"per_project_budget": "per_slot_budget",
+                                      "available_projects": "available_slots", "total_budget": "total_slot_budget"},
                 "models": models}

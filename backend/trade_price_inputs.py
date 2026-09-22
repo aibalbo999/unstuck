@@ -28,6 +28,15 @@ _STOCK_QUANTITIES = re.compile(
     re.I,
 )
 
+# Revenue thresholds with explicit aggregate-money scale are not per-share prices.
+_REVENUE_NUMBER = r"(?:NT\$|TWD)?\s*\d[\d,]*(?:\.\d+)?"
+_REVENUE_SEPARATOR = r"(?:至|到|[-~～–])"
+_REVENUE_AMOUNTS = re.compile(
+    rf"(?:營收|營業收入)\s*(?:跌破|突破|超過|高於|低於|達|為|[<>≤≥])?\s*{_REVENUE_NUMBER}\s*"
+    rf"(?:[億萬]\s*(?:TWD|元)?(?:\s*{_REVENUE_SEPARATOR}\s*{_REVENUE_NUMBER}\s*[億萬]?)?"
+    rf"|{_REVENUE_SEPARATOR}\s*{_REVENUE_NUMBER}\s*[億萬])\s*(?:TWD|元)?", re.I,
+)
+
 
 def execution_value_missing(value) -> bool:
     text = safe_text(value).strip()
@@ -49,6 +58,7 @@ def price_contract_text(value) -> str:
     text = _REFERENCE.sub(" ", text)
     # Share/lot thresholds constrain a signal; they are never an entry price.
     text = _STOCK_QUANTITIES.sub(" ", text)
+    text = _REVENUE_AMOUNTS.sub(" ", text)
     return _MULTIPLES.sub(" ", _PERCENT.sub(" ", _PERIODS.sub(" ", _DATES.sub(" ", text))))
 
 

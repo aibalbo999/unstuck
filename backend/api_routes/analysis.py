@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import asyncio
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Optional
@@ -49,6 +50,7 @@ class AnalysisRouteDeps:
     cancel_analysis_job: Callable[..., dict | None] | None = None
     serialize_analysis_job: Callable[[dict], dict] | None = None
     serialize_node_telemetry: Callable[[str], dict] | None = None
+    inspect_job_execution: Callable[[dict], dict] | None = None
 
 
 class AnalysisJobCreateRequest(BaseModel):
@@ -86,7 +88,7 @@ def create_analysis_router(deps: AnalysisRouteDeps) -> APIRouter:
         job_row = safe_mapping_dict(job)
         if not job_row:
             raise HTTPException(status_code=404, detail="Analysis job not found")
-        serialized = safe_mapping_dict(_serialize_job(deps, job_row)) or {}
+        serialized = safe_mapping_dict(await asyncio.to_thread(_serialize_job, deps, job_row)) or {}
         return _safe_json_response_mapping(serialized)
 
     @router.get("/api/analysis-jobs/{job_id}/telemetry")

@@ -116,14 +116,17 @@ def build_audit_reflection_instruction(reflection: str) -> str:
     )
 
 
-def build_audit_retry_instruction(agent_num: int, issues: list[str]) -> str:
+def build_audit_retry_instruction(agent_num: int, issues: list[str], *, previous_text=None, data=None) -> str:
     """Build a focused rewrite instruction for final audit failures."""
+    from institutional_evidence_prompt import institutional_repair_diagnostic_prompt
+    diagnostics = (institutional_repair_diagnostic_prompt(previous_text, data)
+                   if agent_num == 23 and previous_text and isinstance(data, dict) else "")
     issue_lines = "\n".join(f"- {issue}" for issue in issues[:8])
     return (
         "🚨【最終跨 Agent 稽核要求重寫本段】\n"
         "系統在正式報告存檔前發現以下問題，請完全重寫或補跑本 Agent 的輸出正文，"
         "保留原本段落任務，但必須修正所有問題：\n"
-        f"{issue_lines}\n\n"
+        f"{issue_lines}\n\n{diagnostics}\n"
         "修復規則：\n"
         "- 若前次輸出缺失、失敗或仍是佔位文字，請從零生成本 Agent 的完整正式輸出。\n"
         "- 只使用資料摘要中明確提供的數字；若資料口徑衝突，請列為資料品質警示，不可硬湊公式。\n"

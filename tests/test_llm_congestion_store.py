@@ -109,7 +109,7 @@ def test_redis_failure_preserves_known_wait_and_fails_closed_once():
 @pytest.mark.parametrize('action', ['admit', 'peek', 'failure', 'success', 'release'])
 def test_result_has_safe_fixed_schema(action):
     store, _ = rig()
-    assert set(store.operate('model', action, key_hash='hash')) == {'generation', 'wait', 'probe', 'admitted'}
+    assert set(store.operate('model', action, key_hash='hash')) == {'generation', 'wait', 'probe', 'admitted', 'transition'}
 
 
 def test_required_shared_unavailable_initially_quarantines_only_once():
@@ -185,8 +185,10 @@ def expire_cooldown(client):
 def test_redis_two_clients_share_distinct_keys_and_one_atomic_probe(redis_socket):
     first = CongestionStore(redis_socket, jitter=lambda: 0)
     second = CongestionStore(redis_socket, jitter=lambda: 0)
-    assert fail(first, 'a')['wait'] == 0
-    assert 59 <= fail(second, 'b')['wait'] <= 60
+    first_failure = fail(first, 'a')
+    assert first_failure['wait'] == 0 and first_failure['transition'] == 'failure_observed'
+    opened = fail(second, 'b')
+    assert 59 <= opened['wait'] <= 60 and opened['transition'] == 'opened'
     assert 59 <= first.operate('model', 'peek')['wait'] <= 60
     expire_cooldown(redis_socket)
     with ThreadPoolExecutor(max_workers=8) as pool:
@@ -196,12 +198,13 @@ def test_redis_two_clients_share_distinct_keys_and_one_atomic_probe(redis_socket
     assert len(winners) == 1
     owner, receipt = winners[0]
     assert receipt['probe']
+    assert receipt['transition'] == 'probe_admitted'
     assert 119 <= fail(first, 'c', owner=owner, generation=receipt['generation'])['wait'] <= 120
-    second.operate('model', 'success', owner=owner, generation=receipt['generation'])
+    assert second.operate('model', 'success', owner=owner, generation=receipt['generation'])['transition'] == 'unchanged'
     assert 119 <= second.operate('model', 'peek')['wait'] <= 120
     expire_cooldown(redis_socket)
     receipt = second.operate('model', 'admit', owner='recovered')
-    first.operate('model', 'success', owner='recovered', generation=receipt['generation'])
+    assert first.operate('model', 'success', owner='recovered', generation=receipt['generation'])['transition'] == 'recovered'
     assert second.operate('model', 'admit')['admitted']
     assert 'model' not in redis_socket.command('KEYS', '*')
 

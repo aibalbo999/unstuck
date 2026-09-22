@@ -150,6 +150,7 @@ def initialize_graph_state(data: dict[str, Any], *, pipeline_id: str) -> AgentGr
     graph_state["llm_model_circuits"] = {}
     graph_state["blocking_issues"] = []
     graph_state["repair_attempt_counts"] = {}
+    graph_state["repair_candidate_history"] = {}
     graph_state["agent_quality_retry_counts"] = {}
     graph_state["tool_results"] = {"data_reconciliation_plan": build_reconciliation_plan(domain_state)}
     return graph_state
@@ -244,5 +245,8 @@ async def run_agent_node_adapter(agent_num: int, state: AgentGraphState, service
     agent_quality_retry_counts = context.get("agent_quality_retry_counts") or {}
     if agent_quality_retry_counts:
         delta["agent_quality_retry_counts"] = graph_agent_mapping(agent_quality_retry_counts)
+    history = (context.get("repair_candidate_history") or {}).get(str(completed_agent_num))
+    if history is not None:
+        delta["repair_candidate_history"] = {str(completed_agent_num): copy_json(history)}
     delta["node_telemetry"] = build_agent_node_receipt(context, completed_agent_num, delta)
     return delta

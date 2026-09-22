@@ -17,7 +17,7 @@ def _active_status_placeholders() -> str:
     return ", ".join("?" for _ in ACTIVE_JOB_STATUSES)
 
 
-def build_active_jobs_snapshot(limit: int = 10, event_limit: int = 80, db_path: str | None = None) -> dict:
+def build_active_jobs_snapshot(limit: int = 10, event_limit: int = 80, db_path: str | None = None, *, task_queue=None) -> dict:
     path = Path(db_path or TASK_DB_PATH)
     if not path.exists():
         return {"jobs": [], "active_count": 0, "db_exists": False}
@@ -50,6 +50,12 @@ def build_active_jobs_snapshot(limit: int = 10, event_limit: int = 80, db_path: 
             snapshots = [_job_snapshot(conn, dict(job), safe_event_limit) for job in jobs]
     except sqlite3.Error as exc:
         return {"jobs": [], "active_count": 0, "db_exists": True, "error": str(exc)[:160]}
+    from analysis_job_registry import inspect_job_registries
+    registry = inspect_job_registries(task_queue, snapshots)
+    for job in snapshots:
+        job['registry'] = registry.get(job['job_id'], {'state': 'unknown'})
+        from analysis_job_execution_state import execution_projection
+        job.update(execution_projection(job, events=job.pop('_execution_events'), registry=job['registry']))
     return {
         "jobs": snapshots,
         "active_count": sum(1 for job in snapshots if job.get("status") in ACTIVE_JOB_STATUSES),
@@ -102,6 +108,7 @@ def _job_snapshot(conn: sqlite3.Connection, job: dict, event_limit: int) -> dict
         "llm_model_call_counts": dict(model_calls),
         "token_estimate": _token_estimate_summary(events),
         "recent_events": events[:10],
+        "_execution_events": events,
     }
 
 
@@ -180,6 +187,8 @@ def _decode_event(row: sqlite3.Row) -> dict:
         "agent_num": payload.get("agent_num"),
         "pipeline_id": payload.get("pipeline_id"),
         "metadata": payload.get("metadata"),
+        "retry_at": payload.get("retry_at"),
+        "retry_scheduled": payload.get("retry_scheduled"),
     }
 
 

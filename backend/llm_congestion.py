@@ -12,6 +12,7 @@ import config
 from llm_errors import is_requests_per_day_error, retry_delay_seconds
 from llm_model_circuits import ModelCircuitOpenError
 from llm_provider_routes import split_model_provider
+from llm_congestion_telemetry import observe_transition
 
 _store = None
 _store_lock = threading.Lock()
@@ -74,6 +75,7 @@ class _Attempt:
     owner: str
     generation: int
     lease: float
+    probe: bool = False
     completed: bool = False
 
     def finish(self, error=None):
@@ -84,14 +86,23 @@ class _Attempt:
         action = ("success" if error is None else "server_failure" if status == 503 else
                   "failure" if status == 429 and not is_requests_per_day_error(error) else "release")
         delay = max(0.0, retry_delay_seconds(error, default=0)) if action in {"failure", "server_failure"} else 0.0
-        self.store.operate(self.model, action, key_hash=self.key_hash, owner=self.owner,
+        result = self.store.operate(self.model, action, key_hash=self.key_hash, owner=self.owner,
                            generation=self.generation, delay=delay, lease=self.lease)
+        outcome = ("success" if error is None else "provider_503" if action == "server_failure" else
+                   "provider_429" if action == "failure" else "provider_rpd" if status == 429 else "released_error")
+        self.observe(outcome, result, status)
+
+    def observe(self, outcome, result, provider_status=None):
+        observe_transition(self.model, outcome, result, attempt_id=self.owner,
+                           admission_generation=self.generation, probe=self.probe,
+                           provider_status=provider_status)
 
     def close(self):
         if not self.completed:
             self.completed = True
-            self.store.operate(self.model, "release", key_hash=self.key_hash, owner=self.owner,
+            result = self.store.operate(self.model, "release", key_hash=self.key_hash, owner=self.owner,
                                generation=self.generation, lease=self.lease)
+            self.observe("released_without_outcome", result)
 
 
 @contextmanager
@@ -119,9 +130,11 @@ def provider_attempt_scope(model_id, api_key, *, record_outcome=True):
             "LLM_AGENT_CALL_TIMEOUT_SECONDS", "PRIMARY_LLM_AGENT_CALL_TIMEOUT_SECONDS",
             "FALLBACK_LLM_AGENT_CALL_TIMEOUT_SECONDS"))) + 30.0
         result = store.operate(model, "admit", key_hash=key_hash, owner=owner, lease=lease)
+        observe_transition(model, "admitted" if result["admitted"] else "blocked", result,
+                           attempt_id=owner, admission_generation=result["generation"], probe=result["probe"])
         if not result["admitted"]:
             raise ProviderCongestionError(model_id, max(float(result["wait"]), 1.0))
-        attempt = _Attempt(store, model, key_hash, owner, result["generation"], lease)
+        attempt = _Attempt(store, model, key_hash, owner, result["generation"], lease, probe=result["probe"])
         token = _active.set(attempt)
     try:
         yield attempt

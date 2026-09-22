@@ -10,6 +10,7 @@ import time
 from typing import Any
 
 from cache_store import get_cache_json, set_cache_json
+from llm_cache_policy import candidate_cache_read_allowed
 from llm_completion_provenance import completion_diagnostics, completion_is_incomplete
 from config import (
     LLM_SEMANTIC_CACHE_ENABLED,
@@ -32,7 +33,7 @@ _CONFIG_FIELDS = (
 
 
 def get_cached_llm_response(model_id: str, prompt: str, config: Any) -> dict | None:
-    if not _cache_enabled():
+    if not candidate_cache_read_allowed("raw") or not _cache_enabled():
         return None
     exact_key = _entry_key(model_id, prompt, config)
     exact = _load_entry(exact_key)
