@@ -1,6 +1,6 @@
 # 系統架構關聯圖
 
-來源時間窗、商品適用性、分項備援、SLA v4 與年度日曆維護契約見 [資料來源取得與證據判讀](source-evidence-operations.md)。入口為 `news_freshness_policy.py`、`source_applicability.py`、`shared_provider_cache.py`、`search_provider_runtime.py` 及 `provider_observation_details.py`。
+來源時間窗、商品適用性、分項備援、SLA v4 與年度日曆維護契約見 [資料來源取得與證據判讀](source-evidence-operations.md)。法人 acquisition 與 observation 分離的共用入口為 `data_fetch/institutional_provider.py`。其餘入口為 `news_freshness_policy.py`、`source_applicability.py`、`shared_provider_cache.py`、`search_provider_runtime.py` 及 `provider_observation_details.py`。
 
 修復候選的兩層cache隔離與hash收據、逐record法人提示、工作execution_state及壅塞transition觀測，見[錯誤防再發](error-prevention-2026-09-22.md)。修復呼叫不重用未驗證候選，既有provider/RPD/品質上限保留；歷史錯誤與正式canary分開驗收。
 

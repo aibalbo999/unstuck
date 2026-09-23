@@ -34,13 +34,19 @@ def quality_retry_model_sequence(agent_num: int, context: AnalysisContext) -> li
     return list(dict.fromkeys(alternatives or models))
 
 
-def install_quality_retry_context(context: AnalysisContext, agent_num: int, issues: list[str]) -> dict[str, object]:
+def install_quality_retry_context(context: AnalysisContext, agent_num: int, issues: list[str], *, data=None) -> dict[str, object]:
     models = quality_retry_model_sequence(agent_num, context)
     previous = {
         "_audit_retry_instruction": context.get("_audit_retry_instruction"),
         "_model_sequence_override": context.get("_model_sequence_override"),
     }
-    context["_audit_retry_instruction"] = build_audit_retry_instruction(agent_num, issues)
+    from .repair_candidates import reject_candidate
+    data = data if isinstance(data, dict) else context.get("data") or {}
+    analyses = context.get("analyses") or {}
+    original = str(analyses.get(agent_num, analyses.get(str(agent_num), "")))
+    reject_candidate(context, agent_num, data, original, issues)
+    context["_audit_retry_instruction"] = build_audit_retry_instruction(
+        agent_num, issues, previous_text=original, data=data, context=context)
     model_override = dict(previous["_model_sequence_override"] or {}) if isinstance(previous["_model_sequence_override"], dict) else {}
     model_override[agent_num] = models
     context["_model_sequence_override"] = model_override
@@ -112,7 +118,7 @@ async def retry_after_agent_quality_issues(
             metadata={"issues": issues[:20], "retry_error": error[:500], "draft_text": original[:100000], "draft_truncated": len(original) > 100000},
         )
 
-    previous = install_quality_retry_context(context, agent_num, issues)
+    previous = install_quality_retry_context(context, agent_num, issues, data=data)
     try:
         raise_if_cancelled(context)
         retry_result = await run_agent_async(agent_num, data, context, rotator)

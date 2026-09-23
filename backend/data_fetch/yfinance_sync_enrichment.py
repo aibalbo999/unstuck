@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor
+from contextvars import copy_context
+
 from .market_sources.common import _run_named_fetches
 from .market_sources.http_enrichment import (
     fetch_fmp_news_catalysts,
@@ -27,6 +30,7 @@ def fetch_sync_enrichment_bundle(
     net_income_history: list,
     shares_outstanding,
     skip_optional_http: bool,
+    force_refresh: bool = False,
 ) -> dict:
     earnings_audit = {}
     enrichment_fetches = {
@@ -45,14 +49,6 @@ def fetch_sync_enrichment_bundle(
             "Yahoo Finance 新聞資料獲取失敗",
             "recent_catalysts",
             "Yahoo Finance news",
-        ),
-        "institutional_trading": (
-            fetch_institutional_trading_trend,
-            (ticker,),
-            {},
-            "法人籌碼資料彙整失敗",
-            "institutional_trading",
-            "FinMind",
         ),
         "dynamic_peer_metrics": (
             fetch_dynamic_peer_metrics,
@@ -106,11 +102,20 @@ def fetch_sync_enrichment_bundle(
     identity_data = {"ticker": ticker, "company_identity": company_identity}
     enrichment_fetches = {name: spec for name, spec in enrichment_fetches.items()
                           if source_is_applicable(spec[4], identity_data)}
-    enrichment_result = _run_named_fetches(
-        enrichment_fetches,
-        max_workers=6,
-        include_audit=True,
-    )
+    from .institutional_provider import fetch_institutional_result
+    from .types import FetchRequest
+    # The typed source owns resilience/audit; an outer audited wrapper would
+    # count a cache read as another provider callback or block it on circuit state.
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        institutional_future = (executor.submit(
+            copy_context().run, fetch_institutional_result,
+            FetchRequest.from_ticker(ticker, force_refresh=force_refresh), fetch=fetch_institutional_trading_trend,
+        ) if source_is_applicable("institutional_trading", identity_data) else None)
+        enrichment_result = _run_named_fetches(enrichment_fetches, max_workers=6, include_audit=True)
+        if institutional_future is not None:
+            institutional_result = institutional_future.result()
+            enrichment_result["values"]["institutional_trading"] = institutional_result.value
+            enrichment_result["audit"].append(institutional_result.audit)
     enrichment = enrichment_result.get("values", {})
     if earnings_audit:
         # Replace the scheduling wrapper with the canonical provider's provenance.

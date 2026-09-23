@@ -97,14 +97,5 @@ class InstitutionalTradingProvider(DataProvider):
     capabilities = {"institutional_trading"}
 
     def fetch(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
-        from .market_sources.taiwan import fetch_institutional_trading_trend
-
-        result = audited_fetch(
-            self.source,
-            self.name,
-            fetch_institutional_trading_trend,
-            (request.ticker,),
-            default={},
-            unavailable_message="法人籌碼資料暫無可用資料。",
-        )
-        return provider_result_from_audited(result, self.source, self.name)
+        from .institutional_provider import fetch_institutional_result
+        return fetch_institutional_result(request)

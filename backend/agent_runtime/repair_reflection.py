@@ -116,12 +116,22 @@ def build_audit_reflection_instruction(reflection: str) -> str:
     )
 
 
-def build_audit_retry_instruction(agent_num: int, issues: list[str], *, previous_text=None, data=None) -> str:
+def build_audit_retry_instruction(agent_num: int, issues: list[str], *, previous_text=None, data=None, context=None) -> str:
     """Build a focused rewrite instruction for final audit failures."""
     from institutional_evidence_prompt import institutional_repair_diagnostic_prompt
     diagnostics = (institutional_repair_diagnostic_prompt(previous_text, data)
                    if agent_num == 23 and previous_text and isinstance(data, dict) else "")
-    issue_lines = "\n".join(f"- {issue}" for issue in issues[:8])
+    if isinstance(context, dict) and isinstance(data, dict):
+        from .repair_candidates import prior_repair_issues
+        history = [issue for issue in prior_repair_issues(context, agent_num, data) if issue not in issues]
+        if history:
+            diagnostics += ("\n【同份輸入的歷次問題回歸清單】\n"
+                            "下列問題可能已修正；完整重寫仍需複查，這不是目前仍失敗的判定：\n"
+                            + "\n".join(f"- {issue}" for issue in history) + "\n")
+        if agent_num == 19:
+            from .repair_diagnostics import recommendation_repair_diagnostic
+            diagnostics += recommendation_repair_diagnostic(context, data, previous_text or '')
+    issue_lines = "\n".join(f"- {str(issue)[:1000]}" for issue in issues[:16])
     return (
         "🚨【最終跨 Agent 稽核要求重寫本段】\n"
         "系統在正式報告存檔前發現以下問題，請完全重寫或補跑本 Agent 的輸出正文，"

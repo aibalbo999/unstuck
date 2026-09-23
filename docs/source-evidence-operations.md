@@ -19,6 +19,10 @@
 - MOPS 法說會來源發生已分類錯誤時，改查 [TWSE WebPro 公開站外法說會索引](https://webpro.twse.com.tw/WebPortal/vod/101/?categoryId=170)。僅保存相符公司的已完成場次日期與連結，不擷取摘要、影音或逐字稿；保留 MOPS 錯誤，實際 provider 標 WebPro，覆蓋仍為 partial。索引沒有可用場次不代表公司沒有法說會。
 - WebPro 每次最多查一頁三筆，成功 metadata 共用快取一天、有效空結果五分鐘；錯誤沿用持久冷卻。快取保留原取得時間，實際 HTTP 與外層 aggregate 分開計數。MOPS 正常回傳空結果時維持既有本年度／前年度查詢規則。
 
+法人籌碼由 `data_fetch/institutional_provider.py` 統一同步及 registry 取得。共享快取以股票與 lookback 分開：近期觀測沿既有六小時期限，過期觀測十五分鐘再查、有效空結果一分鐘再查；強制刷新仍可繞過資料快取，但不繞過 provider 冷卻。快取保留原 acquisition 時間，另以 `latest_date`／`observed_at` 判斷觀測新鮮度，重新組裝報告不能刷新它們。
+
+缺列不推定零交易。只計相符股票、有效日期與有限非負買賣股數；原始觀測日及實際筆數保留。近期資料仍可能只有部分期間覆蓋，完整五個交易日無法確認時，`last_5_trading_days_net_buy_thousand_shares` 保留空值。來源例外與成功空回應分開記錄，SDK callback 不當作 HTTP 已送出的證據。
+
 ## 觀測與年度日曆
 
 SLA v4 僅新增 `details_json`，保留舊資料。新事件保存有界的 correlation、HTTP、cache/stale、error_kind、retry_at 與分項覆蓋；不保存 key、query 或 response body。HTTP 請求、callback/aggregate、快取與本機冷卻分開計數；舊觀測不回填猜測。來源面板的「取得資料率」仍是供應商觀測口徑，不是報告成功率。
@@ -26,6 +30,8 @@ SLA v4 僅新增 `details_json`，保留舊資料。新事件保存有界的 cor
 Typed 來源錯誤在報告中顯示可讀原因；HTTP code、回應大小、雜湊與 parser 版本保留於結構化診斷，不嵌入報告訊息而被誤認為財務數字。
 
 Agent 19 的原始「避免」輸出，只有原始進場、回補、風險及重評條件共同通過明確無部位契約，normalizer 才保留原文；不將已驗證回補欄位改成 `N/A`，也不替原始缺漏或衝突補造無部位證據。僅更新 Agent 19 快取版本，品質 gate 仍拒絕缺乏明確語意的原始 `N/A`，也不放寬已有部位或附帶價格的檢查。
+
+品質重寫在 `repair_candidate_history` 保存同輸入、prompt 與上游證據範圍內最近 16 項退件問題，供後續完整重寫做回歸檢查；它不是目前品質判定，也不增加重試次數。Agent 19 在清除候選結構之前，使用既有價格解析與報酬門檻產生前次決策診斷。建議、目標或交易方案改變後必須重新評估市場來源，不複製舊結論的 `market_context_assessment`；證據不足仍保留警示。退件清單沿既有 graph/draft checkpoint 保存，新 metadata 可增加一個 draft 版本，但重複 defer 不重建初稿或重複新增相同版本。
 
 交易日曆保存來源、版本與適用年度。缺年度資料時標 unknown，行情快取使用較短門檻。事件日曆只有成功且明確覆蓋完整未來窗口，才能判定該窗口沒有事件。
 

@@ -39,9 +39,17 @@ def reject_candidate(context, agent, data, text, issues):
     if not text or not issues:
         return
     entry = _entry(context, agent, data)
+    entry['issue_checklist'] = list(dict.fromkeys(
+        [str(issue)[:1000] for issue in issues] + entry.get('issue_checklist', [])
+    ))[:16]
     receipt = {'candidate_hash': _hash(text), 'issue_hash': _hash(sorted(map(str, issues)))}
     if receipt not in entry['rejections']:
         entry['rejections'] = (entry['rejections'] + [receipt])[-8:]
+
+
+def prior_repair_issues(context, agent, data):
+    """A bounded regression checklist scoped to the same input and prompt."""
+    return list(_entry(context, agent, data).get('issue_checklist', []))
 
 
 def observe_candidate(context, agent, data, text):
