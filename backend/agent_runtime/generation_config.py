@@ -66,7 +66,10 @@ _AGENT19_COMPLETION_INSTRUCTION = (
     "market_context_assessment 必須評估完整來源，保留具體 reason 與有效 source_refs，不能為省字略過來源評估或刪減必要引用。"
     "製造業高成長情境仍須明確檢查產能、CapEx、折舊、良率與客戶議價五項風險；不適用或資料不足須逐項說明。"
     "非放空分類的 short_setup.entry_trigger 只表達等待與重新評估條件，不能混入條件達成即可進場或建立空單的指令；"
-    "不開倉時 downside_target、cover_stop 可不適用並說明原因，不得補造價格。"
+    "不開倉時 downside_target 可不適用，不得補造價格。"
+    "若選擇 AVOID 且確實不建立部位，entry_trigger 須明確寫目前不建立空方部位；"
+    "cover_stop 須保留不適用及目前不建立空方部位的原因，不能只寫 N/A；並保留軋空風險及重新評估條件。"
+    "若包含既有部位、減碼或條件下單，須如實保留，不可改寫成無部位以通過檢查。"
 )
 
 

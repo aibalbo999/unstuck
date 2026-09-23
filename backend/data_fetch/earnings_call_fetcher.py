@@ -20,13 +20,38 @@ _sync_json_get = sync_json_get
 _fmp_transcript_cooldown_until = 0.0
 
 
-def fetch_free_earnings_call_context(ticker: str) -> dict:
+def fetch_free_earnings_call_context(ticker: str, *, diagnostics: dict | None = None) -> dict:
     """Return free official investor-conference context for Taiwan tickers."""
     from official_financials import fetch_mops_investor_conference_events
 
-    events = fetch_mops_investor_conference_events(ticker, limit=1)
-    if not events:
-        events = fetch_mops_investor_conference_events(ticker, year=date.today().year - 1, limit=1)
+    from official_financials_webpro_conference import fetch_webpro_conference_context, taiwan_company_symbol
+    from search_provider_runtime import SourceResponseError
+
+    if not taiwan_company_symbol(ticker):
+        return {}
+    diagnostics = diagnostics if diagnostics is not None else {}
+    try:
+        events = fetch_mops_investor_conference_events(ticker, limit=1)
+        if not events:
+            events = fetch_mops_investor_conference_events(ticker, year=date.today().year - 1, limit=1)
+    except SourceResponseError as primary_error:
+        primary = {"provider": FREE_EARNINGS_CALL_PROVIDER_NAME, "status": "error", **primary_error.diagnostic}
+        diagnostics.update(fallback_reason=primary_error.error_kind, component_statuses={"MOPS": primary})
+        secondary = {}
+        try:
+            context = fetch_webpro_conference_context(ticker, diagnostics=secondary)
+        except SourceResponseError as secondary_error:
+            secondary.update(secondary_error.diagnostic, status="error")
+            diagnostics["component_statuses"]["WebPro"] = secondary
+            raise
+        secondary["status"] = "degraded_enrichment"
+        diagnostics["component_statuses"]["WebPro"] = dict(secondary)
+        diagnostics.update(secondary, coverage_status="partial")
+        if not context:
+            diagnostics["message"] = "MOPS 未取得資料；WebPro 此頁索引未列可用的已完成場次，不能據此判定公司沒有法說會。"
+        else:
+            diagnostics["message"] = "MOPS 未取得資料；WebPro 僅補回法說會日期與連結，未取得內容或逐字稿。"
+        return context
     if not events:
         return {}
 
@@ -142,3 +167,21 @@ def _is_restricted_fmp_response(exc: BaseException) -> bool:
         return int(status_code) in FMP_TRANSCRIPT_RESTRICTED_STATUS_CODES
     except (TypeError, ValueError):
         return False
+
+
+def apply_earnings_call_audit(result: dict, diagnostic: dict) -> None:
+    """Keep partial fallback provenance in the report's existing source audit."""
+    audit = result["audit"]
+    audit.update({key: value for key, value in diagnostic.items()
+                  if key not in {"event_kind", "http_request_sent"}})
+    audit["event_kind"] = "aggregate"
+    actual = diagnostic.get("actual_provider") or FREE_EARNINGS_CALL_PROVIDER_NAME
+    audit["provider"] = actual
+    if "component_statuses" in diagnostic:
+        audit.pop("http_status", None)
+    if diagnostic.get("coverage_status") == "partial":
+        audit["status"] = "degraded_enrichment"
+        audit["record_count"] = 1 if result.get("value") else 0
+    if diagnostic.get("fetched_at_epoch") is not None:
+        from datetime import datetime, timezone
+        audit["fetched_at"] = datetime.fromtimestamp(diagnostic["fetched_at_epoch"], timezone.utc).isoformat()

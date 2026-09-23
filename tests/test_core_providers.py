@@ -249,7 +249,7 @@ def test_yahoo_provider_records_fetch_error(monkeypatch):
 def test_earnings_call_provider_uses_free_mops_source_without_fmp_key(monkeypatch):
     import data_fetch.enrichment_providers as providers
 
-    def fake_mops(ticker):
+    def fake_mops(ticker, **kwargs):
         assert ticker == "2330.TW"
         return {
             "ticker": "2330",

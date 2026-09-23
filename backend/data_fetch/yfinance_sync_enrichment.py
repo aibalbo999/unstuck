@@ -8,7 +8,6 @@ from .market_sources.http_enrichment import (
     fetch_yfinance_news_catalysts,
 )
 from .market_sources.peers import fetch_dynamic_peer_metrics
-from .earnings_call_fetcher import FREE_EARNINGS_CALL_PROVIDER_NAME, fetch_free_earnings_call_context
 from .market_sources.taiwan import (
     fetch_finmind_news_catalysts,
     fetch_institutional_trading_trend,
@@ -29,6 +28,7 @@ def fetch_sync_enrichment_bundle(
     shares_outstanding,
     skip_optional_http: bool,
 ) -> dict:
+    earnings_audit = {}
     enrichment_fetches = {
         "recent_catalysts_finmind": (
             fetch_finmind_news_catalysts,
@@ -74,14 +74,21 @@ def fetch_sync_enrichment_bundle(
     if not skip_optional_http:
         from config import FMP_API_KEY
 
+        def fetch_conference():
+            from .enrichment_providers import EarningsCallProvider
+            from .types import FetchRequest
+            result = EarningsCallProvider().fetch(FetchRequest.from_ticker(ticker))
+            earnings_audit.update(result.audit)
+            return result.value
+
         enrichment_fetches.update({
             "earnings_call": (
-                fetch_free_earnings_call_context,
-                (ticker,),
+                fetch_conference,
+                (),
                 {},
                 "法說會資料獲取失敗",
                 "earnings_call",
-                FREE_EARNINGS_CALL_PROVIDER_NAME,
+                "Free conference enrichment",
             ),
         })
 
@@ -105,6 +112,10 @@ def fetch_sync_enrichment_bundle(
         include_audit=True,
     )
     enrichment = enrichment_result.get("values", {})
+    if earnings_audit:
+        # Replace the scheduling wrapper with the canonical provider's provenance.
+        enrichment_result["audit"] = [earnings_audit if row.get("source") == "earnings_call" else row
+                                      for row in enrichment_result.get("audit", [])]
     recent_catalyst_records = []
     for key in (
         "recent_catalysts_finmind",

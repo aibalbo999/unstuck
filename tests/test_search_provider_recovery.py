@@ -116,6 +116,8 @@ def test_conference_rejection_does_not_probe_previous_year(monkeypatch):
         calls.append(kwargs)
         raise runtime.SourceResponseError('access_denied', status_code=200)
     monkeypatch.setattr(official_financials, 'fetch_mops_investor_conference_events', rejected)
+    import official_financials_webpro_conference as webpro
+    monkeypatch.setattr(webpro, 'fetch_webpro_conference_context', lambda *a, **k: (_ for _ in ()).throw(runtime.SourceResponseError('access_denied')))
     with pytest.raises(runtime.SourceResponseError):
         earnings.fetch_free_earnings_call_context('2330.TW')
     assert len(calls) == 1
@@ -208,7 +210,7 @@ def test_earnings_provider_preserves_typed_failure_in_report_audit(monkeypatch):
     import data_fetch.enrichment_providers as providers
     import search_provider_runtime as runtime
     calls = []
-    def rejected(ticker):
+    def rejected(ticker, **kwargs):
         calls.append(ticker)
         raise runtime.SourceResponseError('access_denied', status_code=200, response_text='security refusal', parser_version='mops-conference-v2')
     monkeypatch.setattr(providers, 'fetch_free_earnings_call_context', rejected)

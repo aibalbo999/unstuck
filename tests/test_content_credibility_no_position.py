@@ -104,10 +104,61 @@ def test_plain_avoid_without_short_contract_still_requires_alignment_inputs():
     assert result['warnings'][0]['id'] == 'missing_price_alignment_inputs'
 
 
+def test_normalized_avoid_output_preserves_explicit_no_position_for_report_gate():
+    import json
+    from structured_output_runtime import process_agent_response
+    from test_google_recommendation_decode import _payload
+
+    payload = _payload('避免')
+    for key in payload['recommendation']:
+        if '目標' in key or '潛力' in key:
+            payload['recommendation'][key] = '資料不足'
+    payload['short_setup'] = setup()
+    context = {'pipeline_id': 'v3', 'data': {'current_price': 26.0}}
+    process_agent_response(19, json.dumps(payload, ensure_ascii=False), context, model_id='gemini-test')
+    output = context['structured_outputs'][19]
+    context['parsed'] = {key: output[key] for key in ('recommendation', 'short_setup')}
+    result = evaluate_content_credibility(context)
+    alignment = next(c for c in result['checks'] if c['id'] == 'recommendation_target_alignment')
+    assert alignment['status'] == 'not_applicable'
+    assert alignment['details']['contract_verified'] is True
+    assert not any(i['id'] == 'missing_price_alignment_inputs' for i in result['warnings'])
+    assert context['structured_outputs'][19]['analysis_markdown'] == payload['analysis_markdown']
+
+
 @pytest.mark.parametrize('label', ['持有，但避免追高', '賣出', '減碼'])
 def test_normalized_avoid_alias_cannot_hide_an_existing_position(label):
-    context = {'pipeline_id': 'v3', 'data': {'current_price': 30.5},
-               'parsed': {'recommendation': {'建議': label}, 'short_setup': setup()}}
+    _assert_normalized_warning(label, setup())
+
+
+@pytest.mark.parametrize(('field', 'value'), [
+    ('entry_trigger', '目前不開倉；維持現有空單。'),
+    ('entry_trigger', '目前不開倉；跌破 25 元後放空。'),
+    ('entry_trigger', '等待財報，保持觀望。'),
+    ('cover_stop', '不適用，目前不建立空方部位；既有部位繼續持有。'),
+    ('cover_stop', 'N/A'),
+    ('cover_stop', '不適用，目前不建立空方部位；35 元回補。'),
+    ('downside_target', '25'),
+])
+def test_normalization_cannot_manufacture_no_position_evidence(field, value):
+    source = setup()
+    source[field] = value
+    _assert_normalized_warning('避免', source)
+
+
+def _assert_normalized_warning(label, short_setup):
+    import json
+    from structured_output_runtime import process_agent_response
+    from test_google_recommendation_decode import _payload
+    payload = _payload(label)
+    for key in payload['recommendation']:
+        if '目標' in key or '潛力' in key:
+            payload['recommendation'][key] = '資料不足'
+    payload['short_setup'] = short_setup
+    context = {'pipeline_id': 'v3', 'data': {'current_price': 30.5}}
+    process_agent_response(19, json.dumps(payload, ensure_ascii=False), context, model_id='gemini-test')
+    output = context['structured_outputs'][19]
+    context['parsed'] = {key: output[key] for key in ('recommendation', 'short_setup')}
     result = evaluate_content_credibility(context)
     check = next(c for c in result['checks'] if c['id'] == 'recommendation_target_alignment')
     assert check['status'] == 'warning'

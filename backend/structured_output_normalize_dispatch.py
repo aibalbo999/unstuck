@@ -78,7 +78,7 @@ def normalize_structured_output(agent_num: int, payload: Any) -> Optional[dict]:
             payload = {
                 **payload,
                 "short_setup": _coerce_short_setup_payload(
-                    payload.get("short_setup"), payload.get("recommendation")
+                    payload.get("short_setup"), raw_payload.get("recommendation")
                 ),
             }
         if agent_num == 20:
@@ -266,7 +266,7 @@ def normalize_structured_output(agent_num: int, payload: Any) -> Optional[dict]:
             normalized["position_plan"] = _coerce_position_plan_payload(payload.get("position_plan"))
         if agent_num == 19:
             normalized["short_setup"] = _coerce_short_setup_payload(
-                payload.get("short_setup"), normalized_rec
+                payload.get("short_setup"), raw_payload.get("recommendation")
             )
         return normalized
 

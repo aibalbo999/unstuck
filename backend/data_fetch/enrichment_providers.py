@@ -6,7 +6,7 @@ from source_audit import audited_fetch, audited_fetch_async
 from search_provider_runtime import SourceResponseError
 from report_freshness_summary import safe_bool
 
-from .earnings_call_fetcher import FREE_EARNINGS_CALL_PROVIDER_NAME, fetch_free_earnings_call_context
+from .earnings_call_fetcher import FREE_EARNINGS_CALL_PROVIDER_NAME, apply_earnings_call_audit, fetch_free_earnings_call_context
 from .enrichment_search_providers import AlternativePeerDiscoveryProvider, AlternativeSearchProvider
 from .market_sources.common import first_number
 from .provider_base import DataProvider, not_configured_provider_result, provider_result_from_audited
@@ -118,21 +118,20 @@ class EarningsCallProvider(DataProvider):
         diagnostic = {}
         def fetch_context():
             try:
-                return fetch_free_earnings_call_context(ticker)
+                return fetch_free_earnings_call_context(ticker, diagnostics=diagnostic)
             except SourceResponseError as exc:
-                diagnostic.update(exc.diagnostic)
-                raise
+                diagnostic.update(exc.diagnostic, status="error", message=str(exc))
+                return {}
 
         result = audited_fetch(
             self.source,
-            self.name,
+            "MOPS / TWSE WebPro investor conference",
             fetch_context,
             default={},
             empty_status="degraded_enrichment",
             unavailable_message="免費法說會資料未回傳。",
         )
-        if diagnostic:
-            result["audit"].update(diagnostic)
+        apply_earnings_call_audit(result, diagnostic)
         return provider_result_from_audited(result, self.source, self.name)
 
 
