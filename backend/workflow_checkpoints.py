@@ -11,6 +11,7 @@ from langgraph.graph import StateGraph
 
 from workflow_state import AgentGraphState
 from workflow_quality_drafts import checkpoint_draft_scope
+from analysis_retry_progress import attach_committed_retry_progress
 
 
 @asynccontextmanager
@@ -89,7 +90,11 @@ async def execute_persistent_graph(
             return dict(snapshot.values)
         graph_input = None if snapshot.values else initial_state
         with checkpoint_draft_scope(saver, thread_id):
-            return dict(await graph.ainvoke(graph_input, config=config))
+            try:
+                return dict(await graph.ainvoke(graph_input, config=config))
+            except Exception as exc:
+                await attach_committed_retry_progress(exc, saver, graph, config)
+                raise
 
 
 __all__ = [

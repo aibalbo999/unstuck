@@ -12,6 +12,7 @@ from jinja2 import ChainableUndefined, Environment
 
 from config import CATALYST_LOOKBACK_DAYS
 from financial_cross_checks import build_financial_cross_checks
+from dividend_yield_units import dividend_yield_pct
 from financial_tools import build_financial_tool_context, raw_twd_to_billion_twd
 from prompt_builder_helpers import (
     _agent_context,
@@ -105,7 +106,7 @@ def format_data_for_prompt(data: dict, *, compact: bool = False, dense: bool = F
             "shares_outstanding": _prompt_number(dict.get(data, "shares_raw"), 0),
             "trailing_eps_twd": _prompt_number(dict.get(data, "trailing_eps")),
             "forward_eps_twd": _prompt_number(dict.get(data, "forward_eps")),
-            "dividend_yield_pct": _prompt_ratio_to_pct(dict.get(data, "dividend_yield_raw")),
+            "dividend_yield_pct": dividend_yield_pct(data),
             "dividend_per_share_twd": _prompt_number(dict.get(data, "dividend_rate_raw")),
             "payout_ratio_pct": _prompt_ratio_to_pct(dict.get(data, "payout_ratio_raw")),
         },

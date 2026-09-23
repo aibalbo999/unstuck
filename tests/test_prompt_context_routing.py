@@ -1957,6 +1957,7 @@ def test_prompt_valuation_metrics_keep_source_data_mapping_when_accessor_fails(c
             "trailing_eps": 3.4567,
             "forward_eps": 4.5678,
             "dividend_yield_raw": 0.0625,
+            "dividend_yield_raw_unit": "ratio",
             "dividend_rate_raw": 2.75,
             "payout_ratio_raw": 0.5833,
         }

@@ -21,7 +21,7 @@ from .repair_context import capture_repair_context, install_repair_attempt_conte
 from .repair_quality_fallback import record_quality_fallback
 from .repair_candidates import repair_candidate_call, observe_candidate, reject_candidate, validate_repair_candidate
 from .repair_state import adopt_repair_result, repair_contract_issues
-from .repair_transaction import preserve_failed_repair
+from .repair_absent_source import source_aware_repair
 from .cancellation import raise_if_cancelled
 from .repair_attempt_limits import apply_429_fallback, increment_repair_attempt_count, per_job_repair_limit_fallback, repair_attempt_count
 from .repair_reflection import (
@@ -35,7 +35,7 @@ from .structured_repair_contracts import structured_output_missing as _structure
 from .trade_audit_source_contract import mark_audit_source_attempt
 
 
-@preserve_failed_repair
+@source_aware_repair
 def _repair_agent_output(agent_num: int, data: StockData, context: AnalysisContext, rotator: KeyRotator, issues: list[str]) -> tuple[bool, str]:
     """Synchronously ask the relevant agent to rewrite after final audit failure."""
     previous = capture_repair_context(context)
@@ -147,7 +147,7 @@ def _repair_agent_output(agent_num: int, data: StockData, context: AnalysisConte
         restore_repair_context(context, previous)
 
 
-@preserve_failed_repair
+@source_aware_repair
 async def _repair_agent_output_async(agent_num: int, data: StockData, context: AnalysisContext, rotator: KeyRotator, issues: list[str]) -> tuple[bool, str]:
     """Asynchronously ask the relevant agent to rewrite after final audit failure."""
     previous = capture_repair_context(context)

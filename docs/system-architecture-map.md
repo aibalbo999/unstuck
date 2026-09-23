@@ -1,5 +1,7 @@
 # 系統架構關聯圖
 
+殖利率單位判定在 `dividend_yield_units.py`，供 prompt 與 DDM 共用；來源明示 percentage_points，舊值必須有相容的百分比標籤，未知或衝突不靠數值大小猜測。模型 deferred 的跨階段退避在 `analysis_retry_progress.py`，只認已提交的 graph 節點憑據，provider cooldown 仍優先。Agent20 無逐字稿的 deterministic 規則也用於 final-audit 依賴重建。驗證邊界與尚未耐久化的 repair counters 限制見 [2026-09-24 模型呼叫修正](model-call-optimization-2026-09-24.md)。
+
 來源時間窗、商品適用性、分項備援、SLA v4 與年度日曆維護契約見 [資料來源取得與證據判讀](source-evidence-operations.md)。法人 acquisition 與 observation 分離的共用入口為 `data_fetch/institutional_provider.py`。其餘入口為 `news_freshness_policy.py`、`source_applicability.py`、`shared_provider_cache.py`、`search_provider_runtime.py` 及 `provider_observation_details.py`。
 
 修復候選的兩層cache隔離與hash收據、逐record法人提示、工作execution_state及壅塞transition觀測，見[錯誤防再發](error-prevention-2026-09-22.md)。修復呼叫不重用未驗證候選，既有provider/RPD/品質上限保留；歷史錯誤與正式canary分開驗收。
