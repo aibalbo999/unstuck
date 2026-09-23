@@ -31,11 +31,15 @@ Typed 來源錯誤在報告中顯示可讀原因；HTTP code、回應大小、�
 
 Agent 19 的原始「避免」輸出，只有原始進場、回補、風險及重評條件共同通過明確無部位契約，normalizer 才保留原文；不將已驗證回補欄位改成 `N/A`，也不替原始缺漏或衝突補造無部位證據。僅更新 Agent 19 快取版本，品質 gate 仍拒絕缺乏明確語意的原始 `N/A`，也不放寬已有部位或附帶價格的檢查。
 
+Agent 19 的非 Gemma 財務 JSON 只移除字串外的排版空白；所有欄位、數值、字串內空白及引用保持不變。輸入仍使用相同容量上限，State、market context 與原始證據不裁切；這與會轉換資料形狀的 dense/table 編碼分開。
+
 品質重寫在 `repair_candidate_history` 保存同輸入、prompt 與上游證據範圍內最近 16 項退件問題，供後續完整重寫做回歸檢查；它不是目前品質判定，也不增加重試次數。Agent 19 在清除候選結構之前，使用既有價格解析與報酬門檻產生前次決策診斷。建議、目標或交易方案改變後必須重新評估市場來源，不複製舊結論的 `market_context_assessment`；證據不足仍保留警示。退件清單沿既有 graph/draft checkpoint 保存，新 metadata 可增加一個 draft 版本，但重複 defer 不重建初稿或重複新增相同版本。
 
 交易日曆保存來源、版本與適用年度。缺年度資料時標 unknown，行情快取使用較短門檻。事件日曆只有成功且明確覆蓋完整未來窗口，才能判定該窗口沒有事件。
 
 每年更新日曆時，從交易所官方年度公告核對 holidays、early closes、timezone、open/close；保留公告 URL、查驗日期與內容 hash，透過版本審查更新 `BUILTIN_MARKET_CALENDARS`。再用正式 Python 執行 `backend/maintenance.py update-market-calendars --year YYYY --market tw --market us`；已有檔案預設不覆寫，確定差異後才指定 `--overwrite`。執行相關 calendar/freshness 測試，並確認載入的 valid_year、calendar_version。沒有官方年度資料時維持 unknown，不複製前一年日期。
+
+RQ 使用 `worker_rq_scheduler.BoundedSchedulerWorker`，維護檢查及閒置 dequeue 等待上限為三十秒，處理重啟快照中的舊排程鎖自然過期後接手過慢的情況。沿用 RQ 的原子 NX 鎖、排程到期條件與 SimpleWorker 執行方式；worker heartbeat 存活期限、工作逾時與 provider 冷卻不變。worker 忙於執行工作時仍依既有執行模型處理，三十秒不是所有排程延遲的保證上限。
 
 ## 發布驗證邊界
 
