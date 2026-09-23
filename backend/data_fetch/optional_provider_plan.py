@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from data_freshness import source_is_stale
 from report_freshness_summary import safe_bool
+from source_applicability import source_is_applicable
 
 from .audit_helpers import _append_skipped_fresh_cache_audit
 from .types import FetchRequest
@@ -28,7 +29,7 @@ def collect_optional_providers(request: FetchRequest, registry, data: dict, reso
     """Return providers to execute and a per-source refresh decision."""
     cache_hit = safe_bool(data.get("_cache_hit"))
     refresh_by_source = {
-        source: (not cache_hit) or source_is_stale(data, source, resolved_ticker)
+        source: source_is_applicable(source, data, resolved_ticker) and ((not cache_hit) or source_is_stale(data, source, resolved_ticker))
         for source in OPTIONAL_WORKFLOW_SOURCES
     }
     providers = []
@@ -39,6 +40,6 @@ def collect_optional_providers(request: FetchRequest, registry, data: dict, reso
                 for provider in registry.for_request(request, source=source)
                 if getattr(provider, "execute_in_workflow", True)
             )
-        else:
+        elif source_is_applicable(source, data, resolved_ticker):
             _append_skipped_fresh_cache_audit(data, (source,))
     return providers, refresh_by_source

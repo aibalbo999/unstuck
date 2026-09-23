@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from config import (
     BING_SEARCH_API_KEY,
     BING_SEARCH_ENDPOINT,
@@ -22,6 +24,7 @@ from external_search_quality import (
     select_quality_results as _select_quality_results,
 )
 from external_search_types import SearchResult
+from search_provider_runtime import fetch_search_upstream
 
 
 # Bing Search APIs retired on 2025-08-11. Keep the implementation available
@@ -46,6 +49,7 @@ async def fetch_alternative_search_catalysts_async(
         query,
         max_results=max_results,
         lookback_days=CATALYST_LOOKBACK_DAYS,
+        require_recent=True,
     )
     if not results:
         broad_query = f"{official_name} {ticker}".strip()
@@ -54,6 +58,7 @@ async def fetch_alternative_search_catalysts_async(
                 broad_query,
                 max_results=max_results,
                 lookback_days=CATALYST_LOOKBACK_DAYS,
+                require_recent=True,
             )
     return [
         {
@@ -77,8 +82,14 @@ async def fetch_alternative_peer_discovery_async(
     max_results: int = SEARCH_PEER_DISCOVERY_MAX_RESULTS,
 ) -> list[dict]:
     """Fetch search snippets that help identify public peers/competitors."""
-    query = f"{company_name} {ticker} global competitors peers gross margin {industry} {sector}".strip()
-    results = await fetch_web_search_results_async(query, max_results=max_results)
+    name = str(company_name or ticker).strip()
+    # Short stages preserve the company anchor; sector is only a broad fallback.
+    queries = [f"{name} competitors", f"{name} {str(industry or sector).strip()} peers"]
+    results = []
+    for query in dict.fromkeys(queries):
+        results = await fetch_web_search_results_async(query, max_results=max_results)
+        if results:
+            break
     return [
         {
             "title": result.title,
@@ -97,6 +108,7 @@ async def fetch_web_search_results_async(
     *,
     max_results: int = SEARCH_CATALYST_MAX_RESULTS,
     lookback_days: int = 30,
+    require_recent: bool = False,
 ) -> list[SearchResult]:
     """Run configured alternative providers in order until enough records are found."""
     cleaned_query = str(query or "").strip()
@@ -104,6 +116,7 @@ async def fetch_web_search_results_async(
         return []
     target_results = max(1, int(max_results))
 
+    cutoff = datetime.now(timezone.utc)
     results: list[SearchResult] = []
     async with async_client() as client:
         for provider in _provider_order():
@@ -112,12 +125,14 @@ async def fetch_web_search_results_async(
                 limit=target_results,
                 query=cleaned_query,
                 lookback_days=lookback_days,
+                require_recent=require_recent, cutoff=cutoff,
             )
             if _search_quality_satisfied(
                 selected,
                 max_results=target_results,
                 query=cleaned_query,
                 lookback_days=lookback_days,
+                require_recent=require_recent, cutoff=cutoff,
             ):
                 break
             if not _provider_configured(provider):
@@ -142,6 +157,7 @@ async def fetch_web_search_results_async(
         limit=target_results,
         query=cleaned_query,
         lookback_days=lookback_days,
+        require_recent=require_recent, cutoff=cutoff,
     )
 
 
@@ -153,13 +169,11 @@ async def _fetch_provider_results(
     max_results: int,
     lookback_days: int,
 ) -> list[SearchResult]:
-    return await fetch_provider_results(
-        client,
-        provider,
-        query,
-        max_results=max_results,
-        lookback_days=lookback_days,
-    )
+    credential = {"brave": BRAVE_SEARCH_API_KEY, "bing": BING_SEARCH_API_KEY,
+                  "tavily": TAVILY_API_KEY, "serpapi": SERPAPI_API_KEY}.get(provider, "")
+    return await fetch_search_upstream(provider, credential or "", lambda: fetch_provider_results(
+        client, provider, query, max_results=max_results, lookback_days=lookback_days,
+    ))
 
 
 def _provider_order() -> list[str]:

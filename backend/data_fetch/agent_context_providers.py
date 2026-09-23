@@ -14,13 +14,15 @@ class MacroIndicatorsProvider(DataProvider):
     requires_env = ("FRED_API_KEY",)
 
     def fetch(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
-        from data_trust import AUDIT_STATUS_NOT_CONFIGURED, AUDIT_STATUS_SUCCESS, AUDIT_STATUS_UNAVAILABLE
+        from data_trust import AUDIT_STATUS_DEGRADED_ENRICHMENT, AUDIT_STATUS_NOT_CONFIGURED, AUDIT_STATUS_SUCCESS, AUDIT_STATUS_UNAVAILABLE
         from macro_fetcher import fetch_key_macro_indicators
 
-        payload = fetch_key_macro_indicators()
+        payload = fetch_key_macro_indicators(use_cache=not request.options.force_refresh)
         status = payload.get("status") if isinstance(payload, dict) else "unavailable"
         if status == "success":
             audit_status = AUDIT_STATUS_SUCCESS
+        elif status in {"partial", "stale"}:
+            audit_status = AUDIT_STATUS_DEGRADED_ENRICHMENT
         elif status == "not_configured":
             audit_status = AUDIT_STATUS_NOT_CONFIGURED
         else:
@@ -30,14 +32,16 @@ class MacroIndicatorsProvider(DataProvider):
             source=self.source,
             provider=self.name,
             status=audit_status,
-            value=payload if isinstance(payload, dict) and status == "success" else None,
+            value=payload if isinstance(payload, dict) and indicators else None,
             audit={
                 "source": self.source,
                 "provider": self.name,
                 "status": audit_status,
                 "record_count": len(indicators) if isinstance(indicators, dict) else 0,
-                "cache_hit": False,
-                "stale": False,
+                "cache_hit": payload.get("cache_hit", False),
+                "stale": payload.get("stale", False),
+                "coverage_status": status,
+                "component_statuses": payload.get("component_statuses", {}),
                 "message": payload.get("message") if isinstance(payload, dict) and payload.get("message") else "FRED macro indicators 已回傳總經指標。",
             },
         )
@@ -51,7 +55,7 @@ class ChipDataProvider(DataProvider):
     capabilities = {"chip_data", "institutional_context"}
 
     def fetch(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
-        from data_trust import AUDIT_STATUS_SUCCESS, AUDIT_STATUS_UNAVAILABLE
+        from data_trust import AUDIT_STATUS_DEGRADED_ENRICHMENT, AUDIT_STATUS_SUCCESS, AUDIT_STATUS_UNAVAILABLE
         from chip_data_fetcher import fetch_tdcc_shareholder_distribution, fetch_twse_margin_short_sales
 
         data = (context or {}).get("data", {}) if isinstance((context or {}).get("data"), dict) else {}
@@ -62,8 +66,17 @@ class ChipDataProvider(DataProvider):
             "tdcc_shareholder_distribution": tdcc,
             "twse_margin_short_sales": margin,
         }
-        successful = sum(1 for item in value.values() if isinstance(item, dict) and item.get("status") == "success")
-        status = AUDIT_STATUS_SUCCESS if successful else AUDIT_STATUS_UNAVAILABLE
+        components = {
+            "tdcc": {"status": tdcc.get("status", "unknown"), "as_of": tdcc.get("as_of_date"), "provider": tdcc.get("source", "TDCC")},
+            "margin_short": {"status": margin.get("status", "unknown"), "as_of": margin.get("as_of_date"), "provider": margin.get("source")},
+            "borrowed_short": {"status": margin.get("borrowed_short_status", "unknown"),
+                               "as_of": margin.get("borrowed_short_as_of_date"), "provider": margin.get("borrowed_short_source"),
+                               "reason_code": margin.get("borrowed_short_reason_code") if margin.get("borrowed_short_status") else "status_not_reported"},
+        }
+        successful = sum(item["status"] == "success" for item in components.values())
+        coverage = "success" if successful == len(components) else "partial" if successful else "unavailable"
+        value.update(status=coverage, component_statuses=components)
+        status = AUDIT_STATUS_SUCCESS if coverage == "success" else AUDIT_STATUS_DEGRADED_ENRICHMENT if successful else AUDIT_STATUS_UNAVAILABLE
         return ProviderResult(
             source=self.source,
             provider=self.name,
@@ -76,7 +89,9 @@ class ChipDataProvider(DataProvider):
                 "record_count": successful,
                 "cache_hit": False,
                 "stale": False,
-                "message": "TDCC/TWSE/TPEx 籌碼資料已回傳。" if successful else "TDCC/TWSE/TPEx 籌碼資料暫無可用結果。",
+                "coverage_status": coverage,
+                "component_statuses": components,
+                "message": "籌碼分項資料已回傳；請依各來源狀態與日期確認覆蓋。" if successful else "TDCC/TWSE/TPEx 籌碼資料暫無可用結果。",
             },
         )
 
@@ -89,6 +104,10 @@ class AlternativeJobOpeningsProvider(DataProvider):
     capabilities = {"alternative_data", "job_openings"}
 
     def fetch(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
+        from .context_provider_cache import cached_context_result
+        return cached_context_result(self, request, context, self._fetch_uncached)
+
+    def _fetch_uncached(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
         from data_trust import AUDIT_STATUS_DEGRADED_ENRICHMENT, AUDIT_STATUS_SUCCESS
         from alternative_data_fetcher import fetch_104_job_openings_count, fetch_1111_job_openings_count
 
@@ -105,29 +124,32 @@ class AlternativeJobOpeningsProvider(DataProvider):
         results_104 = [fetch_104_job_openings_count(company_name, keyword) for keyword in keywords[:3]]
         results_1111 = [fetch_1111_job_openings_count(company_name, keyword) for keyword in keywords[:3]]
         
-        successful_104 = [item for item in results_104 if isinstance(item, dict) and item.get("status") == "success"]
-        successful_1111 = [item for item in results_1111 if isinstance(item, dict) and item.get("status") == "success"]
-        
-        status = AUDIT_STATUS_SUCCESS if (successful_104 or successful_1111) else AUDIT_STATUS_DEGRADED_ENRICHMENT
+        records = [item for item in results_104 + results_1111 if isinstance(item, dict)]
+        numeric = [item for item in records if item.get("status") == "success"
+                   and isinstance(item.get("job_count"), int) and not isinstance(item.get("job_count"), bool)
+                   and item["job_count"] >= 0]
+        news_count = sum(len(item.get("recent_recruitment_news") or []) for item in records)
+        complete_numeric = len(numeric) == len(results_104) + len(results_1111)
+        coverage = ("partial" if numeric and not complete_numeric else
+                    "valid_empty" if numeric and all(item["job_count"] == 0 for item in numeric)
+                    else "success" if numeric else "qualitative_only" if news_count else "unavailable")
+        status = AUDIT_STATUS_SUCCESS if complete_numeric and numeric else AUDIT_STATUS_DEGRADED_ENRICHMENT
         value = {
-            "job_openings_104": successful_104[0] if len(successful_104) == 1 else results_104,
-            "job_openings_1111": successful_1111[0] if len(successful_1111) == 1 else results_1111,
+            "status": coverage,
+            "job_openings_104": results_104[0] if len(results_104) == 1 else results_104,
+            "job_openings_1111": results_1111[0] if len(results_1111) == 1 else results_1111,
+            "numeric_count_coverage": len(numeric), "recruitment_news_count": news_count,
+            "coverage_notes": ["徵才新聞僅為質性訊號，不能代替職缺數；失敗不代表零職缺。"],
         }
         return ProviderResult(
-            source=self.source,
-            provider=self.name,
-            status=status,
-            value=value if status == AUDIT_STATUS_SUCCESS else None,
-            audit={
-                "source": self.source,
-                "provider": self.name,
-                "status": status,
-                "record_count": len(successful_104) + len(successful_1111),
-                "cache_hit": False,
-                "stale": False,
-                "message": "職缺探測 (含新聞備援) 已回傳。" if status == AUDIT_STATUS_SUCCESS else "職缺探測本次無新增資料。",
-            },
+            source=self.source, provider=self.name, status=status, value=value,
+            audit={"source": self.source, "provider": self.name, "status": status,
+                   "record_count": len(numeric), "cache_hit": False, "stale": False,
+                   "coverage_status": coverage, "numeric_count_coverage": len(numeric),
+                   "recruitment_news_count": news_count,
+                   "message": "職缺查詢保留數量與質性備援的差別。"},
         )
+
 
 
 class SocialSentimentProvider(DataProvider):
@@ -138,6 +160,10 @@ class SocialSentimentProvider(DataProvider):
     capabilities = {"social_sentiment"}
 
     def fetch(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
+        from .context_provider_cache import cached_context_result
+        return cached_context_result(self, request, context, self._fetch_uncached)
+
+    def _fetch_uncached(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
         from data_trust import AUDIT_STATUS_DEGRADED_ENRICHMENT, AUDIT_STATUS_SUCCESS
         from news_fetchers import fetch_google_news_rss, fetch_ptt_stock_sentiment
 
@@ -165,6 +191,7 @@ class SocialSentimentProvider(DataProvider):
                     "title": str(item.get("title") or "").strip(),
                     "date": str(item.get("date") or item.get("published_date") or "").strip(),
                     "source": str(item.get("source") or "PTT Stock").strip(),
+                    "link": str(item.get("link") or item.get("url") or "").strip(),
                 })
 
         value = {
@@ -175,13 +202,15 @@ class SocialSentimentProvider(DataProvider):
         }
         
         total_records = len(dcard_news) + len(m01_news) + len(pttweb_news) + len(ptt_direct)
+        value.update(status="success" if total_records else "empty_unknown", sample_count=total_records,
+                     sentiment_assessment="not_assessed", coverage_notes=["搜尋樣本非完整社群母體；無結果不能推定中性或無討論。"])
         status = AUDIT_STATUS_SUCCESS if total_records > 0 else AUDIT_STATUS_DEGRADED_ENRICHMENT
         
         return ProviderResult(
             source=self.source,
             provider=self.name,
             status=status,
-            value=value if status == AUDIT_STATUS_SUCCESS else None,
+            value=value,
             audit={
                 "source": self.source,
                 "provider": self.name,
@@ -189,7 +218,8 @@ class SocialSentimentProvider(DataProvider):
                 "record_count": total_records,
                 "cache_hit": False,
                 "stale": False,
-                "message": "社群論壇討論串已回傳。" if status == AUDIT_STATUS_SUCCESS else "近期無相關社群論壇討論，已視為可接受空結果。",
+                "coverage_status": value["status"],
+                "message": "社群論壇樣本已回傳；尚未構成情緒結論。" if total_records else "社群查詢無樣本；無法由空結果區分未找到與上游未取得。",
             },
         )
 

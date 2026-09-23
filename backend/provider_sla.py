@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import sqlite3
+import json
 import time
 from pathlib import Path
 
 from api_usage_recorders import record_provider_audit_usage
 from provider_correlation import correlation_metadata
+from provider_observation_details import observation_details
 from data_trust_constants import AUDIT_STATUS_DEGRADED_ENRICHMENT, AUDIT_STATUS_UNAVAILABLE
 from provider_sla_alert_policy import (
     SLA_CRITICAL_SUCCESS_RATE,
@@ -46,15 +48,19 @@ def record_source_audit_entries(entries: list[dict] | tuple[dict, ...]) -> None:
     for entry in entries:
         if not isinstance(entry, dict):
             continue
+        if entry.get("status") == "not_applicable":
+            # Capability exclusions are report metadata, not provider attempts.
+            continue
         source = str(entry.get("source") or "unknown")
         provider = str(entry.get("provider") or "unknown")
         record_count = int(entry.get("record_count") or 0)
         status = _normalized_sla_status(str(entry.get("status") or "unknown"), record_count=record_count)
         duration_ms = int(entry.get("duration_ms") or 0)
         message = str(entry.get("message") or "")[:240]
-        rows.append((source, provider, status, duration_ms, record_count, message, now))
+        details = observation_details(entry)
+        rows.append((source, provider, status, duration_ms, record_count, message, now, json.dumps(details)))
         usage_entries.append({
-            **correlation_metadata(entry),
+            **details,
             "event_kind": str(entry.get("event_kind") or "aggregate"),
             "source": source,
             "provider": provider,
@@ -67,13 +73,13 @@ def record_source_audit_entries(entries: list[dict] | tuple[dict, ...]) -> None:
         return
     with _connect() as conn:
         for values, usage_entry in zip(rows, usage_entries):
-            source, provider, status, duration_ms, record_count, message, timestamp = values
+            source, provider, status, duration_ms, record_count, message, timestamp, details_json = values
             cursor = conn.execute(
                 """
                 INSERT INTO provider_sla_events (
-                    source, provider, status, duration_ms, record_count, message, created_at
+                    source, provider, status, duration_ms, record_count, message, created_at, details_json
                 )
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     source,
@@ -83,6 +89,7 @@ def record_source_audit_entries(entries: list[dict] | tuple[dict, ...]) -> None:
                     max(record_count, 0),
                     message,
                     timestamp,
+                    details_json,
                 ),
             )
             usage_entry["provider_sla_event_id"] = cursor.lastrowid

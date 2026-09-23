@@ -7,6 +7,7 @@ import asyncio
 import external_data_fmp as _fmp
 import external_search_provider_clients as _search_clients
 import external_search_providers as _search
+import search_response_validation as _search_validation
 from config import (
     FMP_API_KEY,
     FMP_BASE_URL,
@@ -19,6 +20,14 @@ _sync_json_get = sync_json_get
 _async_json_get = async_json_get
 
 
+async def _search_json_get(client, url, params, headers=None):
+    # Forward the current compatibility override without leaking a temporary
+    # patched function into another module after its scope ends.
+    fetcher = (_async_json_get if _async_json_get is not async_json_get
+               else _search_validation.observed_json_get)
+    return await fetcher(client, url, params, headers=headers)
+
+
 def _sync_source_seams() -> None:
     _fmp.FMP_API_KEY = FMP_API_KEY
     _fmp.FMP_BASE_URL = FMP_BASE_URL
@@ -26,8 +35,8 @@ def _sync_source_seams() -> None:
     _fmp._async_json_get = _async_json_get
     _fmp.log_http_warning = log_http_warning
 
-    _search._async_json_get = _async_json_get
-    _search_clients._async_json_get = _async_json_get
+    _search._async_json_get = _search_json_get
+    _search_clients._async_json_get = _search_json_get
 
 
 def fetch_fmp_quote_fallback(ticker: str) -> dict:

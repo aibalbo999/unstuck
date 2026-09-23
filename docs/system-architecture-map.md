@@ -1,5 +1,7 @@
 # 系統架構關聯圖
 
+來源時間窗、商品適用性、分項備援、SLA v4 與年度日曆維護契約見 [資料來源取得與證據判讀](source-evidence-operations.md)。入口為 `news_freshness_policy.py`、`source_applicability.py`、`shared_provider_cache.py`、`search_provider_runtime.py` 及 `provider_observation_details.py`。
+
 修復候選的兩層cache隔離與hash收據、逐record法人提示、工作execution_state及壅塞transition觀測，見[錯誤防再發](error-prevention-2026-09-22.md)。修復呼叫不重用未驗證候選，既有provider/RPD/品質上限保留；歷史錯誤與正式canary分開驗收。
 
 來源證據 v2、完成憑據與刷新保存的入口是 `trade_catalog_evidence.py`、`institutional_evidence.py`、`llm_completion_provenance.py`、`report_analysis_evidence.py`；來源觀測日期、上櫃融資券及工作歸屬分別由 `source_observation_freshness.py`、`tpex_credit_source.py`、`provider_correlation.py` 處理。契約及驗證限制見 [來源證據最佳化](source-evidence-optimization-2026-09-21.md)。

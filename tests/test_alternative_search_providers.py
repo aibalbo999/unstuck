@@ -3,6 +3,9 @@ from __future__ import annotations
 import asyncio
 import importlib
 import sys
+from datetime import datetime, timezone
+
+import pytest
 from pathlib import Path
 
 
@@ -10,6 +13,19 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 
 from data_fetch import FetchRequest, ProviderRegistry  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def fixed_search_cutoff(monkeypatch):
+    import external_search_providers as search
+    import search_provider_runtime as runtime
+    class FrozenDatetime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return datetime(2026, 6, 29, tzinfo=timezone.utc)
+    monkeypatch.setattr(search, 'datetime', FrozenDatetime)
+    monkeypatch.setattr(runtime, 'get_cache_json', lambda key: None)
+    monkeypatch.setattr(runtime, 'set_cache_json', lambda *a, **k: None)
 
 
 def test_alternative_search_uses_free_sources_for_catalysts(monkeypatch):
@@ -115,8 +131,8 @@ def test_external_search_provider_clients_fetch_brave_payload(monkeypatch):
 def test_alternative_peer_discovery_uses_search_results(monkeypatch):
     import external_search_providers as search
 
-    async def fake_search(query, *, max_results=8, lookback_days=30):
-        assert "global competitors" in query
+    async def fake_search(query, *, max_results=8, lookback_days=30, require_recent=False):
+        assert query == "台達電 competitors"
         assert max_results == 8
         return [
             search.SearchResult(
@@ -194,7 +210,7 @@ def test_catalyst_search_retries_with_broader_company_query(monkeypatch):
 
     calls = []
 
-    async def fake_search(query, *, max_results=8, lookback_days=30):
+    async def fake_search(query, *, max_results=8, lookback_days=30, require_recent=False):
         assert max_results == 8
         calls.append(query)
         if len(calls) == 1:
@@ -457,7 +473,7 @@ def test_legacy_optional_enrichment_merges_alternative_search(monkeypatch):
         return []
 
     async def alternative_catalysts(*_args, **_kwargs):
-        return [{"title": "Alternative catalyst", "link": "https://example.test/catalyst"}]
+        return [{"title": "Alternative catalyst", "link": "https://example.test/catalyst", "date": datetime.now(timezone.utc).isoformat()}]
 
     async def alternative_peers(*_args, **_kwargs):
         return [{"title": "Alternative peer", "link": "https://example.test/peer"}]

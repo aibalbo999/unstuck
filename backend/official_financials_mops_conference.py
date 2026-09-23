@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import logging
 import re
+import time
 from datetime import date
 from io import StringIO
 from typing import Any
@@ -13,6 +14,7 @@ import pandas as pd
 from bs4 import BeautifulSoup
 
 from external_http_client import sync_post
+from search_provider_runtime import SourceResponseError, scope_key, cooldown_state, remember_failure, record_observation
 
 
 LOGGER = logging.getLogger(__name__)
@@ -57,6 +59,12 @@ def fetch_mops_investor_conference_events(
         "co_id": symbol,
         "year": str(year_int - 1911),
     }
+    started = time.monotonic()
+    cooldown_key = scope_key("MOPS", endpoint="investor_conference")
+    blocked = cooldown_state(cooldown_key) if session is None else {}
+    if blocked:
+        record_observation("MOPS", started, outcome="cooldown", source="earnings_call", details=blocked, sent=False)
+        raise SourceResponseError(blocked.get("error_kind", "cooldown"), status_code=blocked.get("http_status"), parser_version="mops-conference-v2")
     try:
         response = _http_post(
             MOPS_INVESTOR_CONFERENCE_URL,
@@ -67,8 +75,16 @@ def fetch_mops_investor_conference_events(
             provider="MOPS",
         )
     except Exception as exc:
-        _warn("MOPS", "investor conference", exc)
-        return []
+        details = remember_failure(cooldown_key, exc) if session is None else {}
+        record_observation("MOPS", started, outcome="failure", source="earnings_call", details=details)
+        raise SourceResponseError(details.get("error_kind", "transport_error"), status_code=details.get("http_status"), parser_version="mops-conference-v2") from exc
+    text = str(response.text or "")
+    if re.search(r"FOR SECURITY REASONS|PAGE CAN NOT BE ACCESSED|因為安全性考量|驗證碼|captcha|access denied", text, re.IGNORECASE):
+        exc = SourceResponseError("access_denied", status_code=getattr(response, "status_code", None), response_text=text, parser_version="mops-conference-v2")
+        if session is None:
+            remember_failure(cooldown_key, exc)
+        record_observation("MOPS", started, outcome="failure", source="earnings_call", details=exc.diagnostic)
+        raise exc
     try:
         frames = pd.read_html(StringIO(response.text))
     except (ImportError, ValueError):
@@ -79,6 +95,13 @@ def fetch_mops_investor_conference_events(
     records = _dedupe_conference_records(
         _parse_conference_html(response.text, symbol) + _parse_conference_frames(frames, symbol)
     )
+    if not records and not re.search(r"查無(?:符合條件之|符合條件的|所需)?資料|沒有符合條件|無符合條件|no data", BeautifulSoup(text, "lxml").get_text(" ", strip=True), re.IGNORECASE):
+        exc = SourceResponseError("parse_error", status_code=getattr(response, "status_code", None), response_text=text, parser_version="mops-conference-v2")
+        if session is None:
+            remember_failure(cooldown_key, exc)
+        record_observation("MOPS", started, outcome="failure", source="earnings_call", details=exc.diagnostic)
+        raise exc
+    record_observation("MOPS", started, outcome="results" if records else "valid_empty", source="earnings_call", count=len(records), details={"parser_version": "mops-conference-v2", "http_status": getattr(response, "status_code", None)})
     return records[: max(1, int(limit or 3))]
 
 

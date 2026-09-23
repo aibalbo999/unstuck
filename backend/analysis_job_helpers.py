@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 
 from data_trust_values import has_value
+from source_applicability import instrument_type
 
 
 def stable_report_filename(job_id: str, ticker_upper: str, pipeline_id: str) -> str:
@@ -21,6 +22,12 @@ def build_data_fetch_blocking_notice(data_result) -> dict | None:
         else data.get("data_trust", {}) if isinstance(data.get("data_trust"), dict) else {}
     )
     trust_status = str(trust.get("status") or "unknown")
+    if instrument_type(data) in {"ETF", "MUTUALFUND"}:
+        return {
+            "message": "已辨識為基金商品；目前分析模式未提供 ETF 專用持股、淨值與折溢價驗證，已停止套用一般公司財報及估值。",
+            "reason_code": "instrument_analysis_profile_unavailable",
+            "data_trust": trust,
+        }
     has_market_or_financials = any(
         has_value(data.get(field))
         for field in ("current_price", "market_cap_raw", "years", "revenue_history")

@@ -52,7 +52,7 @@ def test_report_html_chart_context_builds_json_safe_chart_payload():
     assert chart_data["peRiver"]["eps"] == [None, 8]
     assert context["overall_moat"] == 8
     assert context["current_price_numeric"] == 100
-    assert context["pe_river_title"] == "P/E 河流圖（EPS × 預設本益比通道）"
+    assert context["pe_river_title"] == "P/E 河流圖（EPS × 情境假設本益比）"
     assert "metric-card" in context["metrics_html"]
     assert "price-target-card" in context["price_targets_html"]
 

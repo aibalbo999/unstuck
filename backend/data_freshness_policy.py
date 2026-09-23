@@ -10,7 +10,7 @@ from config import (
     FINANCIAL_DATA_OFFHOURS_CACHE_SECONDS,
     SOURCE_FRESHNESS_MAX_AGE_SECONDS,
 )
-from data_freshness_market import is_likely_market_session
+from data_freshness_market import calendar_coverage, is_likely_market_session
 
 
 SOURCE_FRESHNESS_SOURCES = (
@@ -45,10 +45,13 @@ CORE_CACHE_SOURCES = (
 def freshness_policy(ticker: str, market_session: Optional[bool] = None) -> dict:
     if market_session is None:
         market_session = is_likely_market_session(ticker)
+    coverage = calendar_coverage(ticker)
+    unknown = coverage['coverage_status'] != 'available'
     return {
+        "calendar": coverage,
         "market_session": market_session,
-        "max_age_seconds": FINANCIAL_DATA_MARKET_CACHE_SECONDS if market_session else FINANCIAL_DATA_OFFHOURS_CACHE_SECONDS,
-        "policy": "market_session" if market_session else "offhours_or_weekend",
+        "max_age_seconds": FINANCIAL_DATA_MARKET_CACHE_SECONDS if market_session or unknown else FINANCIAL_DATA_OFFHOURS_CACHE_SECONDS,
+        "policy": "calendar_unknown_conservative" if unknown else "market_session" if market_session else "offhours_or_weekend",
     }
 
 

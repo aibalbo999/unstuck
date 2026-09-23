@@ -2034,6 +2034,7 @@ def test_optional_stale_enrichment_sources_do_not_degrade_fresh_core_data(monkey
 
     monkeypatch.setattr(provider_sla, "get_provider_sla_alerts", lambda limit=100: [])
     payload = fresh_audited_payload(provider="fake-yfinance")
+    payload["ticker"] = "2330.TW"  # Social enrichment is supported only for Taiwan equities.
     payload["source_freshness"].update(
         {
             "recent_catalysts": {

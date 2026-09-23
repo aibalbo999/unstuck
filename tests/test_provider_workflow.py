@@ -1,6 +1,8 @@
 import asyncio
 import json
 import sys
+import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 
@@ -20,6 +22,10 @@ import provider_sla  # noqa: E402
 from prompt_builder import format_data_for_prompt  # noqa: E402
 from data_trust import build_source_audit_entry  # noqa: E402
 from fixtures.data_payloads import FRESH_AT, FRESH_AT_EPOCH, financial_history, fresh_audited_payload  # noqa: E402
+
+
+def _news_date():
+    return datetime.fromtimestamp(time.time(), timezone.utc).isoformat()
 
 
 def _prompt_payload(data: dict) -> dict:
@@ -324,11 +330,12 @@ def test_optional_http_merge_preserves_exact_records_for_ai_payload():
         "week_52_high": None,
         "week_52_low": None,
     }
-    free_news = {"title": "SENT_FREE_NEWS", "link": "https://example.test/shared"}
-    duplicate_link_news = {"title": "SENT_DUPLICATE_NEWS", "link": "https://example.test/shared"}
-    search_news = {"title": "SENT_SEARCH_NEWS", "link": "https://example.test/search"}
-    fmp_news = {"title": "SENT_FMP_NEWS", "link": "https://example.test/fmp"}
-    yahoo_news = {"title": "SENT_YAHOO_NEWS", "link": "https://example.test/yahoo"}
+    published_date = _news_date()
+    free_news = {"date": published_date, "title": "SENT_FREE_NEWS", "link": "https://example.test/shared"}
+    duplicate_link_news = {"date": published_date, "title": "SENT_DUPLICATE_NEWS", "link": "https://example.test/shared"}
+    search_news = {"date": published_date, "title": "SENT_SEARCH_NEWS", "link": "https://example.test/search"}
+    fmp_news = {"date": published_date, "title": "SENT_FMP_NEWS", "link": "https://example.test/fmp"}
+    yahoo_news = {"date": published_date, "title": "SENT_YAHOO_NEWS", "link": "https://example.test/yahoo"}
     peer_search = {"title": "SENT_PEER_SEARCH", "link": "https://example.test/peer-a"}
     http_bundle = {
         "free_news": [free_news],
@@ -374,7 +381,9 @@ def test_optional_http_merge_preserves_exact_records_for_ai_payload():
 
     expected_catalysts = [free_news, search_news, fmp_news, yahoo_news]
     expected_peers = [peer_search]
-    assert result["recent_catalysts"] == expected_catalysts
+    assert [{key: record[key] for key in original}
+            for record, original in zip(result["recent_catalysts"], expected_catalysts)] == expected_catalysts
+    expected_catalysts = result["recent_catalysts"]
     assert result["peer_discovery_results"] == expected_peers
     assert result["global_market_context"] == http_bundle["global_market_context"]
     assert result["international_news_context"] == http_bundle["international_news_context"]
@@ -412,8 +421,8 @@ def test_optional_http_merge_preserves_exact_records_for_ai_payload():
         "peer_discovery": 1,
     }
     for source, expected_count in expected_counts.items():
-        assert latest_audit[source]["status"] == "success"
-        assert latest_audit[source]["record_count"] == expected_count
+        assert latest_audit[source]["status"] == ("not_applicable" if source == "sec_edgar" else "success")
+        assert latest_audit[source]["record_count"] == (0 if source == "sec_edgar" else expected_count)
         assert latest_audit[source]["stale"] is False
 
     payload = _prompt_payload(result)
@@ -463,12 +472,14 @@ def test_stock_data_service_uses_provider_plan_for_optional_enrichment(monkeypat
             },
         )
 
+    published_date = _news_date()
+
     def free_news_provider(request, context):
         return ProviderResult(
             source="recent_catalysts",
             provider="Free news waterfall",
             status="success",
-            value=[{"title": "Free catalyst", "link": "https://shared.example/a"}],
+            value=[{"date": published_date, "title": "Free catalyst", "link": "https://shared.example/a"}],
             audit={
                 "source": "recent_catalysts",
                 "provider": "Free news waterfall",
@@ -485,7 +496,7 @@ def test_stock_data_service_uses_provider_plan_for_optional_enrichment(monkeypat
             source="recent_catalysts",
             provider="Alternative Search",
             status="success",
-            value=[{"title": "Alternative catalyst"}],
+            value=[{"date": published_date, "title": "Alternative catalyst"}],
             audit={"source": "recent_catalysts", "provider": "Alternative Search", "status": "success", "record_count": 1},
         )
 
@@ -494,7 +505,7 @@ def test_stock_data_service_uses_provider_plan_for_optional_enrichment(monkeypat
             source="recent_catalysts",
             provider="FMP news",
             status="success",
-            value=[{"title": "FMP catalyst"}],
+            value=[{"date": published_date, "title": "FMP catalyst"}],
             audit={"source": "recent_catalysts", "provider": "FMP news", "status": "success", "record_count": 1},
         )
 
@@ -544,7 +555,7 @@ def test_stock_data_service_uses_provider_plan_for_optional_enrichment(monkeypat
     }
     latest_sources = {entry["source"]: entry for entry in result.data["source_audit"]}
     assert latest_sources["recent_catalysts"]["provider"] == "Recent catalysts providers"
-    assert latest_sources["recent_catalysts"]["status"] == "success"
+    assert latest_sources["recent_catalysts"]["status"] == "degraded_enrichment"  # Yahoo failed; retain partial coverage.
     assert latest_sources["recent_catalysts"]["record_count"] == 3
 
 
@@ -675,9 +686,10 @@ def test_optional_merge_keeps_expanded_catalyst_and_peer_context():
         "source_audit": [],
         "source_freshness": {},
     }
+    published_date = _news_date()
     http_bundle = {
         "search_catalysts": [
-            {"title": f"台積電 catalyst {index}", "link": f"https://news-{index}.example/catalyst"}
+            {"date": published_date, "title": f"台積電 catalyst {index}", "link": f"https://news-{index}.example/catalyst"}
             for index in range(10)
         ],
         "search_peer_discovery": [
@@ -779,14 +791,14 @@ def test_stock_data_service_auto_merges_free_context_sources(monkeypatch):
 
     result = asyncio.run(StockDataService(registry=registry).fetch_async(FetchRequest.from_ticker("AAPL")))
 
-    assert result.data["social_sentiment"]["dcard"][0]["title"] == "Dcard 討論熱度升溫"
-    assert result.data["sentiment_context"]["social_sentiment"]["pttweb"][0]["title"] == "PTT 討論供應鏈"
+    assert "social_sentiment" not in result.data
+    assert result.data["source_applicability"]["social_sentiment"]["applicable"] is False
     assert result.data["sec_edgar"]["recent_filings"][0]["form"] == "10-Q"
-    assert result.data["taiwan_open_data"]["rates"]["USD"]["sell"] == "31.50"
+    assert "taiwan_open_data" not in result.data
     latest_sources = {entry["source"]: entry for entry in result.data["source_audit"]}
-    assert latest_sources["social_sentiment"]["status"] == "success"
+    assert "social_sentiment" not in latest_sources or latest_sources["social_sentiment"]["status"] == "not_applicable"
     assert latest_sources["sec_edgar"]["status"] == "success"
-    assert latest_sources["taiwan_open_data"]["status"] == "success"
+    assert "taiwan_open_data" not in latest_sources or latest_sources["taiwan_open_data"]["status"] == "not_applicable"
     assert "social_sentiment" in result.data["source_freshness"]
     assert "sec_edgar" in result.data["source_freshness"]
     assert "taiwan_open_data" in result.data["source_freshness"]
@@ -888,7 +900,7 @@ def test_stock_data_service_fake_registry_e2e_cache_audit_and_trust(monkeypatch,
             source="recent_catalysts",
             provider="Alternative Search",
             status="success",
-            value=[{"title": "Fake provider catalyst"}],
+            value=[{"date": _news_date(), "title": "Fake provider catalyst"}],
             audit=build_source_audit_entry("recent_catalysts", "Alternative Search", "success", fetched_at=FRESH_AT, record_count=1),
         )
 
@@ -943,7 +955,7 @@ def test_provider_workflow_skips_fresh_optional_sources(monkeypatch):
                 "company_identity": {},
                 "sector": "Technology",
                 "industry": "Semiconductors",
-                "recent_catalysts": [{"title": "Cached headline"}],
+                "recent_catalysts": [{"date": _news_date(), "title": "Cached headline"}],
                 "peer_discovery_results": [{"title": "Cached peer"}],
                 "source_audit": [],
                 "source_freshness": {
@@ -1046,7 +1058,7 @@ def test_workflow_returns_fresh_cache_before_provider_plan(monkeypatch):
     assert result.cache_hit is True
     assert result.data["ticker"] == "AAPL"
     assert result.data["source_audit"]
-    assert {entry["status"] for entry in result.data["source_audit"]} <= {"skipped_fresh_cache"}
+    assert {entry["status"] for entry in result.data["source_audit"]} <= {"skipped_fresh_cache", "not_applicable"}
 
 
 def test_workflow_refetches_when_cached_schema_is_old(monkeypatch):

@@ -67,6 +67,10 @@ class StockDataService:
         raise RuntimeError("StockDataService.fetch() cannot run inside an active event loop; use fetch_async().")
 
     def _build_result(self, request: FetchRequest, data: dict, duration_ms: int) -> FetchResult:
+        from source_applicability import apply_source_applicability
+        from data_trust import finalize_data_trust
+        apply_source_applicability(data)
+        finalize_data_trust(data)
         audit_entries = data.get("source_audit", []) if isinstance(data.get("source_audit"), list) else []
         # Unstamped/manual provider entries are current fetch-result aggregates,
         # not proof that every retained source record was fetched by this job.

@@ -121,8 +121,10 @@ def extract_dividend_history(stock) -> dict:
 
 
 def extract_event_calendar(stock, info: dict) -> dict:
+    from .yfinance_calendar_extractors import read_stock_calendar_result
     events = []
-    calendar = _read_stock_calendar(stock)
+    observation = read_stock_calendar_result(stock)
+    calendar = observation["value"]
 
     earnings_start, earnings_end = _date_range(
         _calendar_value(calendar, ("Earnings Date", "Earnings Date Start")),
@@ -182,9 +184,15 @@ def extract_event_calendar(stock, info: dict) -> dict:
             source="yfinance info",
         )
 
-    if not events:
-        return {}
     return {
         "as_of_date": datetime.now().date().isoformat(),
         "events": events,
+        "status": observation["status"] if observation["status"] == "success" or not events else "partial",
+        "source": "yfinance calendar / info",
+        "calendar_fetch_status": observation["status"],
+        "calendar_error_kind": observation["error_kind"],
+        "coverage_start": None,
+        "coverage_end": None,
+        "coverage_complete": False,
+        "coverage_note": "上游僅提供已知事件，未宣告完整覆蓋區間；無紀錄不代表未來沒有事件。",
     }

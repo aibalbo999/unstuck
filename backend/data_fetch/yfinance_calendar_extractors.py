@@ -8,11 +8,17 @@ import pandas as pd
 
 
 def read_stock_calendar(stock):
+    return read_stock_calendar_result(stock)["value"]
+
+
+def read_stock_calendar_result(stock):
     try:
         calendar = getattr(stock, "calendar", None)
-        return calendar() if callable(calendar) else calendar
-    except Exception:
-        return None
+        calendar = calendar() if callable(calendar) else calendar
+        return {"value": calendar, "status": "success" if calendar is not None else "unavailable",
+                "error_kind": None if calendar is not None else "calendar_not_reported"}
+    except Exception as exc:
+        return {"value": None, "status": "unavailable", "error_kind": type(exc).__name__}
 
 
 def calendar_value(calendar, labels: tuple[str, ...]):

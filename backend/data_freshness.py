@@ -12,7 +12,7 @@ from config import (
     FINANCIAL_DATA_OFFHOURS_CACHE_SECONDS as _DEFAULT_FINANCIAL_DATA_OFFHOURS_CACHE_SECONDS,
     SOURCE_FRESHNESS_MAX_AGE_SECONDS as _DEFAULT_SOURCE_FRESHNESS_MAX_AGE_SECONDS,
 )
-from data_freshness_market import is_likely_market_session, is_taiwan_ticker, market_now
+from data_freshness_market import calendar_coverage, is_likely_market_session, is_taiwan_ticker, market_now
 from data_freshness_policy import (
     CORE_CACHE_SOURCES,
     SOURCE_FRESHNESS_SOURCES,
@@ -29,11 +29,14 @@ SOURCE_FRESHNESS_MAX_AGE_SECONDS = dict(_DEFAULT_SOURCE_FRESHNESS_MAX_AGE_SECOND
 
 def freshness_policy(ticker: str, market_session: Optional[bool] = None) -> dict:
     session = is_likely_market_session(ticker) if market_session is None else bool(market_session)
+    coverage = calendar_coverage(ticker)
+    unknown = coverage['coverage_status'] != 'available'
     return {
-        "policy": "market_session" if session else "offhours_or_weekend",
+        "calendar": coverage,
+        "policy": "calendar_unknown_conservative" if unknown else "market_session" if session else "offhours_or_weekend",
         "market_session": session,
         "max_age_seconds": FINANCIAL_DATA_MARKET_CACHE_SECONDS
-        if session else FINANCIAL_DATA_OFFHOURS_CACHE_SECONDS,
+        if session or unknown else FINANCIAL_DATA_OFFHOURS_CACHE_SECONDS,
     }
 
 
@@ -113,11 +116,14 @@ def build_source_freshness_entry(
         policy = freshness_policy(ticker, market_session=market_session)
         entry["market_session"] = policy["market_session"]
         entry["policy"] = policy["policy"]
+        entry["calendar"] = policy["calendar"]
     if source == "institutional_trading" and isinstance(source_data, dict) and source_data:
         entry.update(observation_recency(source_data.get("latest_date"), ticker=ticker,
                                          now_epoch=now_epoch, max_age_days=7))
         entry["is_fresh"] = is_fresh and entry["observation_status"] == "recent"
         entry["stale"] = not entry["is_fresh"]
+    if isinstance(source_data, dict) and source_data.get('stale') is True:
+        entry.update(is_fresh=False, stale=True, coverage_status=source_data.get('status', 'stale'))
     return entry
 
 
@@ -129,6 +135,7 @@ def build_source_freshness(
     market_session: Optional[bool] = None,
 ) -> dict:
     now_epoch = float(now_epoch or time_module.time())
+    from source_applicability import source_is_applicable
     return {
         source: build_source_freshness_entry(
             source,
@@ -138,7 +145,10 @@ def build_source_freshness(
             now_epoch=now_epoch,
             market_session=market_session,
             source_data=data.get(source),
-        )
+        ) if source_is_applicable(source, data, ticker) else {
+            "source": source, "status": "not_applicable", "stale": False,
+            "is_fresh": None, "fetched_at": None, "cache_hit": False,
+        }
         for source in SOURCE_FRESHNESS_SOURCES
     }
 
@@ -150,6 +160,9 @@ def source_is_stale(
     now_epoch: Optional[float] = None,
     market_session: Optional[bool] = None,
 ) -> bool:
+    from source_applicability import source_is_applicable
+    if not source_is_applicable(source, data, ticker):
+        return False
     if source != "market_data" and source_record_count(source, data) <= 0:
         return True
     ticker = str(ticker or data.get("ticker") or "").strip().upper()
@@ -176,6 +189,11 @@ def mark_sources_fetched(
     fetched_at_epoch = float(fetched_at_epoch or time_module.time())
     source_freshness = dict(data.get("source_freshness", {}) or {})
     for source in sources:
+        from source_applicability import source_is_applicable
+        if not source_is_applicable(source, data, ticker):
+            source_freshness[source] = {"source": source, "status": "not_applicable", "stale": False,
+                                        "is_fresh": None, "fetched_at": None, "cache_hit": False}
+            continue
         source_freshness[source] = build_source_freshness_entry(
             source,
             ticker,
@@ -205,6 +223,7 @@ def build_data_freshness(
         "cache_hit": cache_hit,
         "market_session": policy["market_session"],
         "policy": policy["policy"],
+        "calendar": policy["calendar"],
         "max_age_seconds": policy["max_age_seconds"],
         "age_seconds": age_seconds,
         "is_fresh": age_seconds is not None and age_seconds <= policy["max_age_seconds"],

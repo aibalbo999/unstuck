@@ -7,13 +7,13 @@ import sqlite3
 from storage.migrations import MigrationRunner
 
 
-PROVIDER_SLA_SCHEMA_VERSION = 3
+PROVIDER_SLA_SCHEMA_VERSION = 4
 
 
 def init_provider_sla_schema(conn: sqlite3.Connection) -> None:
     MigrationRunner(conn, "provider_sla").run(
         PROVIDER_SLA_SCHEMA_VERSION,
-        {1: _migrate_v1, 2: _migrate_v2, 3: _migrate_v3},
+        {1: _migrate_v1, 2: _migrate_v2, 3: _migrate_v3, 4: _migrate_v4},
     )
     conn.execute("CREATE INDEX IF NOT EXISTS idx_provider_sla_source_provider ON provider_sla_stats(source, provider)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_provider_sla_events_lookup ON provider_sla_events(source, provider, created_at)")
@@ -64,3 +64,9 @@ def _migrate_v3(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE provider_sla_stats ADD COLUMN not_configured_count INTEGER NOT NULL DEFAULT 0")
     if "degraded_enrichment_count" not in columns:
         conn.execute("ALTER TABLE provider_sla_stats ADD COLUMN degraded_enrichment_count INTEGER NOT NULL DEFAULT 0")
+
+
+def _migrate_v4(conn: sqlite3.Connection) -> None:
+    columns = {row['name'] for row in conn.execute('PRAGMA table_info(provider_sla_events)')}
+    if 'details_json' not in columns:
+        conn.execute("ALTER TABLE provider_sla_events ADD COLUMN details_json TEXT NOT NULL DEFAULT '{}'")

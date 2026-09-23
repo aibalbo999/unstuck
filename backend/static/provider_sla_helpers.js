@@ -1,5 +1,6 @@
 (function () {
     const SOURCE_LABELS = {
+        search_upstream: '搜尋供應商',
         earnings_call: '法說會資料', sec_edgar: '美國申報文件', social_sentiment: '社群討論', taiwan_open_data: '台灣開放資料', twse_official: '交易所資料', market_data: '股價與基本資料', financial_statements: '財報資料', recent_catalysts: '新聞與事件',
         global_market_context: '全球市場脈絡', international_news_context: '國際新聞脈絡', macro_indicators: 'FRED 總經指標', chip_data: '深度籌碼', alternative_data: '另類數據', peer_discovery: '同業比較',
         monthly_revenue: '月營收', institutional_trading: '法人籌碼', dynamic_peer_metrics: '同業指標', pe_river_chart: '估值區間'
@@ -15,6 +16,7 @@
     const LEVEL_WEIGHT = { neutral: 0, ok: 1, warning: 2, critical: 3 };
     const EXPECTED_CONTEXT_SOURCES = ['global_market_context', 'international_news_context'];
     const COUNTER_LABELS = {
+        local_block_count: '冷卻略過',
         fetched_count: '取得資料', empty_count: '未取得資料', failed_count: '失敗／不可用',
         degraded_count: '降級資料', fresh_cache_count: '有效快取', empty_cache_count: '空快取',
         stale_cache_count: '過期快取', unknown_count: '未確認', not_configured_count: '選用來源略過'
@@ -40,6 +42,7 @@
         if (!count(row, 'observations')) return count(row, 'aggregate_count') ? '原始觀測不足' : '無檢查樣本';
         if (row.level === 'critical') return '核心資料可能影響分析';
         if (count(row, 'failed_count')) return '有來源失敗';
+        if (count(row, 'local_block_count')) return '有來源暫停重試';
         if (count(row, 'unknown_count')) return '有未確認紀錄';
         if (!count(row, 'fetched_count') && (count(row, 'empty_count') || count(row, 'empty_cache_count'))) return '未取得資料';
         if (count(row, 'degraded_count') || count(row, 'stale_cache_count')) return '有降級紀錄';

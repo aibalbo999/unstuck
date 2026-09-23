@@ -94,9 +94,12 @@ def _valuation_range(data: dict[str, Any], *, current_price: float | None) -> di
     prices = [item["price"] for item in latest_bands]
     mid_price = median(prices) if prices else None
     status = "available" if current_price is not None and len(latest_bands) >= 2 else "unavailable"
+    assumption = chart.get("valuation_basis") == "scenario_assumption" or "default" in str(chart.get("source", "")).lower()
     return {
         "status": status,
-        "label": _valuation_range_label(current_price, prices),
+        "label": "情境假設區間" if assumption and status == "available" else _valuation_range_label(current_price, prices),
+        "valuation_basis": "scenario_assumption" if assumption else chart.get("valuation_basis", "unknown"),
+        "historical_quantiles_available": chart.get("historical_quantiles_available"),
         "current_price": current_price,
         "mid_price": mid_price,
         "price_vs_mid_pct": _percent_change(current_price, mid_price),

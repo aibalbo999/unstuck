@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from source_audit import audited_fetch, audited_fetch_async
+from search_provider_runtime import SourceResponseError
 from report_freshness_summary import safe_bool
 
 from .earnings_call_fetcher import FREE_EARNINGS_CALL_PROVIDER_NAME, fetch_free_earnings_call_context
@@ -114,15 +115,24 @@ class EarningsCallProvider(DataProvider):
     def fetch(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
         data = (context or {}).get("data", {}) if isinstance((context or {}).get("data"), dict) else {}
         ticker = str((context or {}).get("original_ticker") or data.get("ticker") or request.ticker).strip().upper()
+        diagnostic = {}
+        def fetch_context():
+            try:
+                return fetch_free_earnings_call_context(ticker)
+            except SourceResponseError as exc:
+                diagnostic.update(exc.diagnostic)
+                raise
+
         result = audited_fetch(
             self.source,
             self.name,
-            fetch_free_earnings_call_context,
-            (ticker,),
+            fetch_context,
             default={},
             empty_status="degraded_enrichment",
             unavailable_message="免費法說會資料未回傳。",
         )
+        if diagnostic:
+            result["audit"].update(diagnostic)
         return provider_result_from_audited(result, self.source, self.name)
 
 

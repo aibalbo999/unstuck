@@ -9,6 +9,7 @@ acquisitions, and does not rewrite historical telemetry.
 from __future__ import annotations
 
 import sqlite3
+import json
 import time
 from pathlib import Path
 
@@ -16,6 +17,7 @@ COUNTERS = (
     "fetched_count", "empty_count", "failed_count", "degraded_count",
     "fresh_cache_count", "empty_cache_count", "stale_cache_count",
     "unknown_count", "not_configured_count", "aggregate_count",
+    "local_block_count",
 )
 WINDOW_SECONDS = {"last_1h": 3600, "last_24h": 86400, "last_7d": 604800}
 # These are workflow summaries, not independently observed provider requests.
@@ -36,9 +38,16 @@ BASE_AGGREGATE_MESSAGES = {
 def observation_kind(row: dict) -> str:
     provider, status = row["provider"], row["status"]
     count, message = row["record_count"], row["message"]
+    details = row.get('details', {})
+    if details.get('event_kind') == 'local_block':
+        return 'local_block_count'
     if (provider in AGGREGATE_PROVIDERS or message in BASE_AGGREGATE_MESSAGES
             or message.startswith("optional 外部來源")):
         return "aggregate_count"
+    if details.get('cache_hit') is True:
+        return 'stale_cache_count' if details.get('stale') else 'fresh_cache_count' if count > 0 else 'empty_cache_count'
+    if details.get('http_request_sent') is False:
+        return 'local_block_count'
     if status == "not_configured":
         return "not_configured_count"
     if status in {"error", "unavailable"}:
@@ -59,7 +68,7 @@ def observation_kind(row: dict) -> str:
 
 
 def _empty_counts() -> dict:
-    return {key: 0 for key in COUNTERS}
+    return {**{key: 0 for key in COUNTERS}, 'http_attempt_count': 0}
 
 
 def _finish_counts(row: dict) -> dict:
@@ -80,6 +89,11 @@ def project_acquisition_events(events, *, window: str, now: float) -> dict:
     start = now - WINDOW_SECONDS[window] if window in WINDOW_SECONDS else None
     for raw in events:
         row = dict(raw)
+        try:
+            details = json.loads(row.get('details_json') or '{}')
+        except (ValueError, TypeError):
+            details = {}
+        row['details'] = details if isinstance(details, dict) else {}
         at = float(row["created_at"])
         if at > now or (start is not None and at < start):
             continue
@@ -88,17 +102,21 @@ def project_acquisition_events(events, *, window: str, now: float) -> dict:
         group = groups.setdefault(source, dict(source=source, providers={}, **_empty_counts()))
         kind = observation_kind(row)
         group[kind] += 1
+        http_attempt = int(row['details'].get('http_request_sent') is True)
+        group['http_attempt_count'] += http_attempt
         if kind == "aggregate_count":
             continue
         provider = group["providers"].setdefault(row["provider"], dict(
             provider=row["provider"], last_at=None, last_kind=None, **_empty_counts(),
         ))
         provider[kind] += 1
+        provider['http_attempt_count'] += http_attempt
         if row["provider"] == "cache" and kind in {"failed_count", "unknown_count"}:
             for target in (group, provider):
                 target["cache_nonfetch_count"] = target.get("cache_nonfetch_count", 0) + 1
         if provider["last_at"] is None or at >= provider["last_at"]:
             provider["last_at"], provider["last_kind"] = at, kind
+            provider['last_details'] = row['details']
     sources = []
     for group in groups.values():
         group["providers"] = sorted(
@@ -127,8 +145,10 @@ def get_provider_acquisition_summary(window: str = "last_24h") -> dict:
         with sqlite3.connect(uri, uri=True, timeout=5) as conn:
             conn.row_factory = sqlite3.Row
             conn.execute("PRAGMA query_only=ON")
+            columns = {row['name'] for row in conn.execute('PRAGMA table_info(provider_sla_events)')}
+            details_sql = 'details_json' if 'details_json' in columns else "'{}' AS details_json"
             events = conn.execute(
-                "SELECT source, provider, status, record_count, message, created_at "
+                f"SELECT source, provider, status, record_count, message, created_at, {details_sql} "
                 "FROM provider_sla_events WHERE created_at >= ? AND created_at <= ? "
                 "ORDER BY created_at, id",
                 (start, now),

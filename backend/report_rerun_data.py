@@ -66,6 +66,12 @@ def freeze_full_rerun_inputs(data: dict, *, pipeline_id: str, progress_callback:
     """Establish a NEW full run's quant/input boundary; never call on resume."""
     from quant_engine import QuantEngine
     from analysis_input_provenance import freeze_analysis_inputs
+    from analysis_job_helpers import build_data_fetch_blocking_notice
+    from types import SimpleNamespace
+
+    notice = build_data_fetch_blocking_notice(SimpleNamespace(data=data, data_trust=data.get("data_trust", {})))
+    if notice:
+        raise HTTPException(status_code=422, detail=notice["message"])
 
     data["quant_metrics"] = QuantEngine.compute_all(data)
     if data["quant_metrics"].get("fallback_fields"):

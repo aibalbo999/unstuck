@@ -6,6 +6,7 @@ from datetime import datetime, timedelta, timezone
 import logging
 import re
 import threading
+import time
 from typing import Any
 from urllib.parse import quote_plus
 
@@ -13,6 +14,7 @@ from bs4 import BeautifulSoup
 import feedparser
 
 from external_http_client import sync_get
+from search_provider_runtime import SourceResponseError, cooldown_state, scope_key, remember_failure, record_observation
 from news_record_utils import (
     MAX_INPUT_LENGTH,
     MAX_RESULTS,
@@ -162,7 +164,14 @@ def fetch_ptt_stock_sentiment(ticker: str, limit: int = 10) -> list[NewsRecord]:
     cleaned_ticker = _clean_input(ticker)
     if not cleaned_ticker or not re.fullmatch(r"[\w.-]+", cleaned_ticker, re.UNICODE):
         return []
+    match_term = re.sub(r"\.(?:TW|TWO)$", "", cleaned_ticker, flags=re.IGNORECASE)
     bounded_limit = _clamp_limit(limit)
+    started = time.monotonic()
+    cooldown_key = scope_key("PTT Stock", endpoint="stock_index")
+    blocked = cooldown_state(cooldown_key)
+    if blocked:
+        record_observation("PTT Stock", started, source="social_sentiment", outcome="cooldown", details=blocked, sent=False)
+        return []
     try:
         response = sync_get(
             PTT_STOCK_URL,
@@ -171,13 +180,17 @@ def fetch_ptt_stock_sentiment(ticker: str, limit: int = 10) -> list[NewsRecord]:
             provider="PTT Stock",
         )
         soup = BeautifulSoup(response.text, "html.parser")
+        if not soup.select("div.r-ent, div.r-list-container"):
+            raise SourceResponseError("parse_error", status_code=getattr(response, "status_code", None), response_text=response.text, parser_version="ptt-index-v1")
         records = []
         for item in soup.select("div.r-ent"):
             anchor = item.select_one("div.title a")
             if anchor is None:
                 continue
             title = _clean_text(anchor.get_text(" ", strip=True))
-            if cleaned_ticker.casefold() not in title.casefold():
+            matched = (re.search(r"(?<!\d)" + re.escape(match_term) + r"(?!\d)", title)
+                       if match_term.isdigit() else match_term.casefold() in title.casefold())
+            if not matched:
                 continue
             date_node = item.select_one("div.date")
             record = _record(
@@ -190,7 +203,11 @@ def fetch_ptt_stock_sentiment(ticker: str, limit: int = 10) -> list[NewsRecord]:
             )
             if record:
                 records.append(record)
-        return _dedupe(records, bounded_limit)
+        records = _dedupe(records, bounded_limit)
+        record_observation("PTT Stock", started, source="social_sentiment", outcome="results" if records else "valid_empty", count=len(records), details={"http_status": getattr(response, "status_code", None)})
+        return records
     except Exception as exc:
+        state = remember_failure(cooldown_key, exc)
+        record_observation("PTT Stock", started, source="social_sentiment", outcome="failure", details=state)
         _warn("PTT Stock", "parse", exc)
         return []

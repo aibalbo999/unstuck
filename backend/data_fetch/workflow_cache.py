@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from cache_store import get_cache_json
+from news_freshness_policy import apply_news_freshness
 from data_freshness import assess_cached_financial_data
 from data_trust import append_source_audit, finalize_data_trust
 
@@ -28,6 +29,7 @@ def fresh_cached_payload(ticker: str, cached: dict) -> dict | None:
         return None
 
     cached = dict(cached)
+    apply_news_freshness(cached)
     cached["_cache_hit"] = True
     cached["source_audit"] = []
     cached["data_freshness"] = freshness
@@ -43,6 +45,7 @@ def fallback_cached_payload(ticker: str, cached: dict | None, core_result: Provi
     cache_ticker = str(cached.get("ticker") or ticker).strip().upper()
     _is_fresh, freshness = assess_cached_financial_data(cached, cache_ticker)
     fallback = dict(cached)
+    apply_news_freshness(fallback)
     fallback["_cache_hit"] = True
     fallback["source_audit"] = []
     fallback["data_freshness"] = freshness

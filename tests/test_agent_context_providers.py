@@ -44,7 +44,7 @@ def test_social_sentiment_provider_directly_fetches_ptt_for_taiwan_ticker(monkey
     assert len(google_calls) == 3
     assert result.status == "success"
     assert result.value["ptt_stock_direct"] == [
-        {"title": "PTT 台積電討論", "date": "2026-06-27", "source": "PTT Stock"}
+        {"title": "PTT 台積電討論", "date": "2026-06-27", "source": "PTT Stock", "link": "https://ptt.example/2330"}
     ]
     assert result.audit["record_count"] == 1
 
@@ -72,7 +72,8 @@ def test_job_openings_provider_derives_default_keywords_when_missing(monkeypatch
         {"data": {"ticker": "2330.TW", "company_name": "台積電", "industry": "Semiconductors"}},
     )
 
-    assert result.status == "success"
+    assert result.status == "degraded_enrichment"
+    assert result.value["status"] == "partial"
     assert result.audit["record_count"] == 1
     assert calls == [
         ("104", "台積電", "工程師"),

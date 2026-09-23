@@ -150,6 +150,9 @@ def _compact_pe_river(pe_river: dict) -> dict:
         "years": _safe_iterable_prefix(dict.get(pe_river, "years", []))[-5:],
         "multiples": _compact_list(dict.get(pe_river, "multiples", []), 5),
         "band_labels": list(bands.keys())[:5],
+        "valuation_basis": dict.get(pe_river, "valuation_basis"),
+        "historical_quantiles_available": dict.get(pe_river, "historical_quantiles_available"),
+        "coverage_notes": dict.get(pe_river, "coverage_notes", []),
     }
 
 

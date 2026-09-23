@@ -2,6 +2,9 @@ import sys
 from pathlib import Path
 
 import pytest
+from datetime import datetime, timezone
+
+MACRO_NOW = datetime(2026, 6, 18, 12, tzinfo=timezone.utc).timestamp()
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -47,7 +50,7 @@ def test_fetch_key_macro_indicators_formats_latest_macro_context(monkeypatch):
     monkeypatch.setenv("FRED_API_KEY", "test-key")
     session = FakeSession()
 
-    result = fetch_key_macro_indicators(session=session, use_cache=False)
+    result = fetch_key_macro_indicators(session=session, use_cache=False, now_epoch=MACRO_NOW)
 
     assert result["source"] == "FRED"
     assert result["indicators"]["us_10y_yield"]["series_id"] == "DGS10"
@@ -74,7 +77,7 @@ def test_fetch_key_macro_indicators_uses_shared_http_client(monkeypatch):
 
     monkeypatch.setattr(macro_fetcher, "sync_get", fake_get)
 
-    result = fetch_key_macro_indicators(use_cache=False)
+    result = fetch_key_macro_indicators(use_cache=False, now_epoch=MACRO_NOW)
 
     assert result["status"] == "success"
     assert [call["params"]["series_id"] for call in calls] == ["DGS10", "CPIAUCSL", "VIXCLS"]

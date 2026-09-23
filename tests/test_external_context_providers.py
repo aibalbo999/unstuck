@@ -62,9 +62,9 @@ def test_optional_http_bundle_merges_additional_free_context_sources():
     assert merged["sec_edgar"]["recent_filings"][0]["form"] == "10-K"
     assert merged["taiwan_open_data"]["rates"]["USD"]["sell"] == "31.50"
     latest_sources = {entry["source"]: entry for entry in merged["source_audit"]}
-    assert latest_sources["social_sentiment"]["status"] == "success"
+    assert latest_sources["social_sentiment"]["status"] == "not_applicable"
     assert latest_sources["sec_edgar"]["status"] == "success"
-    assert latest_sources["taiwan_open_data"]["status"] == "success"
+    assert latest_sources["taiwan_open_data"]["status"] == "not_applicable"
 
 
 def test_optional_http_bundle_marks_empty_optional_source_as_degraded_enrichment():
@@ -78,12 +78,12 @@ def test_optional_http_bundle_marks_empty_optional_source_as_degraded_enrichment
 
     latest_sources = {entry["source"]: entry for entry in merged["source_audit"]}
     assert latest_sources["earnings_call"]["status"] == "degraded_enrichment"
-    assert latest_sources["sec_edgar"]["status"] == "degraded_enrichment"
+    assert latest_sources["sec_edgar"]["status"] == "not_applicable"
     assert latest_sources["alternative_data"]["status"] == "degraded_enrichment"
     assert latest_sources["earnings_call"]["record_count"] == 0
 
 
-def test_taiwan_open_data_provider_falls_back_to_fred_when_bot_is_challenged(monkeypatch):
+def test_taiwan_open_data_provider_labels_er_spot_when_bot_is_challenged(monkeypatch):
     calls = []
 
     class FakeResponse:
@@ -112,9 +112,11 @@ def test_taiwan_open_data_provider_falls_back_to_fred_when_bot_is_challenged(mon
 
     result = TaiwanOpenDataProvider().fetch(FetchRequest.from_ticker("2330.TW"))
 
-    assert result.status == "success"
+    assert result.status == "degraded_enrichment"
     assert result.value["source"] == "open.er-api.com fallback"
-    assert result.value["rates"]["USD"]["sell"] == "31.9300"
+    assert result.provider == "open.er-api.com"
+    assert result.value["rates"]["USD"]["spot"] == "31.9300"
+    assert result.value["rates"]["USD"]["sell"] is None
     assert result.audit["record_count"] == 1
     assert len(calls) == 2
 

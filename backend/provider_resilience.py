@@ -195,7 +195,7 @@ def _retry_wait_strategy():
 
 
 def _should_retry(exc: BaseException) -> bool:
-    return not isinstance(exc, (ProviderCircuitOpenError, ProviderRateLimitOpenError))
+    return getattr(exc, "retryable", True) is not False and not isinstance(exc, (ProviderCircuitOpenError, ProviderRateLimitOpenError))
 
 
 def provider_circuit_state(provider: str) -> dict[str, Any]:

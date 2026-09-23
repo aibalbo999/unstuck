@@ -87,7 +87,7 @@ def apply_market_fallbacks_and_quality_calibration(
 
     fmp_quote = {}
     fmp_quote_audit = None
-    if any(is_missing_value(v) for v in [current_price, market_cap, pe_ratio, week_52_high, week_52_low]):
+    if not str(ticker).upper().endswith((".TW", ".TWO")) and any(is_missing_value(v) for v in [current_price, market_cap, pe_ratio, week_52_high, week_52_low]):
         fmp_quote_result = audited_fetch(
             "market_data",
             "FMP stable quote",

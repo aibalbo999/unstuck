@@ -14,7 +14,7 @@ def _market_fields(snapshot, *, calendar=False):
     if calendar:
         from .yfinance_enrichment_extractors import extract_event_calendar
         events = extract_event_calendar(stock, info)
-        if not events:
+        if not events or events.get('status') == 'unavailable' or not events.get('events'):
             raise RuntimeError('雷達日曆未取得可驗證事件')
         return {'event_calendar': events}
     history = stock.history(period='2y')

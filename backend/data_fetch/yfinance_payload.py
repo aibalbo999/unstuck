@@ -21,6 +21,8 @@ def build_legacy_payload(ctx: dict) -> dict:
     return {
         "data_schema_version": DATA_SCHEMA_VERSION,
         "ticker": ctx["ticker"],
+        "quote_type": str((ctx.get("info") or {}).get("quoteType") or "unknown"),
+        "instrument_type_source": "yfinance quoteType" if (ctx.get("info") or {}).get("quoteType") else None,
         "company_name": ctx["company_name"],
         "raw_company_name": ctx["raw_company_name"],
         "company_identity": ctx["company_identity"],
@@ -158,6 +160,10 @@ def finalize_and_cache_legacy_payload(
     finmind_financial_fallback_audit: dict | None,
 ) -> dict:
     fetched_at_epoch = time_module.time()
+    from source_applicability import apply_source_applicability
+    from news_freshness_policy import apply_news_freshness
+    apply_news_freshness(data, cutoff=fetched_at_epoch)
+    apply_source_applicability(data)
     _mark_market_data_fetched(data, ticker, fetched_at_epoch=fetched_at_epoch, cache_hit=False)
     fetched_sources = [
         "financial_statements",

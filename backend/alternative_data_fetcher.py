@@ -77,6 +77,7 @@ def fetch_104_job_openings_count(
                 "104 Job Search",
                 source_url,
                 "104 搜尋頁未揭露可解析的職缺總數。",
+                reason_code="parse_failure",
             )
 
         return {
@@ -84,6 +85,8 @@ def fetch_104_job_openings_count(
             "company_name": company,
             "keyword": term,
             "job_count": int(job_count),
+            "evidence_kind": "job_count",
+            "result_kind": "valid_empty" if job_count == 0 else "numeric_count",
             "source": "104 Job Search",
             "source_url": source_url,
         }
@@ -119,18 +122,19 @@ def fetch_1111_job_openings_count(
         )
         job_count = _extract_1111_job_count(response.text)
         if job_count is None:
-            # Fallback
-            return _google_news_fallback(company, term, "1111 Job Search", source_url)
+            return _unavailable(company, term, "1111 Job Search", source_url, "1111 搜尋頁未揭露可解析的職缺總數。", reason_code="parse_failure")
             
         return {
             "status": "success",
             "company_name": company,
             "keyword": term,
             "job_count": int(job_count),
+            "evidence_kind": "job_count",
+            "result_kind": "valid_empty" if job_count == 0 else "numeric_count",
             "source": "1111 Job Search",
             "source_url": source_url,
         }
-    except Exception as exc:
+    except _JobSearchTransportError:
         return _google_news_fallback(company, term, "1111 Job Search", source_url)
 
 
@@ -145,16 +149,23 @@ def _google_news_fallback(company: str, keyword: str, source_name: str, source_u
                 "status": "success",
                 "company_name": company,
                 "keyword": keyword,
-                "job_count": None,  # Qualitative data only
+                "job_count": None,
+                "evidence_kind": "recruitment_news",
+                "result_kind": "qualitative_only",
+                "fallback_reason": "transport_failure",
+                "actual_provider": "Google News RSS",
                 "recent_recruitment_news": news,
                 "source": f"{source_name} (Fallback to News)",
-                "source_url": source_url,
-                "message": "直接爬取遭阻擋，已啟用新聞聚合備援，回傳近期招募情報。"
+                "source_url": None,
+                "requested_source_url": source_url,
+                "message": "職缺頁取得失敗；新聞備援僅提供招募情報，無法確認職缺總數。"
             }
         else:
-            return _unavailable(company, keyword, source_name, source_url, "網站遭阻擋且無相關招募新聞。")
+            return _unavailable(company, keyword, source_name, source_url, "職缺頁取得失敗且新聞備援無結果；職缺數未知。", reason_code="transport_failure", fallback_status="empty_unknown")
     except ImportError:
-        return _unavailable(company, keyword, source_name, source_url, "網站遭阻擋，且未安裝新聞模組無法備援。")
+        return _unavailable(company, keyword, source_name, source_url, "職缺頁取得失敗且新聞備援未設定。", reason_code="transport_failure", fallback_status="not_configured")
+    except Exception:
+        return _unavailable(company, keyword, source_name, source_url, "職缺頁與新聞備援均取得失敗。", reason_code="transport_failure", fallback_status="error")
 
 
 def _extract_104_job_count(html: str) -> int | None:
@@ -208,12 +219,16 @@ def _unavailable(
     source_name: str,
     source_url: str,
     message: str,
+    *, reason_code: str = "invalid_query", fallback_status: str | None = None,
 ) -> dict[str, Any]:
     return {
         "status": "unavailable",
         "company_name": company_name,
         "keyword": keyword,
         "job_count": None,
+        "evidence_kind": "unavailable",
+        "reason_code": reason_code,
+        "fallback_status": fallback_status,
         "message": message,
         "source": source_name,
         "source_url": source_url,

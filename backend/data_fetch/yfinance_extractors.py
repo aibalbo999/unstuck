@@ -35,7 +35,11 @@ def extract_price_history(stock) -> dict:
     return price_history
 
 
-def extract_financial_histories(stock, ticker: str, data_source_notes: list, data_loader_cls=DataLoader) -> dict:
+def extract_financial_histories(stock, ticker: str, data_source_notes: list, data_loader_cls=DataLoader, *, quote_type: str = "") -> dict:
+    if str(quote_type).upper() in {"ETF", "MUTUALFUND"}:
+        return {**{key: [] for key in ("years", "revenue_history", "net_income_history", "gross_profit_history",
+                                      "operating_income_history", "fcf_history", "total_assets_history", "total_equity_history")},
+                "finmind_financial_fallback_audit": None}
     revenue_history = []
     net_income_history = []
     gross_profit_history = []

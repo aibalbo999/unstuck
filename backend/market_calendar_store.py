@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import hashlib
 from datetime import date
 from pathlib import Path
 from typing import Optional
@@ -77,11 +78,38 @@ def load_market_calendar(market: str, year: int, calendar_dir: Optional[str] = N
     if path.exists():
         try:
             loaded = json.loads(path.read_text(encoding="utf-8"))
-            if isinstance(loaded, dict):
-                return normalize_calendar(loaded, market=market, year=year)
+            if isinstance(loaded, dict) and loaded.get("market") == market and loaded.get("year") == year and _complete_calendar(loaded):
+                return _with_provenance(loaded, market=market, year=year, source="local_file")
         except (OSError, json.JSONDecodeError):
             pass
-    return normalize_calendar(BUILTIN_MARKET_CALENDARS.get((market, year), {}), market=market, year=year)
+    seed = BUILTIN_MARKET_CALENDARS.get((market, year), {})
+    return _with_provenance(seed, market=market, year=year, source="builtin" if seed else "missing")
+
+
+def _complete_calendar(calendar: dict) -> bool:
+    required = ('timezone', 'open', 'close', 'holidays', 'early_closes')
+    if not all(key in calendar for key in required):
+        return False
+    holidays, early = calendar['holidays'], calendar['early_closes']
+    if not isinstance(holidays, list) or not isinstance(early, dict):
+        return False
+    try:
+        from datetime import time
+        from zoneinfo import ZoneInfo
+        ZoneInfo(calendar['timezone'])
+        for value in [calendar['open'], calendar['close'], *early.values()]:
+            time.fromisoformat(value)
+        return all(date.fromisoformat(day).year == calendar['year'] for day in [*holidays, *early])
+    except (ValueError, TypeError, KeyError):
+        return False
+
+
+def _with_provenance(calendar: dict, *, market: str, year: int, source: str) -> dict:
+    result = normalize_calendar(calendar, market=market, year=year)
+    result.update(source=source, coverage_status="unknown" if source == "missing" else "available",
+                  valid_year=year if source != "missing" else None,
+                  calendar_version=hashlib.sha256(json.dumps(calendar, sort_keys=True).encode()).hexdigest() if calendar else None)
+    return result
 
 
 def normalize_calendar(calendar: dict, *, market: str, year: int) -> dict:
