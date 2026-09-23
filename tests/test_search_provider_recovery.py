@@ -221,6 +221,14 @@ def test_earnings_provider_preserves_typed_failure_in_report_audit(monkeypatch):
     assert len(result.audit['response_sha256']) == 64
     assert calls == ['2330.TW']
     assert 'security refusal' not in str(result.audit)
+    assert result.audit['response_bytes'] == len('security refusal'.encode())
+    assert '拒絕存取' in result.audit['message']
+    assert 'response_bytes' not in result.audit['message']
+
+    from reporting.source_audit import build_source_audit_markdown
+    from evidence_exit_gate import extract_numeric_claims
+    markdown = build_source_audit_markdown({'source_audit': [result.audit]})
+    assert not extract_numeric_claims(markdown)
 
 
 def test_ptt_unknown_html_is_not_valid_empty(monkeypatch):

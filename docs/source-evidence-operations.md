@@ -12,6 +12,7 @@
 
 - 匯率分 Bank of Taiwan、open.er-api.com、FRED 實際上游；第三方 USD/TWD spot 沒有銀行 bid/ask，也不代表 EUR/JPY 完整。
 - FRED 各 series 分開取得、共用與恢復。籌碼保存 TDCC、融資券、借券各自狀態；合併不會把 partial/stale 改成完整成功。
+- 籌碼取得成功但觀測日期缺失時，保留數值並標 `date_status=unknown`、部分覆蓋；不補造日期，也不把未知說成過期。
 - PE 的歷史分位與情境假設在 prompt、快照、圖表及審計分開標示。預設倍數不列為取得歷史分位資料。
 - 宏觀、匯率、SEC mapping 與職缺／社群使用既有 JSON cache；Redis named lock 或 SQLite file lock 合併同時請求。取得時間不因其他標的命中快取而更新。
 - 搜尋冷卻以 provider/endpoint/credential scope 保存，重啟仍有效。429 尊重 Retry-After；拒絕、付費限制與未知 432 不冒稱日額度耗盡。MOPS 安全拒絕頁記為 access_denied，不繞過。
@@ -19,6 +20,8 @@
 ## 觀測與年度日曆
 
 SLA v4 僅新增 `details_json`，保留舊資料。新事件保存有界的 correlation、HTTP、cache/stale、error_kind、retry_at 與分項覆蓋；不保存 key、query 或 response body。HTTP 請求、callback/aggregate、快取與本機冷卻分開計數；舊觀測不回填猜測。來源面板的「取得資料率」仍是供應商觀測口徑，不是報告成功率。
+
+Typed 來源錯誤在報告中顯示可讀原因；HTTP code、回應大小、雜湊與 parser 版本保留於結構化診斷，不嵌入報告訊息而被誤認為財務數字。
 
 交易日曆保存來源、版本與適用年度。缺年度資料時標 unknown，行情快取使用較短門檻。事件日曆只有成功且明確覆蓋完整未來窗口，才能判定該窗口沒有事件。
 
