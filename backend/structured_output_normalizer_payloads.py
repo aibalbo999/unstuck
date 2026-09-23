@@ -8,6 +8,7 @@ from typing import Any
 from mapping_fields import safe_mapping_dict, safe_sequence_items
 from recommendation_labels import normalize_recommendation_label
 from trade_price_inputs import optional_execution_text
+from trade_execution_contract import explicit_short_no_position
 from structured_output_normalizer_basic import (
     _MANAGEMENT_GUIDANCE_TONES,
     _TRADE_DIRECTIONS,
@@ -69,9 +70,10 @@ def _coerce_short_setup_payload(value: Any, recommendation: Any = None) -> dict[
         "horizon_trading_days": setup.get("horizon_trading_days"),
     }
     recommendation_map = safe_mapping_dict(recommendation) or {}
-    label = normalize_recommendation_label(
-        recommendation_map.get("建議", recommendation_map.get("recommendation", recommendation))
-    )
+    raw_label = recommendation_map.get("建議", recommendation_map.get("recommendation", recommendation))
+    label = normalize_recommendation_label(raw_label)
+    if _string_field_text(raw_label) == "避免" and explicit_short_no_position(setup):
+        return normalized
     if recommendation is not None and label != "放空":
         normalized.update({
             "entry_trigger": "目前不建立空方部位；等待可驗證條件後重新評估。",

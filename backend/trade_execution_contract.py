@@ -6,7 +6,7 @@ import math
 import re
 
 from data_trust_values import has_value
-from mapping_fields import safe_text
+from mapping_fields import safe_mapping_dict, safe_text
 from trade_price_inputs import execution_value_missing, parse_position_percentage, parse_price_range, parse_risk_reward
 
 
@@ -52,6 +52,27 @@ def short_observation_is_explicit(setup: dict) -> bool:
     if not re.search(r"等待|觀望|暫不|不放空|不開倉|不建倉|不建立|wait|no.trade", text, re.I):
         return False
     return not contains_trade_order(text)
+
+
+def explicit_short_no_position(short_setup) -> bool:
+    """A price-free, affirmative no-position contract; silence is insufficient."""
+    setup = safe_mapping_dict(short_setup) or {}
+    entry = safe_text(setup.get("entry_trigger"))
+    stop = safe_text(setup.get("cover_stop"))
+    target = safe_text(setup.get("downside_target"))
+    no_position = r"(?:^|[，。；、\n])\s*(?:目前|暫時|現在)?\s*不(?:開倉|建倉|交易|建立(?:新|空方)?部位)(?=[，。；、\n]|$)"
+    return (
+        short_observation_is_explicit(setup)
+        and bool(re.search(no_position, entry))
+        and bool(re.search(no_position, stop))
+        and "不適用" in stop
+        and execution_value_missing(setup.get("downside_target"))
+        and not re.search(r"\d", f"{entry} {target} {stop}")
+        and not contains_trade_order(f"{entry} {target} {stop}")
+        and not re.search(r"持有|持倉|既有|現有|已建立|回補|加碼|減碼", f"{entry} {target} {stop}")
+        and observation_reason_is_explicit(setup.get("squeeze_risk"))
+        and observation_reason_is_explicit(setup.get("thesis_invalidation"))
+    )
 
 
 def evaluate_trade_execution(
@@ -135,4 +156,4 @@ def evaluate_trade_execution(
     return {"issues": issues, "details": details}
 
 
-__all__ = ["evaluate_trade_execution", "neutral_observation_is_explicit", "observation_reason_is_explicit", "short_observation_is_explicit"]
+__all__ = ["explicit_short_no_position", "evaluate_trade_execution", "neutral_observation_is_explicit", "observation_reason_is_explicit", "short_observation_is_explicit"]

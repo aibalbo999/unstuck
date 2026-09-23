@@ -15,7 +15,7 @@ def _inputs():
     }
 
 
-def _legacy_key(agent, data, context):
+def _legacy_key(agent, data, context, *, output_version=None):
     # Frozen pre-release key contract: intentionally lacks an output version.
     fields = {
         "ticker": "TEST", "data_snapshot_hash": "fixed-snapshot",
@@ -25,6 +25,8 @@ def _legacy_key(agent, data, context):
         "upstream_input_hash": step_cache.upstream_input_hash(agent, context),
         "market_context_contract_version": None,
     }
+    if output_version is not None:
+        fields["output_contract_version"] = output_version
     encoded = json.dumps(fields, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return "agent_step:" + hashlib.sha256(encoded.encode()).hexdigest()
 
@@ -50,3 +52,12 @@ def test_output_version_bump_changes_only_affected_role_keys(monkeypatch, agent)
     monkeypatch.setattr(step_cache, "AGENT_OUTPUT_CONTRACT_VERSION", "future-contract")
     after = step_cache.build_agent_step_cache_key(agent, data, context, "gemini-test", "unchanged source")
     assert (before != after) is (agent in {7, 16, 18, 19, 20, 21})
+
+
+@pytest.mark.parametrize("agent", [7, 16, 18, 19, 20, 21])
+def test_no_position_format_invalidates_only_previously_normalized_agent19(agent):
+    data, context = _inputs()
+    previous = _legacy_key(agent, data, context,
+        output_version="agent-output:wire-decode-completion-v3-format:v2")
+    current = step_cache.build_agent_step_cache_key(agent, data, context, "gemini-test", "unchanged source")
+    assert (current != previous) is (agent == 19)
