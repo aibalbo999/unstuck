@@ -15,7 +15,7 @@ def _inputs():
     }
 
 
-def _legacy_key(agent, data, context, *, output_version=None):
+def _legacy_key(agent, data, context, *, output_version=None, extra_fields=None):
     # Frozen pre-release key contract: intentionally lacks an output version.
     fields = {
         "ticker": "TEST", "data_snapshot_hash": "fixed-snapshot",
@@ -27,6 +27,7 @@ def _legacy_key(agent, data, context, *, output_version=None):
     }
     if output_version is not None:
         fields["output_contract_version"] = output_version
+    fields.update(extra_fields or {})
     encoded = json.dumps(fields, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return "agent_step:" + hashlib.sha256(encoded.encode()).hexdigest()
 
@@ -61,3 +62,17 @@ def test_no_position_format_invalidates_only_previously_normalized_agent19(agent
         output_version="agent-output:wire-decode-completion-v3-format:v2")
     current = step_cache.build_agent_step_cache_key(agent, data, context, "gemini-test", "unchanged source")
     assert (current != previous) is (agent == 19)
+
+
+@pytest.mark.parametrize("agent", [7, 16, 18, 19, 20, 21])
+def test_short_setup_guidance_does_not_reuse_pre_feedback_agent19_output(monkeypatch, agent):
+    data, context = _inputs()
+    previous = _legacy_key(agent, data, context,
+        output_version="agent-output:wire-decode-completion-v3-format:v2",
+        extra_fields={"no_position_contract_version": "explicit-cover-stop:v1"} if agent == 19 else {})
+    old_output = {"text": "completed under the previous schema guidance"}
+    cache = {previous: old_output}
+    monkeypatch.setattr(step_cache, "AGENT_STEP_CACHE_ENABLED", True)
+    monkeypatch.setattr(step_cache, "get_cache_json", cache.get)
+    current = step_cache.build_agent_step_cache_key(agent, data, context, "gemini-test", "unchanged source")
+    assert step_cache.get_cached_agent_step(current) == (None if agent == 19 else old_output)

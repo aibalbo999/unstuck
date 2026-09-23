@@ -35,6 +35,8 @@ Agent 19 的非 Gemma 財務 JSON 只移除字串外的排版空白；所有欄�
 
 品質重寫在 `repair_candidate_history` 保存同輸入、prompt 與上游證據範圍內最近 16 項退件問題，供後續完整重寫做回歸檢查；它不是目前品質判定，也不增加重試次數。Agent 19 在清除候選結構之前，使用既有價格解析與報酬門檻產生前次決策診斷。建議、目標或交易方案改變後必須重新評估市場來源，不複製舊結論的 `market_context_assessment`；證據不足仍保留警示。退件清單沿既有 graph/draft checkpoint 保存，新 metadata 可增加一個 draft 版本，但重複 defer 不重建初稿或重複新增相同版本。
 
+Agent 19 的交易欄位診斷會將通用檢查的 `entry_zone`、`target_price`、`stop_loss` 對回真正 JSON 路徑 `short_setup.entry_trigger`、`downside_target`、`cover_stop`，列出候選原值與同一交易價格解析器的結果。解析成功不等於來源已驗證，無法解析不等於零；不從現價、均線或其他欄位自動代填。回應 schema 說明相同語意，只有 Agent 19 的 step cache 另行分版，品質門檻及模型修復次數不變。
+
 交易日曆保存來源、版本與適用年度。缺年度資料時標 unknown，行情快取使用較短門檻。事件日曆只有成功且明確覆蓋完整未來窗口，才能判定該窗口沒有事件。
 
 每年更新日曆時，從交易所官方年度公告核對 holidays、early closes、timezone、open/close；保留公告 URL、查驗日期與內容 hash，透過版本審查更新 `BUILTIN_MARKET_CALENDARS`。再用正式 Python 執行 `backend/maintenance.py update-market-calendars --year YYYY --market tw --market us`；已有檔案預設不覆寫，確定差異後才指定 `--overwrite`。執行相關 calendar/freshness 測試，並確認載入的 valid_year、calendar_version。沒有官方年度資料時維持 unknown，不複製前一年日期。
