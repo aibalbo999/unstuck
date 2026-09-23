@@ -71,6 +71,8 @@ def format_data_for_prompt(data: dict, *, compact: bool = False, dense: bool = F
         "schema_version": dict.get(data, "data_schema_version", PROMPT_DATA_SCHEMA_VERSION),
         "unit_contract": {
             "money": "billion_twd",
+            "money_display_zh": "十億新臺幣（1 billion_twd = 10 億元）",
+            "money_to_yi_twd": 10,
             "price": "twd_per_share",
             "percent": "percentage_points",
             "ratios": "plain_multiple_unless_key_ends_with_pct",
@@ -186,6 +188,7 @@ def format_data_for_prompt(data: dict, *, compact: bool = False, dense: bool = F
                          **({"separators": (",", ":")} if dense or compact_json else {"indent": 2}))
     usage_rules = [
         "企業總額使用 billion_twd，每股價格使用 twd_per_share；以 unit_contract 與各欄位單位為準，不得把每股價格當作企業總額再換算。",
+        "金額寫成億元時，billion_twd 數值須乘以 10；不可只把 billion_twd 改標為億元。負數保留負號，來源期間必須一致，年度不可當作 TTM；這項換算不適用每股價格、EPS、百分比或股數。",
         "引用 current_price_twd、市場估值、新聞、法人或同業資料時，必須參考 source_freshness/data_freshness；若來源為快取或盤後資料，不可宣稱是即時資料。",
         "總經、產業循環、美股帶動或國際局勢敘述必須引用 global_market_context / international_news_context；若缺資料，必須明確標示未驗證。",
         "若 data_trust.status 為 partial、stale、error 或 unknown，最終投資建議必須明確說明資料限制，且不得在沒有額外佐證下給出高信心。",
