@@ -38,7 +38,8 @@ def _require_final_only_repair(context: dict, audit: dict, final_agent: int) -> 
 async def run_final_rerun_audit(context: dict, final_agent: int, rotator, *, run_agent, parse, audit, progress_callback=None) -> dict:
     """Use existing bounded repair policy, restricting every request to final_agent."""
     prior_hash = upstream_input_hash(final_agent, context)
-    await run_agent(final_agent, context["data"], context, rotator)
+    callback_options = {"progress_callback": progress_callback} if callable(progress_callback) else {}
+    await run_agent(final_agent, context["data"], context, rotator, **callback_options)
     _require_final_output(context, final_agent, prior_hash)
     max_passes = max(0, audit_repair.MAX_REPAIR_ITERATIONS)
     for repair_pass in range(max_passes + 1):
