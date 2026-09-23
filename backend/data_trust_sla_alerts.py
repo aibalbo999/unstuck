@@ -12,6 +12,7 @@ from config import (
 from data_trust_constants import AUDIT_STATUS_SKIPPED_FRESH_CACHE, AUDIT_STATUS_SUCCESS
 from mapping_fields import safe_text as _mapping_safe_text
 from report_freshness_summary import safe_bool
+from source_applicability import source_is_applicable
 
 
 SLA_WARNING_MIN_ATTEMPTS = PROVIDER_SLA_WARNING_MIN_ATTEMPTS
@@ -31,7 +32,7 @@ def current_provider_entries(data: dict) -> dict[tuple[str, str], dict]:
     for entry in safe_dict_rows(data.get("source_audit")):
         source = safe_text(entry.get("source")).strip()
         provider = safe_text(entry.get("provider")).strip().lower()
-        if source and provider:
+        if source and provider and source_is_applicable(source, data):
             pairs[(source, provider)] = entry
     return pairs
 

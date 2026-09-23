@@ -34,6 +34,7 @@ from data_trust_sla_policy import apply_provider_sla_to_trust
 from data_trust_values import has_value
 from mapping_fields import safe_dict_list, safe_mapping_dict, safe_text
 from numeric_safety import is_non_finite_number
+from source_applicability import source_is_applicable
 
 
 def trust_status_label(status: str) -> str:
@@ -109,7 +110,10 @@ def build_data_trust(data: dict) -> dict:
     if not source_freshness and not audit_entries:
         return unknown_data_trust()
 
-    latest_audit = latest_audit_by_source(audit_entries)
+    source_freshness = {source: entry for source, entry in source_freshness.items()
+                        if source_is_applicable(source, source_data)}
+    latest_audit = {source: entry for source, entry in latest_audit_by_source(audit_entries).items()
+                    if source_is_applicable(source, source_data)}
     critical_failures = [
         source
         for source in CRITICAL_TRUST_SOURCES
@@ -165,6 +169,10 @@ def build_data_trust(data: dict) -> dict:
     if _data_source_notes(dict.get(source_data, "data_source_notes")):
         notes.append("另有資料口徑或備援補值註記，詳見報告參考資料區。")
         reason_codes.append("data_source_notes_present")
+    pe_chart = safe_mapping_dict(dict.get(source_data, 'pe_river_chart')) or {}
+    if pe_chart.get('valuation_basis') == 'scenario_assumption':
+        notes.append('P/E 區間使用情境假設，沒有歷史分位證據。')
+        reason_codes.append('valuation_scenario_assumption')
 
     base_trust = {
         "status": status,

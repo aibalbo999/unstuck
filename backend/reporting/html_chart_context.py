@@ -28,9 +28,11 @@ def build_html_chart_context(data: dict, parsed: dict, *, pipeline_id: str = "v1
     market_context = build_market_chart_context(data, price_range="1m" if pipeline_id == "v4" else "3m")
     pe_river_source = safe_text(pe_river.get("source", "")).strip()
     pe_river_title = (
-        "P/E 河流圖（EPS × 預設本益比通道）"
-        if "default" in pe_river_source.lower()
+        "P/E 河流圖（EPS × 情境假設本益比）"
+        if pe_river.get("valuation_basis") == "scenario_assumption" or "default" in pe_river_source.lower()
         else "P/E 河流圖（EPS × 歷史本益比通道）"
+        if pe_river.get("historical_quantiles_available") or pe_river_source == "FinMind 5-year PER quantiles"
+        else "P/E 河流圖（估值依據未確認）"
     )
 
     chart_data = {

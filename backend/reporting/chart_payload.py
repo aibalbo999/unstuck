@@ -63,6 +63,8 @@ def chart_pe_river(value) -> dict:
     if source:
         payload["source"] = source
 
+    payload["valuation_basis"] = _chart_text(value.get("valuation_basis", ""))
+    payload["historical_quantiles_available"] = value.get("historical_quantiles_available") if isinstance(value.get("historical_quantiles_available"), bool) else None
     payload["years"] = chart_text_series(value.get("years", []))
     bands = {}
     raw_bands = safe_mapping_dict(value.get("bands", {})) or {}

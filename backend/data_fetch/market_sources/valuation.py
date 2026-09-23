@@ -21,15 +21,20 @@ def build_pe_river_chart_data(ticker: str, years: list[str], net_income_history:
 
     multiples = [10, 12, 15, 18]
     source = "default multiples"
+    sample_count = 0
+    fallback_reason = "historical_provider_unavailable"
     if DataLoader is not None and is_taiwan_ticker(ticker):
         start_date = (datetime.now() - timedelta(days=365 * 5 + 30)).strftime("%Y-%m-%d")
         try:
             df = DataLoader().taiwan_stock_per_pbr(stock_id=_stock_id_from_ticker(ticker), start_date=start_date)
             per_values = [float(v) for v in df.get("PER", []) if isinstance(v, (int, float)) and 0 < float(v) < 100]
+            sample_count = len(per_values)
+            fallback_reason = "insufficient_historical_samples"
             if len(per_values) >= 20:
                 series = pd.Series(per_values)
                 multiples = sorted({round(float(series.quantile(q)), 1) for q in [0.25, 0.5, 0.75, 0.9]})
                 source = "FinMind 5-year PER quantiles"
+                fallback_reason = None
         except Exception:
             pass
 
@@ -43,4 +48,9 @@ def build_pe_river_chart_data(ticker: str, years: list[str], net_income_history:
         "multiples": multiples,
         "bands": bands,
         "source": source,
+        "valuation_basis": "historical_quantiles" if fallback_reason is None else "scenario_assumption",
+        "historical_quantiles_available": fallback_reason is None,
+        "historical_sample_count": sample_count,
+        "fallback_reason": fallback_reason,
+        "coverage_notes": [] if fallback_reason is None else ["預設本益比僅為情境假設，非歷史分位數或獨立市場證據。"],
     }

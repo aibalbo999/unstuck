@@ -29,6 +29,7 @@ def market_calendar(ticker: str, current: datetime | None = None) -> dict:
     market = "tw" if is_taiwan_ticker(ticker) else "us"
     calendar = load_market_calendar(market, now.year)
     return {
+        **{key: calendar.get(key) for key in ('source', 'coverage_status', 'valid_year', 'calendar_version')},
         "market": market,
         "timezone": calendar["timezone"],
         "open": _parse_hhmm(calendar["open"]),
@@ -45,6 +46,11 @@ def is_market_holiday(ticker: str, current: datetime | None = None) -> bool:
     now = current or market_now(ticker)
     calendar = market_calendar(ticker, current=now)
     return now.date() in calendar["holidays"]
+
+
+def calendar_coverage(ticker: str) -> dict:
+    calendar = market_calendar(ticker)
+    return {key: calendar.get(key) for key in ('source', 'coverage_status', 'valid_year', 'calendar_version')}
 
 
 def market_session_window(ticker: str, current: datetime | None = None) -> tuple[datetime, datetime] | None:

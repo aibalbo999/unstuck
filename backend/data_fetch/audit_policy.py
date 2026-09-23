@@ -11,14 +11,9 @@ from data_trust import (
     finalize_data_trust, source_record_count,
 )
 from report_freshness_summary import safe_bool
+from .audit_capabilities import capability_audit, source_freshness_stale as _source_freshness_stale
 
 from .constants import CORE_CACHE_SOURCES, SOURCE_FRESHNESS_SOURCES
-
-
-def _source_freshness_stale(data: dict, source: str) -> bool:
-    freshness = data.get("source_freshness", {}) if isinstance(data.get("source_freshness"), dict) else {}
-    entry = freshness.get(source, {}) if isinstance(freshness.get(source), dict) else {}
-    return safe_bool(entry.get("stale"))
 
 
 def _append_source_fetch_audit(
@@ -27,6 +22,8 @@ def _append_source_fetch_audit(
     record_count: Optional[int] = None, cache_hit: bool = False, stale: Optional[bool] = None,
     error_kind: str = "", message: str = "",
 ) -> dict:
+    provider, status, stale, record_count, error_kind, message = capability_audit(
+        data, source, provider, status, stale, record_count, error_kind, message)
     append_source_audit(
         data,
         build_source_audit_entry(

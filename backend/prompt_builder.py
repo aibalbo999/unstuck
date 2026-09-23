@@ -143,6 +143,7 @@ def format_data_for_prompt(data: dict, *, compact: bool = False, dense: bool = F
         },
         "market_catalysts": {
             "lookback_days": CATALYST_LOOKBACK_DAYS,
+            "selection_summary": dict.get(data, "news_selection", {}),
             "items": _compact_list(dict.get(data, "recent_catalysts", []), 3) if compact else _safe_iterable_prefix(dict.get(data, "recent_catalysts", [])),
         },
         "global_market_context": prompt_global_market_context(data, compact=compact),

@@ -8,9 +8,7 @@ import asyncio
 import time as time_module
 import warnings
 from cache_store import get_cache_json, set_cache_json
-from .market_sources.common import (
-    safe_get,
-)
+from .market_sources.common import safe_get
 from .market_sources.http_enrichment import (
     fetch_fmp_quote_fallback,
     fetch_recent_catalysts,
@@ -163,7 +161,9 @@ def fetch_stock_data(ticker: str, skip_optional_http: bool = False, market_data_
         data_source_notes = []
         
         # === 歷史財務報表（5年）/ 現金流 / 資產負債 / FinMind 備援 ===
-        histories = extract_financial_histories(stock, ticker, data_source_notes, DataLoader)
+        fund = str(info.get("quoteType") or "").upper() in {"ETF", "MUTUALFUND"}
+        histories = extract_financial_histories(stock, ticker, data_source_notes, DataLoader,
+                                               **({"quote_type": info["quoteType"]} if fund else {}))
         years = histories["years"]
         revenue_history = histories["revenue_history"]
         net_income_history = histories["net_income_history"]
@@ -215,7 +215,7 @@ def fetch_stock_data(ticker: str, skip_optional_http: bool = False, market_data_
         event_calendar = extract_event_calendar(stock, info)
             
         # === FinMind 補充台股每月營收 ===
-        recent_monthly_revenue, monthly_revenue_audit = fetch_monthly_revenue_records(ticker, DataLoader)
+        recent_monthly_revenue, monthly_revenue_audit = ([], None) if fund else fetch_monthly_revenue_records(ticker, DataLoader)
 
         # === 即時/質性資料擴充 ===
         enrichment_bundle = fetch_sync_enrichment_bundle(

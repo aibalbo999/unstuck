@@ -2,9 +2,7 @@
 
 from __future__ import annotations
 
-from config import SEARCH_CATALYST_MAX_RESULTS
-
-from .market_sources.common import _dedupe_records, _run_named_fetches
+from .market_sources.common import _run_named_fetches
 from .market_sources.http_enrichment import (
     fetch_fmp_news_catalysts,
     fetch_yfinance_news_catalysts,
@@ -87,7 +85,7 @@ def fetch_sync_enrichment_bundle(
             ),
         })
 
-        if FMP_API_KEY:
+        if FMP_API_KEY and not ticker.upper().endswith((".TW", ".TWO")):
             enrichment_fetches["recent_catalysts_fmp"] = (
                 fetch_fmp_news_catalysts,
                 (ticker,),
@@ -97,6 +95,10 @@ def fetch_sync_enrichment_bundle(
                 "FMP news",
             )
 
+    from source_applicability import source_is_applicable
+    identity_data = {"ticker": ticker, "company_identity": company_identity}
+    enrichment_fetches = {name: spec for name, spec in enrichment_fetches.items()
+                          if source_is_applicable(spec[4], identity_data)}
     enrichment_result = _run_named_fetches(
         enrichment_fetches,
         max_workers=6,
@@ -112,10 +114,7 @@ def fetch_sync_enrichment_bundle(
         recent_catalyst_records.extend(enrichment.get(key, []) or [])
 
     return {
-        "recent_catalysts": _dedupe_records(
-            recent_catalyst_records,
-            limit=SEARCH_CATALYST_MAX_RESULTS,
-        )[:SEARCH_CATALYST_MAX_RESULTS],
+        "recent_catalysts": recent_catalyst_records,
         "institutional_trading": enrichment.get("institutional_trading", {}),
         "dynamic_peer_metrics": enrichment.get("dynamic_peer_metrics", []),
         "peer_discovery_results": enrichment.get("peer_discovery_results", []),

@@ -3,13 +3,14 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from email.utils import parsedate_to_datetime
 import re
 from urllib.parse import urlparse
 
 from config import SEARCH_MIN_UNIQUE_SOURCES, SEARCH_PROVIDER_EXPANSION_MIN_RESULTS
 from external_search_payloads import dedupe_results
 from external_search_types import SearchResult
+from news_freshness_policy import news_cutoff, publisher_identity
+from news_record_utils import canonical_link, parse_news_datetime
 
 
 MIN_UNIQUE_SOURCES_BEFORE_STOP = SEARCH_MIN_UNIQUE_SOURCES
@@ -45,7 +46,11 @@ def search_quality_satisfied(
     max_results: int,
     query: str = "",
     lookback_days: int = 30,
+    require_recent: bool = False,
+    cutoff=None,
 ) -> bool:
+    if require_recent:
+        records = _recent_results(records, lookback_days=lookback_days, cutoff=cutoff)
     target_results = max(1, int(max_results))
     if len(records) < target_results:
         return False
@@ -54,7 +59,7 @@ def search_quality_satisfied(
     source_count = len({result_source_key(record) for record in records if result_source_key(record)})
     if source_count < required_unique_sources(target_results):
         return False
-    quality_count = sum(1 for record in records if is_quality_result(record, query, lookback_days=lookback_days))
+    quality_count = sum(1 for record in records if is_quality_result(record, query, lookback_days=lookback_days, cutoff=cutoff))
     return quality_count >= required_quality_results(target_results)
 
 
@@ -64,7 +69,13 @@ def select_quality_results(
     limit: int,
     query: str = "",
     lookback_days: int = 30,
+    require_recent: bool = False,
+    cutoff=None,
 ) -> list[SearchResult]:
+    if int(limit) <= 0:
+        return []
+    if require_recent:
+        records = _recent_results(records, lookback_days=lookback_days, cutoff=cutoff)
     deduped = dedupe_results(records, limit=max(len(records), int(limit)))
     if len(deduped) <= 1:
         return deduped[:limit]
@@ -72,7 +83,7 @@ def select_quality_results(
     ranked = sorted(
         enumerate(deduped),
         key=lambda item: (
-            -result_quality_score(item[1], query, lookback_days=lookback_days),
+            -result_quality_score(item[1], query, lookback_days=lookback_days, cutoff=cutoff),
             item[0],
         ),
     )
@@ -101,12 +112,20 @@ def select_quality_results(
     return selected
 
 
+def _recent_results(records: list[SearchResult], *, lookback_days: int, cutoff=None) -> list[SearchResult]:
+    from datetime import timedelta
+
+    reference = news_cutoff(cutoff)
+    lower = reference - timedelta(days=max(1, int(lookback_days)))
+    return [record for record in records
+            if (published := parse_result_date(record.published_at)) is not None and lower <= published <= reference]
+
+
 def result_source_key(record: SearchResult) -> str:
-    try:
-        host = urlparse(str(record.link or "")).netloc.lower().replace("www.", "")
-    except Exception:
-        host = ""
-    return host or str(record.source or record.provider or "").strip().lower()
+    host = (urlparse(canonical_link(record.link)).hostname or "").lower().removeprefix("www.")
+    if host and host not in {"news.google.com", "google.com", "search.yahoo.com"}:
+        return host
+    return publisher_identity({"link": record.link, "source": record.source})[1]
 
 
 def provider_request_size(remaining: int, *, max_results: int) -> int:
@@ -133,11 +152,11 @@ def required_quality_results(max_results: int) -> int:
     return min(target_results, max(3, target_results - 2))
 
 
-def is_quality_result(record: SearchResult, query: str, *, lookback_days: int) -> bool:
-    return result_quality_score(record, query, lookback_days=lookback_days) >= MIN_SEARCH_QUALITY_SCORE
+def is_quality_result(record: SearchResult, query: str, *, lookback_days: int, cutoff=None) -> bool:
+    return result_quality_score(record, query, lookback_days=lookback_days, cutoff=cutoff) >= MIN_SEARCH_QUALITY_SCORE
 
 
-def result_quality_score(record: SearchResult, query: str, *, lookback_days: int) -> int:
+def result_quality_score(record: SearchResult, query: str, *, lookback_days: int, cutoff=None) -> int:
     score = 0
     text = normalise_search_text(" ".join((record.title, record.snippet, record.source, record.link)))
     terms = query_terms(query)
@@ -154,7 +173,7 @@ def result_quality_score(record: SearchResult, query: str, *, lookback_days: int
 
     parsed_date = parse_result_date(record.published_at)
     if parsed_date is not None:
-        now = datetime.now(timezone.utc)
+        now = news_cutoff(cutoff)
         age_days = max(0, int((now - parsed_date).total_seconds() // 86400))
         if age_days <= max(1, int(lookback_days)) + 1:
             score += 1
@@ -178,40 +197,4 @@ def normalise_search_text(value: str) -> str:
 
 
 def parse_result_date(value: str) -> datetime | None:
-    raw = str(value or "").strip()
-    if not raw:
-        return None
-    parsed = _parse_rfc_datetime(raw) or _parse_known_datetime(raw) or _parse_iso_datetime(raw)
-    if parsed is None:
-        return None
-    if parsed.tzinfo is None:
-        parsed = parsed.replace(tzinfo=timezone.utc)
-    return parsed.astimezone(timezone.utc)
-
-
-def _parse_rfc_datetime(raw: str) -> datetime | None:
-    try:
-        return parsedate_to_datetime(raw)
-    except (TypeError, ValueError):
-        return None
-
-
-def _parse_known_datetime(raw: str) -> datetime | None:
-    for fmt, length in (
-        ("%Y%m%dT%H%M%SZ", 16),
-        ("%Y%m%dT%H%M%S", 15),
-        ("%Y-%m-%d", 10),
-        ("%Y/%m/%d", 10),
-    ):
-        try:
-            return datetime.strptime(raw[:length], fmt)
-        except ValueError:
-            continue
-    return None
-
-
-def _parse_iso_datetime(raw: str) -> datetime | None:
-    try:
-        return datetime.fromisoformat(raw.replace("Z", "+00:00"))
-    except ValueError:
-        return None
+    return parse_news_datetime(value)

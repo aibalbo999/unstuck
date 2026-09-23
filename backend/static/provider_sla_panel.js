@@ -15,6 +15,7 @@
                 <strong>${escapeHtml(provider.provider)}</strong>
                 <em>${escapeHtml(formatSuccessRate(provider.nonempty_rate))} · ${escapeHtml(providerStatusLabel(provider.last_kind))}</em>
                 <span class="provider-sla-provider-breakdown">${escapeHtml(breakdownText(provider))}</span>
+                <span class="provider-sla-provider-breakdown">已辨識 HTTP 請求 ${count(provider, 'http_attempt_count')} 次${provider.last_details?.error_kind ? ` · ${escapeHtml(provider.last_details.error_kind)}` : ''}${provider.last_details?.retry_at ? ` · 可重試時間 ${escapeHtml(new Date(provider.last_details.retry_at * 1000).toLocaleString('zh-TW', {timeZone: 'Asia/Taipei', hour12: false}))}` : ''}</span>
             </div>`).join('')}
         </details>`;
     }
@@ -34,7 +35,7 @@
         const rows = mergeExpectedContextRows(groupedProviderRows(acquisition.sources));
         const updated = new Date(acquisition.generated_at * 1000).toLocaleString('zh-TW', {hour12: false, timeZone: 'Asia/Taipei'});
         summaryEl.textContent = `${summaryText(rows, providerSlaWindowLabel(selectedWindow))} · 更新 ${updated}（台灣時間）`;
-        listEl.innerHTML = `<p class="provider-sla-explanation">取得資料率＝成功且有資料的供應商觀測／抓取觀測。快取及彙總結果不列入分子或分母；降級資料列入分母。觀測次數不等於 API 請求數，資料筆數不代表內容已驗證。</p>` +
+        listEl.innerHTML = `<p class="provider-sla-explanation">取得資料率＝成功且有資料的供應商觀測／抓取觀測。快取、冷卻略過及彙總結果不列入分子或分母；降級資料列入分母。觀測次數不等於 API 請求數，HTTP 僅計明確記錄的請求，舊紀錄不推算。資料筆數不代表內容已驗證。</p>` +
             visibleProviderRows(rows).map(row => `<section class="provider-sla-chip provider-sla-insight is-${row.level}" data-source="${escapeHtml(row.source)}">
                 <div class="provider-sla-insight-top"><strong>${escapeHtml(readableSource(row.source))}</strong><em>${escapeHtml(rowStateLabel(row))}</em></div>
                 <span class="provider-sla-rate">${escapeHtml(formatSuccessRate(row.nonempty_rate))}${count(row, 'fetch_attempts') ? ' 取得資料率' : ''}</span>

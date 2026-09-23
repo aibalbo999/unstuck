@@ -7,6 +7,7 @@ import asyncio
 from cache_store import get_cache_json
 from data_trust import AUDIT_STATUS_SUCCESS, append_source_audit, finalize_data_trust, source_record_count
 from report_freshness_summary import safe_bool
+from source_applicability import source_is_applicable
 from source_audit import audited_fetch_async
 
 from .audit_helpers import _mark_sources_fetched
@@ -230,6 +231,8 @@ async def _run_missing_core_provider_plan(request: FetchRequest, registry: Provi
     )
     providers = []
     for source in core_sources:
+        if not source_is_applicable(source, data, request.ticker):
+            continue
         if source_record_count(source, data) > 0:
             continue
         providers.extend(

@@ -140,6 +140,8 @@ def build_company_identity(ticker: str, info: dict, company_name: str) -> dict:
 
     return {
         "ticker": ticker,
+        "instrument_type": str(info.get('quoteType') or 'unknown').upper(),
+        "instrument_type_source": 'yfinance quoteType' if info.get('quoteType') else None,
         "stock_id": stock_id,
         "official_name": official_name,
         "legal_name": legal_name,

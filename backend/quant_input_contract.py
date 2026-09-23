@@ -85,7 +85,8 @@ def wacc_policy(data):
     macro = safe_mapping_dict(data.get("macro_indicators")) or {}
     indicators = safe_mapping_dict(macro.get("indicators")) or {}
     rate = safe_mapping_dict(indicators.get("us_10y_yield")) or {}
-    risk_free = finite_number(rate.get("value"))
+    from report_freshness_summary import safe_bool
+    risk_free = None if safe_bool(rate.get("stale")) or rate.get("status") in {"stale", "unavailable"} else finite_number(rate.get("value"))
     tax = finite_number(data.get("tax_rate"))
     tax_pct = tax * 100 if tax is not None and 0 <= tax <= 1 else WACC_TAX_RATE_DEFAULT_PCT
     policy = {

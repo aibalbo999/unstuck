@@ -7,6 +7,7 @@ from pathlib import Path
 from api_usage_store import record_api_usage
 from llm_daily_usage import LOCAL_BLOCK_KINDS
 from provider_correlation import correlation_metadata
+from provider_observation_details import observation_details
 
 
 def record_runtime_event_usage(
@@ -113,8 +114,8 @@ def record_provider_audit_usage(
         status=status,
         units=units,
         metadata={
-            **correlation_metadata(entry),
-            "units_basis": "source_audit_entry_not_http_request_count",
+            **observation_details(entry),
+            "units_basis": "http_request" if entry.get("http_request_sent") is True else "source_audit_entry_not_http_request_count",
             "duration_ms": entry.get("duration_ms"),
             "record_count": entry.get("record_count"),
             "message": entry.get("message"),
@@ -125,6 +126,8 @@ def record_provider_audit_usage(
 
 
 def _provider_usage_units(entry: dict, status: str) -> int:
+    if entry.get("http_request_sent") is False or entry.get("event_kind") == "local_block":
+        return 0
     if status == "skipped_fresh_cache":
         return 0
     message = str(entry.get("message") or "").lower()

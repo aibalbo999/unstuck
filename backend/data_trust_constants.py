@@ -10,6 +10,9 @@ SUPPORTED_DATA_SNAPSHOT_SCHEMA_VERSIONS = {1, 2, DATA_SNAPSHOT_SCHEMA_VERSION}
 SNAPSHOT_RERUN_ANALYSIS_MAX_CHARS = 12000
 SNAPSHOT_TRIMMABLE_LIST_FIELDS = (
     "recent_catalysts",
+    "historical_catalysts",
+    "unverified_catalysts",
+    "additional_recent_catalysts",
     "earnings_call",
     "global_market_context.items",
     "international_news_context.topics",
@@ -19,6 +22,11 @@ SNAPSHOT_TRIMMABLE_LIST_FIELDS = (
     "dynamic_peer_metrics",
 )
 SNAPSHOT_CORE_DATA_KEYS = {
+    "news_selection",
+    "recent_catalysts",
+    "quote_type",
+    "instrument_type_source",
+    "source_applicability",
     "data_schema_version",
     "ticker",
     "company_name",
@@ -86,7 +94,9 @@ AUDIT_STATUS_SKIPPED_FRESH_CACHE = "skipped_fresh_cache"
 AUDIT_STATUS_UNAVAILABLE = "unavailable"
 AUDIT_STATUS_NOT_CONFIGURED = "not_configured"
 AUDIT_STATUS_DEGRADED_ENRICHMENT = "degraded_enrichment"
+AUDIT_STATUS_NOT_APPLICABLE = "not_applicable"
 AUDIT_STATUSES = {
+    AUDIT_STATUS_NOT_APPLICABLE,
     AUDIT_STATUS_SUCCESS,
     AUDIT_STATUS_ERROR,
     AUDIT_STATUS_SKIPPED_FRESH_CACHE,
@@ -163,6 +173,7 @@ SOURCE_LABELS = {
 }
 
 AUDIT_STATUS_LABELS = {
+    AUDIT_STATUS_NOT_APPLICABLE: "不適用",
     AUDIT_STATUS_SUCCESS: "成功",
     AUDIT_STATUS_ERROR: "異常",
     AUDIT_STATUS_SKIPPED_FRESH_CACHE: "新鮮快取",

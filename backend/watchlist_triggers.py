@@ -105,6 +105,9 @@ def _vix_above(trigger: dict, data: dict) -> tuple[bool, str, dict]:
     macro = data.get("macro_indicators") if isinstance(data.get("macro_indicators"), dict) else {}
     indicators = macro.get("indicators") if isinstance(macro.get("indicators"), dict) else {}
     vix = indicators.get("vix") if isinstance(indicators.get("vix"), dict) else {}
+    from report_freshness_summary import safe_bool
+    if safe_bool(vix.get("stale")) or vix.get("status") in {"stale", "unavailable"}:
+        return False, "VIX 過期或無法確認最新值，暫不判定觸發", {"vix": None, "threshold": threshold, "source_status": "stale"}
     value = _safe_float(vix.get("value"))
     matched = value is not None and value > threshold
     label = f"VIX {value:.2f}" if value is not None else "VIX 無資料"

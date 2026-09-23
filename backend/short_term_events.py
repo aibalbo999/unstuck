@@ -69,8 +69,12 @@ def future_event_context(calendar, *, as_of: date, horizon_days=14, limit=12) ->
         bool(calendar.get("source")) and
         source_date is not None and
         isinstance(calendar.get("events"), (list, tuple)) and not raw_events)
-    known_empty = (not events and not undated and not source_invalid and not invalid and
-                   (sourced_dated > 0 or explicit_empty_success))
+    coverage_start = parse_market_date(calendar.get("coverage_start"))
+    coverage_end = parse_market_date(calendar.get("coverage_end"))
+    covers_window = (calendar.get("coverage_complete") is True and coverage_start is not None
+                     and coverage_end is not None and coverage_start <= as_of and coverage_end >= end)
+    known_empty = (not events and not undated and not source_invalid and not invalid and covers_window
+                   and calendar.get("status") == "success" and (sourced_dated > 0 or explicit_empty_success))
     availability = ("partial" if source_invalid and events else "unavailable" if source_invalid
                     else "available" if events else "date_unknown" if undated
                     else "known_empty" if known_empty else "unavailable")
@@ -82,6 +86,7 @@ def future_event_context(calendar, *, as_of: date, horizon_days=14, limit=12) ->
     return {
         "as_of": as_of.isoformat(), "window_end": end.isoformat(), "horizon_calendar_days": horizon_days,
         "source_as_of": str(calendar.get("as_of_date") or calendar.get("as_of") or "")[:40],
+        "coverage_complete": covers_window,
         "availability": availability,
         "reason_codes": reasons,
         "empty_scope": "provided_calendar_window" if known_empty else None,

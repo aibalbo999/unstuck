@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import time
 from typing import Any
+
+from search_provider_runtime import SourceResponseError, error_details
 from external_http_client import sync_get
 from .provider_base import DataProvider
 from .types import FetchRequest, ProviderResult
@@ -27,9 +30,10 @@ class SecEdgarProvider(DataProvider):
 
     def __init__(self):
         self._ticker_to_cik = None
+        self._mapping_fetched_at = 0.0
 
     def _load_tickers(self) -> dict[str, str]:
-        if self._ticker_to_cik is not None:
+        if self._ticker_to_cik is not None and time.time() - self._mapping_fetched_at < 86400:
             return self._ticker_to_cik
         
         try:
@@ -39,20 +43,42 @@ class SecEdgarProvider(DataProvider):
                 timeout=10,
                 provider="SEC EDGAR",
             )
-            data = r.json()
+            try:
+                data = r.json()
+            except ValueError as exc:
+                raise SourceResponseError("mapping_parse_error", status_code=getattr(r, "status_code", None)) from exc
             # Format: { "0": { "cik_str": 320193, "ticker": "AAPL", "title": "Apple Inc." }, ... }
+            if not isinstance(data, dict) or not data:
+                raise SourceResponseError("mapping_parse_error", status_code=getattr(r, "status_code", None))
             mapping = {}
             for item in data.values():
-                mapping[item["ticker"].upper()] = str(item["cik_str"]).zfill(10)
+                if not isinstance(item, dict):
+                    raise SourceResponseError("mapping_parse_error", status_code=getattr(r, "status_code", None))
+                ticker, cik = item.get("ticker"), str(item.get("cik_str") or "")
+                if not isinstance(ticker, str) or not ticker.strip() or not cik.isascii() or not cik.isdigit() or not 0 < int(cik) < 10 ** 10:
+                    raise SourceResponseError("mapping_parse_error", status_code=getattr(r, "status_code", None))
+                mapping[ticker.strip().upper()] = cik.zfill(10)
             self._ticker_to_cik = mapping
+            self._mapping_fetched_at = time.time()
             return mapping
-        except Exception:
-            return {}
+        except SourceResponseError:
+            raise
+        except Exception as exc:
+            details = error_details(exc)
+            raise SourceResponseError("mapping_" + details["error_kind"], status_code=details["http_status"]) from exc
 
     def fetch(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
         from data_trust import AUDIT_STATUS_DEGRADED_ENRICHMENT, AUDIT_STATUS_SUCCESS, AUDIT_STATUS_UNAVAILABLE
         ticker = str(request.ticker).upper().replace(".US", "")
-        mapping = self._load_tickers()
+        try:
+            mapping = self._load_tickers()
+        except SourceResponseError as exc:
+            return ProviderResult(
+                source=self.source, provider=self.name, status=AUDIT_STATUS_UNAVAILABLE, value=None,
+                audit={"source": self.source, "provider": self.name, "status": AUDIT_STATUS_UNAVAILABLE,
+                       "record_count": 0, "mapping_verified": False, **exc.diagnostic,
+                       "message": "SEC ticker mapping unavailable; filing coverage remains unknown. " + str(exc)},
+            )
         cik = mapping.get(ticker)
         
         if not cik:
@@ -61,7 +87,7 @@ class SecEdgarProvider(DataProvider):
                 provider=self.name,
                 status=AUDIT_STATUS_DEGRADED_ENRICHMENT,
                 value=None,
-                audit={"source": self.source, "provider": self.name, "message": f"SEC EDGAR mapping has no CIK for ticker {ticker}; treated as no applicable filings.", "status": AUDIT_STATUS_DEGRADED_ENRICHMENT, "record_count": 0}
+                audit={"source": self.source, "provider": self.name, "message": f"Verified SEC EDGAR ticker mapping has no CIK for {ticker}; filing coverage is unknown.", "status": AUDIT_STATUS_DEGRADED_ENRICHMENT, "record_count": 0, "mapping_verified": True, "error_kind": "cik_not_found"}
             )
             
         try:

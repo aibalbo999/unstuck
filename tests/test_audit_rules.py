@@ -1559,6 +1559,13 @@ class AuditRuleTests(unittest.TestCase):
         self.assertEqual(reflection, "fallback reflection")
 
     def test_external_http_clients_parse_sync_and_async_payloads(self):
+        from datetime import datetime, timezone
+
+        class SearchCutoff(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                return datetime(2026, 6, 5, tzinfo=timezone.utc)
+
         old_fmp_key = edc.FMP_API_KEY
         edc.FMP_API_KEY = "test-fmp"
 
@@ -1589,7 +1596,8 @@ class AuditRuleTests(unittest.TestCase):
 
             async def run_async_checks():
                 with patch.object(edc, "_async_json_get", side_effect=fake_async_json_get), \
-                        patch.object(edc._search, "WEB_SEARCH_PROVIDER_ORDER", "gdelt"):
+                        patch.object(edc._search, "WEB_SEARCH_PROVIDER_ORDER", "gdelt"), \
+                        patch.object(edc._search, "datetime", SearchCutoff):
                     quote_async = await edc.fetch_fmp_quote_fallback_async("2330.TW")
                     fmp_news_async = await edc.fetch_fmp_news_catalysts_async("2330.TW")
                     bundle = await edc.fetch_optional_http_data_bundle(
@@ -1719,6 +1727,8 @@ class AuditRuleTests(unittest.TestCase):
         self.assertEqual(bundle["_warnings"][0]["error_kind"], "RuntimeError")
 
     def test_async_stock_fetch_merges_optional_http_bundle(self):
+        from datetime import datetime, timezone
+        publication_date = datetime.now(timezone.utc).isoformat()
         def fake_fetch_stock_data(ticker, skip_optional_http=False):
             self.assertEqual(ticker, "2330")
             self.assertTrue(skip_optional_http)
@@ -1731,7 +1741,7 @@ class AuditRuleTests(unittest.TestCase):
                 },
                 "sector": "Technology",
                 "industry": "Semiconductor",
-                "recent_catalysts": [{"title": "Yahoo headline", "source_type": "yfinance_news"}],
+                "recent_catalysts": [{"date": publication_date, "title": "Yahoo headline", "source_type": "yfinance_news"}],
                 "peer_discovery_results": [],
                 "data_source_notes": [],
             }
@@ -1740,7 +1750,7 @@ class AuditRuleTests(unittest.TestCase):
 
         async def fake_search_catalysts(ticker, company_name, identity):
             calls["search"] = (ticker, company_name, identity)
-            return [{"title": "Search headline", "source_type": "gdelt_search"}]
+            return [{"date": publication_date, "title": "Search headline", "source_type": "gdelt_search"}]
 
         async def fake_peer_discovery(ticker, company_name, sector, industry):
             calls["peer"] = (ticker, company_name, sector, industry)
@@ -1765,13 +1775,13 @@ class AuditRuleTests(unittest.TestCase):
         titles = [item["title"] for item in data["recent_catalysts"]]
         self.assertIn("Yahoo headline", titles)
         self.assertIn("Search headline", titles)
-        self.assertIn("FMP headline", titles)
+        self.assertNotIn("FMP headline", titles)
         self.assertEqual(data["peer_discovery_results"][0]["source_type"], "alternative_peer_discovery")
         self.assertEqual(calls["search"][0], "2330.TW")
         self.assertEqual(calls["search"][1], "台積電 / Taiwan Semiconductor")
         self.assertEqual(calls["search"][2]["official_name"], "台積電")
         self.assertEqual(calls["peer"], ("2330.TW", "台積電 / Taiwan Semiconductor", "Technology", "Semiconductor"))
-        self.assertEqual(calls["fmp"], ["2330", "2330.TW"])
+        self.assertNotIn("fmp", calls)  # FMP is outside TW market coverage.
         self.assertTrue(cache_mock.called)
 
     def test_cyclical_low_pe_redline(self):
@@ -1823,7 +1833,7 @@ class AuditRuleTests(unittest.TestCase):
         self.assertIn("長線基本面投資人", html)
         self.assertIn("peRiverChart", html)
         self.assertIn("P/E 河流圖", html)
-        self.assertIn("P/E 河流圖（EPS × 歷史本益比通道）", html)
+        self.assertIn("P/E 河流圖（估值依據未確認）", html)
 
     def test_chart_money_series_are_converted_from_billion_to_yi_twd(self):
         context = complete_context()
@@ -1851,7 +1861,7 @@ class AuditRuleTests(unittest.TestCase):
         self.assertEqual(chart_data["netIncome"], [13.1, 14.9])
         self.assertEqual(chart_data["fcf"], [7.0, 14.3])
         self.assertIn("年度營收與淨利（億元台幣）", html)
-        self.assertIn("P/E 河流圖（EPS × 預設本益比通道）", html)
+        self.assertIn("P/E 河流圖（EPS × 情境假設本益比）", html)
 
     def test_tear_sheet_prompt_leak_falls_back_to_deterministic_summary(self):
         context = complete_context()

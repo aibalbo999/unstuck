@@ -11,6 +11,10 @@ from data_trust_snapshot_sanitizer import sanitize_for_snapshot
 
 
 def freeze_analysis_inputs(data: dict[str, Any], *, cutoff: str | None = None) -> dict[str, str]:
+    from news_freshness_policy import apply_news_freshness
+
+    cutoff = cutoff or datetime.now(timezone.utc).isoformat()
+    apply_news_freshness(data, cutoff=cutoff)
     payload = {
         key: value
         for key, value in data.items()

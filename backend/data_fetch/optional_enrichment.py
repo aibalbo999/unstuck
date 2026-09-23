@@ -9,6 +9,8 @@ from external_search_providers import fetch_alternative_peer_discovery_async, fe
 from .market_sources.http_enrichment import fetch_fmp_news_catalysts_async
 from report_freshness_summary import safe_bool
 from source_audit import audited_fetch_async
+from source_applicability import source_is_applicable
+from data_freshness_market import is_taiwan_ticker
 
 from .audit_helpers import _append_skipped_fresh_cache_audit, _source_is_stale
 from .enrichment_merge import _merge_optional_http_bundle
@@ -28,7 +30,8 @@ async def enrich_optional_http_async(ticker: str, data: dict) -> dict:
 
     cache_hit = safe_bool(data.get("_cache_hit"))
     refresh_catalysts = (not cache_hit) or _source_is_stale(data, "recent_catalysts", resolved_ticker)
-    refresh_peer_discovery = (not cache_hit) or _source_is_stale(data, "peer_discovery", resolved_ticker)
+    refresh_peer_discovery = source_is_applicable('peer_discovery', data, resolved_ticker) and ((not cache_hit) or _source_is_stale(data, "peer_discovery", resolved_ticker))
+    fmp_applicable = not is_taiwan_ticker(resolved_ticker)
 
     tasks = {}
     if refresh_catalysts:
@@ -41,6 +44,7 @@ async def enrich_optional_http_async(ticker: str, data: dict) -> dict:
             cache_hit=cache_hit,
             unavailable_message="Alternative Search 未回傳近期催化劑。",
         )
+    if refresh_catalysts and fmp_applicable:
         tasks["fmp_news"] = audited_fetch_async(
             "recent_catalysts",
             "FMP news",
@@ -82,7 +86,7 @@ async def enrich_optional_http_async(ticker: str, data: dict) -> dict:
         results.get("search_peer_discovery", {}).get("value", [])
         if isinstance(results.get("search_peer_discovery"), dict) else []
     )
-    if refresh_catalysts and resolved_ticker != ticker and not fmp_news_records:
+    if refresh_catalysts and fmp_applicable and resolved_ticker != ticker and not fmp_news_records:
         retry_result = await audited_fetch_async(
             "recent_catalysts",
             "FMP news retry",
@@ -112,14 +116,14 @@ async def enrich_optional_http_async(ticker: str, data: dict) -> dict:
     else:
         _append_skipped_fresh_cache_audit(data, ("peer_discovery",))
 
+    for audit_entry in async_audit_entries:
+        append_source_audit(data, audit_entry)
     data = _merge_optional_http_bundle(
         data,
         http_bundle,
         refreshed_sources=refreshed_sources,
         source_errors={},
     )
-    for audit_entry in async_audit_entries:
-        append_source_audit(data, audit_entry)
     finalize_data_trust(data)
     cache_financial_payload(data, ticker)
     return data

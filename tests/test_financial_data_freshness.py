@@ -117,7 +117,7 @@ def test_source_is_stale_requires_usable_records(monkeypatch):
     }
     usable_cached_source = {
         **empty_cached_source,
-        "recent_catalysts": [{"title": "Cached headline"}],
+        "recent_catalysts": [{"title": "Cached headline", "date": "1970-01-01T00:03:10+00:00"}],
     }
 
     assert data_freshness.source_is_stale(empty_cached_source, "recent_catalysts", "2330.TW") is True
@@ -136,7 +136,7 @@ def test_source_is_stale_normalizes_legacy_cache_hit_before_audit_projection(mon
     assert data_freshness.source_is_stale(
         {
             "ticker": "2330.TW",
-            "recent_catalysts": [{"title": "Cached headline"}],
+            "recent_catalysts": [{"title": "Cached headline", "date": "1970-01-01T00:03:10+00:00"}],
             "_cache_hit": "false",
         },
         "recent_catalysts",
@@ -244,7 +244,7 @@ def test_async_fetch_skips_fresh_optional_sources(monkeypatch):
             "company_identity": {},
             "sector": "Technology",
             "industry": "Semiconductor",
-            "recent_catalysts": [{"title": "Cached headline"}],
+            "recent_catalysts": [{"title": "Cached headline", "date": "1970-01-01T00:03:10+00:00"}],
             "peer_discovery_results": [{"title": "Cached peer"}],
             "source_freshness": source_freshness,
             "_cache_hit": True,

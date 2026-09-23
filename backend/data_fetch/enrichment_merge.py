@@ -15,6 +15,11 @@ from data_trust import (
 )
 from config import SEARCH_CATALYST_MAX_RESULTS, SEARCH_PEER_DISCOVERY_MAX_RESULTS
 from report_freshness_summary import safe_bool
+from news_freshness_policy import apply_news_freshness
+from news_record_utils import parse_news_datetime
+from source_applicability import apply_source_applicability
+from data_freshness import build_source_freshness_entry
+from provider_observation_details import observation_details
 from .market_sources.common import _dedupe_records, first_number, is_missing_value
 
 from .audit_helpers import _append_source_fetch_audit, _mark_market_data_fetched, _mark_sources_fetched
@@ -35,16 +40,13 @@ def _merge_optional_http_bundle(
     refresh_epoch = time_module.time()
     ticker = str(data.get("ticker") or "").strip().upper()
 
-    combined_catalysts = list(data.get("recent_catalysts", []) or [])
+    combined_catalysts = [item for key in ("recent_catalysts", "additional_recent_catalysts", "historical_catalysts", "unverified_catalysts")
+                          for item in (data.get(key) or [])]
     combined_catalysts.extend(http_bundle.get("free_news", []) or [])
     combined_catalysts.extend(http_bundle.get("search_catalysts", []) or [])
     combined_catalysts.extend(http_bundle.get("fmp_news", []) or [])
     combined_catalysts.extend(http_bundle.get("yahoo_news", []) or [])
-    if combined_catalysts:
-        data["recent_catalysts"] = _dedupe_recent_catalysts(
-            combined_catalysts,
-            limit=SEARCH_CATALYST_MAX_RESULTS,
-        )
+    apply_news_freshness(data, cutoff=refresh_epoch, records=combined_catalysts, limit=SEARCH_CATALYST_MAX_RESULTS)
 
     peer_discovery = []
     peer_discovery.extend(data.get("peer_discovery_results", []) or [])
@@ -152,44 +154,71 @@ def _merge_optional_http_bundle(
             )
 
     if refreshed_sources:
-        available_sources = tuple(source for source in refreshed_sources if source_record_count(source, data) > 0)
-        if available_sources:
-            _mark_sources_fetched(
-                data,
-                ticker,
-                available_sources,
-                fetched_at_epoch=refresh_epoch,
-                cache_hit=safe_bool(data.get("_cache_hit")),
-            )
+        prior_audits = {entry.get('source'): entry for entry in data.get('source_audit', []) if isinstance(entry, dict)}
         for source in refreshed_sources:
             count = source_record_count(source, data)
             error_message = str(source_errors.get(source) or "")
+            payload = http_bundle.get(source)
+            payload = payload if isinstance(payload, dict) else {}
+            upstream = prior_audits.get(source, {})
+            aliases = {'recent_catalysts': ('free_news', 'search_catalysts', 'fmp_news', 'yahoo_news'),
+                       'peer_discovery': ('search_peer_discovery',)}
+            incoming = bool(payload) or any(http_bundle.get(key) for key in aliases.get(source, ()))
+            if payload and source not in aliases and isinstance(upstream.get('record_count'), int):
+                count = max(0, upstream['record_count'])
+            coverage = payload.get('status') or upstream.get('coverage_status')
+            failed = bool(error_message) or upstream.get('status') in {'error', 'unavailable', 'not_configured'}
+            retained = count > 0 and not incoming and (failed or source in aliases)
+            stale = retained or safe_bool(payload.get('stale')) or safe_bool(upstream.get('stale'))
+            cache_hit = retained or safe_bool(upstream.get('cache_hit')) or safe_bool(payload.get('cache_hit'))
+            fetched_epoch = upstream.get('fetched_at_epoch')
+            if not fetched_epoch and upstream.get('fetched_at'):
+                stamp = parse_news_datetime(upstream['fetched_at'])
+                fetched_epoch = stamp.timestamp() if stamp else None
+            if not fetched_epoch and not cache_hit and not stale and not failed:
+                fetched_epoch = refresh_epoch
             if count > 0:
-                status = AUDIT_STATUS_SUCCESS
-                error_kind = ""
-                message = "optional 外部來源已重新抓取並合併。"
-            elif error_message:
+                degraded = stale or failed or coverage in {'partial', 'stale', 'unavailable', 'qualitative_only'} or upstream.get('status') == AUDIT_STATUS_DEGRADED_ENRICHMENT
+                status = AUDIT_STATUS_DEGRADED_ENRICHMENT if degraded else AUDIT_STATUS_SUCCESS
+                error_kind = str(upstream.get('error_kind') or '')
+                message = "optional 外部來源已合併；保留實際來源、取得時間及覆蓋狀態。"
+            elif failed:
                 status = AUDIT_STATUS_ERROR
-                error_kind = "async_fetch_error"
-                message = error_message[:240]
+                if upstream.get('status') == 'not_configured':
+                    status = 'not_configured'
+                error_kind = str(upstream.get('error_kind') or "async_fetch_error")
+                message = error_message[:240] or str(upstream.get('message') or 'optional 外部來源取得失敗。')
             else:
                 status = AUDIT_STATUS_DEGRADED_ENRICHMENT
                 error_kind = ""
                 message = "optional 外部來源本次無新增資料，已保留為可接受的補充資料空結果。"
+            if fetched_epoch and count > 0 and not retained:
+                data.setdefault('source_freshness', {})[source] = build_source_freshness_entry(
+                    source, ticker, fetched_epoch, cache_hit, now_epoch=refresh_epoch, source_data=payload)
+            if stale:
+                data.setdefault('source_freshness', {}).setdefault(source, {}).update(stale=True, is_fresh=False)
             _append_source_fetch_audit(
                 data,
                 source,
-                _optional_provider_label(source),
+                _optional_provider_label(source) if source in aliases else payload.get('actual_provider') or upstream.get('provider') or _optional_provider_label(source),
                 status,
-                fetched_at_epoch=refresh_epoch,
+                fetched_at_epoch=fetched_epoch,
                 finished_at_epoch=refresh_epoch,
                 record_count=count,
-                cache_hit=safe_bool(data.get("_cache_hit")),
-                stale=count <= 0,
+                cache_hit=cache_hit,
+                stale=stale or count <= 0,
                 error_kind=error_kind,
                 message=message,
             )
+            # This merge is a summary, never another upstream request.
+            details = observation_details({**upstream, **payload, 'coverage_status': coverage})
+            for key in ('event_kind', 'http_request_sent', 'cache_hit', 'stale', 'fetched_at_epoch'):
+                details.pop(key, None)
+            data['source_audit'][-1].update(details, event_kind='aggregate')
+            if retained or (cache_hit and not fetched_epoch):
+                data['source_audit'][-1]['fetched_at'] = data.get('source_freshness', {}).get(source, {}).get('fetched_at')
 
+    apply_source_applicability(data)
     finalize_data_trust(data)
     return data
 
@@ -221,23 +250,4 @@ def _optional_provider_label(source: str) -> str:
 
 
 def _dedupe_recent_catalysts(records: list[dict], limit: int = 5) -> list[dict]:
-    kept: list[dict] = []
-    seen_links: set[str] = set()
-    seen_titles: set[str] = set()
-    for record in records:
-        link = str(record.get("link") or "").strip().lower()
-        title = str(record.get("title") or "").strip().lower()
-        if link and link in seen_links:
-            continue
-        if title and title in seen_titles:
-            continue
-        if not link and not title:
-            continue
-        kept.append(record)
-        if link:
-            seen_links.add(link)
-        if title:
-            seen_titles.add(title)
-        if len(kept) >= limit:
-            break
-    return kept
+    return apply_news_freshness({}, records=records, limit=limit)["recent_catalysts"]

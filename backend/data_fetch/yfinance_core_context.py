@@ -28,6 +28,7 @@ _QUALITY_INPUT_KEYS = (
 
 
 _PAYLOAD_KEYS = (
+    "info",
     "ticker",
     "company_name",
     "raw_company_name",
