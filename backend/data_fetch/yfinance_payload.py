@@ -97,6 +97,8 @@ def build_legacy_payload(ctx: dict) -> dict:
         "roa": format_pct(ctx["roa"]),
         "dividend_yield": f"{float(ctx['dividend_yield']):.2f}%" if isinstance(ctx["dividend_yield"], (int, float)) else "N/A",
         "dividend_yield_raw": ctx["dividend_yield"],
+        "dividend_yield_raw_unit": "percentage_points",
+        "dividend_yield_source": "yfinance info.dividendYield",
         "dividend_rate": f"NT${ctx['dividend_rate']:.2f}" if isinstance(ctx["dividend_rate"], (int, float)) else "N/A",
         "dividend_rate_raw": ctx["dividend_rate"],
         "payout_ratio": format_pct(ctx["payout_ratio"]),

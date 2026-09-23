@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from config import WACC_COST_OF_DEBT_DEFAULT_PCT, WACC_COST_OF_EQUITY_DEFAULT_PCT, WACC_TAX_RATE_DEFAULT_PCT
+from dividend_yield_units import dividend_yield_pct
 from financial_dcf_scenarios import build_dcf_scenarios
 from financial_tool_utils import latest_numeric, pct_from_ratio, raw_twd_to_billion_twd, safe_float, safe_sequence
 from financial_valuation_tools import calculate_ddm, calculate_implied_revenue_growth
@@ -167,9 +168,9 @@ def build_financial_tool_context(data: dict) -> dict:
         }
 
     dividend_rate = safe_float(dict.get(data, "dividend_rate_raw"))
-    dividend_yield = safe_float(dict.get(data, "dividend_yield_raw"))
+    yield_pct = dividend_yield_pct(data)
     is_financial = any(keyword in f"{sector} {industry}" for keyword in ["Financial", "銀行", "金融", "保險", "金控"])
-    if dividend_rate and (is_financial or (dividend_yield is not None and dividend_yield >= 0.05)):
+    if dividend_rate and (is_financial or (yield_pct is not None and yield_pct >= 5.0)):
         ddm_scenarios = {
             "conservative": calculate_ddm(dividend_rate, cost_of_equity_pct=9.0, dividend_growth_pct=0.5),
             "base": calculate_ddm(dividend_rate, cost_of_equity_pct=8.0, dividend_growth_pct=1.5),
@@ -177,7 +178,7 @@ def build_financial_tool_context(data: dict) -> dict:
         }
         tool_context["calculations"]["ddm_scenarios_default"] = {
             "reason": "financial sector or dividend yield above 5%; use DDM/PB as primary valuation cross-check",
-            "dividend_yield_pct": round(dividend_yield * 100, 4) if dividend_yield is not None else None,
+            "dividend_yield_pct": yield_pct,
             "scenarios": ddm_scenarios,
         }
 

@@ -6,6 +6,7 @@ import math
 from datetime import datetime, timedelta, timezone
 
 from analysis_job_payloads import analysis_task_id
+from analysis_retry_progress import availability_stage_count
 from config import LLM_PROVIDER_QUOTA_AUTHORITATIVE
 
 
@@ -34,7 +35,8 @@ def prepare_analysis_retry(job_id: str, error: Exception, *, task_id: str | None
                 meta["availability_retry_policy"] = "provider_feedback"
                 meta.setdefault("analysis_base_retry_intervals", list(job.retry_intervals or [60]))
                 job.meta = meta
-                wait = max(wait, min(1800, 300 * 2 ** min(count - 1, 3)))
+                stage_count = availability_stage_count(meta, error, job_id, count)
+                wait = max(wait, min(1800, 300 * 2 ** min(stage_count - 1, 3)))
                 remaining = max(1, remaining)
                 job.retries_left = remaining
             if remaining > 0:
