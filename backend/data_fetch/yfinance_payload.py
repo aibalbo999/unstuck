@@ -176,6 +176,12 @@ def finalize_and_cache_legacy_payload(
     if not skip_optional_http:
         fetched_sources.append("peer_discovery")
     _mark_sources_fetched(data, ticker, fetched_sources, fetched_at_epoch=fetched_at_epoch, cache_hit=False)
+    from .institutional_provider import apply_institutional_freshness
+    institutional_audit = next((entry for entry in reversed(enrichment_audit)
+                                if entry.get("source") == "institutional_trading"
+                                and "fetched_at_epoch" in entry), None)
+    if institutional_audit is not None:
+        apply_institutional_freshness(data, ticker, institutional_audit)
     _append_full_fetch_audit(
         data,
         ticker,
@@ -184,6 +190,10 @@ def finalize_and_cache_legacy_payload(
         fetched_at_epoch=fetched_at_epoch,
         skip_optional_http=skip_optional_http,
     )
+    if institutional_audit is not None:
+        # Replace the generic package summary with the actual source aggregate.
+        data["source_audit"] = [entry for entry in data.get("source_audit", [])
+                                if entry.get("source") != "institutional_trading"]
     for audit_entry in enrichment_audit:
         append_source_audit(data, audit_entry)
     if fmp_quote_audit:

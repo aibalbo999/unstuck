@@ -77,7 +77,7 @@ def _repair_agent_output(agent_num: int, data: StockData, context: AnalysisConte
                 agent_num,
                 reflection_instruction=build_audit_reflection_instruction(reflection),
                 retry_instruction=build_audit_retry_instruction(agent_num, current_issues,
-                    previous_text=last_result or context.get("analyses", {}).get(agent_num, ""), data=data),
+                    previous_text=last_result or context.get("analyses", {}).get(agent_num, ""), data=data, context=context),
                 model_sequence=get_audit_rewrite_model_sequence(agent_num),
             )
             try:
@@ -189,7 +189,7 @@ async def _repair_agent_output_async(agent_num: int, data: StockData, context: A
                 agent_num,
                 reflection_instruction=build_audit_reflection_instruction(reflection),
                 retry_instruction=build_audit_retry_instruction(agent_num, current_issues,
-                    previous_text=last_result or context.get("analyses", {}).get(agent_num, ""), data=data),
+                    previous_text=last_result or context.get("analyses", {}).get(agent_num, ""), data=data, context=context),
                 model_sequence=get_audit_rewrite_model_sequence(agent_num),
             )
             try:

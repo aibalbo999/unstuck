@@ -82,17 +82,36 @@ def fetch_monthly_revenue_records(ticker: str, data_loader_cls=DataLoader) -> tu
 def fetch_institutional_trading_trend(ticker: str) -> dict:
     if DataLoader is None or not is_taiwan_ticker(ticker):
         return {}
+    import math
+    import time
+    from zoneinfo import ZoneInfo
+    from source_observation_freshness import parse_observation_date
+
     stock_id = _stock_id_from_ticker(ticker)
-    start_date = (datetime.now() - timedelta(days=max(INSTITUTIONAL_LOOKBACK_DAYS + 15, 45))).strftime("%Y-%m-%d")
-    try:
-        df = DataLoader().taiwan_stock_institutional_investors(stock_id=stock_id, start_date=start_date)
-    except Exception:
-        return {}
+    today = datetime.fromtimestamp(time.time(), ZoneInfo("Asia/Taipei")).date()
+    start_day = today - timedelta(days=max(INSTITUTIONAL_LOOKBACK_DAYS + 15, 45))
+    start_date = start_day.isoformat()
+    # The typed acquisition boundary records raised failures separately from empty data.
+    df = DataLoader().taiwan_stock_institutional_investors(stock_id=stock_id, start_date=start_date)
     if df is None or df.empty:
         return {}
 
     df = df.copy()
-    df["net_buy"] = df["buy"].astype(float) - df["sell"].astype(float)
+    if not {"stock_id", "date", "name", "buy", "sell"}.issubset(df.columns):
+        raise ValueError("Institutional response lacks required identity or observation fields")
+    original_count = len(df)
+    dates_parsed = df["date"].map(lambda value: parse_observation_date(str(value)))
+    valid_dates = dates_parsed.map(lambda day: day is not None and start_day <= day <= today)
+    df = df.loc[(df["stock_id"].astype(str).str.strip() == stock_id) & valid_dates].copy()
+    df["date"] = dates_parsed.loc[df.index].map(lambda day: day.isoformat())
+    for column in ("buy", "sell"):
+        df[column] = pd.to_numeric(df[column], errors="coerce")
+    valid_numbers = df["buy"].map(lambda value: math.isfinite(value) and value >= 0) & df["sell"].map(lambda value: math.isfinite(value) and value >= 0)
+    df = df.loc[valid_numbers].copy()
+    if df.empty:
+        raise ValueError("Institutional response has no valid exact-stock dated observations")
+    rejected_count = original_count - len(df)
+    df["net_buy"] = df["buy"] - df["sell"]
     df["category"] = df["name"].map(lambda name: (
         "foreign" if "Foreign" in str(name)
         else "investment_trust" if "Investment_Trust" in str(name)
@@ -105,6 +124,8 @@ def fetch_institutional_trading_trend(ticker: str) -> dict:
     daily_total = recent.groupby("date")["net_buy"].sum().tail(10)
     total_net = sum(totals.values())
     last_5_net = recent[recent["date"].isin(dates[-5:])]["net_buy"].sum() if dates else 0
+    from ..institutional_provider import institutional_window_status
+    last_5_window_status = institutional_window_status(list(dates), ticker, 5)
     if total_net > 0 and last_5_net > 0:
         trend = "accumulation"
     elif total_net < 0 and last_5_net < 0:
@@ -115,12 +136,18 @@ def fetch_institutional_trading_trend(ticker: str) -> dict:
     return {
         "source": "FinMind TaiwanStockInstitutionalInvestorsBuySell",
         "lookback_trading_days": len(dates),
+        "observed_date_count": len(dates),
+        "observation_dates": [str(day) for day in dates],
+        "window_basis": "available_observations; not proof of complete exchange sessions",
+        "window_coverage_status": institutional_window_status(list(dates), ticker, INSTITUTIONAL_LOOKBACK_DAYS),
+        "last_5_window_status": last_5_window_status,
+        "rejected_record_count": rejected_count,
         "latest_date": str(dates[-1]) if dates else "",
         "net_buy_shares_by_category": {key: int(value) for key, value in totals.items()},
         "net_buy_thousand_shares_by_category": {key: round(value / 1000, 2) for key, value in totals.items()},
         "total_net_buy_shares": int(total_net),
         "total_net_buy_thousand_shares": round(total_net / 1000, 2),
-        "last_5_trading_days_net_buy_thousand_shares": round(last_5_net / 1000, 2),
+        "last_5_trading_days_net_buy_thousand_shares": round(last_5_net / 1000, 2) if last_5_window_status == "complete" else None,
         "trend": trend,
         "daily_total_net_buy_last_10": [
             {"date": str(date), "net_buy_thousand_shares": round(value / 1000, 2)}

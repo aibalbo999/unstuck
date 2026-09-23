@@ -60,8 +60,13 @@ def test_deferred_quality_retry_persists_unvalidated_full_draft_and_resumes_gate
     assert snapshot.next == ("agent_4",)
     assert not snapshot.values.get("analyses") and not snapshot.values.get("agent_reports")
     records = draft_records(path)
-    assert len(records) == 1
-    record = records[0][2]
+    assert len(records) == 2
+    first, record = records[0][2], records[-1][2]
+    assert {k: v for k, v in first.items() if k != "repair_candidate_history"} == {
+        k: v for k, v in record.items() if k != "repair_candidate_history"
+    }
+    assert first['repair_candidate_history'] is None
+    assert record['repair_candidate_history']['issue_checklist'] == ['arithmetic must be checked']
     assert record["status"] == "unvalidated"
     assert record["text"] == "unvalidated-draft-4:" + "x" * 110_000
     assert record["structured_output"] == {"unvalidated_value": 4}
@@ -84,13 +89,20 @@ def test_repeated_deferrals_keep_node_pending_and_never_regenerate_initial(tmp_p
     calls, control, events = quality_runtime
     path, state = tmp_path / "checkpoints.sqlite3", initial_state()
 
+    versions_after_first_defer = None
     for _ in range(3):
         with pytest.raises(AgentDeferredError):
             execute(path, state, calls)
+        records = draft_records(path)
+        assert len(records) == 2
+        if versions_after_first_defer is None:
+            versions_after_first_defer = copy.deepcopy(records)
+        else:
+            assert records == versions_after_first_defer
 
     assert calls["initial"] == [4]
     assert len(calls["rewrite"]) == 3 and calls["published"] == 0
-    assert len(draft_records(path)) == 1
+    assert len(draft_records(path)) == 2
     assert main_snapshot(path, calls).next == ("agent_4",)
 
 
@@ -102,7 +114,9 @@ def test_parallel_agents_recover_their_own_drafts(tmp_path, quality_runtime):
     with pytest.raises(AgentDeferredError):
         execute(path, state, calls, agents=(4, 14))
 
-    assert len(draft_records(path)) == 2
+    records = draft_records(path)
+    assert len(records) == 4
+    assert sorted(record['agent_num'] for _, _, record in records) == [4, 4, 14, 14]
     control["deferred"] = False
     result = execute(path, state, calls, agents=(4, 14))
 
@@ -231,7 +245,7 @@ def test_main_checkpoint_lookup_and_maintenance_respect_draft_namespace(tmp_path
 
     active = cleanup_terminal_checkpoints(**options)
     assert active["active_thread_count"] == 1 and active["deleted_checkpoint_rows"] == 0
-    assert len(draft_records(checkpoint_path)) == 1
+    assert len(draft_records(checkpoint_path)) == 2
 
     with sqlite3.connect(task_path) as db:
         db.execute("UPDATE analysis_jobs SET status = 'done'")
@@ -262,7 +276,7 @@ def test_intermediate_repaired_draft_is_checkpointed_and_reused(tmp_path, interm
     with sqlite3.connect(path) as db:
         rows = db.execute("SELECT type, checkpoint FROM checkpoints WHERE checkpoint_ns LIKE 'quality_draft/%' ORDER BY checkpoint_id").fetchall()
     versions = [JsonPlusSerializer().loads_typed(row)["channel_versions"]["quality_draft"] for row in rows]
-    assert len(versions) == 2 and versions[1] > versions[0]
+    assert len(versions) == 3 and versions[2] > versions[1] > versions[0]
 
 
 def test_intermediate_checkpoint_failure_is_not_swallowed(tmp_path, monkeypatch, intermediate_quality_runtime):

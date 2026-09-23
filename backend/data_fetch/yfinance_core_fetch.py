@@ -229,6 +229,7 @@ def fetch_stock_data(ticker: str, skip_optional_http: bool = False, market_data_
             net_income_history=net_income_history,
             shares_outstanding=shares_outstanding,
             skip_optional_http=skip_optional_http,
+            force_refresh=force_refresh,
         )
         enrichment_audit = enrichment_bundle.get("audit", [])
         recent_catalysts = enrichment_bundle.get("recent_catalysts", [])

@@ -221,6 +221,9 @@ def _audit_entries_from_provider_results(results: list[ProviderResult]) -> list[
 
 
 async def _run_missing_core_provider_plan(request: FetchRequest, registry: ProviderRegistry, data: dict) -> dict:
+    from provider_correlation import current_correlation
+    from .institutional_provider import institutional_acquired_in_fetch
+    institutional_acquired = institutional_acquired_in_fetch(data, current_correlation().get("fetch_id"))
     core_sources = (
         "financial_statements",
         "twse_official",
@@ -231,6 +234,8 @@ async def _run_missing_core_provider_plan(request: FetchRequest, registry: Provi
     )
     providers = []
     for source in core_sources:
+        if source == "institutional_trading" and institutional_acquired:
+            continue
         if not source_is_applicable(source, data, request.ticker):
             continue
         if source_record_count(source, data) > 0:
@@ -258,5 +263,9 @@ async def _run_missing_core_provider_plan(request: FetchRequest, registry: Provi
             tuple(sorted(set(refreshed_sources))),
             cache_hit=safe_bool(data.get("_cache_hit")),
         )
+    from .institutional_provider import apply_institutional_freshness
+    for result in provider_results:
+        if result.source == "institutional_trading":
+            apply_institutional_freshness(data, request.ticker, result.audit)
     finalize_data_trust(data)
     return data
