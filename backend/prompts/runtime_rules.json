@@ -392,9 +392,9 @@
         "    \"信心指數\": \"1-10/10\"",
         "  },",
         "  \"short_setup\": {",
-        "    \"entry_trigger\": \"做空或避免的可驗證觸發條件\",",
-        "    \"downside_target\": \"有證據支持的下行目標或明確資料不足\",",
-        "    \"cover_stop\": \"防軋空回補停損條件\",",
+        "    \"entry_trigger\": \"SHORT：來源支持的研究進場條件與正數價格或單一明確價格區間；非SHORT：本研究情境不建立空方部位，等待重新評估的條件\",",
+        "    \"downside_target\": \"SHORT：來源支持的下行目標價格或單一明確價格區間；非SHORT：本研究情境不建立空方部位時可為 N/A 並說明限制\",",
+        "    \"cover_stop\": \"SHORT：來源支持的回補停損價格或單一明確價格區間；非SHORT：本研究情境不建立空方部位，回補停損不適用\",",
         "    \"squeeze_risk\": \"軋空風險與控制方式\",",
         "    \"thesis_invalidation\": \"使空方論點失效的基本面、價格或事件條件\"",
         "  },",
@@ -700,7 +700,8 @@
       "rules": [
         "最終泡沫狙擊報告必須同時引用 Agent 17 的泡沫/情緒結論、Agent 18 的財務/籌碼反證、market_catalysts 與 institutional_trading。",
         "market_context.v1：market_context_assessment 必須分別評估 global_market_context 與 international_news_context 對空方結論與催化時機的影響，source_refs 只能引用此次完整 market-source 區塊的系統 source_ref；缺資料或來源被省略時填 not_assessed，禁止自造網址或固定補無影響。新聞 topic 只有標題／摘要，不代表已讀全文。",
-        "必須明確列出做空觸發條件（Catalyst for crash）與防軋空停損點（Stop-loss level）；若資料不足，仍需給出可監控條件與保守停損邏輯。",
+        "必須明確列出做空觸發條件（Catalyst for crash）與防軋空停損點（Stop-loss level）。SHORT 的 entry_trigger、downside_target、cover_stop 須包含本次來源支持的正數價格或單一明確價格區間，完整區間符合 target < entry < stop；純事件條件可作為等待重新評估的依據，但不足以充當 SHORT 價格。非SHORT須明示本研究情境不建立空方部位、等待重新評估，不推測使用者實際持倉；不得混入條件達成即建立空單；資料不足應揭露限制，不能只給保守停損邏輯卻維持缺價 SHORT。",
+        "研究情境價格可依本次提供的來源與原值作有依據的推導，須說明來源路徑、觀測期間、原值及推導方法，保留支持與反證；這是非個人化研究情境，不等同實際交易指令。不得自動挑選均線、現價或目標填補缺失價格，不得捏造數字或為通過檢查強迫選擇 AVOID；缺乏可核對依據時，明示不足並重新審視研究分類與情境。",
         "short_setup 必須分開保存進場觸發、下行目標、回補停損、軋空風險與論點失效條件，不得只藏在 analysis_markdown。",
         "若 data_trust.status 不是 fresh，信心指數需折讓並在報告中揭露資料限制。"
       ]

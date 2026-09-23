@@ -50,3 +50,5 @@ RQ 使用 `worker_rq_scheduler.BoundedSchedulerWorker`，維護檢查及閒置 d
 OpenAI/Anthropic 未配置有效憑證時，不得標成已驗證的跨供應商備援。沒有近期新聞、未取得法說公告、未驗證年度日曆均保留不足標示。
 
 最終建議局部重跑沿用正式工作 callback，接通模型呼叫、provider request、回應／錯誤及串流事件，保留匿名 key slot 與工作範圍。非同步 callback 必須等待完成；沒有 callback 的呼叫仍走原非串流路徑。品質判定需比對該工作實際回應、稽核結果與新 artifact，事件完整不等於報告通過品質檢查。
+
+Agent 19 的初稿 JSON 範例與資料提示必須對齊既有 short_setup 檢查：SHORT 研究情境的三個價格欄位需要來源支持的正數價格或單一區間，純事件條件不能代替價格；非 SHORT 且無部位時，則如實寫等待條件與無部位。允許可驗證的來源／原值／推導方法，不允許自動挑選其他欄位補價或為通過檢查強迫改分類。提示變更會透過既有 prompt hash/version 使舊輸出快取失效，不修改數值或證據門檻。
