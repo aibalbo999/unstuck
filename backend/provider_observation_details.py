@@ -30,7 +30,7 @@ def observation_details(entry: dict) -> dict:
                 str(name)[:80]: ({str(k): v[:160] if isinstance(v, str) else v for k, v in item.items()
                                  if k in {'status', 'as_of', 'provider', 'reason_code', 'series_id', 'error_kind',
                                           'fetched_at_epoch', 'stale', 'cache_hit', 'retry_after_epoch',
-                                          'observation_status', 'observation_age_days'}
+                                          'observation_status', 'observation_age_days', 'date_status', 'retrieval_status'}
                                  and isinstance(v, (str, bool, int, float))
                                  and (not isinstance(v, (int, float)) or math.isfinite(v))}
                                 if isinstance(item, dict) else item[:80])

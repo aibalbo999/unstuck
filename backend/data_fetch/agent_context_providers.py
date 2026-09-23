@@ -73,9 +73,19 @@ class ChipDataProvider(DataProvider):
                                "as_of": margin.get("borrowed_short_as_of_date"), "provider": margin.get("borrowed_short_source"),
                                "reason_code": margin.get("borrowed_short_reason_code") if margin.get("borrowed_short_status") else "status_not_reported"},
         }
+        from source_observation_freshness import parse_observation_date
+        unknown_dates = []
+        for name, component in components.items():
+            component["retrieval_status"] = component["status"]
+            component["date_status"] = "reported" if parse_observation_date(component.get("as_of")) else "unknown"
+            if component["status"] == "success" and component["date_status"] == "unknown":
+                component["reason_code"] = "observation_date_unknown"
+                unknown_dates.append(name)
         successful = sum(item["status"] == "success" for item in components.values())
-        coverage = "success" if successful == len(components) else "partial" if successful else "unavailable"
-        value.update(status=coverage, component_statuses=components)
+        coverage = "success" if successful == len(components) and not unknown_dates else "partial" if successful else "unavailable"
+        labels = {"tdcc": "集保股權", "margin_short": "融資券", "borrowed_short": "借券"}
+        date_note = ("、".join(labels[name] for name in unknown_dates) + "觀測日期未知；保留已取得數值，不能確認資料日期。") if unknown_dates else ""
+        value.update(status=coverage, component_statuses=components, coverage_notes=[date_note] if date_note else [])
         status = AUDIT_STATUS_SUCCESS if coverage == "success" else AUDIT_STATUS_DEGRADED_ENRICHMENT if successful else AUDIT_STATUS_UNAVAILABLE
         return ProviderResult(
             source=self.source,
@@ -91,7 +101,7 @@ class ChipDataProvider(DataProvider):
                 "stale": False,
                 "coverage_status": coverage,
                 "component_statuses": components,
-                "message": "籌碼分項資料已回傳；請依各來源狀態與日期確認覆蓋。" if successful else "TDCC/TWSE/TPEx 籌碼資料暫無可用結果。",
+                "message": date_note or ("籌碼分項資料已回傳；請依各來源狀態與日期確認覆蓋。" if successful else "TDCC/TWSE/TPEx 籌碼資料暫無可用結果。"),
             },
         )
 

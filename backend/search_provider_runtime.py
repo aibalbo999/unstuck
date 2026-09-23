@@ -37,7 +37,18 @@ class SourceResponseError(RuntimeError):
         if parser_version:
             diagnostic['parser_version'] = parser_version
         self.diagnostic = diagnostic
-        super().__init__(json.dumps(diagnostic, ensure_ascii=False, separators=(',', ':')))
+        # Reports consume str(exc); keep technical numbers in structured diagnostics.
+        messages = {
+            'access_denied': '來源拒絕存取，未取得資料。',
+            'parse_error': '來源回應格式無法辨識，未取得可用資料。',
+            'provider_error': '來源回報錯誤，未取得資料。',
+            'authentication': '來源驗證失敗，未取得資料。',
+            'payment_required': '來源要求付費授權，未取得資料。',
+            'rate_limited': '來源請求受到限制，暫未取得資料。',
+            'cooldown': '來源仍在冷卻期間，尚未重新取得資料。',
+            'timeout': '來源回應逾時，未取得資料。',
+        }
+        super().__init__(messages.get(error_kind, '來源取得失敗，請查看來源診斷紀錄。'))
 
 
 def scope_key(provider: str, credential: str = '', *, endpoint='search') -> str:
