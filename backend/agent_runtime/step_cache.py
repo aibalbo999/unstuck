@@ -47,6 +47,7 @@ def build_agent_step_cache_key(
         key_parts["output_contract_version"] = AGENT_OUTPUT_CONTRACT_VERSION
     if agent_num == 19:
         key_parts["no_position_contract_version"] = "explicit-cover-stop:v1"
+        key_parts["short_setup_feedback_contract"] = "schema-price-fields:v1"
     encoded = json.dumps(key_parts, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return "agent_step:" + hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 

@@ -63,9 +63,9 @@ class PositionPlan(StructuredModel):
 
 
 class ShortSetup(StructuredModel):
-    entry_trigger: str = Field(..., min_length=1)
-    downside_target: str = Field(..., min_length=1)
-    cover_stop: str = Field(..., min_length=1)
+    entry_trigger: str = Field(..., min_length=1, description="SHORT 研究情境的進場條件與有本次來源依據的正數價格或單一明確價格區間；通用檢查名稱為 entry_zone，純事件或均線名稱不足以驗證價格。非放空分類依既有觀望契約明示等待、不建立部位；缺少來源不得補造價格，不是實際交易指令。")
+    downside_target: str = Field(..., min_length=1, description="SHORT 研究情境中有本次來源依據的下行目標價格或單一明確價格區間；通用檢查名稱為 target_price，完整目標區間須低於完整進場區間。非放空分類依既有觀望契約；缺少來源不得補造價格。")
+    cover_stop: str = Field(..., min_length=1, description="SHORT 研究情境中有本次來源依據的回補停損價格或單一明確價格區間；通用檢查名稱為 stop_loss，完整停損區間須高於完整進場區間，純事件條件不能代替價格。非放空分類依既有觀望契約；缺少來源不得補造價格，不是實際交易指令。")
     squeeze_risk: str = Field(..., min_length=1)
     thesis_invalidation: str = Field(..., min_length=1)
     transaction_cost: str | None = Field(default=None, description="每股來回空單交易成本金額，含借券、費稅及滑價；未知為 null，明確免費才為 0。")

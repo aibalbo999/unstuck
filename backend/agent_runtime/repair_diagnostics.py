@@ -1,12 +1,44 @@
 """Read-only, deterministic diagnostics for the candidate being rewritten."""
 from __future__ import annotations
 
+import json
 import math
 
 from final_audit_helpers import extract_first_price, recommendation_value
 from forward_consistency_checker import RECOMMENDATION_RETURN_GATES
 from recommendation_labels import normalize_recommendation_label
 from structured_output_parser import parse_recommendation_from_text
+from trade_execution_contract import evaluate_trade_execution
+
+
+def _short_setup_diagnostic(output: dict, label: str) -> str:
+    setup = output.get('short_setup') if isinstance(output, dict) else None
+    if not isinstance(setup, dict):
+        return '\nshort_setup 原始結構未提供，無法診斷價格；不得從其他欄位推補。\n'
+    execution = evaluate_trade_execution(
+        direction='Short', entry_zone=setup.get('entry_trigger'),
+        target_price=setup.get('downside_target'), stop_loss=setup.get('cover_stop'),
+        transaction_cost=setup.get('transaction_cost'),
+    )
+    lines = ['【short_setup 原值與既有價格解析；僅供研究欄位修復，不是交易指令】']
+    for field, alias, parsed in (
+        ('entry_trigger', 'entry_zone', 'entry_range'),
+        ('downside_target', 'target_price', 'target_range'),
+        ('cover_stop', 'stop_loss', 'stop_range'),
+    ):
+        raw = json.dumps(setup.get(field), ensure_ascii=False, default=str)
+        lines.append(f'- short_setup.{field}（通用檢查欄位 {alias}）：'
+                     f'原值：{raw[:1000]}；價格解析：{json.dumps(execution["details"][parsed])}。')
+    if label == '放空':
+        lines.extend(f'- 既有交易契約 {issue["id"]}：{issue["message"]}' for issue in execution['issues'])
+        lines.append('SHORT 研究情境須以本次來源支持上述三個價格欄位；純事件條件或「均線附近」不能代替價格。'
+                     '須符合完整區間的 target < entry < stop，不能只比較區間中點。')
+    else:
+        lines.append('非放空分類依既有觀望契約驗證；不要求補造進場或停損價。')
+    lines.append('價格解析 null 表示既有解析器無法驗證，不是零；解析成功也不代表已有來源證明。'
+                 '不得以現價、均線、目標價或其他欄位自動代填；缺少依據應明示不足，依證據重新審視分類與情境，'
+                 '不可為通過檢查強迫選擇 AVOID，也不可發布實際交易指令。')
+    return '\n' + '\n'.join(lines) + '\n'
 
 
 def recommendation_repair_diagnostic(context: dict, data: dict, previous_text: str = '') -> str:
@@ -35,6 +67,7 @@ def recommendation_repair_diagnostic(context: dict, data: dict, previous_text: s
             bounds.append(f"至多 {gate['max_expected_return_pct']:g}%")
         lines.append(f'{name} 的 12 個月報酬門檻：' + '、'.join(bounds) + '。')
     return ('【前次決策數值診斷；不是新的估值或交易指示】\n' + '\n'.join(lines) + '\n'
+            + _short_setup_diagnostic(output, label) +
             '- 依證據重新判斷建議與估值；不可為通過門檻而調高目標價，也不可一律改為避免。\n'
             '- 持有不是所有「等待／觀察」的代稱；目標無法支持時，明確說明證據限制。\n'
             '- 輸出完整正文與 JSON；製造業風險應逐項討論產能、CapEx、折舊、良率、客戶議價，'
