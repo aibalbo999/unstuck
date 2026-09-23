@@ -649,7 +649,8 @@ def test_run_rq_worker_uses_simple_worker_to_avoid_macos_fork_abort(monkeypatch)
             calls.append(("work", burst, max_jobs, with_scheduler))
 
     monkeypatch.setattr(rq, "Worker", ForkingWorker)
-    monkeypatch.setattr(rq, "SimpleWorker", FakeSimpleWorker)
+    import worker_rq_scheduler
+    monkeypatch.setattr(worker_rq_scheduler, "BoundedSchedulerWorker", FakeSimpleWorker)
 
     worker_main.run_rq_worker(runtime, burst=True, max_jobs=2)
 
@@ -678,7 +679,8 @@ def test_run_rq_worker_consumes_all_configured_rq_queues(monkeypatch):
         def work(self, *, burst=False, max_jobs=None, with_scheduler=False):
             calls.append(("work", burst, max_jobs, with_scheduler))
 
-    monkeypatch.setattr(rq, "SimpleWorker", FakeSimpleWorker)
+    import worker_rq_scheduler
+    monkeypatch.setattr(worker_rq_scheduler, "BoundedSchedulerWorker", FakeSimpleWorker)
 
     worker_main.run_rq_worker(runtime, burst=True, max_jobs=3)
 
@@ -704,7 +706,8 @@ def test_run_rq_worker_suppresses_redis_disconnect_after_warm_shutdown(monkeypat
             calls.append(("work", burst, max_jobs, with_scheduler))
             raise RedisConnectionError("Connection closed by server.")
 
-    monkeypatch.setattr(rq, "SimpleWorker", FakeSimpleWorker)
+    import worker_rq_scheduler
+    monkeypatch.setattr(worker_rq_scheduler, "BoundedSchedulerWorker", FakeSimpleWorker)
     monkeypatch.setattr(worker_main, "emit_log", calls.append)
 
     worker_main.run_rq_worker(runtime)
@@ -726,7 +729,8 @@ def test_run_rq_worker_reraises_redis_disconnect_before_shutdown(monkeypatch):
         def work(self, *, burst=False, max_jobs=None, with_scheduler=False):
             raise RedisConnectionError("Error 61 connecting to localhost:6379. Connection refused.")
 
-    monkeypatch.setattr(rq, "SimpleWorker", FakeSimpleWorker)
+    import worker_rq_scheduler
+    monkeypatch.setattr(worker_rq_scheduler, "BoundedSchedulerWorker", FakeSimpleWorker)
 
     with pytest.raises(RedisConnectionError):
         worker_main.run_rq_worker(runtime)

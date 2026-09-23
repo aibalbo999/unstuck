@@ -168,7 +168,7 @@ def build_prompt(agent_num: int, data: StockData, context: AnalysisContext) -> s
     # Shrink formatting and unrelated sections, retaining complete source records.
     # Oversize input reaches admission intact and can take the full-data fallback.
     fin_data = (format_data_for_prompt(prompt_data, dense=True, role_scoped=role_scoped)
-                if gemma_prompt else format_data_for_prompt(prompt_data, compact=compact_primary))
+                if gemma_prompt else format_data_for_prompt(prompt_data, compact=compact_primary, compact_json=agent_num == 19))
     prev = _format_previous(context, agent_num, max_total_chars=max(0, total_budget - state_budget))
     raw_rag_context = context.get("rag_context")
     rag_contexts = raw_rag_context if isinstance(raw_rag_context, dict) else {}

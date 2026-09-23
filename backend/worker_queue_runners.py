@@ -23,11 +23,11 @@ def run_rq_worker(
     if rq_queue is None or redis is None:
         raise RuntimeError("RQ worker requires an RQ task queue with queue and redis attributes.")
 
-    from rq import SimpleWorker
+    from worker_rq_scheduler import BoundedSchedulerWorker
     from redis.exceptions import ConnectionError as RedisConnectionError
 
     rq_queues = list(getattr(task_queue, "queues", {}).values()) or [rq_queue]
-    worker = SimpleWorker(rq_queues, connection=redis)
+    worker = BoundedSchedulerWorker(rq_queues, connection=redis)
     install_shutdown_quiet_pubsub(worker)
     try:
         worker.work(

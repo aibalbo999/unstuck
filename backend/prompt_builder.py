@@ -59,7 +59,7 @@ def _get_compiled_prompt_template(template: str):
     return PROMPT_ENV.from_string(normalized), has_legacy_placeholders
 
 
-def format_data_for_prompt(data: dict, *, compact: bool = False, dense: bool = False, role_scoped: bool = False) -> str:
+def format_data_for_prompt(data: dict, *, compact: bool = False, dense: bool = False, role_scoped: bool = False, compact_json: bool = False) -> str:
     """Format financial data as clean JSON to avoid unit drift and prompt overload."""
     total_debt_b = raw_twd_to_billion_twd(dict.get(data, "total_debt_raw"))
     total_cash_b = raw_twd_to_billion_twd(dict.get(data, "total_cash_raw"))
@@ -181,8 +181,9 @@ def format_data_for_prompt(data: dict, *, compact: bool = False, dense: bool = F
             payload["data_freshness"]["source_freshness"] = {"$ref": "#/source_freshness"}
             freshness_reference = True
         payload = pack_record_tables(payload)
+    # Representation only: compact_json changes no fields, strings or evidence.
     encoded = json.dumps(payload, ensure_ascii=False, allow_nan=False,
-                         **({"separators": (",", ":")} if dense else {"indent": 2}))
+                         **({"separators": (",", ":")} if dense or compact_json else {"indent": 2}))
     usage_rules = [
         "企業總額使用 billion_twd，每股價格使用 twd_per_share；以 unit_contract 與各欄位單位為準，不得把每股價格當作企業總額再換算。",
         "引用 current_price_twd、市場估值、新聞、法人或同業資料時，必須參考 source_freshness/data_freshness；若來源為快取或盤後資料，不可宣稱是即時資料。",
