@@ -36,6 +36,7 @@ from report_rerun_context import (
 from report_rerun_rendering import render_and_save_rerun_report
 from storage.report_storage import ReportStorage
 from structured_output_parser import parse_structured_data
+from runtime_events import RUNTIME_EVENT_CALLBACK_KEY, emit_runtime_event_async
 
 async def _run_full_pipeline_rerun(
     *,
@@ -165,7 +166,8 @@ async def _run_final_recommendation_rerun(
     context, pipeline_def, final_agent = _build_final_rerun_context(filename, snapshot, output_dir, storage=storage)
     attach_cancel_check(context, cancel_check)
     if callable(progress_callback):
-        progress_callback({
+        context[RUNTIME_EVENT_CALLBACK_KEY] = progress_callback
+        await emit_runtime_event_async(progress_callback, {
             "type": "status",
             "phase": "rerun_final_agent",
             "message": f"重跑 {pipeline_def['label']} 最終投資建議 Agent...",
@@ -183,7 +185,7 @@ async def _run_final_recommendation_rerun(
                                parse=parse_structured_data, audit=run_final_report_audit, progress_callback=progress_callback)
     context["total_time"] = time.time() - context["start_time"]
     if callable(progress_callback):
-        progress_callback({
+        await emit_runtime_event_async(progress_callback, {
             "type": "progress",
             "phase": "completed",
             "message": "最終投資建議重跑完成。",

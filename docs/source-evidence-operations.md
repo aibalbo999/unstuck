@@ -48,3 +48,5 @@ RQ 使用 `worker_rq_scheduler.BoundedSchedulerWorker`，維護檢查及閒置 d
 先執行隔離 behavior checks、歷史快照離線回放及有界來源探測，再部署、確認 runtime commit/health/queue，最後做單一完整報告 canary。canary 必須以 completed job 和新 artifact 的來源／引用／品質結果驗證；`waiting_retry` 不是完成。先通過代表案例才擴大重跑，歷史 artifact 不覆蓋。
 
 OpenAI/Anthropic 未配置有效憑證時，不得標成已驗證的跨供應商備援。沒有近期新聞、未取得法說公告、未驗證年度日曆均保留不足標示。
+
+最終建議局部重跑沿用正式工作 callback，接通模型呼叫、provider request、回應／錯誤及串流事件，保留匿名 key slot 與工作範圍。非同步 callback 必須等待完成；沒有 callback 的呼叫仍走原非串流路徑。品質判定需比對該工作實際回應、稽核結果與新 artifact，事件完整不等於報告通過品質檢查。
