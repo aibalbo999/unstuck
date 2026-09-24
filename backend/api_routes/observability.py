@@ -10,6 +10,7 @@ from typing import Any
 from fastapi import APIRouter, Query
 
 import api_observability_service
+from agent_effective_settings import build_agent_settings_payload
 from provider_acquisition import get_provider_acquisition_summary
 
 
@@ -59,6 +60,10 @@ def create_observability_router(deps: ObservabilityRouteDeps) -> APIRouter:
         return await api_observability_service.build_model_route_budget_payload(
             telemetry_limit=telemetry_limit,
         )
+
+    @router.get("/agent-settings")
+    async def agent_settings():
+        return await asyncio.to_thread(build_agent_settings_payload)
 
     @router.get("/dashboard")
     async def dashboard(

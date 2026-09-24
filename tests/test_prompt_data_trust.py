@@ -107,7 +107,9 @@ def test_open_circuit_breaker_blocks_valuation_prompt_target_prices():
 
     prompt = build_prompt(4, data, context)
 
-    assert '"status": "open"' in prompt
+    state_section = prompt.split("【AgentState view】", 1)[1]
+    view, _ = json.JSONDecoder().raw_decode(state_section[state_section.index("{"):])
+    assert view["circuit_breaker"]["status"] == "open"
     assert '"total_debt"' in prompt
     assert '"free_cash_flow"' in prompt
     assert "不得輸出目標股價" in prompt

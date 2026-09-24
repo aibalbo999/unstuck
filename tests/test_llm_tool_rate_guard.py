@@ -681,6 +681,8 @@ def test_unused_tool_reservations_are_settled_after_actual_http_calls(rig, monke
 
 @pytest.mark.parametrize("mode", ["sync", "async", "stream"])
 def test_settlement_makes_room_for_another_complete_tool_loop(rig, monkeypatch, mode):
+    # This test isolates daily settlement across seven calls and allows RPM waits.
+    monkeypatch.setattr("agent_runtime.llm_waiting.LLM_KEY_ADMISSION_TIMEOUT_SECONDS", 120.0)
     monkeypatch.setattr(llm_rate_limits, "RPD_LIMITS", {MODEL: 12})
     monkeypatch.setattr(llm_rate_limits, "asyncio", NS(Lock=asyncio.Lock, sleep=rig.clock.asleep))
     monkeypatch.setattr(rig.rotator, "_daily_remaining", llm_rate_limits.KeyRotator._daily_remaining.__get__(rig.rotator))

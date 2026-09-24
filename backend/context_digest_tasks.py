@@ -15,6 +15,8 @@ from context_digest_runtime import (
     CONTEXT_DIGEST_MAX_OUTPUT_TOKENS,
     _agent_event_kwargs,
     _build_digest_generation_config,
+    _generate_context_digest_content,
+    _generate_context_digest_content_async,
     _context_digest_cache_key,
     _emit_context_digest_circuit_open,
     _emit_context_digest_circuit_open_async,
@@ -30,28 +32,20 @@ from llm_client import (
     KeyRotator,
     describe_quota_or_rate_error,
     estimate_text_tokens,
-    generate_content,
-    generate_content_async,
     is_missing_model_error,
     is_quota_or_rate_error,
     response_text,
 )
+from llm_key_admission import propagate_admission_cancel
 from runtime_events import emit_context_event, emit_context_event_async, emit_log, make_runtime_event
 
 
 CONTEXT_DIGEST_TARGET_AGENTS = {4, 7, 14, 16, 19, 21}
 
 
-def _generate_context_digest_content(api_key: str, model_id: str, prompt: str):
-    return generate_content(api_key, model_id, prompt, _build_digest_generation_config())
-
-
-async def _generate_context_digest_content_async(api_key: str, model_id: str, prompt: str):
-    return await generate_content_async(api_key, model_id, prompt, _build_digest_generation_config())
-
-
 def ensure_context_digest(agent_num: int, context: dict, rotator: KeyRotator, progress_callback=None):
     """Run a lightweight summarization agent before high-dependency agents."""
+    from agent_runtime.llm_waiting import acquire_key, acquire_key_async
     if agent_num not in CONTEXT_DIGEST_TARGET_AGENTS:
         return
     digests = context.setdefault("context_digests", {})
@@ -92,7 +86,7 @@ def ensure_context_digest(agent_num: int, context: dict, rotator: KeyRotator, pr
                 progress_callback,
             )
             request_tokens = estimate_text_tokens(prompt, response_budget=CONTEXT_DIGEST_MAX_OUTPUT_TOKENS)
-            api_key = rotator.get_key(model_id, request_tokens)
+            api_key = acquire_key(rotator, model_id, request_tokens, context, None)
             response = _generate_context_digest_content(api_key, model_id, prompt)
             digest = _normalize_digest_text(response_text(response), agent_num, context)
             digests[agent_num] = digest
@@ -116,6 +110,7 @@ def ensure_context_digest(agent_num: int, context: dict, rotator: KeyRotator, pr
             )
             return
         except Exception as exc:
+            propagate_admission_cancel(exc)
             if is_missing_model_error(str(exc)):
                 emit_context_event(
                     context,
@@ -161,6 +156,7 @@ def ensure_context_digest(agent_num: int, context: dict, rotator: KeyRotator, pr
 
 async def ensure_context_digest_async(agent_num: int, context: dict, rotator: KeyRotator, progress_callback=None):
     """Async summarization agent before high-dependency agents."""
+    from agent_runtime.llm_waiting import acquire_key, acquire_key_async
     if agent_num not in CONTEXT_DIGEST_TARGET_AGENTS:
         return
     digests = context.setdefault("context_digests", {})
@@ -201,7 +197,7 @@ async def ensure_context_digest_async(agent_num: int, context: dict, rotator: Ke
                 progress_callback,
             )
             request_tokens = estimate_text_tokens(prompt, response_budget=CONTEXT_DIGEST_MAX_OUTPUT_TOKENS)
-            api_key = await rotator.async_get_key(model_id, request_tokens)
+            api_key = await acquire_key_async(rotator, model_id, request_tokens, context, None)
             response = await _generate_context_digest_content_async(api_key, model_id, prompt)
             digest = _normalize_digest_text(response_text(response), agent_num, context)
             digests[agent_num] = digest
@@ -225,6 +221,7 @@ async def ensure_context_digest_async(agent_num: int, context: dict, rotator: Ke
             )
             return
         except Exception as exc:
+            propagate_admission_cancel(exc)
             if is_missing_model_error(str(exc)):
                 await emit_context_event_async(
                     context,

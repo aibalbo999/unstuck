@@ -18,13 +18,19 @@ from workflow_context import legacy_context_from_graph
 MODEL = 'gemini-3.5-flash-lite'
 
 
-def compare_prompts(monkeypatch, ctx, model=MODEL):
+def compare_prompts(monkeypatch, ctx, model=MODEL, *, legacy_state=False):
     formatter = prompting.format_data_for_prompt
+    state_builder = prompting.build_state_view_section
     def legacy(data, **kwargs):
         kwargs['compact_json'] = False
         return formatter(data, **kwargs)
     with monkeypatch.context() as patch:
         patch.setattr(prompting, 'format_data_for_prompt', legacy)
+        if legacy_state:
+            def pretty_state(*args, **kwargs):
+                kwargs['compact_json'] = False
+                return state_builder(*args, **kwargs)
+            patch.setattr(prompting, 'build_state_view_section', pretty_state)
         before = build_model_prompt(24, ctx['data'], ctx, model, False, prompt_builder=prompting.build_prompt)
     after = build_model_prompt(24, ctx['data'], ctx, model, False, prompt_builder=prompting.build_prompt)
     return before, after
@@ -71,7 +77,7 @@ def test_actual_3037_checkpoint_fits_without_changing_input_or_source_catalog(mo
     state = json.loads(Path(os.environ['AGENT24_CAPACITY_CHECKPOINT']).read_text())
     ctx = legacy_context_from_graph(state, SimpleNamespace(progress_callback=None, cancel_check=None))
     original = copy.deepcopy(ctx['data'])
-    before, after = compare_prompts(monkeypatch, ctx)
+    before, after = compare_prompts(monkeypatch, ctx, legacy_state=True)
     old_tokens = estimate_agent_input_tokens(24, MODEL, before)
     new_tokens = estimate_agent_input_tokens(24, MODEL, after)
     assert old_tokens > 64000
@@ -79,7 +85,14 @@ def test_actual_3037_checkpoint_fits_without_changing_input_or_source_catalog(mo
     # 1,253 tokens were not checkpointed (Agent24 RAG/prompt-local state).
     # Preserve this measured live-vs-checkpoint gap rather than claim exact reconstruction.
     assert new_tokens + max(0, 66577 - old_tokens) < 64000
-    assert_lossless(before, after)
-    assert before.replace(financial_json(before), '', 1) == after.replace(financial_json(after), '', 1)
+    def without_state_json(prompt):
+        tail = prompt.split('【AgentState view】\n', 1)[1].split('\n', 1)[1]
+        value, end = json.JSONDecoder().raw_decode(tail)
+        return prompt.replace(tail[:end], '', 1), value
+    before_without_state, old_state = without_state_json(before)
+    after_without_state, new_state = without_state_json(after)
+    assert old_state == new_state
+    assert_lossless(before_without_state, after_without_state)
+    assert before_without_state.replace(financial_json(before), '', 1) == after_without_state.replace(financial_json(after), '', 1)
     assert ctx['data'] == original
     assert '【trade-source:' in after and '【同一來源的有限事實句示例' in after

@@ -106,7 +106,7 @@ def build_data_enrichment_instruction(agent_num: int) -> str:
     return build_agent_rule_block("data_enrichment_instructions", agent_num)
 
 
-def build_state_view_section(agent_num: int, context: AnalysisContext, *, max_analysis_chars: int | None = None, dense: bool = False) -> str:
+def build_state_view_section(agent_num: int, context: AnalysisContext, *, max_analysis_chars: int | None = None, dense: bool = False, compact_json: bool = False) -> str:
     """Expose the role-specific Blackboard slice as the primary evidence source."""
     state = context.get("agent_state")
     if state is None:
@@ -123,7 +123,7 @@ def build_state_view_section(agent_num: int, context: AnalysisContext, *, max_an
         [
             "【AgentState view】",
             "請優先引用 State 原始財務與工具 path；agent_reports 是前序分析，可能省略超額欄位，不能當成原始證據。",
-            json.dumps(view, ensure_ascii=False, allow_nan=False, **({"separators": (",", ":")} if dense else {"indent": 2})),
+            json.dumps(view, ensure_ascii=False, allow_nan=False, **({"separators": (",", ":")} if dense or compact_json else {"indent": 2})),
         ]
     )
 
@@ -156,7 +156,8 @@ def build_prompt(agent_num: int, data: StockData, context: AnalysisContext) -> s
     total_budget = (PRIMARY_PROMPT_CONTEXT_TOTAL_CHAR_BUDGET if compact_primary
                     else get_agent_context_budgets(agent_num)[0])
     state_budget = max(0, total_budget // 2) if context.get("agent_state") is not None else 0
-    state_view_section = build_state_view_section(agent_num, context, max_analysis_chars=state_budget, dense=gemma_prompt)
+    state_view_section = build_state_view_section(agent_num, context, max_analysis_chars=state_budget,
+                                                 dense=gemma_prompt, compact_json=not gemma_prompt)
     context = prompt_evidence_copy(context)
     ticker = data["ticker"]
     name = data["company_name"]
@@ -168,15 +169,17 @@ def build_prompt(agent_num: int, data: StockData, context: AnalysisContext) -> s
     # Shrink formatting and unrelated sections, retaining complete source records.
     # Oversize input reaches admission intact and can take the full-data fallback.
     fin_data = (format_data_for_prompt(prompt_data, dense=True, role_scoped=role_scoped)
-                if gemma_prompt else format_data_for_prompt(prompt_data, compact=compact_primary, compact_json=agent_num in {19, 24}))
+                if gemma_prompt else format_data_for_prompt(prompt_data, compact=compact_primary, compact_json=True))
     prev = _format_previous(context, agent_num, max_total_chars=max(0, total_budget - state_budget))
     raw_rag_context = context.get("rag_context")
     rag_contexts = raw_rag_context if isinstance(raw_rag_context, dict) else {}
     raw_agent_rag_context = rag_contexts.get(agent_num, "")
     rag_context = "" if raw_agent_rag_context is None else _safe_prompt_text(raw_agent_rag_context)
+    prompt_model = context.get("_prompt_model_id")
+    budget_for = (lambda role: get_agent_prompt_token_budget(role, model_id=prompt_model)) if prompt_model else get_agent_prompt_token_budget
     rag_context = bound_agent_rag_context(
         rag_context, agent_num, compact=compact_primary,
-        token_budget_func=get_agent_prompt_token_budget,
+        token_budget_func=budget_for,
     )
     context["rag_context"] = {agent_num: rag_context}
     identity_guard = build_company_identity_guard(data, agent_num=agent_num)
@@ -243,7 +246,7 @@ def build_prompt(agent_num: int, data: StockData, context: AnalysisContext) -> s
     final_prompt = "\n\n".join(part for part in prompt_parts if part)
     if not gemma_prompt:
         final_prompt = _enforce_prompt_token_budget(
-            final_prompt, agent_num, token_budget_func=get_agent_prompt_token_budget,
+            final_prompt, agent_num, token_budget_func=budget_for,
         )
     if agent_num == 24:
         bind_source_prompt(source_context, final_prompt, trade_block, trade_catalog, trade_fingerprint)

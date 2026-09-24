@@ -152,7 +152,7 @@
         "若任何情境使用營收或 FCF 年成長率超過 30%，dcf_reasoning 或 analysis_markdown 必須包含「高成長可執行性檢查」，說明 CapEx、產能擴充、折舊、良率、人力、供應鏈瓶頸與客戶需求。",
         "不可僅憑 AI、熱門題材或市場熱度提高成長率或估值倍數；資料不足時需採保守情境、降低倍數或標示低信心。",
         "dcf_scenarios 應逐一引用 deterministic DCF 的 bear/base/bull 假設；Bull 的成長與利潤率偏差較 Base 樂觀且 WACC 較低，Bear 反之。",
-        "三情境目標價必須同時存在且滿足 熊市情境 <= 基本情境 <= 牛市情境；若資料不足，仍需輸出保守可比較的三情境數字並在 reasoning 說明限制。"
+        "可核對的三情境目標價須滿足 熊市情境 <= 基本情境 <= 牛市情境；缺少支持數值時，必須在 reasoning 明示缺失依據，不得為補齊三情境而產生數字，也不得以 0、示範值或任意折讓冒充合理股價；保留品質阻擋，不宣稱估值已完成。"
       ]
     },
     "7": {
@@ -289,7 +289,7 @@
         "若任何情境使用營收或 FCF 年成長率超過 30%，dcf_reasoning 或 analysis_markdown 必須包含「高成長可執行性檢查」，說明 CapEx、產能擴充、折舊、良率、人力、供應鏈瓶頸與客戶需求。",
         "不可僅憑 AI、熱門題材或市場熱度提高成長率或估值倍數；資料不足時需採保守情境、降低倍數或標示低信心。",
         "dcf_scenarios 應逐一引用 deterministic DCF 的 bear/base/bull 假設；Bull 的成長與利潤率偏差較 Base 樂觀且 WACC 較低，Bear 反之。",
-        "三情境目標價必須同時存在且滿足 熊市情境 <= 基本情境 <= 牛市情境；若資料不足，仍需輸出保守可比較的三情境數字並在 reasoning 說明限制。"
+        "可核對的三情境目標價須滿足 熊市情境 <= 基本情境 <= 牛市情境；缺少支持數值時，必須在 reasoning 明示缺失依據，不得為補齊三情境而產生數字，也不得以 0、示範值或任意折讓冒充合理股價；保留品質阻擋，不宣稱估值已完成。"
       ]
     },
     "15": {
@@ -530,17 +530,18 @@
       ]
     },
     "4": {
-      "title": "估值工具使用規則",
+      "title": "估值計算證據規則",
       "rules": [
+        "本次估值回應未提供可呼叫工具；系統已在生成前透過 deterministic 計算產生 quant_metrics 與 deterministic_financial_tool_results。不得聲稱已呼叫工具或已完成重算。",
         "先檢查 quant_metrics.v2 的各別 metric_status：dcf/wacc/implied_pe 僅 available 才可引用。負 FCF、缺 raw 事實等造成 unavailable 時，不得把 DCF 當作下行保護或現金流底線；此規則優先於 high_growth 底線規則。method/unit/input_provenance 必須沿用工具結果，twd_per_share 不得再當 billion TWD 換算。",
         "WACC 權重只引用 deterministic_financial_tool_results.calculations.market_value_wacc_default；缺少結果時不得自行補算。",
         "DCF 情境只引用 deterministic_financial_tool_results.calculations.dcf_scenarios_default；缺少結果時不得輸出 DCF 目標價。",
         "金融股或殖利率高於 5% 的標的，只在 ddm_scenarios_default 可用時提高 DDM/P/B 權重。",
-        "若自行調整成長率、折現率或 normalized FCF，需清楚列出參數，計算結果以工具回傳值為準。",
+        "調整參數但沒有對應 deterministic 計算結果時，必須在 reasoning 明示無法驗證、待重算參數及缺失依據；不得沿用舊結果冒充新情境，亦不得以固定百分比下修 DCF 或目標價。",
         "本益比估值與 DCF 必須分開呈現；正式輸出只保留必要算式摘要。",
         "若自行設定未來營收或 FCF 年成長率超過 30%，需同時列出 CapEx/產能/折舊/良率支撐依據；沒有依據時不得把該高成長情境作為基本情境。",
         "若 dcf_scenarios_default.growth_phase 為 high_growth，必須在報告中說明成長率假設已放寬，並以 Forward P/E 作為主要估值方法；不得只呈現 DCF 結果而不說明此限制。",
-        "若 market_catalysts 中偵測到產品單價（ASP）結構性變動相關詞彙，必須觸發 ASP 風險提示段落，並在 bear 情境備註中說明潛在下修幅度。",
+        "若 market_catalysts 出現產品單價（ASP）結構性變動線索，必須區分線索與已確認事件；bear 情境只引用已有計算結果，沒有對應計算時明示無法量化下修幅度。",
         "正式報告中的關鍵數字必須能追溯到 AgentState view 的 state path，例如 normalized_financials、quant_metrics、peer_context 或 tool_results；不可只引用前序摘要。",
         "若 Forward EPS 或市場共識 EPS 隱含極端成長，只能引用 deterministic 結果中的 implied_revenue_cagr_pct；缺少時明確標示無法驗證。"
       ]
@@ -554,17 +555,18 @@
       ]
     },
     "14": {
-      "title": "估值工具使用規則",
+      "title": "估值計算證據規則",
       "rules": [
+        "本次估值回應未提供可呼叫工具；系統已在生成前透過 deterministic 計算產生 quant_metrics 與 deterministic_financial_tool_results。不得聲稱已呼叫工具或已完成重算。",
         "先檢查 quant_metrics.v2 的各別 metric_status：dcf/wacc/implied_pe 僅 available 才可引用。負 FCF、缺 raw 事實等造成 unavailable 時，不得把 DCF 當作下行保護或現金流底線；此規則優先於 high_growth 底線規則。method/unit/input_provenance 必須沿用工具結果，twd_per_share 不得再當 billion TWD 換算。",
         "WACC 權重只引用 deterministic_financial_tool_results.calculations.market_value_wacc_default；缺少結果時不得自行補算。",
         "DCF 情境只引用 deterministic_financial_tool_results.calculations.dcf_scenarios_default；缺少結果時不得輸出 DCF 目標價。",
         "金融股或殖利率高於 5% 的標的，只在 ddm_scenarios_default 可用時提高 DDM/P/B 權重。",
-        "若自行調整成長率、折現率或 normalized FCF，需清楚列出參數，計算結果以工具回傳值為準。",
+        "調整參數但沒有對應 deterministic 計算結果時，必須在 reasoning 明示無法驗證、待重算參數及缺失依據；不得沿用舊結果冒充新情境，亦不得以固定百分比下修 DCF 或目標價。",
         "本益比估值與 DCF 必須分開呈現；正式輸出只保留必要算式摘要。",
         "若自行設定未來營收或 FCF 年成長率超過 30%，需同時列出 CapEx/產能/折舊/良率支撐依據；沒有依據時不得把該高成長情境作為基本情境。",
         "若 dcf_scenarios_default.growth_phase 為 high_growth，必須在報告中說明成長率假設已放寬，並以 Forward P/E 作為主要估值方法；不得只呈現 DCF 結果而不說明此限制。",
-        "若 market_catalysts 中偵測到產品單價（ASP）結構性變動相關詞彙，必須觸發 ASP 風險提示段落，並在 bear 情境備註中說明潛在下修幅度。",
+        "若 market_catalysts 出現產品單價（ASP）結構性變動線索，必須區分線索與已確認事件；bear 情境只引用已有計算結果，沒有對應計算時明示無法量化下修幅度。",
         "正式報告中的關鍵數字必須能追溯到 AgentState view 的 state path，例如 normalized_financials、quant_metrics、peer_context 或 tool_results；不可只引用前序摘要。",
         "若 Forward EPS 或市場共識 EPS 隱含極端成長，只能引用 deterministic 結果中的 implied_revenue_cagr_pct；缺少時明確標示無法驗證。"
       ]

@@ -17,6 +17,7 @@ from llm_client import (
 )
 from pipeline_modes import normalize_pipeline_id
 from prompt_rules import get_task_instruction_lines, get_task_system_instruction
+from llm_key_admission import propagate_admission_cancel
 from runtime_events import emit_context_event, emit_context_event_async, emit_log, make_runtime_event
 from validators import sanitize_model_output, strip_generated_audit_sections
 
@@ -89,6 +90,7 @@ def _tear_sheet_event_kwargs(context: dict, model_id: str, phase: str, message: 
 
 
 def ensure_tear_sheet_summary(context: dict, rotator: KeyRotator, progress_callback=None):
+    from agent_runtime.llm_waiting import acquire_key, acquire_key_async
     if normalize_pipeline_id(context.get("pipeline_id")) != "v1":
         return
     if context.get("tear_sheet_summary") or not isinstance(rotator, KeyRotator):
@@ -110,7 +112,7 @@ def ensure_tear_sheet_summary(context: dict, rotator: KeyRotator, progress_callb
                 ),
                 progress_callback,
             )
-            api_key = rotator.get_key(model_id, estimate_text_tokens(prompt, response_budget=900))
+            api_key = acquire_key(rotator, model_id, estimate_text_tokens(prompt, response_budget=900), context, None)
             response = _generate_tear_sheet_content(api_key, model_id, prompt)
             summary = sanitize_model_output(response_text(response))
             if summary:
@@ -126,6 +128,7 @@ def ensure_tear_sheet_summary(context: dict, rotator: KeyRotator, progress_callb
                 )
                 return
         except Exception as exc:
+            propagate_admission_cancel(exc)
             if is_missing_model_error(str(exc)):
                 has_fallback = model_index + 1 < len(models)
                 emit_context_event(
@@ -158,6 +161,7 @@ def ensure_tear_sheet_summary(context: dict, rotator: KeyRotator, progress_callb
 
 
 async def ensure_tear_sheet_summary_async(context: dict, rotator: KeyRotator, progress_callback=None):
+    from agent_runtime.llm_waiting import acquire_key, acquire_key_async
     if normalize_pipeline_id(context.get("pipeline_id")) != "v1":
         return
     if context.get("tear_sheet_summary") or not isinstance(rotator, KeyRotator):
@@ -179,7 +183,7 @@ async def ensure_tear_sheet_summary_async(context: dict, rotator: KeyRotator, pr
                 ),
                 progress_callback,
             )
-            api_key = await rotator.async_get_key(model_id, estimate_text_tokens(prompt, response_budget=900))
+            api_key = await acquire_key_async(rotator, model_id, estimate_text_tokens(prompt, response_budget=900), context, None)
             response = await _generate_tear_sheet_content_async(api_key, model_id, prompt)
             summary = sanitize_model_output(response_text(response))
             if summary:
@@ -195,6 +199,7 @@ async def ensure_tear_sheet_summary_async(context: dict, rotator: KeyRotator, pr
                 )
                 return
         except Exception as exc:
+            propagate_admission_cancel(exc)
             if is_missing_model_error(str(exc)):
                 has_fallback = model_index + 1 < len(models)
                 await emit_context_event_async(
