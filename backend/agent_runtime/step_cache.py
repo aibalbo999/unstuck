@@ -42,7 +42,7 @@ def build_agent_step_cache_key(
     if agent_num in {23, 24}:
         key_parts["institutional_evidence_contract"] = "typed-flow:v2"
     if agent_num == 24:
-        key_parts["trade_source_contract_version"] = "trade-sources:v2-completion:v7"
+        key_parts["trade_source_contract_version"] = "trade-sources:v2-completion:v8"
     if agent_num in _OUTPUT_CONTRACT_AGENTS:
         key_parts["output_contract_version"] = AGENT_OUTPUT_CONTRACT_VERSION
     if agent_num == 19:

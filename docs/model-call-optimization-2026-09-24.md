@@ -27,3 +27,15 @@ Agent 20 初始執行已有無逐字稿時的 deterministic 不可評估結果�
 測試一律使用 `tests/run_prompt_boundary_tests.py`，隔離 DB 並禁用供應商網路。正式來源數字、模型候選、已保存 graph checkpoint、品質通過與 provider 健康分開驗收。
 
 此案原有金額單位錯誤已在最終正文修正，但價格推導、新聞標題可支持的結論範圍仍須個別證據。另確認 final-audit 被 deferred 中斷時，未提交 clone 的 repair counters/history 沒有耐久保存；本輪不宣稱已修正該上限問題，亦不放寬品質規則以接受更多失敗候選。
+
+## 晚間來源生成與並行階段修正
+
+19:28 查核的 26 份模式 D 報告有 15 份來源降級，其中 12 份包含 `catalyst_evidence_scope_mismatch`。保存的原始模型回應顯示，30 日累計淨額被寫成「持續買超」，修復再沿用原句；另有不存在的日 K 索引與新聞標題改寫。這些是生成與來源契約不一致，不能全部歸因於未取得資料。
+
+`trade_source_guidance.py` 在原本完整可見的 source catalog 內，提供有限且帶確切引用路徑的來源事實句。法人句沿用既有主體、期間、觀測日、值與單位驗證；新聞只引用原標題，單根日 K 不變成 52 週高低點。模型仍自行選擇方向與證據，不自動填引用或採納例句。Agent24 的 provider schema 與文字 schema 同步限定 catalog 的 `short_term_market_context` 路徑，步驟快取的契約版本更新，避免重用舊輸出。
+
+`trade_source_diagnostics.py` 在正規化清空不合格 refs 前，保留有界的原引用、原催化句、來源及候選指紋與逐項原因。既有的一次來源修復取得同一 catalog 的實際值、法人期間落差與新聞原標題；來源或候選指紋不同時不沿用舊診斷。所有 admission predicates、修復次數及品質 gate 保持原規則，舊報告不回寫。
+
+`analysis_retry_stages.py` 把 root checkpoint 的 Agent22／23 分支識別為同一並行階段。錯誤在兩分支間切換、單支完成的 pending writes、舊錯誤或候選草稿均不能重設階段次數；只有新 root checkpoint 與兩節點的完成版本證明全階段完成，下一階段才能從基礎退避開始。成功的 pending writes 仍由 LangGraph 原機制重用。
+
+既有工作若 stage ledger 與全工作計數不連續，繼續保守退避，不回填歷史或提前執行已排定工作。實際保存的五個 v4 checkpoint 用於離線重播；同一失敗序列的等待減少只能作反事實測試，不能當正式服務已縮短耗時的證據。供應商回傳的更長等待時間仍優先。
