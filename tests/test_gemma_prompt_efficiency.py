@@ -179,7 +179,7 @@ def test_table_round_trip_matches_json_types_and_missing_fields(records):
 
 
 def test_gemma_preserves_sources_when_generic_context_guard_would_clip(evidence, monkeypatch):
-    monkeypatch.setattr(prompting, 'get_agent_prompt_token_budget', lambda _: 100)
+    monkeypatch.setattr(prompting, 'get_agent_prompt_token_budget', lambda _, **kwargs: 100)
     prompt = prompting.build_prompt(11, evidence, {'_prompt_model_id': GEMMA})
     assert len(unpack_tables(payload(prompt))['market_catalysts']['items']) == 8
     assert prompt.endswith(prompting.OUTPUT_CLEANLINESS_RULE)

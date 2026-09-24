@@ -4,6 +4,9 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
 from typing import Any
+import re
+
+from generation_settings_safety import safe_generation_settings
 
 
 SELECTED_PHASES = {"llm_model_response", "agent_step_cache_hit", "agent_deterministic_result"}
@@ -38,6 +41,11 @@ def model_executions_from_events(events: Sequence[Mapping[str, Any]], pipeline_i
             record["route_index"] = record["route_considered"].index(model_id)
             record["generation_policy_version"] = str(metadata.get("generation_policy_version") or "").strip()
             record["generation_config"] = _safe_generation_config(metadata.get("generation_config"))
+            identity = metadata.get("effective_settings_sha256")
+            if isinstance(identity, str) and re.fullmatch(r"[0-9a-f]{64}", identity):
+                record["effective_settings_sha256"] = identity
+            else:
+                record.pop("effective_settings_sha256", None)
         if phase == "model_fallback":
             record["fallback_used"] = True
     return {agent: record for agent, record in records.items() if record["model_id"]}
@@ -58,6 +66,9 @@ def normalized_model_executions(context: Mapping[str, Any]) -> list[dict[str, An
         row = _new_record(agent_num)
         row.update({field: value.get(field, row[field]) for field in row})
         row["agent_num"], row["model_id"] = agent_num, model_id
+        identity = value.get("effective_settings_sha256")
+        if isinstance(identity, str) and re.fullmatch(r"[0-9a-f]{64}", identity):
+            row["effective_settings_sha256"] = identity
         rows.append(row)
     return sorted(rows, key=lambda item: item["agent_num"])
 
@@ -94,10 +105,7 @@ def _new_record(agent_num: int) -> dict[str, Any]:
 
 
 def _safe_generation_config(value: Any) -> dict[str, Any]:
-    if not isinstance(value, Mapping):
-        return {}
-    allowed = {"temperature", "top_p", "max_output_tokens", "thinking_level"}
-    return {str(key): item for key, item in value.items() if key in allowed and isinstance(item, (int, float, str))}
+    return safe_generation_settings(value)
 
 
 def _append_unique(values: list[str], value: str) -> None:

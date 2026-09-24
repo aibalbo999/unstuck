@@ -12,6 +12,7 @@ from llm_input_capacity import InputCapacityExceededError, ensure_input_capacity
 
 from . import gemma_evidence_runtime as evidence_batches
 from .generation_config import estimate_agent_input_tokens
+from .prompt_budget import get_agent_context_input_token_limit
 from .single_agent_events import reject_async_model, reject_sync_model
 from .retry_policy import AgentRetryableError, AgentMissingModelError, AgentConfigurationError
 
@@ -42,6 +43,9 @@ def _preflight_model_input_capacity(agent_num: int, model_id: str, prompt: str) 
         input_limit=input_limits.get(model_id, input_limits.get("*", 0)),
         tpm_limit=tpm_limits.get(model_id, tpm_limits.get("*", 0)),
     )
+    available = get_agent_context_input_token_limit(agent_num, model_id)
+    if available is not None and estimated > available:
+        raise InputCapacityExceededError(model_id, estimated, available, "configured_context_window")
 
 
 def admit_model_input_sync(

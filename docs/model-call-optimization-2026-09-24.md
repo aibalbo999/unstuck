@@ -45,3 +45,19 @@ Agent 20 初始執行已有無逐字稿時的 deterministic 不可評估結果�
 晚間 3037 完整重跑的 Agent24 實際估算為 66,577 tokens，超過 Lite 的本機 64,000 上限；其餘候選遇到 503，工作依既有流程等待。保存 checkpoint 重建約 65,324 tokens，缺少該次未保存的 RAG 部分，不能冒稱已精確重建正式請求，也不能認定移除新增提示就一定容納得下。
 
 Agent24 現在沿用 Agent19 已有的 `compact_json` 序列化：僅移除 JSON 結構外的縮排與多餘空白，字串內空白、所有 key、數值、清單、null、來源與上游分析均保留；不使用會改變投影欄位的 `dense`／`role_scoped` 模式。單一 checkpoint 的本機估算降到約 56,511 tokens，仍須實際 provider 呼叫與報告結果驗證。容量上限與供應商 cooldown 不變；不同 prompt bytes 自然使用不同步驟快取 key。
+
+## Agent 設定盤點後的共同修正
+
+Agent 4／14 保留 native JSON schema，估值只引用既有 QuantEngine／deterministic tool results 與可追溯參數。提示不再要求模型呼叫本次沒有提供的工具，也不再強迫在缺乏依據時湊出三情境價格或固定折讓；缺口仍交由原品質 gate 阻擋。這沒有新增動態計算或放寬估值門檻。
+
+所有非 Gemma 候選的財務與 AgentState JSON 使用無損 compact serialization，包含品質重寫。原始欄位、數值、字串內空白、來源與必要規則保留；Gemma 的既有 table representation 不變。補充 RAG 的規劃額度以本次候選模型的 context／輸入／TPM 門檻及 system/schema/tools 開銷計算。完整 prompt 不再以通用 head/tail 中段裁切方式縮短；仍超限時必須由 admission 拒絕並走既有 fallback，不能刪來源換取通過。
+
+`LLM_KEY_ADMISSION_TIMEOUT_SECONDS` 預設 15 秒，將「等待本機可用 key」與主模型 360 秒／備援 120 秒的生成 timeout 分開。較短的既有呼叫期限優先；非法或非正數 admission 設定保守回到 15 秒。未送出即逾時不扣每日用量、不停用 key、不縮短 provider cooldown；下一模型或 persistent retry 保留原有政策。context digest／tear sheet／audit reflection 也有有界 key 等待，無法取得 key 時使用既有 deterministic fallback；有 context 的輔助步驟仍傳遞取消。
+
+`GET /api/observability/agent-settings` 提供不含秘密的有效路由與角色設定，包括旗標追加的 Lite、實際 tools/native schema、生成參數、候選容量、本機限流、timeout 及設定 hash。API 快照只證明 API process；worker request events 和 report completion provenance 中的 `effective_settings_sha256` 才能用來核對執行者設定。不可將 API ready 或路由存在宣稱為 provider 健康。
+
+重跑事件的 snapshot sanitizer 原本以 `token` 名称過濾秘密，誤刪 generation_config.max_output_tokens；現在只放行數值與列舉生成設定，仍拒絕 request body、system instruction、API key 或任意額外欄位。歷史缺欄事件不回填。
+
+跨供應商部署仍受實際憑證與角色契約驗證限制。當次正式設定只載入 Google；OpenAI／Anthropic 未配置，未加入未驗證模型或調高任何 provider 額度。key slot 數與獨立 quota project 數繼續分開，未知 mapping 明確標示 unknown。既有 quota／cooldown／RPD 標記、排程、報告及 .env 不因本輪修改而重設。
+
+本輪隔離整合驗證：956 passed、75 subtests passed、1 optional Agent19 私有 checkpoint skipped、4 個已確認 baseline deselected。四項為 PE river accessor 的兩個舊測試，以及 Agent24 trade-source manifest 對 context mutation 的兩個舊斷言。3037 保存輸入重播中，Agent22／23／24 的預估完整輸入分別由 34,909／35,720／56,551 降為 25,549／27,125／54,540 tokens；這是同資料的離線估算，不是供應商實際用量或正式成功率。原 architecture suite 有七項既有 size/facade 失敗；本輪新增的 context-digest 行數退步已經由抽出生成 helper 修復。

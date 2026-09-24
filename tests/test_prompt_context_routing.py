@@ -2817,9 +2817,12 @@ def test_build_prompt_preserves_state_view_list_items_when_iterator_fails(monkey
 
     prompt = prompting.build_prompt(4, data, context)
 
-    assert '"valid_sequence": [' in prompt
+    state_text = prompt.split("【AgentState view】\n", 1)[1].split("\n", 1)[1]
+    assert json.JSONDecoder().raw_decode(state_text)[0]["valid_sequence"] == [
+        "SENT_STATE_VIEW_LIST_ITEM", {"valid_leaf": "SENT_STATE_VIEW_LIST_LEAF"},
+    ]
     assert '"SENT_STATE_VIEW_LIST_ITEM"' in prompt
-    assert '"valid_leaf": "SENT_STATE_VIEW_LIST_LEAF"' in prompt
+    assert '"SENT_STATE_VIEW_LIST_LEAF"' in prompt
 
 
 def test_build_prompt_preserves_state_view_set_items_when_iterator_fails(monkeypatch):
@@ -2848,7 +2851,10 @@ def test_build_prompt_preserves_state_view_set_items_when_iterator_fails(monkeyp
 
     prompt = prompting.build_prompt(4, data, context)
 
-    assert '"valid_collection": [' in prompt
+    state_text = prompt.split("【AgentState view】\n", 1)[1].split("\n", 1)[1]
+    assert set(json.JSONDecoder().raw_decode(state_text)[0]["valid_collection"]) == {
+        "SENT_STATE_VIEW_SET_ITEM", "SENT_STATE_VIEW_SET_LEAF",
+    }
     assert '"SENT_STATE_VIEW_SET_ITEM"' in prompt
     assert '"SENT_STATE_VIEW_SET_LEAF"' in prompt
 
@@ -2911,7 +2917,7 @@ def test_build_prompt_stringifies_runtime_instruction_fields_before_prompt_part_
     assert "SENT_AUDIT_RETRY_INSTRUCTION" in prompt
 
 
-def test_build_prompt_applies_token_budget_guard_before_llm_call(monkeypatch):
+def test_build_prompt_keeps_full_source_and_only_bounds_retrieved_context(monkeypatch):
     monkeypatch.setattr(prompting, "get_agent_prompt_token_budget", lambda _agent_num: 700, raising=False)
     data = {
         "ticker": "2308.TW",
@@ -2928,8 +2934,11 @@ def test_build_prompt_applies_token_budget_guard_before_llm_call(monkeypatch):
 
     prompt = prompting.build_prompt(4, data, context)
 
-    assert estimate_text_tokens(prompt) <= 700
-    assert "Prompt budget guard" in prompt
+    assert estimate_text_tokens(prompt) > 700
+    assert "Prompt budget guard" not in prompt
+    assert prompt.count("大型新聞段落") == 80 * 20
+    assert prompt.count("同業補充") == 120 * 10
+    assert prompt.endswith(prompting.OUTPUT_CLEANLINESS_RULE)
     assert prompt.count("RAG 補充片段") < 100
 
 

@@ -19,6 +19,8 @@ from .attempt_telemetry import record_node_model_call, record_node_model_respons
 
 
 def _model_event_fields(context: AnalysisContext, agent_num: int, model_id: str, prompt: str, **metadata) -> dict:
+    from agent_effective_settings import process_settings_sha256
+
     generation_config = generation_event_metadata(agent_num, model_id)
     return {
         "current": (context.get("agent_positions", {}) or {}).get(agent_num, agent_num),
@@ -36,6 +38,8 @@ def _model_event_fields(context: AnalysisContext, agent_num: int, model_id: str,
             "estimated_input_tokens": estimate_agent_input_tokens(agent_num, model_id, prompt),
             "input_estimate_basis": "mixed_language_with_system_and_schema",
             "generation_policy_version": GENERATION_POLICY_VERSION,
+            "effective_settings_sha256": process_settings_sha256(),
+            "settings_snapshot_scope": "executing_process",
             "generation_config": generation_config,
             **{key: value for key, value in metadata.items() if value is not None},
         },

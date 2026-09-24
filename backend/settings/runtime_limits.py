@@ -33,6 +33,9 @@ def _env_int_tuple_with_invalid_flag(name: str, default: str) -> tuple[tuple[int
 
 
 LLM_AGENT_CALL_TIMEOUT_SECONDS = env_float("LLM_AGENT_CALL_TIMEOUT_SECONDS", 120.0)
+# Local admission should yield to another route before spending the provider's
+# generation timeout. It never shortens a provider Retry-After/cooldown.
+LLM_KEY_ADMISSION_TIMEOUT_SECONDS = env_float("LLM_KEY_ADMISSION_TIMEOUT_SECONDS", 15.0)
 PRIMARY_LLM_AGENT_CALL_TIMEOUT_SECONDS = env_float("PRIMARY_LLM_AGENT_CALL_TIMEOUT_SECONDS", 360.0)
 FALLBACK_LLM_AGENT_CALL_TIMEOUT_SECONDS = env_float(
     "FALLBACK_LLM_AGENT_CALL_TIMEOUT_SECONDS",

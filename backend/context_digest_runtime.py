@@ -6,6 +6,7 @@ import hashlib
 import json
 
 from google.genai import types
+from llm_client import generate_content, generate_content_async
 
 from agent_runtime.model_policy import is_model_circuit_open, record_model_failure, record_model_success
 from agent_runtime.retry_policy import AgentRateLimitError
@@ -125,3 +126,11 @@ def _emit_context_digest_circuit_open(context: dict, agent_num: int, model_id: s
 
 async def _emit_context_digest_circuit_open_async(context: dict, agent_num: int, model_id: str, progress_callback=None) -> None:
     await emit_context_event_async(context, make_runtime_event("status", **_context_digest_circuit_event(context, agent_num, model_id)), progress_callback)
+
+
+def _generate_context_digest_content(api_key: str, model_id: str, prompt: str):
+    return generate_content(api_key, model_id, prompt, _build_digest_generation_config())
+
+
+async def _generate_context_digest_content_async(api_key: str, model_id: str, prompt: str):
+    return await generate_content_async(api_key, model_id, prompt, _build_digest_generation_config())

@@ -15,6 +15,7 @@ from llm_client import (
     is_quota_or_rate_error,
 )
 from prompt_rules import get_task_system_instruction
+from llm_key_admission import propagate_admission_cancel
 from runtime_events import emit_log
 from validators import sanitize_model_output, strip_generated_audit_sections
 
@@ -66,17 +67,19 @@ async def _generate_reflection_content_async(api_key: str, model_id: str, prompt
 
 def generate_audit_reflection(agent_num: int, issues: list[str], previous_text: str, data: StockData, rotator: KeyRotator) -> str:
     """Generate a pre-rewrite reflection, falling back deterministically if needed."""
+    from agent_runtime.llm_waiting import acquire_key, acquire_key_async
     if not isinstance(rotator, KeyRotator):
         return _fallback_audit_reflection(agent_num, issues)
 
     prompt = _build_audit_reflection_prompt(agent_num, issues, previous_text, data)
     for model_id in get_audit_model_sequence():
         try:
-            api_key = rotator.get_key(model_id, estimate_text_tokens(prompt, response_budget=1200))
+            api_key = acquire_key(rotator, model_id, estimate_text_tokens(prompt, response_budget=1200), {}, None)
             response = _generate_reflection_content(api_key, model_id, prompt)
             text = sanitize_model_output(_response_text(response))
             return text or _fallback_audit_reflection(agent_num, issues)
         except Exception as exc:
+            propagate_admission_cancel(exc)
             if is_missing_model_error(str(exc)) or is_quota_or_rate_error(str(exc)):
                 emit_log(f"       ↳ 反思步驟模型 {model_id} 不可用或額度受限，改試下一個 audit model。")
                 continue
@@ -87,17 +90,19 @@ def generate_audit_reflection(agent_num: int, issues: list[str], previous_text: 
 
 async def generate_audit_reflection_async(agent_num: int, issues: list[str], previous_text: str, data: StockData, rotator: KeyRotator) -> str:
     """Async pre-rewrite reflection."""
+    from agent_runtime.llm_waiting import acquire_key, acquire_key_async
     if not isinstance(rotator, KeyRotator):
         return _fallback_audit_reflection(agent_num, issues)
 
     prompt = _build_audit_reflection_prompt(agent_num, issues, previous_text, data)
     for model_id in get_audit_model_sequence():
         try:
-            api_key = await rotator.async_get_key(model_id, estimate_text_tokens(prompt, response_budget=1200))
+            api_key = await acquire_key_async(rotator, model_id, estimate_text_tokens(prompt, response_budget=1200), {}, None)
             response = await _generate_reflection_content_async(api_key, model_id, prompt)
             text = sanitize_model_output(_response_text(response))
             return text or _fallback_audit_reflection(agent_num, issues)
         except Exception as exc:
+            propagate_admission_cancel(exc)
             if is_missing_model_error(str(exc)) or is_quota_or_rate_error(str(exc)):
                 emit_log(f"       ↳ 非同步反思步驟模型 {model_id} 不可用或額度受限，改試下一個 audit model。")
                 continue

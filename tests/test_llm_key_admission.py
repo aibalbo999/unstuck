@@ -206,3 +206,47 @@ def test_local_admission_wait_is_excluded_from_provider_error_projections(projec
             conn.execute("INSERT INTO api_usage_events (service,operation,model_id,status,metadata_json) VALUES (?,?,?,?,?)",
                          tuple(row[k] for k in ("service", "operation", "model_id", "status", "metadata_json")))
             assert provider_error_rows(conn, 100) == []
+
+
+@pytest.mark.parametrize("async_mode", [False, True])
+def test_local_wait_cap_does_not_spend_primary_generation_timeout(admission, monkeypatch, async_mode):
+    """A ready fallback must not wait six minutes behind a throttled primary."""
+    import agent_runtime.llm_calls as calls
+    import agent_runtime.llm_waiting as waiting
+
+    h = admission
+    monkeypatch.setattr("time.monotonic", lambda: h.clock[0])
+    monkeypatch.setattr(waiting, "LLM_KEY_ADMISSION_TIMEOUT_SECONDS", 15.0, raising=False)
+    monkeypatch.setattr(calls, "estimate_agent_input_tokens", lambda *args: 20)
+    h.shared.penalize("key-a", "m", 300)
+    h.shared.penalize("key-b", "m", 300)
+
+    def forbidden(*args, **kwargs):
+        pytest.fail("a locally throttled request must not contact the provider")
+
+    monkeypatch.setattr(calls, "_generate_content", forbidden)
+    monkeypatch.setattr(calls, "_generate_content_async", forbidden)
+    context = {}
+    args = (1, context, h.rotator, "m", "full evidence")
+    with pytest.raises(calls.AgentRateLimitError) as caught:
+        if async_mode:
+            asyncio.run(calls._run_agent_once_async(*args, timeout_seconds=360))
+        else:
+            calls._run_agent_once(*args, timeout_seconds=360)
+    assert h.clock[0] == 135
+    assert caught.value.preflight_blocked is True
+    assert caught.value.retry_wait_seconds == 285
+    assert not any(e['phase'] == 'llm_provider_request' for e in context['_runtime_events'])
+    assert h.rotator._daily_budget.remaining(['key-a', 'key-b'], 'm', 10) == {'key-a': 10, 'key-b': 10}
+    assert h.shared._fallback.cooldown_wait('key-a', 'm') == 285
+
+
+@pytest.mark.parametrize('configured,generation,expected', [
+    (15, 360, 15), (15, 120, 15), (15, 2, 2),
+    (15, 0, 15), (15, float('inf'), 15),
+    (0, 360, 15), (-1, 360, 15), (float('nan'), 360, 15),
+])
+def test_admission_timeout_remains_finite_without_extending_shorter_deadlines(monkeypatch, configured, generation, expected):
+    import agent_runtime.llm_waiting as waiting
+    monkeypatch.setattr(waiting, 'LLM_KEY_ADMISSION_TIMEOUT_SECONDS', configured)
+    assert waiting.key_admission_timeout(generation) == expected

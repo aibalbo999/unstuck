@@ -12,6 +12,7 @@ from mapping_fields import (
     safe_text,
 )
 from report_reproducibility import validated_prompt_fingerprint
+from generation_settings_safety import safe_generation_settings
 
 
 def sanitize_for_snapshot(value: Any) -> Any:
@@ -20,6 +21,12 @@ def sanitize_for_snapshot(value: Any) -> Any:
         for key, item in _safe_mapping_items(value):
             key_str = _safe_text(key)
             if not key_str:
+                continue
+            if key_str == "generation_config":
+                # The generic token-secret rule otherwise erases the numeric
+                # output limit on rerun events and report receipts. Never allow
+                # arbitrary strings/request bodies through this exception.
+                clean[key_str] = safe_generation_settings(item)
                 continue
             if key_str in {"prompt_fingerprint", "prompt_hash"}:
                 if fingerprint := validated_prompt_fingerprint(item):

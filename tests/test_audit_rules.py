@@ -1546,7 +1546,8 @@ class AuditRuleTests(unittest.TestCase):
             return SimpleNamespace(text="fallback reflection")
 
         with patch.object(repair_reflection, "get_audit_model_sequence", return_value=["audit-primary", "audit-fallback"]):
-            with patch.object(repair_reflection, "_generate_reflection_content", side_effect=fake_generate):
+            with patch.object(repair_reflection, "_generate_reflection_content", side_effect=fake_generate), \
+                    patch.object(KeyRotator, "get_key", return_value="test-key"):
                 reflection = repair_reflection.generate_audit_reflection(
                     2,
                     ["口徑紅線"],

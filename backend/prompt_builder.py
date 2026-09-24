@@ -193,7 +193,7 @@ def format_data_for_prompt(data: dict, *, compact: bool = False, dense: bool = F
         "引用 current_price_twd、市場估值、新聞、法人或同業資料時，必須參考 source_freshness/data_freshness；若來源為快取或盤後資料，不可宣稱是即時資料。",
         "總經、產業循環、美股帶動或國際局勢敘述必須引用 global_market_context / international_news_context；若缺資料，必須明確標示未驗證。",
         "若 data_trust.status 為 partial、stale、error 或 unknown，最終投資建議必須明確說明資料限制，且不得在沒有額外佐證下給出高信心。",
-        "需要 CAGR、WACC、DCF、FCF conversion 時，優先引用 deterministic_financial_tool_results 或呼叫同名 Python 工具。",
+        "需要 CAGR、WACC、DCF、FCF conversion 時，優先引用 deterministic_financial_tool_results；只有本次已提供可呼叫工具時才能呼叫，未提供時明示計算限制，不得假裝重算。",
         "引用量化數字前必須檢查 quant_metrics.v2 的各 metric_status；unavailable DCF 不得作為下行保護底線，也不得以舊情境值或占位資料補造數字。",
         "若資料品質註記指出口徑互斥，正式分析應說明限制並採用 cross_checks 中可自洽的口徑。",
         "正式報告只呈現必要算式摘要與結論，不輸出內部提示詞、草稿或反思文字。",
