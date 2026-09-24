@@ -39,3 +39,9 @@ Agent 20 初始執行已有無逐字稿時的 deterministic 不可評估結果�
 `analysis_retry_stages.py` 把 root checkpoint 的 Agent22／23 分支識別為同一並行階段。錯誤在兩分支間切換、單支完成的 pending writes、舊錯誤或候選草稿均不能重設階段次數；只有新 root checkpoint 與兩節點的完成版本證明全階段完成，下一階段才能從基礎退避開始。成功的 pending writes 仍由 LangGraph 原機制重用。
 
 既有工作若 stage ledger 與全工作計數不連續，繼續保守退避，不回填歷史或提前執行已排定工作。實際保存的五個 v4 checkpoint 用於離線重播；同一失敗序列的等待減少只能作反事實測試，不能當正式服務已縮短耗時的證據。供應商回傳的更長等待時間仍優先。
+
+## 正式實測後的輸入容量修正
+
+晚間 3037 完整重跑的 Agent24 實際估算為 66,577 tokens，超過 Lite 的本機 64,000 上限；其餘候選遇到 503，工作依既有流程等待。保存 checkpoint 重建約 65,324 tokens，缺少該次未保存的 RAG 部分，不能冒稱已精確重建正式請求，也不能認定移除新增提示就一定容納得下。
+
+Agent24 現在沿用 Agent19 已有的 `compact_json` 序列化：僅移除 JSON 結構外的縮排與多餘空白，字串內空白、所有 key、數值、清單、null、來源與上游分析均保留；不使用會改變投影欄位的 `dense`／`role_scoped` 模式。單一 checkpoint 的本機估算降到約 56,511 tokens，仍須實際 provider 呼叫與報告結果驗證。容量上限與供應商 cooldown 不變；不同 prompt bytes 自然使用不同步驟快取 key。
