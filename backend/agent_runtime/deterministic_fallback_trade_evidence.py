@@ -1,6 +1,7 @@
 """Attribute local no-trade policy without inventing provider or source success."""
 
 from workflow_trade_evidence import trade_input_fingerprint, trade_manifest_matches_input
+from trade_financial_risk import enforce_trade_financial_risk
 
 from .deterministic_fallback_mode_contracts import event_swing_fallback
 
@@ -33,4 +34,4 @@ def attributed_event_swing_fallback(data, context):
     # A previous model attempt's STOP/MAX_TOKENS never describes local output.
     context.pop("_trade_completion_receipt", None)
     structured["source_assessment"] = assessment
-    return structured
+    return enforce_trade_financial_risk(structured, data)

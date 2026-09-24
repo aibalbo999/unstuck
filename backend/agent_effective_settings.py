@@ -93,6 +93,7 @@ def _candidate(agent: int, model: str, index: int, route_length: int) -> dict:
 
 
 def _agent_settings(agent: int) -> dict:
+    from trade_financial_risk import FINANCIAL_RISK_POLICY_VERSION
     route = get_agent_model_sequence(agent)
     generation = build_generation_config(agent)
     tools = get_agent_function_tools(agent) if getattr(generation, "tools", None) else []
@@ -112,6 +113,8 @@ def _agent_settings(agent: int) -> dict:
         "audit_rewrite_lite_fallback_enabled": bool(config.AUDIT_REWRITE_LITE_FALLBACK_AGENTS.get(agent)),
         "candidates": [_candidate(agent, model, index, len(route)) for index, model in enumerate(route)],
         "output_contract": {
+            "reasoning_mode": "single_model_simulated_debate" if agent == 6 else "role_analysis",
+            "deterministic_risk_policy": FINANCIAL_RISK_POLICY_VERSION if agent == 24 else None,
             "schema_name": schema.__name__ if schema else None,
             "native_schema_enabled": native_schema is not None,
             "schema_sha256": _schema_digest(native_schema),

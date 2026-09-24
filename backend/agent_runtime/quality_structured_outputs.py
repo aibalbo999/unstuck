@@ -6,6 +6,8 @@ from analysis_types import AnalysisContext
 from pipeline_modes import get_pipeline_definition
 from structured_output_models import STRUCTURED_AGENT_INSTRUCTIONS
 from structured_output_runtime import process_agent_response
+from structured_output_normalizer import structured_output_to_report_text
+from trade_financial_risk import enforce_trade_financial_risk
 
 
 _TOOL_BACKED_PROMPT_STRUCTURED_AGENTS = {2, 13, 18}
@@ -29,6 +31,12 @@ def try_parse_structured_output(agent_num: int, result: str, context: AnalysisCo
     structured_outputs = context.setdefault("structured_outputs", {})
     existing = structured_outputs.get(agent_num, structured_outputs.get(str(agent_num)))
     if existing:
+        if agent_num == 24 and isinstance(existing, dict):
+            guarded = enforce_trade_financial_risk(existing, context.get("data", {}))
+            if guarded != existing:
+                structured_outputs.pop(str(agent_num), None)
+                structured_outputs[agent_num] = guarded
+                result = structured_output_to_report_text(agent_num, guarded, result)
         return True, result
 
     parsed_result = process_agent_response(agent_num, result, context)
