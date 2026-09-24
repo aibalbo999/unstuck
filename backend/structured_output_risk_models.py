@@ -187,17 +187,17 @@ class SwingTradeSetup(StructuredModel):
     support_source_refs: list[str] = Field(
         ...,
         max_length=6,
-        description="支撐位引用的本次可見 State 或 short_term_market_context 路徑；Neutral 且無價位時可為空陣列。",
+        description="支撐位僅引用本次完整可見 trade-source 清單中 support_source_refs 的確切 short_term_market_context 路徑；Neutral 且無價位時可為空陣列。",
     )
     resistance_source_refs: list[str] = Field(
         ...,
         max_length=6,
-        description="壓力位引用的本次可見 State 或 short_term_market_context 路徑；Neutral 且無價位時可為空陣列。",
+        description="壓力位僅引用本次完整可見 trade-source 清單中 resistance_source_refs 的確切 short_term_market_context 路徑；Neutral 且無價位時可為空陣列。",
     )
     catalyst_source_refs: list[str] = Field(
         ...,
         max_length=6,
-        description="近期催化劑引用的本次可見 State、上游 evidence item 或事件路徑；無已確認事件時可為空陣列。",
+        description="催化劑僅引用本次完整可見 trade-source 清單中 catalyst_source_refs 的確切 short_term_market_context 路徑；無支持證據時可為空陣列。",
     )
     transaction_cost: str | None = Field(default=None, description="每股來回交易成本金額，含費稅與滑價；未知為 null，明確免費才為 0。")
 

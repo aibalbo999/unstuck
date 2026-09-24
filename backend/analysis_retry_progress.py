@@ -10,6 +10,8 @@ import json
 import re
 from dataclasses import dataclass
 
+from analysis_retry_stages import (completion_token, ledger_members, pending_members, stage_key, valid_members)
+
 _FIELD = 'availability_stage_progress'
 _RECEIPT = '_committed_retry_progress'
 _NODE = re.compile(r'[A-Za-z][A-Za-z0-9_]{0,95}')
@@ -29,6 +31,7 @@ class _CommittedProgress:
     node: str
     checkpoint: str
     completed: tuple[tuple[str, str], ...]
+    members: tuple[str, ...] = ()
 
 
 async def attach_committed_retry_progress(error, saver, graph, config):
@@ -52,11 +55,12 @@ async def attach_committed_retry_progress(error, saver, graph, config):
             return
         saved_config = saved.config['configurable']
         if (saved_config.get('thread_id') != thread or saved_config.get('checkpoint_ns', '')
-                or saved.metadata.get('source') != 'loop' or len(snapshot.next) != 1):
+                or saved.metadata.get('source') != 'loop'):
             return
-        node = snapshot.next[0]
-        if not isinstance(node, str) or not _NODE.fullmatch(node):
+        members = pending_members(checkpoint, snapshot)
+        if members is None:
             return
+        node = stage_key(members)
         values = checkpoint['channel_values']
         data = values.get('raw_financial_data', {}).get('input')
         if not isinstance(data, dict) or not data:
@@ -77,7 +81,7 @@ async def attach_committed_retry_progress(error, saver, graph, config):
         checkpoint_id = checkpoint.get('id')
         if not isinstance(checkpoint_id, str) or not checkpoint_id or len(checkpoint_id) > 128:
             return
-        setattr(error, _RECEIPT, _CommittedProgress(thread, scope, node, checkpoint_id, tuple(completed)))
+        setattr(error, _RECEIPT, _CommittedProgress(thread, scope, node, checkpoint_id, tuple(completed), members))
     except Exception:
         return  # Keep the original provider failure and legacy backoff, not a new failure.
 
@@ -100,6 +104,7 @@ def _valid_ledger(value, receipt, global_count):
     token = last['completion_token']
     node, checkpoint = last.get('node'), last.get('checkpoint')
     return (isinstance(node, str) and bool(_NODE.fullmatch(node)) and node in counts
+            and ledger_members(last) is not None
             and isinstance(checkpoint, str) and 0 < len(checkpoint) <= 128
             and (token is None or isinstance(token, str) and bool(_HASH.fullmatch(token))))
 
@@ -126,15 +131,16 @@ def _stage_count(meta, error, job_id, global_count):
         if receipt.node in counts:
             count = counts[receipt.node] + 1
         elif (receipt.checkpoint != last['checkpoint']
-              and completed.get(last['node']) is not None
-              and completed[last['node']] != last['completion_token']):
+              and (finished := completion_token(completed, ledger_members(last))) is not None
+              and finished != last['completion_token']):
             count = 1  # The previously failing node actually committed before this new node.
     if len(counts) >= _MAX_NODES and receipt.node not in counts:
         return global_count
     counts[receipt.node] = count
     meta[_FIELD] = {'version': 1, 'scope': receipt.scope, 'global_count': global_count,
                     'counts': counts, 'last': {'node': receipt.node, 'checkpoint': receipt.checkpoint,
-                                              'completion_token': completed.get(receipt.node)}}
+                                              'completion_token': completion_token(completed, receipt.members),
+                                              'members': list(receipt.members)}}
     return count
 
 
@@ -145,7 +151,8 @@ def _valid_receipt(receipt):
             or not isinstance(receipt.scope, str) or not _HASH.fullmatch(receipt.scope)
             or not isinstance(receipt.node, str) or not _NODE.fullmatch(receipt.node)
             or not isinstance(receipt.checkpoint, str) or not 0 < len(receipt.checkpoint) <= 128
-            or not isinstance(receipt.completed, tuple) or len(receipt.completed) > _MAX_NODES):
+            or not isinstance(receipt.completed, tuple) or len(receipt.completed) > _MAX_NODES
+            or not isinstance(receipt.members, tuple) or not valid_members(receipt.node, receipt.members)):
         return False
     names = set()
     for item in receipt.completed:

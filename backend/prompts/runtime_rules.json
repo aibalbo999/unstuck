@@ -501,9 +501,9 @@
         "  \"support_level\": \"可追溯的近期支撐位或可驗證條件\",",
         "  \"resistance_level\": \"可追溯的近期壓力位或可驗證條件\",",
         "  \"core_catalyst\": \"一句話總結未來 1-2 週的可驗證催化劑\",",
-        "  \"support_source_refs\": [\"支撐位的可追溯 State 路徑\"],",
-        "  \"resistance_source_refs\": [\"壓力位的可追溯 State 路徑\"],",
-        "  \"catalyst_source_refs\": [\"催化劑的可追溯 State 或上游 evidence 路徑\"],",
+        "  \"support_source_refs\": [\"完整可見 trade-source 清單中支撐位的確切 short_term_market_context 路徑\"],",
+        "  \"resistance_source_refs\": [\"完整可見 trade-source 清單中壓力位的確切 short_term_market_context 路徑\"],",
+        "  \"catalyst_source_refs\": [\"完整可見 trade-source 清單中催化劑的確切 short_term_market_context 路徑\"],",
         "  \"risk_level\": \"High|Medium|Low\",",
         "  \"transaction_cost\": null",
         "}"

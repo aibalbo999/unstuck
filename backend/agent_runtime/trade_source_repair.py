@@ -4,6 +4,7 @@ from __future__ import annotations
 import copy
 import json
 from trade_source_contract import allowed_source_refs
+from trade_source_diagnostics import source_repair_feedback
 from workflow_quality_drafts import checkpoint_unvalidated_draft
 from .cancellation import raise_if_cancelled
 
@@ -42,6 +43,7 @@ async def repair_trade_sources(result, data, context, rotator, run_agent, *, val
         "把已觀測事實與未來條件分開：core_catalyst 先逐項寫可核驗的現況，最後用『；等待…後再重新評估』表達尚未發生的條件。"
         "現況不得使用單一累計值推定連續買超；未來重新評估條件也不能取代現況的來源引用。"
         "若資料不支持原方向，保持 Neutral 並具體說明缺口與重新評估条件；不得填假引用或強迫Long/Short。"
+        + source_repair_feedback(assessment, manifest, original)
     )
     try:
         raise_if_cancelled(context)

@@ -82,9 +82,10 @@ def source_block(data):
     encoded = json.dumps(catalog, ensure_ascii=False, sort_keys=True, separators=(",", ":"), allow_nan=False)
     fingerprint = hashlib.sha256(encoded.encode()).hexdigest()
     allowed = allowed_source_refs(catalog)
+    from trade_source_guidance import source_guidance_text
     text = ("【trade-source:" + fingerprint + "】\n" + encoded +
             "\n可引用路徑：" + json.dumps(allowed, ensure_ascii=False, separators=(",", ":")) +
-            "\n【/trade-source】\n來源引用只使用以上完整區塊中實際存在且非空的 short_term_market_context 路徑；"
+            source_guidance_text(catalog) + "\n【/trade-source】\n來源引用只使用以上完整區塊中實際存在且非空的 short_term_market_context 路徑；"
             "不得自行補造路徑。三組 source_refs 均須輸出。Long/Short 缺少支撐、壓力或催化證據時明示資料限制，"
             "K 線與均線只支持價格與技術條件；RSI、MACD、量能只能作技術催化，不能作價格支撐壓力。"
             "法人主張須引用 institutional_evidence 中對應單位、統計主體、期間的完整record，不能以合計冒充外資；"
@@ -236,4 +237,7 @@ def bind_trade_payload(payload, context):
                   "contract_version": CONTRACT_VERSION, "repair_attempted": bool(context.get("_trade_source_repair_attempted"))}
     if bound:
         assessment["source_fingerprint"] = manifest.get("fingerprint")
+        if degraded:
+            from trade_source_diagnostics import source_rejection_diagnostics
+            assessment["rejection_diagnostics"] = source_rejection_diagnostics(payload, manifest, reasons, result)
     return result, assessment

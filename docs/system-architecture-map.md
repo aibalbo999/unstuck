@@ -1,5 +1,7 @@
 # 系統架構關聯圖
 
+模式 D 的來源事實句與退件診斷在 `trade_source_guidance.py`／`trade_source_diagnostics.py`；原 catalog 與來源 gate 維持驗證邊界。並行 Agent22／23 的退避階段識別在 `analysis_retry_stages.py`，必須整個階段的 root completion 才能讓下一階段使用基礎等待；舊排程及 provider cooldown 保留。詳見 [2026-09-24 模型呼叫修正](model-call-optimization-2026-09-24.md)。
+
 殖利率單位判定在 `dividend_yield_units.py`，供 prompt 與 DDM 共用；來源明示 percentage_points，舊值必須有相容的百分比標籤，未知或衝突不靠數值大小猜測。模型 deferred 的跨階段退避在 `analysis_retry_progress.py`，只認已提交的 graph 節點憑據，provider cooldown 仍優先。Agent20 無逐字稿的 deterministic 規則也用於 final-audit 依賴重建。驗證邊界與尚未耐久化的 repair counters 限制見 [2026-09-24 模型呼叫修正](model-call-optimization-2026-09-24.md)。
 
 來源時間窗、商品適用性、分項備援、SLA v4 與年度日曆維護契約見 [資料來源取得與證據判讀](source-evidence-operations.md)。法人 acquisition 與 observation 分離的共用入口為 `data_fetch/institutional_provider.py`。其餘入口為 `news_freshness_policy.py`、`source_applicability.py`、`shared_provider_cache.py`、`search_provider_runtime.py` 及 `provider_observation_details.py`。
