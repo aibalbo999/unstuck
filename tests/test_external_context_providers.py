@@ -105,7 +105,7 @@ def test_taiwan_open_data_provider_labels_er_spot_when_bot_is_challenged(monkeyp
             return FakeResponse(b"<!DOCTYPE html><title>Challenge Validation</title>")
         return FakeResponse(
             b'{"result":"success"}',
-            json_payload={"result": "success", "rates": {"TWD": 31.93}, "time_last_update_utc": "Fri, 03 Jul 2026 00:00:01 +0000"},
+            json_payload={"result": "success", "base_code": "USD", "rates": {"TWD": 31.93}, "time_last_update_utc": "Fri, 03 Jul 2026 00:00:01 +0000"},
         )
 
     monkeypatch.setattr(taiwan_open_data_provider, "sync_get", fake_get)
@@ -115,7 +115,7 @@ def test_taiwan_open_data_provider_labels_er_spot_when_bot_is_challenged(monkeyp
     assert result.status == "degraded_enrichment"
     assert result.value["source"] == "open.er-api.com fallback"
     assert result.provider == "open.er-api.com"
-    assert result.value["rates"]["USD"]["spot"] == "31.9300"
+    assert float(result.value["rates"]["USD"]["spot"]) == 31.93
     assert result.value["rates"]["USD"]["sell"] is None
     assert result.audit["record_count"] == 1
     assert len(calls) == 2

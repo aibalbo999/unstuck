@@ -210,4 +210,5 @@ def test_fetch_twse_margin_short_sales_uses_shared_http_client(monkeypatch):
 
     assert result["margin_balance"] == 12345
     assert result["borrowed_short_sale_balance"] == 29000
-    assert [call["provider"] for call in calls] == ["TWSE OpenAPI MI_MARGN", "TWSE TWT93U"]
+    assert [call["provider"] for call in calls] == [
+        "TWSE MI_MARGN dated report", "TWSE OpenAPI MI_MARGN", "TWSE TWT93U"]

@@ -29,8 +29,9 @@ class TaiwanOpenDataProvider(DataProvider):
         from data_trust import AUDIT_STATUS_DEGRADED_ENRICHMENT, AUDIT_STATUS_SUCCESS, AUDIT_STATUS_UNAVAILABLE
         from shared_provider_cache import shared_fetch
 
-        value, meta = shared_fetch("exchange_rates:USD_TWD:v2", _fetch_exchange_rates,
-                                  freshness_seconds=15 * 60, retention_seconds=15 * 60,
+        value, meta = shared_fetch("exchange_rates:TWD_quotes:v3", _fetch_exchange_rates,
+                                  freshness_seconds=60 * 60, retention_seconds=60 * 60,
+                                  result_ttl=lambda value: (60 * 60 if value.get("actual_provider") == "open.er-api.com" else 15 * 60),
                                   use_cache=not request.options.force_refresh)
         if value:
             _screen_quote_recency(value, ticker=request.ticker, now_epoch=time.time())
@@ -100,10 +101,17 @@ def _fetch_exchange_rates() -> dict:
             quote = fetcher()
             if not _valid_rate(quote.get("rate")):
                 raise ValueError("Invalid USD/TWD spot")
-            value = _usd_twd_fallback_value(dataset, source, quote, "臺銀牌告未取得；僅有第三方 USD/TWD spot，無 EUR/JPY 與銀行買賣報價。")
+            value = _usd_twd_fallback_value(dataset, source, quote, "臺銀牌告未取得；第三方 spot 僅供換算參考，沒有銀行買賣報價。")
+            # ER already returns these currencies in the same USD-base response.
+            # Cross rates do not need extra requests and remain derived spot data.
+            spot_quotes = quote.get("spot_quotes")
+            if isinstance(spot_quotes, dict):
+                value["rates"].update(spot_quotes)
+            missing_status = "unavailable" if isinstance(spot_quotes, dict) else "unsupported"
             value.update(actual_provider=provider, source_url=url, fallback_attempts=attempts,
                          fallback_reason="primary_unavailable", status="partial",
-                         coverage={"USD": "available", "EUR": "unsupported", "JPY": "unsupported"})
+                         coverage={currency: "available" if item else missing_status
+                                   for currency, item in value["rates"].items()})
             return value
         except Exception as exc:
             attempts.append({"provider": provider, "error_kind": type(exc).__name__})
@@ -144,16 +152,34 @@ def _fetch_er_api_usd_twd_rate() -> dict:
     payload = r.json()
     if not isinstance(payload, dict) or payload.get("result") != "success":
         raise ValueError("open.er-api.com did not return a success payload.")
+    if payload.get("base_code") != "USD":
+        raise ValueError("open.er-api.com response must declare the USD base.")
     rates = payload.get("rates") if isinstance(payload.get("rates"), dict) else {}
     rate = rates.get("TWD")
-    if rate is None:
-        raise ValueError("open.er-api.com payload did not include TWD.")
+    if not _valid_rate(rate):
+        raise ValueError("open.er-api.com payload did not include a valid TWD rate.")
     raw_date = str(payload.get("time_last_update_utc") or "").strip()
     try:
         observed_date = parsedate_to_datetime(raw_date).isoformat()
     except (ValueError, TypeError, OverflowError):
         observed_date = None
-    return {"date": observed_date, "reported_timestamp": raw_date, "rate": f"{float(rate):.4f}"}
+    spot_quotes = {}
+    for currency in ("USD", "EUR", "JPY"):
+        denominator = 1 if currency == "USD" else rates.get(currency)
+        spot = float(rate) / float(denominator) if _valid_rate(denominator) else None
+        if not _valid_rate(spot):
+            spot_quotes[currency] = None
+            continue
+        spot_quotes[currency] = {
+            "buy": None, "sell": None, "rate_kind": "spot", "base_currency": currency,
+            "quote_currency": "TWD", "unit": f"TWD per {currency}",
+            "spot": f"{spot:.12g}", "as_of": observed_date,
+            "derived": currency != "USD", "source_base_currency": "USD",
+            "source_rates": {"TWD": rate, **({currency: denominator} if currency != "USD" else {})},
+            "formula": f"rates.TWD / rates.{currency}" if currency != "USD" else "rates.TWD",
+        }
+    return {"date": observed_date, "reported_timestamp": raw_date, "rate": f"{float(rate):.12g}",
+            "spot_quotes": spot_quotes}
 
 
 def _fetch_fred_usd_twd_rate() -> dict:
@@ -178,7 +204,9 @@ def _usd_twd_fallback_value(dataset: str, source: str, usd_twd: dict, note: str)
                 "buy": None,
                 "sell": None,
                 "rate_kind": "spot",
+                "base_currency": "USD",
                 "quote_currency": "TWD",
+                "unit": "TWD per USD",
                 "spot": usd_twd["rate"],
                 "as_of": usd_twd["date"],
             },

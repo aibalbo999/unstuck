@@ -108,6 +108,10 @@ def test_wrong_company_invalid_and_future_events_do_not_become_latest(monkeypatc
 
 @pytest.mark.parametrize('value', [
     {}, {'status': {'code': '1'}, 'result': {}},
+    {'status': {'code': '1'}, 'result': {}, 'pagingObject': {'totalCount': 1}},
+    {'status': {'code': '1'}, 'result': {}, 'pagingObject': {'totalCount': False}},
+    {'status': {'code': '1'}, 'result': {}, 'pagingObject': {'totalCount': -1}},
+    {'status': {'code': '1'}, 'result': {'unexpected': []}, 'pagingObject': {'totalCount': 0}},
     {**payload([]), 'pagingObject': {'totalCount': 2}},
     payload([{'agentUserName': '2330', 'isValid': True, 'categoryId': 170, 'eventDate': '2026-02-30 00:00:00.0'}]),
 ])
@@ -152,6 +156,38 @@ def test_valid_empty_is_index_scope_only_and_has_short_cache(monkeypatch, upstre
     assert len(calls) == 1
     row = next(v for k, v in upstream[0].items() if k.startswith('shared_provider:'))
     assert 299 <= row['fresh_until_epoch'] - row['fetched_at_epoch'] < 301
+
+
+def test_official_empty_result_does_not_block_other_companies(monkeypatch, upstream):
+    """2321 live response: successful empty envelope omits materials entirely."""
+    import official_financials_webpro_conference as webpro
+    from data_fetch.enrichment_providers import EarningsCallProvider
+    from data_fetch.types import FetchRequest
+    calls = []
+
+    def post(url, **kwargs):
+        symbol = kwargs['data']['stockCodeOrCompanyName']
+        calls.append(symbol)
+        value = ({'status': {'code': '1'}, 'result': {},
+                  'pagingObject': {'pagingSize': 3, 'totalPage': 0, 'totalCount': 0, 'currentPage': 1}}
+                 if symbol == '2321' else payload())
+        return httpx.Response(200, json=value, request=httpx.Request('POST', url))
+
+    monkeypatch.setattr(webpro, 'sync_post', post)
+    empty = EarningsCallProvider().fetch(FetchRequest.from_ticker('2321.TW'))
+    assert empty.status == 'degraded_enrichment'
+    assert empty.audit['outcome'] == 'valid_empty'
+    assert empty.audit['error_kind'] == ''
+    assert empty.audit['component_statuses']['MOPS']['error_kind'] == 'access_denied'
+    assert empty.value == {}
+    again = EarningsCallProvider().fetch(FetchRequest.from_ticker('2321.TW'))
+    assert again.audit['cache_hit'] is True
+    recovered = EarningsCallProvider().fetch(FetchRequest.from_ticker('2330.TW'))
+    assert recovered.value['date'] == '2026-07-16'
+    assert calls == ['2321', '2330']
+    rows = [v for k, v in upstream[0].items() if k.startswith('shared_provider:') and v['value']['events'] == []]
+    assert len(rows) == 1
+    assert 299 <= rows[0]['fresh_until_epoch'] - rows[0]['fetched_at_epoch'] < 301
 
 
 def test_both_failures_preserved_and_retry_after_prevents_repeated_http(monkeypatch, upstream):
