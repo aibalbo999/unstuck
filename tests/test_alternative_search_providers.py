@@ -231,7 +231,7 @@ def test_catalyst_search_retries_with_broader_company_query(monkeypatch):
     records = asyncio.run(search.fetch_alternative_search_catalysts_async("2330.TW", "台積電", {}))
 
     assert len(calls) == 2
-    assert "earnings outlook" in calls[0]
+    assert "earnings OR outlook" in calls[0]
     assert calls[1] == "台積電 2330.TW"
     assert records[0]["title"] == "TSMC reports monthly revenue"
 

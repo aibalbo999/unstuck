@@ -95,12 +95,18 @@ def fetch_twse_margin_short_sales(
     *,
     session: Any | None = None,
     timeout: float = 15,
+    use_cache: bool = True,
 ) -> dict[str, Any]:
     """Fetch latest TWSE margin/short and borrowed-short balances for one listed ticker."""
     code = _normalize_taiwan_stock_code(ticker)
     if str(ticker or "").strip().upper().endswith(".TWO"):
         from tpex_credit_source import fetch_tpex_margin
         return fetch_tpex_margin(code, http_get=_http_get, parse_int=_parse_int, session=session, timeout=timeout)
+    from twse_credit_source import fetch_twse_dated_margin
+    dated = fetch_twse_dated_margin(code, http_get=_http_get, session=session, timeout=timeout, use_cache=use_cache)
+    if dated.get("status") in {"success", "partial"}:
+        dated.update(_fetch_borrowed_short_sales(session, code, timeout=timeout))
+        return dated
     try:
         margin_response = _http_get(
             TWSE_MARGIN_BALANCE_URL,
@@ -141,6 +147,7 @@ def fetch_twse_margin_short_sales(
             "margin_as_of_date": margin_date,
             "margin_date_status": "reported" if margin_date else "unknown",
             "margin_unit": "lots",
+            "dated_margin_fallback_reason": dated.get("reason_code"),
         }
         result.update(_fetch_borrowed_short_sales(session, code, timeout=timeout))
         return result

@@ -78,7 +78,7 @@ def test_chip_partial_does_not_hide_missing_borrowed(monkeypatch):
     from data_fetch.agent_context_providers import ChipDataProvider
     from data_fetch.types import FetchRequest
     monkeypatch.setattr(chip,'fetch_tdcc_shareholder_distribution',lambda *a: {'status':'success','as_of_date':'2026-09-18'})
-    monkeypatch.setattr(chip,'fetch_twse_margin_short_sales',lambda *a: {'status':'unavailable'})
+    monkeypatch.setattr(chip,'fetch_twse_margin_short_sales',lambda *a, **kw: {'status':'unavailable'})
     result=ChipDataProvider().fetch(FetchRequest.from_ticker('2330.TW'))
     assert result.status == 'degraded_enrichment'
     assert result.value['status'] == 'partial'
@@ -252,7 +252,7 @@ def test_er_spot_date_is_normalized_from_provider_timestamp(monkeypatch):
     import data_fetch.taiwan_open_data_provider as fx
     class Response:
         def json(self):
-            return {'result':'success','rates':{'TWD':31.93},'time_last_update_utc':'Fri, 03 Jul 2026 00:00:01 +0000'}
+            return {'result':'success','base_code':'USD','rates':{'TWD':31.93},'time_last_update_utc':'Fri, 03 Jul 2026 00:00:01 +0000'}
     monkeypatch.setattr(fx,'sync_get',lambda *a,**k:Response())
     result=fx._fetch_er_api_usd_twd_rate()
     assert result['date'].startswith('2026-07-03')

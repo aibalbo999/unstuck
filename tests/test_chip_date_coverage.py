@@ -11,7 +11,7 @@ def _fetch(monkeypatch, margin_date):
     import chip_data_fetcher
     monkeypatch.setattr(chip_data_fetcher, 'fetch_tdcc_shareholder_distribution', lambda *a:{
         'status':'success','as_of_date':'20260918','source':'TDCC OpenData','major_holders_gt_1000_lots_pct':62.22})
-    monkeypatch.setattr(chip_data_fetcher, 'fetch_twse_margin_short_sales', lambda *a:{
+    monkeypatch.setattr(chip_data_fetcher, 'fetch_twse_margin_short_sales', lambda *a, **kw:{
         'status':'success','source':'TWSE OpenAPI MI_MARGN','margin_balance':8449,
         'as_of_date':margin_date,'margin_date_status':'reported' if margin_date else 'unknown',
         'borrowed_short_status':'success','borrowed_short_as_of_date':'2026-09-22',

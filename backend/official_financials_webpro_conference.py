@@ -15,7 +15,7 @@ from shared_provider_cache import shared_fetch
 PROVIDER = 'TWSE WebPro conference metadata'
 INDEX_URL = 'https://webpro.twse.com.tw/WebPortal/vod/101/?categoryId=170'
 LIST_URL = 'https://webpro.twse.com.tw/WebPortal/service/vodChannel/categoryMaterialList'
-PARSER_VERSION = 'webpro-conference-metadata-v1'
+PARSER_VERSION = 'webpro-conference-metadata-v2'
 COVERAGE_NOTE = '僅取得 WebPro 站外法說會索引的日期與連結；未取得簡報、影音內容或逐字稿，來源涵蓋不完整。'
 COOLDOWN_KEY = scope_key(PROVIDER, endpoint='conference_index')
 
@@ -114,11 +114,19 @@ def _parse_index(payload: dict, symbol: str) -> list[dict]:
         raise ValueError('Missing WebPro status code')
     if str(code) != '1':
         raise SourceResponseError('provider_error', status_code=200, parser_version=PARSER_VERSION)
-    rows = payload['result']['materials']['material']
-    if not isinstance(rows, list) or not isinstance(payload.get('pagingObject'), dict):
+    if not isinstance(payload.get('pagingObject'), dict):
         raise ValueError('Unknown WebPro result shape')
     total = payload['pagingObject'].get('totalCount')
-    if type(total) is not int or total < len(rows) or (total and not rows):
+    if type(total) is not int or total < 0:
+        raise ValueError('Inconsistent WebPro paging')
+    # Official zero-result pages omit materials. Require explicit successful
+    # paging evidence; missing/unknown envelopes must remain parser failures.
+    if total == 0 and payload.get('result') == {}:
+        return []
+    rows = payload['result']['materials']['material']
+    if not isinstance(rows, list):
+        raise ValueError('Unknown WebPro result shape')
+    if total < len(rows) or (total and not rows):
         raise ValueError('Inconsistent WebPro paging')
     today = datetime.now(ZoneInfo('Asia/Taipei')).date()
     events, seen = [], set()

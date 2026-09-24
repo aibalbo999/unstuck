@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import re
 
 from config import (
     BING_SEARCH_API_KEY,
@@ -41,10 +42,9 @@ async def fetch_alternative_search_catalysts_async(
 ) -> list[dict]:
     """Fetch recent catalyst-like search results from non-Google providers."""
     official_name = str((identity or {}).get("official_name") or company_name or ticker).strip()
-    query = (
-        f"{official_name} {ticker} 法說會 展望 供應鏈 營收 投資 "
-        "earnings outlook revenue catalyst"
-    ).strip()
+    # A catalyst can concern any one topic. Requiring every bilingual synonym
+    # plus an exchange-suffixed ticker made valid company news unnecessarily rare.
+    query = f"{official_name} (法說會 OR 展望 OR 營收 OR earnings OR outlook OR revenue)".strip()
     results = await fetch_web_search_results_async(
         query,
         max_results=max_results,
@@ -115,6 +115,8 @@ async def fetch_web_search_results_async(
     if not cleaned_query:
         return []
     target_results = max(1, int(max_results))
+    # Boolean syntax is not a relevance term ("OR" would match "reports").
+    quality_query = re.sub(r"\bOR\b", " ", cleaned_query)
 
     cutoff = datetime.now(timezone.utc)
     results: list[SearchResult] = []
@@ -123,14 +125,14 @@ async def fetch_web_search_results_async(
             selected = _select_quality_results(
                 results,
                 limit=target_results,
-                query=cleaned_query,
+                query=quality_query,
                 lookback_days=lookback_days,
                 require_recent=require_recent, cutoff=cutoff,
             )
             if _search_quality_satisfied(
                 selected,
                 max_results=target_results,
-                query=cleaned_query,
+                query=quality_query,
                 lookback_days=lookback_days,
                 require_recent=require_recent, cutoff=cutoff,
             ):
@@ -155,7 +157,7 @@ async def fetch_web_search_results_async(
     return _select_quality_results(
         results,
         limit=target_results,
-        query=cleaned_query,
+        query=quality_query,
         lookback_days=lookback_days,
         require_recent=require_recent, cutoff=cutoff,
     )

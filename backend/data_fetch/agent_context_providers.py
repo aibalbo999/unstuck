@@ -61,14 +61,15 @@ class ChipDataProvider(DataProvider):
         data = (context or {}).get("data", {}) if isinstance((context or {}).get("data"), dict) else {}
         ticker = str(data.get("ticker") or request.ticker).strip().upper()
         tdcc = fetch_tdcc_shareholder_distribution(ticker, data.get("tdcc_date"))
-        margin = fetch_twse_margin_short_sales(ticker)
+        margin = fetch_twse_margin_short_sales(ticker, use_cache=not request.options.force_refresh)
         value = {
             "tdcc_shareholder_distribution": tdcc,
             "twse_margin_short_sales": margin,
         }
         components = {
             "tdcc": {"status": tdcc.get("status", "unknown"), "as_of": tdcc.get("as_of_date"), "provider": tdcc.get("source", "TDCC")},
-            "margin_short": {"status": margin.get("status", "unknown"), "as_of": margin.get("as_of_date"), "provider": margin.get("source")},
+            "margin_short": {"status": margin.get("status", "unknown"), "as_of": margin.get("as_of_date"), "provider": margin.get("source"),
+                             "reason_code": margin.get("reason_code")},
             "borrowed_short": {"status": margin.get("borrowed_short_status", "unknown"),
                                "as_of": margin.get("borrowed_short_as_of_date"), "provider": margin.get("borrowed_short_source"),
                                "reason_code": margin.get("borrowed_short_reason_code") if margin.get("borrowed_short_status") else "status_not_reported"},
@@ -76,32 +77,35 @@ class ChipDataProvider(DataProvider):
         from source_observation_freshness import parse_observation_date
         unknown_dates = []
         for name, component in components.items():
-            component["retrieval_status"] = component["status"]
+            component["retrieval_status"] = "success" if component["status"] == "partial" else component["status"]
             component["date_status"] = "reported" if parse_observation_date(component.get("as_of")) else "unknown"
-            if component["status"] == "success" and component["date_status"] == "unknown":
+            if component["status"] in {"success", "partial"} and component["date_status"] == "unknown":
                 component["reason_code"] = "observation_date_unknown"
                 unknown_dates.append(name)
         successful = sum(item["status"] == "success" for item in components.values())
-        coverage = "success" if successful == len(components) and not unknown_dates else "partial" if successful else "unavailable"
+        available = sum(item["status"] in {"success", "partial"} for item in components.values())
+        coverage = "success" if successful == len(components) and not unknown_dates else "partial" if available else "unavailable"
         labels = {"tdcc": "集保股權", "margin_short": "融資券", "borrowed_short": "借券"}
         date_note = ("、".join(labels[name] for name in unknown_dates) + "觀測日期未知；保留已取得數值，不能確認資料日期。") if unknown_dates else ""
+        if margin.get("status") == "partial":
+            date_note += "融資券核心餘額不完整；保留已取得欄位，不將缺值視為零。"
         value.update(status=coverage, component_statuses=components, coverage_notes=[date_note] if date_note else [])
-        status = AUDIT_STATUS_SUCCESS if coverage == "success" else AUDIT_STATUS_DEGRADED_ENRICHMENT if successful else AUDIT_STATUS_UNAVAILABLE
+        status = AUDIT_STATUS_SUCCESS if coverage == "success" else AUDIT_STATUS_DEGRADED_ENRICHMENT if available else AUDIT_STATUS_UNAVAILABLE
         return ProviderResult(
             source=self.source,
             provider=self.name,
             status=status,
-            value=value if successful else None,
+            value=value if available else None,
             audit={
                 "source": self.source,
                 "provider": self.name,
                 "status": status,
-                "record_count": successful,
+                "record_count": available,
                 "cache_hit": False,
                 "stale": False,
                 "coverage_status": coverage,
                 "component_statuses": components,
-                "message": date_note or ("籌碼分項資料已回傳；請依各來源狀態與日期確認覆蓋。" if successful else "TDCC/TWSE/TPEx 籌碼資料暫無可用結果。"),
+                "message": date_note or ("籌碼分項資料已回傳；請依各來源狀態與日期確認覆蓋。" if available else "TDCC/TWSE/TPEx 籌碼資料暫無可用結果。"),
             },
         )
 
@@ -140,6 +144,22 @@ class AlternativeJobOpeningsProvider(DataProvider):
                    and item["job_count"] >= 0]
         news_count = sum(len(item.get("recent_recruitment_news") or []) for item in records)
         complete_numeric = len(numeric) == len(results_104) + len(results_1111)
+        components = {}
+        for provider, results in (("104", results_104), ("1111", results_1111)):
+            for index, raw in enumerate(results, start=1):
+                item = raw if isinstance(raw, dict) else {}
+                count = item.get("job_count")
+                valid_count = (item.get("status") == "success" and isinstance(count, int)
+                               and not isinstance(count, bool) and count >= 0)
+                component_status = ("valid_empty" if valid_count and count == 0 else
+                                    "success" if valid_count else
+                                    "qualitative_only" if item.get("recent_recruitment_news") else "unavailable")
+                components[f"{provider}_{index}"] = {
+                    "status": component_status,
+                    "provider": str(item.get("actual_provider") or f"{provider} Job Search"),
+                    "reason_code": str(item.get("reason_code") or item.get("fallback_reason")
+                                       or ("numeric_count" if valid_count else "count_not_reported")),
+                }
         coverage = ("partial" if numeric and not complete_numeric else
                     "valid_empty" if numeric and all(item["job_count"] == 0 for item in numeric)
                     else "success" if numeric else "qualitative_only" if news_count else "unavailable")
@@ -149,6 +169,7 @@ class AlternativeJobOpeningsProvider(DataProvider):
             "job_openings_104": results_104[0] if len(results_104) == 1 else results_104,
             "job_openings_1111": results_1111[0] if len(results_1111) == 1 else results_1111,
             "numeric_count_coverage": len(numeric), "recruitment_news_count": news_count,
+            "component_statuses": components,
             "coverage_notes": ["徵才新聞僅為質性訊號，不能代替職缺數；失敗不代表零職缺。"],
         }
         return ProviderResult(
@@ -157,6 +178,7 @@ class AlternativeJobOpeningsProvider(DataProvider):
                    "record_count": len(numeric), "cache_hit": False, "stale": False,
                    "coverage_status": coverage, "numeric_count_coverage": len(numeric),
                    "recruitment_news_count": news_count,
+                   "component_statuses": components,
                    "message": "職缺查詢保留數量與質性備援的差別。"},
         )
 
