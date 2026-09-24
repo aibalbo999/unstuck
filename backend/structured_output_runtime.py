@@ -17,6 +17,7 @@ from structured_output_normalizer import (
     warn_high_confidence_with_low_trust,
 )
 from valuation_output_contract import canonicalize_valuation_output
+from trade_financial_risk import enforce_trade_financial_risk
 from trade_source_contract import missing_trade_fields, bind_trade_payload, trade_json_incomplete
 from llm_completion_provenance import completion_diagnostics as _completion_diagnostics, completion_is_incomplete
 
@@ -129,6 +130,9 @@ def process_agent_response(
             "generation_policy_version": receipt["generation_policy_version"],
         }
         structured["source_assessment"] = trade_assessment
+
+    if agent_num == 24:
+        structured = enforce_trade_financial_risk(structured, context.get("data", {}))
 
     if agent_num in {4, 14}:
         structured = canonicalize_valuation_output(structured, context.get("data", {}))

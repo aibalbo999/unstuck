@@ -1,5 +1,9 @@
 # Agent 有效設定與執行證據
 
+角色提示、輸出契約與來源責任的維護說明見 [Agent 角色契約](agent-role-contracts.md)。Agent 6 的 `reasoning_mode=single_model_simulated_debate` 明示同一次模型生成的多空模擬；不能算兩份獨立模型意見。`chief_editor.execution_kind=deterministic` 是目前正式摘要流程，`agents.json` 內保留的同名 LLM persona 不會被此流程呼叫。
+
+Agent 24 的 `output_contract.deterministic_risk_policy` 納入有效設定 hash。`negative-fcf:v1` 在模型輸出和恢復草稿的品質入口，用 `data.free_cash_flow_raw` 的有限負值將風險升為 High 並附警語。提示所見欄位是 `cash_flow.free_cash_flow_billion_twd`；程式用未四捨五入的原始元值避免微小負值歸零。期間未證實時不稱為 TTM。此規則保留來源與完成度檢查，也不自行改變方向或價位。
+
 `GET /api/observability/agent-settings` 是 API 程序當下載入的唯讀設定快照，包含全部編號 Agent 的設定與有效模型順序、角色 Lite 旗標、品質及稽核重寫路由、實際 generation profile、native schema／工具、各候選模型輸入限制與輔助角色。
 
 `configured_fallback_models` 保留原始設定；`effective_model_sequence` 會包含路由函式追加的 Lite。`supplementary_context_budget_tokens` 是包含 system/schema/tools 預留量的補充 context 規劃額度，不代表完整來源已通過輸入 admission；實際請求仍須通過 input、TPM 及 context window 檢查。歷史分析與 RAG 字元上限仍按主模型設定，欄位明示此口徑。

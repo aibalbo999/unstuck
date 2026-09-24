@@ -50,7 +50,9 @@ def test_snapshot_preserves_only_validated_generation_fields_not_tokens_or_promp
 
 
 def test_effective_route_and_hash_include_role_flags_and_generation_overrides(monkeypatch):
-    import config
+    # Settings reload tests may replace sys.modules['config']; patch the policy
+    # module's actual import-time binding, just as the running process reads it.
+    from agent_effective_settings import config
     from agent_effective_settings import build_agent_settings_payload
     from agent_runtime import routing
     from agent_runtime.generation_config import AGENT_GENERATION_PROFILES
@@ -74,7 +76,7 @@ def test_effective_route_and_hash_include_role_flags_and_generation_overrides(mo
 
 
 def test_effective_snapshot_uses_actual_tool_schema_thinking_and_candidate_capacity(monkeypatch):
-    import config
+    from agent_effective_settings import config
     from agent_effective_settings import build_agent_settings_payload
     from agent_runtime.generation_config import build_generation_config
     from agent_runtime.prompt_budget import get_agent_context_input_token_limit, get_agent_prompt_token_budget
@@ -84,6 +86,9 @@ def test_effective_snapshot_uses_actual_tool_schema_thinking_and_candidate_capac
     by_agent = {row["agent_num"]: row for row in payload["agents"]}
     assert by_agent[2]["output_contract"]["effective_tools"] == ["calculate_cagr"]
     assert by_agent[4]["output_contract"]["effective_tools"] == []
+    assert by_agent[6]["output_contract"]["reasoning_mode"] == "single_model_simulated_debate"
+    assert by_agent[24]["output_contract"]["deterministic_risk_policy"] == "negative-fcf:v1"
+    assert payload["auxiliary_roles"]["chief_editor"]["execution_kind"] == "deterministic"
     assert by_agent[4]["output_contract"]["native_schema_enabled"] is bool(build_generation_config(4).response_schema)
     for candidate in by_agent[24]["candidates"]:
         assert candidate["supplementary_context_budget_tokens"] == get_agent_prompt_token_budget(24, model_id=candidate["model_id"])
