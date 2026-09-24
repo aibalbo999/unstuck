@@ -54,7 +54,7 @@ def test_compact_json_preserves_values_order_string_bytes_and_rules_without_tabl
     (19, 'gemini-3.8-flash', False), (19, 'gemma-4-31b-it', False),
     (18, MODEL, False), (7, MODEL, False), (24, MODEL, False),
 ])
-def test_only_non_gemma_agent19_changes_financial_representation(monkeypatch, agent, model, repair):
+def test_only_non_gemma_agents19_and24_change_financial_representation(monkeypatch, agent, model, repair):
     data = fresh_audited_payload()
     context = {'data': data, 'ticker': data['ticker'], 'company_name': data['company_name'],
                'pipeline_id': 'v3', '_prompt_model_id': model, 'analyses': {}, 'structured_outputs': {}}
@@ -68,7 +68,7 @@ def test_only_non_gemma_agent19_changes_financial_representation(monkeypatch, ag
     monkeypatch.setattr(prompting, 'format_data_for_prompt', formatter)
     prompt = prompting.build_prompt(agent, data, context)
     routed, options, result = captures[0]
-    if agent == 19 and model != 'gemma-4-31b-it':
+    if agent in {19, 24} and model != 'gemma-4-31b-it':
         assert options.get('compact_json') is True
         assert_lossless(format_data_for_prompt(routed, compact=options.get('compact', False)), result)
     else:
