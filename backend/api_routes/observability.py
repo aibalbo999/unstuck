@@ -8,10 +8,12 @@ from dataclasses import dataclass
 from typing import Any
 
 from fastapi import APIRouter, Query
+from fastapi.responses import JSONResponse
 
 import api_observability_service
 from agent_effective_settings import build_agent_settings_payload
 from provider_acquisition import get_provider_acquisition_summary
+from runtime_probe_executor import BoundedProbeExecutor, ProbeUnavailable
 
 
 @dataclass(frozen=True)
@@ -22,7 +24,8 @@ class ObservabilityRouteDeps:
 
 
 def create_observability_router(deps: ObservabilityRouteDeps) -> APIRouter:
-    router = APIRouter(prefix="/api/observability")
+    settings_probe = BoundedProbeExecutor("agent-settings-probe")
+    router = APIRouter(prefix="/api/observability", lifespan=settings_probe.lifespan)
 
     @router.get("/provider-sla")
     async def provider_sla_summary(
@@ -63,7 +66,10 @@ def create_observability_router(deps: ObservabilityRouteDeps) -> APIRouter:
 
     @router.get("/agent-settings")
     async def agent_settings():
-        return await asyncio.to_thread(build_agent_settings_payload)
+        try:
+            return await settings_probe.run(build_agent_settings_payload, timeout_seconds=10.0)
+        except ProbeUnavailable as exc:
+            return JSONResponse({"status": "unavailable", "reason": exc.reason}, status_code=503)
 
     @router.get("/dashboard")
     async def dashboard(

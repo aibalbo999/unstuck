@@ -10,4 +10,6 @@
 
 Provider readiness 只回傳 provider 名稱與已載入 credential 數量，不包含金鑰、system prompt、來源資料或環境內容。Credential 數量可能即時刷新，因此不納入 policy hash；載入 credential 不代表服務可用，也不能證明不同 key 屬於不同 quota project。無可驗證 project 對應時保留 `unknown` 與 `independent_project_count=null`。
 
+設定快照和 `/readyz` 各有一個專用執行緒，不與一般儀表板查詢共用 executor。每個端點最多一個進行中工作；忙碌回傳 HTTP 503 `probe_busy`，設定快照等待上限 10 秒、就緒檢查 5 秒，逾時回傳 `probe_timeout`。重複輪詢不會排入額外工作；客戶端取消或逾時後，原工作完成前仍占用名額。這些回應代表查驗暫不可用，不能視為供應商 quota 或模型失敗。正常回應仍即時建構，不回傳過期快照。
+
 報告重跑與 SSE 原先使用通用秘密欄位过滤，誤把 `generation_config.max_output_tokens` 當 token 秘密移除。目前僅對 generation 設定使用嚴格數值／enum 白名單，保留可驗證的輸出上限，並移除 request body、system instruction、schema 內容與 credential。既有事件不回填推測值。

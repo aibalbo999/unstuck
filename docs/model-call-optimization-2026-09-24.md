@@ -61,3 +61,11 @@ Agent 4／14 保留 native JSON schema，估值只引用既有 QuantEngine／det
 跨供應商部署仍受實際憑證與角色契約驗證限制。當次正式設定只載入 Google；OpenAI／Anthropic 未配置，未加入未驗證模型或調高任何 provider 額度。key slot 數與獨立 quota project 數繼續分開，未知 mapping 明確標示 unknown。既有 quota／cooldown／RPD 標記、排程、報告及 .env 不因本輪修改而重設。
 
 本輪隔離整合驗證：956 passed、75 subtests passed、1 optional Agent19 私有 checkpoint skipped、4 個已確認 baseline deselected。四項為 PE river accessor 的兩個舊測試，以及 Agent24 trade-source manifest 對 context mutation 的兩個舊斷言。3037 保存輸入重播中，Agent22／23／24 的預估完整輸入分別由 34,909／35,720／56,551 降為 25,549／27,125／54,540 tokens；這是同資料的離線估算，不是供應商實際用量或正式成功率。原 architecture suite 有七項既有 size/facade 失敗；本輪新增的 context-digest 行數退步已經由抽出生成 helper 修復。
+
+### 部署後實測與查驗端點隔離
+
+PR #31 合併後，原定 22:15（Asia/Taipei）的 3702.TW 重試自然執行。Gemma 證據分批有四次成功回應、三次 500；Gemini 備援有三次 503，另一並行請求隨工作延後而取消。工作沿用既有退避排至 22:45，未產生完成報告，不能宣稱端到端成功率已改善。四次 worker `llm_provider_request` 均保留 `max_output_tokens`，設定指紋與正式 API 查詢一致。823 份既有報告及 2,472 個受保護檔案的比對沒有差異，原工作 ID 和重試排程延續；冷卻期限未被縮短。
+
+部署後曾發生 `/readyz` 與 `/api/observability/agent-settings` 逾時，當時 health／runtime identity 正常。API 程序取樣顯示共用 executor 的 14 個執行緒全忙於 SQLite／JSON 等背景工作，查詢消化後兩端點恢復約 0.08 秒；單獨設定快照建構約 0.07 秒。為避免輕量查驗被大量資料查詢拖住，兩端點各使用一個有界專用 worker，不增加一般查詢的共用 pool。忙碌或逾時回傳 503；取消／逾時不會讓尚未完成的工作失去占位，因此連續輪詢不會堆積 executor 工作。這是查驗可用性保護，不表示其他儀表板查詢的執行時間或供應商 503 已修復。
+
+追加驗證 189 passed，涵蓋共用 pool 飽和、probe 逾時／取消／恢復、真實失敗與查驗逾時區分、router lifespan 關閉與跨 event loop 重啟，以及原有效設定、runtime observability、path／storage／artifact 測試。獨立審查未发现阻擋問題。
