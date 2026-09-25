@@ -157,6 +157,7 @@ class AlternativeJobOpeningsProvider(DataProvider):
                 components[f"{provider}_{index}"] = {
                     "status": component_status,
                     "provider": str(item.get("actual_provider") or f"{provider} Job Search"),
+                    **{k:item[k] for k in ("page_kind", "http_status", "response_sha256", "response_bytes", "parser_version") if k in item},
                     "reason_code": str(item.get("reason_code") or item.get("fallback_reason")
                                        or ("numeric_count" if valid_count else "count_not_reported")),
                 }
@@ -204,15 +205,15 @@ class SocialSentimentProvider(DataProvider):
         ticker = _taiwan_stock_id(data.get("ticker") or request.ticker)
 
         # Dcard
-        query_dcard = f"site:dcard.tw {company_name} OR {ticker}"
+        query_dcard = f'site:dcard.tw ("{company_name}" OR "{ticker}") when:30d'
         dcard_news = fetch_google_news_rss(query_dcard, limit=3)
 
         # Mobile01
-        query_m01 = f"site:mobile01.com {company_name} OR {ticker}"
+        query_m01 = f'site:mobile01.com ("{company_name}" OR "{ticker}") when:30d'
         m01_news = fetch_google_news_rss(query_m01, limit=3)
 
         # PTTWeb (alternative to pure PTT)
-        query_pttweb = f"site:pttweb.cc {company_name} OR {ticker}"
+        query_pttweb = f'site:pttweb.cc ("{company_name}" OR "{ticker}") when:30d'
         pttweb_news = fetch_google_news_rss(query_pttweb, limit=3)
         ptt_direct = []
         if ticker.isdigit():
@@ -233,11 +234,16 @@ class SocialSentimentProvider(DataProvider):
             "ptt_stock_direct": ptt_direct,
         }
         
-        total_records = len(dcard_news) + len(m01_news) + len(pttweb_news) + len(ptt_direct)
-        value.update(status="success" if total_records else "empty_unknown", sample_count=total_records,
+        from source_content_selection import select_company_records
+        originals = [dict(item, social_channel=channel) for channel, items in value.items() for item in items]
+        selected, selection = select_company_records(originals, {**data, "ticker": request.ticker})
+        value = {channel: [item for item in selected if item['social_channel'] == channel] for channel in value}
+        total_records = len(selected)
+        value.update(status="partial" if selection["rejected_count"] else "success" if total_records else "empty_unknown", sample_count=total_records,
                      sentiment_assessment="not_assessed", coverage_notes=["搜尋樣本非完整社群母體；無結果不能推定中性或無討論。"])
-        status = AUDIT_STATUS_SUCCESS if total_records > 0 else AUDIT_STATUS_DEGRADED_ENRICHMENT
+        status = AUDIT_STATUS_SUCCESS if total_records > 0 and not selection["rejected_count"] else AUDIT_STATUS_DEGRADED_ENRICHMENT
         
+        value.update(selection)
         return ProviderResult(
             source=self.source,
             provider=self.name,
@@ -248,6 +254,7 @@ class SocialSentimentProvider(DataProvider):
                 "provider": self.name,
                 "status": status,
                 "record_count": total_records,
+                **selection,
                 "cache_hit": False,
                 "stale": False,
                 "coverage_status": value["status"],

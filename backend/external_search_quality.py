@@ -71,11 +71,15 @@ def select_quality_results(
     lookback_days: int = 30,
     require_recent: bool = False,
     cutoff=None,
+    company_context: dict | None = None,
 ) -> list[SearchResult]:
     if int(limit) <= 0:
         return []
     if require_recent:
         records = _recent_results(records, lookback_days=lookback_days, cutoff=cutoff)
+    if company_context is not None:
+        from source_content_selection import issuer_match
+        records = [r for r in records if issuer_match({"title":r.title,"snippet":r.snippet}, company_context)]
     deduped = dedupe_results(records, limit=max(len(records), int(limit)))
     if len(deduped) <= 1:
         return deduped[:limit]

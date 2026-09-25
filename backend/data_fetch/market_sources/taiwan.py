@@ -142,6 +142,11 @@ def fetch_institutional_trading_trend(ticker: str) -> dict:
         "window_coverage_status": institutional_window_status(list(dates), ticker, INSTITUTIONAL_LOOKBACK_DAYS),
         "last_5_window_status": last_5_window_status,
         "rejected_record_count": rejected_count,
+        "daily_category_observations": [
+            {"date": str(row.date), "category": str(row.category), "net_buy_shares": int(row.net_buy),
+             "source": "FinMind TaiwanStockInstitutionalInvestorsBuySell", "unit": "shares"}
+            for row in recent.itertuples(index=False)
+        ],
         "latest_date": str(dates[-1]) if dates else "",
         "net_buy_shares_by_category": {key: int(value) for key, value in totals.items()},
         "net_buy_thousand_shares_by_category": {key: round(value / 1000, 2) for key, value in totals.items()},

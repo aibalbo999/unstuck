@@ -40,7 +40,7 @@ def _merge_optional_http_bundle(
     refresh_epoch = time_module.time()
     ticker = str(data.get("ticker") or "").strip().upper()
 
-    combined_catalysts = [item for key in ("recent_catalysts", "additional_recent_catalysts", "historical_catalysts", "unverified_catalysts")
+    combined_catalysts = [item for key in ("recent_catalysts", "additional_recent_catalysts", "historical_catalysts", "unverified_catalysts", "identity_rejected_catalysts")
                           for item in (data.get(key) or [])]
     combined_catalysts.extend(http_bundle.get("free_news", []) or [])
     combined_catalysts.extend(http_bundle.get("search_catalysts", []) or [])
@@ -80,6 +80,9 @@ def _merge_optional_http_bundle(
     social_sentiment = http_bundle.get("social_sentiment", {}) or {}
     if isinstance(social_sentiment, dict) and social_sentiment:
         data["social_sentiment"] = social_sentiment
+        from source_content_selection import reselect_social_context
+        reselect_social_context(data, cutoff=refresh_epoch)
+        social_sentiment = data["social_sentiment"]
         sentiment_context = dict(data.get("sentiment_context") or {})
         sentiment_context["social_sentiment"] = social_sentiment
         data["sentiment_context"] = sentiment_context

@@ -43,11 +43,26 @@ def fetch_institutional_result(request: FetchRequest, *, fetch=None) -> Provider
             use_cache=not request.options.force_refresh,
         )
         value = dict(value) if isinstance(value, dict) else {}
+        from official_institutional_source import recover_institutional_observations
+        value, recovery = recover_institutional_observations(
+            request.ticker, value, now_epoch=time.time(), limit=INSTITUTIONAL_LOOKBACK_DAYS)
+        if value and recovery:
+            value["official_recovery"] = recovery
+        primary_acquisition = dict(meta)
+        if recovery.get("added_observation_count"):
+            receipts = [row for row in recovery.get("reports", []) if row.get("status") == "available"]
+            fetched = [row.get("fetched_at_epoch") for row in receipts if row.get("fetched_at_epoch")]
+            if meta.get("fetched_at_epoch"):
+                fetched.append(meta["fetched_at_epoch"])
+            meta = {**meta, "fetched_at_epoch": min(fetched) if fetched else None,
+                    "cache_hit": bool(receipts) and all(row.get("cache_hit") for row in receipts)
+                                 and (not value.get("daily_category_observations") or bool(primary_acquisition.get("cache_hit")))}
+        actual_provider = str(value.get("source") or DATASET)
         recency = observation_recency(value.get("latest_date"), ticker=request.ticker, now_epoch=time.time())
         stale = bool(meta.get("stale")) or bool(value and recency["observation_status"] != "recent")
         error_kind = str(meta.get("error_kind") or "")
         partial = bool(value) and (stale or bool(value.get("rejected_record_count"))
-                                    or value.get("window_coverage_status") != "complete")
+                                    or value.get("window_coverage_status") != "complete" or recovery.get("conflicts"))
         status = ("degraded_enrichment" if value and (stale or error_kind) else "success" if value
                   else "error" if error_kind else "unavailable")
         if error_kind in {"ProviderCircuitOpenError", "ProviderRateLimitOpenError", "single_flight_busy"}:
@@ -62,11 +77,11 @@ def fetch_institutional_result(request: FetchRequest, *, fetch=None) -> Provider
             record_count=source_record_count(SOURCE, {SOURCE: value}),
             cache_hit=bool(meta.get("cache_hit")), stale=stale, error_kind=error_kind, message=message,
         )
-        audit.update(meta, **recency, actual_provider=DATASET, stale=stale,
+        audit.update(meta, **recency, actual_provider=actual_provider, primary_provider=DATASET, stale=stale,
                      retrieval_status="error" if error_kind else "success" if value else "empty",
                      coverage_status="partial" if partial else "available" if value else "unavailable")
         audit["component_statuses"] = {"institutional_observations": {
-            "status": audit["coverage_status"], "as_of": recency["observed_at"], "provider": DATASET,
+            "status": audit["coverage_status"], "as_of": recency["observed_at"], "provider": actual_provider,
             "observation_status": recency["observation_status"], "observation_age_days": recency["observation_age_days"],
             "retrieval_status": audit["retrieval_status"], "stale": stale, "cache_hit": bool(meta.get("cache_hit")),
             "fetched_at_epoch": meta.get("fetched_at_epoch"),
@@ -74,6 +89,9 @@ def fetch_institutional_result(request: FetchRequest, *, fetch=None) -> Provider
                            "observation_" + recency["observation_status"] if stale else
                            "incomplete_observation_window" if partial else "complete_observation_window",
         }}
+        if recovery:
+            audit["official_recovery"] = recovery
+            audit["primary_acquisition"] = primary_acquisition
         if meta.get("retry_after_epoch"):
             audit["retry_at"] = meta["retry_after_epoch"]
         if not meta.get("fetched_at_epoch"):
@@ -83,7 +101,7 @@ def fetch_institutional_result(request: FetchRequest, *, fetch=None) -> Provider
         if not audit.get("provider_attempts"):
             audit["http_request_sent"] = False
         if value:
-            value.update(**recency, actual_provider=DATASET, stale=stale,
+            value.update(**recency, actual_provider=actual_provider, stale=stale,
                          cache_hit=bool(meta.get("cache_hit")), fetched_at_epoch=meta.get("fetched_at_epoch"),
                          coverage_status=audit["coverage_status"], coverage_note=message)
         return ProviderResult(source=SOURCE, provider=PROVIDER, status=status, value=value,
@@ -136,7 +154,8 @@ def institutional_acquired_in_fetch(data: dict, fetch_id: str | None) -> bool:
     if not isinstance(fetch_id, str) or not fetch_id:
         return False
     return any(isinstance(entry, dict) and entry.get("source") == SOURCE
-               and entry.get("provider") == PROVIDER and entry.get("actual_provider") == DATASET
+               and entry.get("provider") == PROVIDER and bool(entry.get("actual_provider"))
+               and (entry.get("actual_provider") == DATASET or entry.get("primary_provider") == DATASET)
                and entry.get("fetch_id") == fetch_id and bool(entry.get("operation_id"))
                and entry.get("event_kind") == "aggregate"
                and entry.get("retrieval_status") in {"success", "empty", "error"}

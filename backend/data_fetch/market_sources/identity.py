@@ -66,6 +66,7 @@ def load_taiwan_stock_info_records() -> list[dict]:
                     "stock_name": stock_name,
                     "industry_category": industry_category,
                     "type": str(row.get("type", "")).strip(),
+                    "date": str(row.get("date", "")).strip(),
                 })
         return records
     except Exception:

@@ -122,14 +122,16 @@ def test_fetch_104_job_openings_count_uses_news_fallback_on_transport_failure():
         def get(self, url, **kwargs):
             raise TimeoutError("offline")
 
-    fake_news = [{"title": "台達電擴編消息"}]
+    from datetime import datetime, timezone
+    fake_news = [{"title": "台達電擴編消息", "published_date": datetime.now(timezone.utc).isoformat(), "link": "https://example.test/recruitment"}]
     with patch("news_fetchers.fetch_google_news_rss", return_value=fake_news) as fetch_news:
         result = fetch_104_job_openings_count("台達電", "AI", session=FailingSession())
 
-    fetch_news.assert_called_once_with("台達電 AI 徵才 OR 擴編 OR 招募", limit=5)
+    fetch_news.assert_called_once_with("台達電 AI (徵才 OR 擴編 OR 招募)", limit=5)
     assert result["status"] == "success"
     assert result["job_count"] is None
-    assert result["recent_recruitment_news"] == fake_news
+    assert result["recent_recruitment_news"][0]["title"] == fake_news[0]["title"]
+    assert result["recent_recruitment_news"][0]["content_coverage"] == "headline_or_snippet"
 
 
 def test_fetch_104_job_openings_count_does_not_mask_parser_errors_with_news_fallback():

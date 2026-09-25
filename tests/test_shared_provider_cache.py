@@ -126,3 +126,95 @@ print(json.dumps(shared_fetch('cross-process',fetch,freshness_seconds=60)))
             if process.poll() is None:
                 process.kill()
                 process.wait()
+
+
+def test_zero_wait_budget_returns_busy_while_another_thread_fetches():
+    import threading
+    import time
+    from shared_provider_cache import shared_fetch
+    entered, release = threading.Event(), threading.Event()
+    calls = []
+    def slow_fetch():
+        entered.set()
+        assert release.wait(3)
+        return {'date': '2026-09-24'}
+    with ThreadPoolExecutor(max_workers=1) as executor:
+        first = executor.submit(shared_fetch, 'held-thread', slow_fetch, freshness_seconds=60)
+        try:
+            assert entered.wait(2)
+            started = time.monotonic()
+            value, meta = shared_fetch('held-thread', lambda: calls.append('unexpected'),
+                                       freshness_seconds=60, lock_wait_seconds=0)
+            assert time.monotonic() - started < 0.5
+            assert value is None and meta['error_kind'] == 'single_flight_busy'
+            assert calls == []
+        finally:
+            release.set()
+        assert first.result(timeout=2)[0] == {'date': '2026-09-24'}
+
+
+def test_zero_wait_budget_returns_busy_for_held_sqlite_process_lock(tmp_path, monkeypatch):
+    import hashlib
+    import subprocess
+    import time
+    import cache_store
+    import config
+    from cache_backends import SqliteCacheBackend
+    from shared_provider_cache import shared_fetch
+    db = tmp_path / 'cache.sqlite3'
+    monkeypatch.setattr(config, 'CACHE_DB_PATH', str(db))
+    cache_store.set_cache_backend(SqliteCacheBackend(str(db)))
+    backend_dir = str(Path(__file__).resolve().parents[1] / 'backend')
+    script = '''import sys
+sys.path.insert(0,sys.argv[1])
+import config,cache_store
+from cache_backends import SqliteCacheBackend
+from shared_provider_cache import _process_lock
+config.CACHE_DB_PATH=sys.argv[2]
+cache_store.set_cache_backend(SqliteCacheBackend(sys.argv[2]))
+with _process_lock(sys.argv[3]) as acquired:
+    print('held' if acquired else 'failed',flush=True)
+    sys.stdin.readline()
+'''
+    digest = hashlib.sha256(b'held-process').hexdigest()
+    process = subprocess.Popen([sys.executable, '-c', script, backend_dir, str(db), digest],
+                               stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    calls = []
+    try:
+        assert process.stdout.readline().strip() == 'held'
+        started = time.monotonic()
+        value, meta = shared_fetch('held-process', lambda: calls.append('unexpected'),
+                                   freshness_seconds=60, lock_wait_seconds=0)
+        assert time.monotonic() - started < 0.5
+        assert value is None and meta['error_kind'] == 'single_flight_busy'
+        assert calls == []
+    finally:
+        process.communicate('\n', timeout=5)
+        if process.poll() is None:
+            process.kill()
+            process.wait()
+
+
+def test_thread_and_process_wait_share_one_deadline(monkeypatch):
+    import shared_provider_cache as shared
+    now = [100.0]
+    waits = []
+    class Lock:
+        def acquire(self, *, timeout):
+            waits.append(timeout)
+            now[0] += 0.75
+            return True
+        def release(self): pass
+    @contextmanager
+    def process_lock(digest, *, blocking_timeout):
+        waits.append(blocking_timeout)
+        now[0] += blocking_timeout
+        yield False
+    monkeypatch.setattr(shared, '_LOCKS', (Lock(),))
+    monkeypatch.setattr(shared.time, 'monotonic', lambda: now[0])
+    monkeypatch.setattr(shared, '_process_lock', process_lock)
+    calls = []
+    _, meta = shared.shared_fetch('budget', lambda: calls.append(1), freshness_seconds=60, lock_wait_seconds=1)
+    assert waits == [1, 0.25]
+    assert now[0] == 101.0
+    assert meta['error_kind'] == 'single_flight_busy' and not calls

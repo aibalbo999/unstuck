@@ -23,17 +23,18 @@ class AlternativeSearchProvider(DataProvider):
         company_name = str(data.get("company_name") or ticker).strip()
         identity = data.get("company_identity") if isinstance(data.get("company_identity"), dict) else {}
         cache_hit = safe_bool(data.get("_cache_hit"))
+        diagnostics = {}
+        async def acquire():
+            return await fetch_alternative_search_catalysts_async(ticker, company_name, identity, diagnostics=diagnostics)
         result = await audited_fetch_async(
-            self.source,
-            self.name,
-            fetch_alternative_search_catalysts_async,
-            (ticker, company_name, identity),
-            default=[],
-            cache_hit=cache_hit,
-            empty_status="degraded_enrichment",
-            unavailable_message="Alternative Search 未回傳近期催化劑。",
+            self.source, self.name, acquire, default=[], cache_hit=cache_hit,
+            empty_status="degraded_enrichment", unavailable_message="未取得足量公司相符的近期催化劑。",
         )
+        result['audit'].update(diagnostics)
+        if diagnostics.get('quality_status') == 'insufficient_candidates' and result['audit'].get('status') == 'success':
+            result['audit']['status'] = 'degraded_enrichment'
         return provider_result_from_audited(result, self.source, self.name)
+
 
 
 class AlternativePeerDiscoveryProvider(DataProvider):

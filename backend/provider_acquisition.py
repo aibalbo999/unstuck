@@ -100,6 +100,12 @@ def project_acquisition_events(events, *, window: str, now: float) -> dict:
         first_at = at if first_at is None else min(first_at, at)
         source = row["source"]
         group = groups.setdefault(source, dict(source=source, providers={}, **_empty_counts()))
+        selection = row['details']
+        if isinstance(selection.get('usable_count'), int) and isinstance(selection.get('raw_count'), int):
+            prior = group.get('last_selection', {})
+            if at >= prior.get('at_epoch', 0):
+                group['last_selection'] = {k:selection[k] for k in ('raw_count','usable_count','rejected_count','quality_status','rejected_reason_counts') if k in selection}
+                group['last_selection'].update(at_epoch=at, provider=row['provider'])
         kind = observation_kind(row)
         group[kind] += 1
         http_attempt = int(row['details'].get('http_request_sent') is True)

@@ -336,6 +336,8 @@ def test_optional_http_merge_preserves_exact_records_for_ai_payload():
     search_news = {"date": published_date, "title": "SENT_SEARCH_NEWS", "link": "https://example.test/search"}
     fmp_news = {"date": published_date, "title": "SENT_FMP_NEWS", "link": "https://example.test/fmp"}
     yahoo_news = {"date": published_date, "title": "SENT_YAHOO_NEWS", "link": "https://example.test/yahoo"}
+    for record in (free_news, duplicate_link_news, search_news, fmp_news, yahoo_news):
+        record["summary"] = "台積電營收"
     peer_search = {"title": "SENT_PEER_SEARCH", "link": "https://example.test/peer-a"}
     http_bundle = {
         "free_news": [free_news],
@@ -348,7 +350,7 @@ def test_optional_http_merge_preserves_exact_records_for_ai_payload():
         "macro_indicators": {"summary_text": "SENT_MACRO"},
         "chip_data": {"tdcc_shareholder_distribution": {"note": "SENT_CHIP"}},
         "alternative_data": {"job_openings_104": {"note": "SENT_ALT"}},
-        "social_sentiment": {"ptt_stock_direct": [{"title": "SENT_SOCIAL"}]},
+        "social_sentiment": {"ptt_stock_direct": [{"title": "SENT_SOCIAL", "summary":"台積電", "date":published_date, "link":"https://example.test/social"}]},
         "sec_edgar": {"recent_filings": [{"form": "SENT_SEC_10Q"}]},
         "taiwan_open_data": {"rates": {"USD": {"sell": "SENT_TAIWAN_OPEN"}}},
         "earnings_call": {"period": "2026Q1", "transcript_excerpt": "SENT_EARNINGS"},
@@ -390,10 +392,14 @@ def test_optional_http_merge_preserves_exact_records_for_ai_payload():
     assert result["macro_indicators"] == http_bundle["macro_indicators"]
     assert result["chip_data"] == http_bundle["chip_data"]
     assert result["alternative_data"] == http_bundle["alternative_data"]
-    assert result["social_sentiment"] == http_bundle["social_sentiment"]
+    expected_social = result["social_sentiment"]
+    assert expected_social["sample_count"] == 1
+    assert expected_social["ptt_stock_direct"][0]["title"] == "SENT_SOCIAL"
+    from prompt_evidence import prompt_evidence_copy
+    expected_prompt_social = prompt_evidence_copy(expected_social)
     assert result["sentiment_context"] == {
         "preexisting": "SENT_EXISTING_SENTIMENT",
-        "social_sentiment": http_bundle["social_sentiment"],
+        "social_sentiment": expected_social,
     }
     assert result["sec_edgar"] == http_bundle["sec_edgar"]
     assert result["taiwan_open_data"] == http_bundle["taiwan_open_data"]
@@ -436,8 +442,8 @@ def test_optional_http_merge_preserves_exact_records_for_ai_payload():
     assert payload["agent_context"]["macro_indicators"] == http_bundle["macro_indicators"]
     assert payload["agent_context"]["chip_data"] == http_bundle["chip_data"]
     assert payload["agent_context"]["alternative_data"] == http_bundle["alternative_data"]
-    assert payload["agent_context"]["social_sentiment"] == http_bundle["social_sentiment"]
-    assert payload["agent_context"]["sentiment_context"]["social_sentiment"] == http_bundle["social_sentiment"]
+    assert payload["agent_context"]["social_sentiment"] == expected_prompt_social
+    assert payload["agent_context"]["sentiment_context"]["social_sentiment"] == expected_prompt_social
     assert payload["agent_context"]["sec_edgar"] == http_bundle["sec_edgar"]
     assert payload["agent_context"]["taiwan_open_data"] == http_bundle["taiwan_open_data"]
     assert payload["agent_context"]["earnings_call"] == http_bundle["earnings_call"]
@@ -479,7 +485,7 @@ def test_stock_data_service_uses_provider_plan_for_optional_enrichment(monkeypat
             source="recent_catalysts",
             provider="Free news waterfall",
             status="success",
-            value=[{"date": published_date, "title": "Free catalyst", "link": "https://shared.example/a"}],
+            value=[{"date": published_date, "title": "Free catalyst", "summary":"Fixture", "link": "https://shared.example/a"}],
             audit={
                 "source": "recent_catalysts",
                 "provider": "Free news waterfall",
@@ -496,7 +502,7 @@ def test_stock_data_service_uses_provider_plan_for_optional_enrichment(monkeypat
             source="recent_catalysts",
             provider="Alternative Search",
             status="success",
-            value=[{"date": published_date, "title": "Alternative catalyst"}],
+            value=[{"date": published_date, "title": "Alternative catalyst", "summary": "Fixture", "link": "https://alternative.example/a"}],
             audit={"source": "recent_catalysts", "provider": "Alternative Search", "status": "success", "record_count": 1},
         )
 
@@ -505,7 +511,7 @@ def test_stock_data_service_uses_provider_plan_for_optional_enrichment(monkeypat
             source="recent_catalysts",
             provider="FMP news",
             status="success",
-            value=[{"date": published_date, "title": "FMP catalyst"}],
+            value=[{"date": published_date, "title": "FMP catalyst", "summary": "Fixture", "link": "https://fmp.example/a"}],
             audit={"source": "recent_catalysts", "provider": "FMP news", "status": "success", "record_count": 1},
         )
 
@@ -901,7 +907,7 @@ def test_stock_data_service_fake_registry_e2e_cache_audit_and_trust(monkeypatch,
             source="recent_catalysts",
             provider="Alternative Search",
             status="success",
-            value=[{"date": _news_date(), "title": "Fake provider catalyst"}],
+            value=[{"date": _news_date(), "title": "Fake provider catalyst", "summary":"Fake Semiconductor"}],
             audit=build_source_audit_entry("recent_catalysts", "Alternative Search", "success", fetched_at=FRESH_AT, record_count=1),
         )
 
@@ -956,7 +962,7 @@ def test_provider_workflow_skips_fresh_optional_sources(monkeypatch):
                 "company_identity": {},
                 "sector": "Technology",
                 "industry": "Semiconductors",
-                "recent_catalysts": [{"date": _news_date(), "title": "Cached headline"}],
+                "recent_catalysts": [{"date": _news_date(), "title": "Cached headline", "summary":"Fixture"}],
                 "peer_discovery_results": [{"title": "Cached peer"}],
                 "source_audit": [],
                 "source_freshness": {

@@ -5,6 +5,7 @@ hashed only to prevent a replacement key inheriting a previous key's cooldown.
 """
 from __future__ import annotations
 
+import asyncio
 import hashlib
 import json
 import math
@@ -16,6 +17,7 @@ from cache_store import get_cache_json, set_cache_json
 from provider_correlation import current_correlation, provider_attempt
 from provider_resilience import provider_circuit_state
 from provider_sla import record_source_audit_entries
+from search_admission import endpoint_admission
 
 
 _HTTP_STATUS = ContextVar("search_upstream_http_status", default=None)
@@ -78,9 +80,15 @@ def error_details(exc: Exception) -> dict:
 
 def remember_failure(key: str, exc: Exception) -> dict:
     details = error_details(exc)
+    try:
+        previous = get_cache_json(key) or {}
+    except Exception:
+        previous = {}
+    failures = min(12, int(previous.get('consecutive_failures') or 0) + 1)
     seconds = {'authentication': 3600, 'payment_required': 3600, 'access_denied': 1800,
                'provider_rejected': 900, 'rate_limited': 300, 'parse_error': 300,
                'provider_error': 300}.get(details['error_kind'], 60)
+    seconds = min(86400, seconds * 2 ** (failures - 1))
     response = getattr(exc, 'response', None)
     retry_header = getattr(response, 'headers', {}).get('Retry-After')
     if retry_header:
@@ -92,10 +100,11 @@ def remember_failure(key: str, exc: Exception) -> dict:
             except (ValueError, TypeError, OverflowError):
                 retry_seconds = 0
         if math.isfinite(retry_seconds) and retry_seconds > 0:
-            seconds = max(seconds, min(retry_seconds, 86400))
-    state = {**details, 'retry_at': time.time() + seconds}
+            seconds = max(seconds, retry_seconds)
+    state = {**details, 'retry_at': max(time.time() + seconds, float(previous.get('retry_at') or 0)), 'consecutive_failures': failures}
     try:
-        set_cache_json(key, state, ttl_seconds=math.ceil(seconds))
+        # Retain failure history after the retry deadline, including restarts.
+        set_cache_json(key, state, ttl_seconds=math.ceil(max(state['retry_at'] - time.time(), 7 * 86400)))
     except Exception:
         pass
     return state
@@ -118,28 +127,59 @@ def record_observation(provider, started, *, outcome, count=0, details=None, sou
         pass
 
 
-async def fetch_search_upstream(provider, credential, callback):
-    """One actual call per route step; cooling providers never delay fallbacks."""
-    key = scope_key(provider, credential)
+async def fetch_search_upstream(provider, credential, callback, *, endpoint='search',
+                                min_interval_seconds=None, timeout_seconds=20):
+    """One bounded call per endpoint; cooldown/busy steps immediately yield fallback."""
+    key = scope_key(provider, credential, endpoint=endpoint)
     started = time.monotonic()
-    blocked = cooldown_state(key)
-    if not blocked:
-        circuit = provider_circuit_state(key)
-        if circuit.get('open') and float(circuit.get('opened_until') or 0) > time.time():
-            blocked = {'error_kind': 'circuit_open', 'retry_at': circuit['opened_until']}
-    if blocked:
-        record_observation(provider, started, outcome='cooldown', details=blocked, sent=False)
-        return []
-    status_token = _HTTP_STATUS.set(None)
-    try:
-        with provider_attempt(provider, 1):
+    timeout_seconds = max(0.001, min(float(timeout_seconds), 60))
+    interval = (5.1 if provider == 'gdelt' else 0.25) if min_interval_seconds is None else max(0, float(min_interval_seconds))
+    with endpoint_admission(key, timeout_seconds=timeout_seconds) as owns:
+        if owns is None:
+            record_observation(provider, started, outcome='busy', details={'error_kind': 'single_flight_busy', 'endpoint': endpoint}, sent=False)
+            return []
+        try:
+            saved = get_cache_json(key) or {}
+        except Exception:
+            record_observation(provider, started, outcome='unavailable', details={'error_kind': 'guard_storage_unavailable', 'endpoint': endpoint}, sent=False)
+            return []
+        blocked = saved if float(saved.get('retry_at') or 0) > time.time() else {}
+        if provider == 'gdelt':
+            # Preserve cooldowns written by older international-news workers.
             try:
-                records = await callback()
-            except Exception as exc:
-                state = remember_failure(key, exc)
-                record_observation(provider, started, outcome='failure', details=state)
-                raise
-            record_observation(provider, started, outcome='results' if records else 'valid_empty', count=len(records), details={'http_status': _HTTP_STATUS.get()})
-            return records
-    finally:
-        _HTTP_STATUS.reset(status_token)
+                legacy = get_cache_json('gdelt_rate_limit_cooldown:v1') or {}
+                until = float(legacy.get('cooldown_until') or 0)
+                if until > max(time.time(), float(blocked.get('retry_at') or 0)):
+                    blocked = {'error_kind': 'rate_limited', 'retry_at': until}
+            except Exception:
+                record_observation(provider, started, outcome='unavailable', details={'error_kind': 'guard_storage_unavailable', 'endpoint': endpoint}, sent=False)
+                return []
+        if not blocked and float(saved.get('next_request_at') or 0) > time.time():
+            blocked = {'error_kind': 'request_pacing', 'retry_at': saved['next_request_at']}
+        if not blocked:
+            circuit = provider_circuit_state(key)
+            if circuit.get('open') and float(circuit.get('opened_until') or 0) > time.time():
+                blocked = {'error_kind': 'circuit_open', 'retry_at': circuit['opened_until']}
+        if blocked:
+            record_observation(provider, started, outcome='cooldown', details={**blocked, 'endpoint': endpoint}, sent=False)
+            return []
+        status_token = _HTTP_STATUS.set(None)
+        try:
+            with provider_attempt(provider, 1):
+                try:
+                    # asyncio.timeout preserves HTTP observation ContextVars.
+                    async with asyncio.timeout(timeout_seconds):
+                        records = await callback()
+                except Exception as exc:
+                    state = remember_failure(key, exc) if owns() else {**error_details(exc), 'state_write_skipped': 'lease_lost'}
+                    record_observation(provider, started, outcome='failure', details={**state, 'endpoint': endpoint})
+                    raise
+                if owns():
+                    try:
+                        set_cache_json(key, {'consecutive_failures': 0, 'next_request_at': time.time() + interval}, ttl_seconds=max(1, math.ceil(interval)))
+                    except Exception:
+                        pass  # Do not discard evidence already acquired.
+                record_observation(provider, started, outcome='results' if records else 'valid_empty', count=len(records), details={'http_status': _HTTP_STATUS.get(), 'endpoint': endpoint})
+                return records
+        finally:
+            _HTTP_STATUS.reset(status_token)

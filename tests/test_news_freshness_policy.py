@@ -14,12 +14,12 @@ def test_optional_merge_excludes_old_unknown_and_future_before_truncation(monkey
     cutoff = datetime(2026, 9, 22, 12, tzinfo=timezone.utc)
     monkeypatch.setattr(merge.time_module, "time", lambda: cutoff.timestamp())
     data = {"ticker": "2305.TW", "recent_catalysts": [
-        {"title": "old", "link": "https://old.example/story", "date": "2023-06-09"},
-        {"title": "unknown", "link": "https://unknown.example/story"},
-        {"title": "future", "link": "https://future.example/story", "date": "2026-09-23"},
+        {"title": "old", "summary": "(2305)", "link": "https://old.example/story", "date": "2023-06-09"},
+        {"title": "unknown", "summary": "(2305)", "link": "https://unknown.example/story"},
+        {"title": "future", "summary": "(2305)", "link": "https://future.example/story", "date": "2026-09-23"},
     ]}
     merged = merge._merge_optional_http_bundle(data, {"free_news": [
-        {"title": "recent", "link": "https://news.google.com/rss/articles/abc", "published_date": "2026-09-21T08:30:00+08:00", "source": "Example Daily"},
+        {"title": "recent", "summary": "(2305)", "link": "https://news.google.com/rss/articles/abc", "published_date": "2026-09-21T08:30:00+08:00", "source": "Example Daily"},
     ]}, refreshed_sources=("recent_catalysts",))
     assert [item["title"] for item in merged["recent_catalysts"]] == ["recent"]
     assert merged["recent_catalysts"][0]["date"] == "2026-09-21T00:30:00+00:00"
@@ -76,8 +76,8 @@ def test_google_wrapper_is_not_a_publisher_and_dedupe_precedes_selection():
 def test_freeze_input_selects_at_original_cutoff_before_hash():
     from analysis_input_provenance import freeze_analysis_inputs
     data = {"ticker": "2305.TW", "recent_catalysts": [
-        {"title": "known then", "date": "2026-08-31", "link": "https://one.test/news"},
-        {"title": "not yet known", "date": "2026-09-02", "link": "https://two.test/news"},
+        {"title": "known then", "summary": "(2305)", "date": "2026-08-31", "link": "https://one.test/news"},
+        {"title": "not yet known", "summary": "(2305)", "date": "2026-09-02", "link": "https://two.test/news"},
     ]}
     receipt = freeze_analysis_inputs(data, cutoff="2026-09-01T12:00:00Z")
     assert [record["title"] for record in data["recent_catalysts"]] == ["known then"]
@@ -88,7 +88,7 @@ def test_freeze_input_selects_at_original_cutoff_before_hash():
 def test_cache_read_reselects_news_without_modifying_saved_cache(monkeypatch):
     import data_fetch.workflow_cache as cache
     cached = {"ticker": "2305.TW", "recent_catalysts": [
-        {"title": "old cached", "date": "2020-01-01", "link": "https://old.test/news"},
+        {"title": "old cached", "summary": "(2305)", "date": "2020-01-01", "link": "https://old.test/news"},
     ]}
     original = deepcopy(cached)
     monkeypatch.setattr(cache, "assess_cached_financial_data", lambda *args: (True, {}))
@@ -117,7 +117,7 @@ def test_prompt_exposes_shortage_without_reintroducing_excluded_news():
     from news_freshness_policy import apply_news_freshness
     from prompt_builder import format_data_for_prompt
     data = {"ticker": "2305.TW", "recent_catalysts": [
-        {"title": "ARCHIVED_OLD_NEWS", "summary": "private background " * 3000,
+        {"title": "ARCHIVED_OLD_NEWS", "summary": "(2305) " + "private background " * 3000,
          "date": "2020-01-01", "link": "https://publisher.test/archive"},
     ]}
     apply_news_freshness(data, cutoff="2026-09-22T12:00:00Z")
@@ -134,7 +134,7 @@ def test_snapshot_preserves_selection_and_marks_archive_size_omission():
     from news_freshness_policy import apply_news_freshness
     from data_trust_snapshot import build_data_snapshot
     data = {"ticker": "2305.TW", "recent_catalysts": [
-        {"title": f"archive {i}", "summary": "x" * 3000, "date": "2020-01-01",
+        {"title": f"archive {i}", "summary": "(2305) " + "x" * 3000, "date": "2020-01-01",
          "link": f"https://publisher.test/{i}"} for i in range(10)
     ]}
     apply_news_freshness(data, cutoff="2026-09-22T12:00:00Z")

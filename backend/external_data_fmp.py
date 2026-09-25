@@ -8,6 +8,8 @@ import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from config import FMP_API_KEY, FMP_BASE_URL
+from cache_store import get_cache_json, set_cache_json
+from search_provider_runtime import error_details, scope_key
 from external_data_parsers import parse_fmp_news_payload, parse_fmp_quote_payload
 from external_http_client import async_client, async_json_get, log_http_warning, sync_json_get
 
@@ -30,11 +32,12 @@ def fetch_fmp_quote_fallback(ticker: str) -> dict:
     symbol = ticker.strip().upper()
     try:
         payload = _sync_json_get(f"{FMP_BASE_URL}/quote", {"symbol": symbol, "apikey": FMP_API_KEY})
+        _remember_endpoint_success("quote")
         return parse_fmp_quote_payload(payload)
     except Exception as exc:
         log_http_warning("FMP", "quote fallback", exc)
         if _is_restricted_fmp_response(exc):
-            _mark_endpoint_cooldown("quote")
+            _mark_endpoint_cooldown("quote", exc)
         return {}
 
 
@@ -48,11 +51,12 @@ async def fetch_fmp_quote_fallback_async(ticker: str) -> dict:
     try:
         async with async_client("FMP") as client:
             payload = await _async_json_get(client, f"{FMP_BASE_URL}/quote", {"symbol": symbol, "apikey": FMP_API_KEY})
+        _remember_endpoint_success("quote")
         return parse_fmp_quote_payload(payload)
     except Exception as exc:
         log_http_warning("FMP", "quote fallback async", exc)
         if _is_restricted_fmp_response(exc):
-            _mark_endpoint_cooldown("quote")
+            _mark_endpoint_cooldown("quote", exc)
         return {}
 
 
@@ -77,8 +81,9 @@ def fetch_fmp_news_catalysts(ticker: str) -> list[dict]:
         except Exception as exc:
             log_http_warning("FMP", f"news candidate {url}", exc)
             if _is_restricted_fmp_response(exc):
-                _mark_endpoint_cooldown("news")
+                _mark_endpoint_cooldown("news", exc)
             return []
+        _remember_endpoint_success("news")
         return parse_fmp_news_payload(payload)
 
     candidates = _fmp_news_candidates(symbol)
@@ -110,8 +115,9 @@ async def fetch_fmp_news_catalysts_async(ticker: str) -> list[dict]:
         except Exception as exc:
             log_http_warning("FMP", f"news async candidate {url}", exc)
             if _is_restricted_fmp_response(exc):
-                _mark_endpoint_cooldown("news")
+                _mark_endpoint_cooldown("news", exc)
             return []
+        _remember_endpoint_success("news")
         return parse_fmp_news_payload(payload)
 
     async with async_client("FMP") as client:
@@ -139,17 +145,45 @@ def _restricted_cooldown_seconds() -> float:
 
 
 def _endpoint_cooldown_active(endpoint: str) -> bool:
-    return _now() < float(_fmp_endpoint_cooldowns.get(endpoint, 0.0) or 0.0)
+    key = scope_key('fmp', FMP_API_KEY, endpoint=endpoint)
+    try:
+        persisted = get_cache_json(key) or {}
+    except Exception:
+        # Optional FMP acquisition yields other sources when the guard is down.
+        return True
+    return _now() < max(float(_fmp_endpoint_cooldowns.get(key, 0.0) or 0.0),
+                        float(persisted.get('retry_at') or 0.0))
 
 
-def _mark_endpoint_cooldown(endpoint: str) -> None:
+def _mark_endpoint_cooldown(endpoint: str, exc: Exception | None = None) -> None:
     cooldown_seconds = _restricted_cooldown_seconds()
     if cooldown_seconds <= 0:
         return
-    _fmp_endpoint_cooldowns[endpoint] = max(
-        float(_fmp_endpoint_cooldowns.get(endpoint, 0.0) or 0.0),
-        _now() + cooldown_seconds,
-    )
+    key = scope_key('fmp', FMP_API_KEY, endpoint=endpoint)
+    try:
+        previous = get_cache_json(key) or {}
+    except Exception:
+        previous = {}
+    failures = min(8, int(previous.get('consecutive_failures') or 0) + 1)
+    cooldown_seconds = min(86400, cooldown_seconds * 2 ** (failures - 1))
+    retry_at = max(float(_fmp_endpoint_cooldowns.get(key, 0.0) or 0.0),
+                   float(previous.get('retry_at') or 0.0), _now() + cooldown_seconds)
+    _fmp_endpoint_cooldowns[key] = retry_at
+    try:
+        set_cache_json(key, {**(error_details(exc) if exc else {}), 'retry_at': retry_at,
+                             'consecutive_failures': failures},
+                       ttl_seconds=max(7 * 86400, int(retry_at - _now()) + 1))
+    except Exception:
+        pass
+
+
+def _remember_endpoint_success(endpoint: str) -> None:
+    key = scope_key('fmp', FMP_API_KEY, endpoint=endpoint)
+    _fmp_endpoint_cooldowns.pop(key, None)
+    try:
+        set_cache_json(key, {'consecutive_failures': 0}, ttl_seconds=1)
+    except Exception:
+        pass
 
 
 def clear_fmp_endpoint_cooldowns() -> None:

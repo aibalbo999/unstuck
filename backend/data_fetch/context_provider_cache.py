@@ -16,7 +16,7 @@ def cached_context_result(provider, request, context, acquire):
                         'alternative_data_keywords', 'job_opening_keywords'))], ensure_ascii=False, sort_keys=True)
     ttl = max(0, int(SOURCE_FRESHNESS_MAX_AGE_SECONDS.get(provider.source, 1800)))
     payload, meta = shared_fetch(
-        'optional-context:v2:' + key, lambda: asdict(acquire(request, context)),
+        'optional-context:v3:' + key, lambda: asdict(acquire(request, context)),
         freshness_seconds=ttl, use_cache=not request.options.force_refresh,
         result_ttl=lambda result: ttl if result.get('status') == 'success' else min(ttl, 600),
     )

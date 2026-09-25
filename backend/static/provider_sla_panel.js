@@ -42,6 +42,7 @@
                 <span class="provider-sla-meta">成功且有資料 ${count(row, 'fetched_count')}／抓取觀測 ${count(row, 'fetch_attempts')} 次</span>
                 <span class="provider-sla-detail">${escapeHtml(breakdownText(row))}</span>
                 <span class="provider-sla-meta">${escapeHtml(insightText(row))}</span>
+                ${row.last_selection ? `<span class="provider-sla-meta">最近一次內容篩選（${escapeHtml(row.last_selection.provider)}）：原始 ${count(row.last_selection, 'raw_count')} 筆 · 可用 ${count(row.last_selection, 'usable_count')} 筆 · 排除 ${count(row.last_selection, 'rejected_count')} 筆；不代表全文或獨立來源皆已驗證。</span>` : ''}
                 ${count(row, 'aggregate_count') ? `<span class="provider-sla-meta">已排除 ${count(row, 'aggregate_count')} 筆彙總紀錄</span>` : ''}
                 ${providerDetailsHtml(row, escapeHtml)}
             </section>`).join('');

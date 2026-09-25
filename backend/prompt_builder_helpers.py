@@ -172,4 +172,5 @@ def _agent_context(data: dict) -> dict:
     if isinstance(documents, dict) and documents:
         from source_document_prompt import document_prompt_context
         context["official_disclosures"] = document_prompt_context(documents)
-    return context
+    from prompt_evidence import prompt_evidence_copy
+    return prompt_evidence_copy(context)
