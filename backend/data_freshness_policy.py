@@ -27,6 +27,7 @@ SOURCE_FRESHNESS_SOURCES = (
     "social_sentiment",
     "sec_edgar",
     "taiwan_open_data",
+    "official_disclosures",
     "institutional_trading",
     "dynamic_peer_metrics",
     "peer_discovery",

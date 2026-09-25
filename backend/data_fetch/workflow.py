@@ -36,6 +36,8 @@ async def fetch_payload_async(request: FetchRequest, registry: ProviderRegistry 
         if cached:
             fresh_cached = fresh_cached_payload(ticker, cached)
             if fresh_cached:
+                if not request.options.skip_optional_http and source_is_applicable("official_disclosures", fresh_cached, ticker):
+                    return await _run_optional_provider_plan(request, registry, fresh_cached, sources=("official_disclosures",))
                 return fresh_cached
             stale_cached = cached
 
@@ -141,12 +143,12 @@ async def _assemble_core_payload_from_result(core_result: ProviderResult, reques
     return value
 
 
-async def _run_optional_provider_plan(request: FetchRequest, registry: ProviderRegistry, data: dict) -> dict:
+async def _run_optional_provider_plan(request: FetchRequest, registry: ProviderRegistry, data: dict, *, sources=None) -> dict:
     ticker = request.ticker.strip().upper()
     resolved_ticker = str(data.get("ticker") or ticker).strip().upper()
     cache_hit = safe_bool(data.get("_cache_hit"))
-    providers, refresh_by_source = collect_optional_providers(request, registry, data, resolved_ticker)
-    refresh_catalysts = refresh_by_source["recent_catalysts"]
+    providers, refresh_by_source = collect_optional_providers(request, registry, data, resolved_ticker, sources=sources)
+    refresh_catalysts = refresh_by_source.get("recent_catalysts", False)
 
     context = {"data": data, "original_ticker": ticker}
     provider_results = await fetch_provider_results(request, providers, context)
@@ -183,6 +185,7 @@ async def _run_optional_provider_plan(request: FetchRequest, registry: ProviderR
         "social_sentiment": _provider_context_value(provider_results, "social_sentiment"),
         "sec_edgar": _provider_context_value(provider_results, "sec_edgar"),
         "taiwan_open_data": _provider_context_value(provider_results, "taiwan_open_data"),
+        "official_disclosures": _provider_context_value(provider_results, "official_disclosures"),
         "earnings_call": _provider_context_value(provider_results, "earnings_call"),
         "search_peer_discovery": provider_value(provider_results, "peer_discovery", "Alternative Search"),
     }

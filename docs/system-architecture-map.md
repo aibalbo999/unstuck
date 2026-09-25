@@ -74,6 +74,8 @@ Gemma dense 編碼的相容稀疏表在 `prompt_record_tables.py`：`absent` 區
 
 報告品質 schema 2 由 `evidence_claim_types.py` 區分日期、分析評分與財務抽樣；`structured_output_runtime.py` 只在明確 Google response 邊界還原安全 recommendation enum。Agent 19 完整性策略、嚴格 v3 不開倉 N/A 與精確解除歷史 finding 的唯讀 projection 詳見 [報告品質修正與重稽核](report-quality-optimization-2026-09-20.md)。
 
+官方文件取得與本機查詢入口為 `official_disclosure_sources.py`、`data_fetch.official_disclosures_provider`、`source_document_index.py` 及 `/api/observability/source-documents`。公司 IR adapter 因實測 403 維持停用；日期、快取、角色路由及啟用限制見 [資料來源取得與證據判讀](source-evidence-operations.md)。
+
 ## 目前 Runtime 真相
 
 追蹤表的「一鍵處理警示」先使用共用品質 policy 的 `reportAutomaticRerunAction()`，細部條件集中在 `report_automatic_rerun_policy.js`：已有明確 freshness 重跑標記且無來源錯誤／快照損壞時，經原 `scope=full_report` 路徑送件，即使舊報告有品質警示也不轉成人工略過。一般預覽與採用建議仍使用原 `reportRecommendedAction()`，舊報告的品質警示、資料及閱讀限制不變；這不放寬新報告發布 gate、不自動點擊／送件、不新增背景排程或修改已凍結 OOS cohort。

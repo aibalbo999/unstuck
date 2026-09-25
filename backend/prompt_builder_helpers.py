@@ -167,4 +167,9 @@ def _agent_context(data: dict) -> dict:
         "taiwan_open_data",
         "earnings_call",
     )
-    return {key: value for key in keys if _has_prompt_value(value := dict.get(data, key))}
+    context = {key: value for key in keys if _has_prompt_value(value := dict.get(data, key))}
+    documents = dict.get(data, "official_disclosures")
+    if isinstance(documents, dict) and documents:
+        from source_document_prompt import document_prompt_context
+        context["official_disclosures"] = document_prompt_context(documents)
+    return context

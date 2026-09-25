@@ -92,6 +92,10 @@ def _merge_optional_http_bundle(
     if isinstance(taiwan_open_data, dict) and taiwan_open_data:
         data["taiwan_open_data"] = taiwan_open_data
 
+    official_disclosures = http_bundle.get("official_disclosures", {}) or {}
+    if isinstance(official_disclosures, dict) and official_disclosures:
+        data["official_disclosures"] = official_disclosures
+
     earnings_call = http_bundle.get("earnings_call", {}) or {}
     if isinstance(earnings_call, dict) and earnings_call:
         data["earnings_call"] = earnings_call
@@ -175,8 +179,13 @@ def _merge_optional_http_bundle(
             if not fetched_epoch and upstream.get('fetched_at'):
                 stamp = parse_news_datetime(upstream['fetched_at'])
                 fetched_epoch = stamp.timestamp() if stamp else None
-            if not fetched_epoch and not cache_hit and not stale and not failed:
+            if not fetched_epoch and not cache_hit and not stale and not failed and source != 'official_disclosures':
                 fetched_epoch = refresh_epoch
+            observed_empty_documents = (
+                source == 'official_disclosures' and count == 0 and bool(fetched_epoch)
+                and payload.get('retrieval_status') in {'success', 'valid_empty'}
+                and not failed and not stale
+            )
             if count > 0:
                 degraded = stale or failed or coverage in {'partial', 'stale', 'unavailable', 'qualitative_only'} or upstream.get('status') == AUDIT_STATUS_DEGRADED_ENRICHMENT
                 status = AUDIT_STATUS_DEGRADED_ENRICHMENT if degraded else AUDIT_STATUS_SUCCESS
@@ -192,7 +201,7 @@ def _merge_optional_http_bundle(
                 status = AUDIT_STATUS_DEGRADED_ENRICHMENT
                 error_kind = ""
                 message = "optional 外部來源本次無新增資料，已保留為可接受的補充資料空結果。"
-            if fetched_epoch and count > 0 and not retained:
+            if fetched_epoch and (count > 0 or observed_empty_documents) and not retained:
                 data.setdefault('source_freshness', {})[source] = build_source_freshness_entry(
                     source, ticker, fetched_epoch, cache_hit, now_epoch=refresh_epoch, source_data=payload)
             if stale:
@@ -206,7 +215,7 @@ def _merge_optional_http_bundle(
                 finished_at_epoch=refresh_epoch,
                 record_count=count,
                 cache_hit=cache_hit,
-                stale=stale or count <= 0,
+                stale=stale or (count <= 0 and not observed_empty_documents),
                 error_kind=error_kind,
                 message=message,
             )
@@ -217,6 +226,10 @@ def _merge_optional_http_bundle(
             data['source_audit'][-1].update(details, event_kind='aggregate')
             if retained or (cache_hit and not fetched_epoch):
                 data['source_audit'][-1]['fetched_at'] = data.get('source_freshness', {}).get(source, {}).get('fetched_at')
+            if source == 'official_disclosures' and not fetched_epoch:
+                # The generic audit constructor falls back to completion time;
+                # this source explicitly distinguishes no fetch from a fetch.
+                data['source_audit'][-1]['fetched_at'] = None
 
     apply_source_applicability(data)
     finalize_data_trust(data)
@@ -244,6 +257,8 @@ def _optional_provider_label(source: str) -> str:
         return "Taiwan Open Data"
     if source == "earnings_call":
         return "MOPS investor conference"
+    if source == "official_disclosures":
+        return "TWSE/TPEx official disclosures"
     if source == "peer_discovery":
         return "Peer discovery providers"
     return "Optional providers"

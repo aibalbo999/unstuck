@@ -190,6 +190,9 @@ def source_record_count(source: str, data: Any) -> int:
             if band_count:
                 return band_count
         return list_count(value.get("years")) or list_count(value.get("eps_twd"))
+    if source in {"official_disclosures", "company_ir"}:
+        value = safe_mapping_dict(data.get(source)) or {}
+        return list_count(value.get("documents"))
     if source == "recent_catalysts":
         return list_count(data.get("recent_catalysts"))
     if source == "global_market_context":

@@ -7,7 +7,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import JSONResponse
 
 import api_observability_service
@@ -26,6 +26,28 @@ class ObservabilityRouteDeps:
 def create_observability_router(deps: ObservabilityRouteDeps) -> APIRouter:
     settings_probe = BoundedProbeExecutor("agent-settings-probe")
     router = APIRouter(prefix="/api/observability", lifespan=settings_probe.lifespan)
+
+    @router.get("/source-documents")
+    async def source_documents(
+        ticker: str = Query(..., max_length=16),
+        text: str = Query("", max_length=200),
+        kind: str | None = Query(None, max_length=32),
+        since: str | None = Query(None, max_length=40),
+        until: str | None = Query(None, max_length=40),
+        limit: int = Query(20, ge=1, le=100),
+    ):
+        from source_document_index import search_source_documents
+        try:
+            documents = await asyncio.to_thread(
+                search_source_documents, ticker, text=text, kinds=(kind,) if kind else (),
+                since=since, until=until, limit=limit,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+        return {"status": "partial", "ticker": ticker.strip().upper(), "documents": documents,
+                "document_count": len(documents), "acquisition_triggered": False,
+                "coverage_note": "每日官方快照與本機累積文件；不是完整歷史，空結果不代表沒有公告。",
+                "company_ir": {"workflow_enabled": False, "reason": "access_denied_live_validation_pending"}}
 
     @router.get("/provider-sla")
     async def provider_sla_summary(

@@ -832,7 +832,8 @@ def test_fmp_news_provider_only_runs_for_us_tickers():
 
 
 def test_default_provider_registry_sources_are_covered_by_automatic_workflow():
-    registry_sources = {provider.source for provider in ProviderRegistry().providers}
+    registry_sources = {provider.source for provider in ProviderRegistry().providers
+                        if provider.execute_in_workflow}
     core_workflow_sources = {
         "market_data",
         "financial_statements",

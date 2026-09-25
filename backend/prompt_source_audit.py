@@ -23,6 +23,7 @@ PROMPT_COUNT_COMPARABLE_SOURCES = {
     "social_sentiment",
     "sec_edgar",
     "taiwan_open_data",
+    "official_disclosures",
     "earnings_call",
     "twse_official",
 }
