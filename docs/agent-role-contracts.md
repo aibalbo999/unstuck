@@ -18,6 +18,12 @@
 
 研究情境仍使用原本 schema 欄位與 enum，沒有放寬價格、來源、逐字引用或品質檢查。條件計畫不等於已發生事實或個人化委託指示。
 
+Agent 7 的初次分析與修復提示提供完整、分別歸屬 Agent 4／5 的字串原文，與引用驗證器使用同一組來源。引文不得改寫、跨角色或從財務 JSON 冒充；原文沒有相關假設仍須未評估。為控制容量，僅將兩個 preload 中與提示內財務 JSON 完全相同的同業資料改為內部路徑引用；不同日期、缺值、順序或型別維持完整資料。這不提高模型輸入上限，也不開啟全域 Gemma 壓縮旗標。
+
+B 的完整度說明將研究缺口與部位評估分開：已記錄的逐字稿或角色未評估會指出具體缺口；缺資金本身只表示部位未評估。品質 gate 全過或沒有缺口標記，均不能代替逐角色來源完整度的認證。報告 snapshot 保留 workflow 明示的 `position_sizing_context` 供讀取時重算核對；不從模型輸出或 provider 資料反推資金，歷史缺少輸入的收據仍未確認。
+
+C 的「持有」仍須符合既有估值與方向條件。純研究觀察且不新增部位時，Agent 19 應明確表達該決策並使正文、進場條件與回補停損一致；不得為迴避警示而改推薦或補造目標價。歷史報告警示維持原證據判定。
+
 輔助角色：chief_editor 是 deterministic 整理；context_digest 僅壓縮已有證據；tear_sheet 是展示摘要；audit_reflection 提供修復指引但不能宣告 gate 通過；embedding 做檢索；Gemma evidence batching 為 22／23 摘取證據，不代替最終角色判斷。有效模型與能力以 [agent-effective-settings.md](agent-effective-settings.md) 的 API／worker 證據為準。
 
 驗證使用隔離的 `tests/run_prompt_boundary_tests.py`，涵蓋角色提示、0／1／2／5 項反證、法人資料缺失／僅累計、負／零／正／無效 FCF、來源錯誤及生成截斷。這些契約檢查不等於所有供應商的即時成功率或全部新報告品質已驗收。

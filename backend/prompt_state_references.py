@@ -30,6 +30,12 @@ REFERENCE_PATHS = (
     (('sentiment_context',), ('agent_context', 'sentiment_context')),
     (('sec_edgar',), ('agent_context', 'sec_edgar')),
 )
+# Agent 7 needs full Agent 4/5 quotations in both initial and repair prompts.
+# Only these exact, duplicated tool-preload values may share the visible source.
+RESEARCH_REFERENCE_PATHS = tuple(
+    (('tool_results', f'agent_{agent}_preload', 'peer_context', 'dynamic_peer_metrics'),
+     ('peer_context', 'dynamic_peer_metrics')) for agent in (4, 5)
+)
 
 
 def _encode(value):
@@ -46,6 +52,14 @@ def _at(root, path):
 
 
 def compact_state_reference_section(financial_section: str, state_section: str) -> str:
+    return _compact_state_reference_section(financial_section, state_section, REFERENCE_PATHS, pack=True)
+
+
+def compact_research_state_reference_section(financial_section: str, state_section: str) -> str:
+    return _compact_state_reference_section(financial_section, state_section, RESEARCH_REFERENCE_PATHS, pack=False)
+
+
+def _compact_state_reference_section(financial_section, state_section, reference_paths, *, pack):
     """Return original on malformed/ambiguous/small input; never mutate sources."""
     if not state_section or '$prompt_ref' in financial_section or '$prompt_ref' in state_section:
         return state_section
@@ -59,7 +73,7 @@ def compact_state_reference_section(financial_section: str, state_section: str) 
         if not isinstance(financial, dict) or not isinstance(state, dict):
             return state_section
         changed = False
-        for state_path, financial_path in REFERENCE_PATHS:
+        for state_path, financial_path in reference_paths:
             value, target = _at(state, state_path), _at(financial, financial_path)
             if not isinstance(value, (dict, list)) or not value:
                 continue
@@ -71,7 +85,7 @@ def compact_state_reference_section(financial_section: str, state_section: str) 
             changed = True
         if not changed:
             return state_section
-        candidate = '\n'.join((header, explanation, _encode(pack_record_tables(state)), REFERENCE_RULE))
+        candidate = '\n'.join((header, explanation, _encode(pack_record_tables(state) if pack else state), REFERENCE_RULE))
         # Include decoder instructions; a reference is not itself a saving.
         if estimate_input_tokens(candidate) + 32 >= estimate_input_tokens(state_section):
             return state_section

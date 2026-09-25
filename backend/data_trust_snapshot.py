@@ -72,7 +72,9 @@ def sanitize_rerun_context(context: dict) -> dict:
         "pipeline_id": _context_value("pipeline_id"),
         "pipeline_label": _context_value("pipeline_label"),
         "agent_sequence": _context_value("agent_sequence"),
-        **{key: _context_value(key) for key in ("market_context_contract_version", "market_context_manifests")
+        # Sizing inputs belong to the workflow channel (or its saved rerun
+        # projection), never provider data or model-authored sizing evidence.
+        **{key: _context_value(key) for key in ("market_context_contract_version", "market_context_manifests", "position_sizing_context")
            if key in context_map or key in rerun_context},
     })
 

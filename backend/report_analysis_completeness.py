@@ -18,6 +18,105 @@ _NOTES = {
 }
 
 
+def _v2_position_status(context, output):
+    """Recheck the saved receipt; lack of capital is not a research failure."""
+    from position_sizing_runtime import assess_position_plan
+
+    plan = safe_mapping_dict(output.get('position_plan')) or {}
+    parsed = safe_mapping_dict(context.get('parsed')) or {}
+    receipt = safe_mapping_dict(output.get('position_sizing_assessment')) or {}
+    evidence = safe_mapping_dict(plan.get('sizing_evidence')) or {}
+    if (not plan or plan != parsed.get('position_plan')
+            or receipt.get('contract_version') != 'position-sizing:v1'
+            or receipt.get('issues') != []):
+        return 'unconfirmed'
+    checked = assess_position_plan(plan, context, output.get('recommendation'), output.get('analysis_markdown'))
+    expected = checked.get('calculation') or {}
+    if (checked.get('issues') or receipt.get('status') != checked.get('status')
+            or receipt.get('calculation') != expected or evidence.get('status') != expected.get('status')):
+        return 'unconfirmed'
+    # The waiting runtime contract allows legacy additive fields to be absent.
+    # Present model fields must still agree with the system's unknown inputs.
+    if expected.get('status') == 'unassessed':
+        if (plan.get('planning_context') != 'unassessed'
+                or any(value is None and evidence.get(key) is not None for key, value in expected.items())
+                or evidence.get('position_state', 'unknown') != 'unknown'
+                or evidence.get('scenario_type', 'unassessed') != 'unassessed'):
+            return 'unconfirmed'
+    return checked.get('status') if checked.get('status') in {'calculated', 'unassessed'} else 'unconfirmed'
+
+
+def _v2_explicit_gaps(context):
+    """Explain recorded gaps, without inventing a positive source certification.
+
+    A green gate is not an all-role source receipt. Even when no explicit gap is
+    recorded, research completeness remains unconfirmed until that exists.
+    """
+    from moat_assessment import MOAT_FIELDS, moat_assessment
+    from pipeline_modes import PIPELINE_DEFINITIONS
+
+    outputs = safe_mapping_dict(context.get('structured_outputs')) or {}
+    analyses = safe_mapping_dict(context.get('analyses')) or {}
+    required = PIPELINE_DEFINITIONS['v2']['agents']
+    roles = {num: safe_mapping_dict(outputs.get(num, outputs.get(str(num)))) or {} for num in required}
+    missing = [num for num in required if not roles[num] or not safe_text(
+        roles[num].get('analysis_markdown') or analyses.get(num, analyses.get(str(num)))).strip()]
+    reasons, research_gaps = [], []
+    if missing:
+        reasons.append('required_role_output_unrecorded')
+    for num in (11, 13, 15):
+        if roles[num].get('confidence') == 'unassessed':
+            reasons.append(f'agent_{num}_evidence_unassessed')
+            research_gaps.append(f'Agent {num} 證據未評估')
+    scores = safe_mapping_dict(roles[12].get('moat_scores')) or {}
+    if set(MOAT_FIELDS) <= set(scores):
+        unassessed = moat_assessment(scores)['unassessed_fields']
+        if unassessed:
+            reasons.append('agent_12_moat_unassessed')
+            research_gaps.append('護城河未評估：' + '、'.join(unassessed))
+
+    data = safe_mapping_dict(context.get('data')) or {}
+    earnings = safe_mapping_dict(data.get('earnings_call')) or {}
+    transcript = any(isinstance(earnings.get(key), str) and earnings[key].strip()
+                     for key in ('transcript_excerpt', 'transcript', 'content'))
+    transcript_unavailable = not transcript and (
+        earnings.get('transcript_available') is False
+        or safe_text(earnings.get('coverage_status')) in {'metadata_only', 'unavailable', 'missing'})
+    if roles[20].get('guidance_tone') == '資料不足':
+        reasons.append('agent_20_guidance_unassessed')
+        research_gaps.append('管理層語氣未評估')
+    if transcript_unavailable:
+        reasons.append('earnings_call_transcript_unavailable')
+        research_gaps.append('法說會逐字稿未取得')
+
+    position_status = _v2_position_status(context, roles[16])
+    reasons.append('position_sizing_unassessed' if position_status == 'unassessed'
+                   else 'position_sizing_contract_unconfirmed' if position_status == 'unconfirmed'
+                   else 'position_sizing_calculated')
+    if not research_gaps:
+        reasons.append('analysis_completeness_unconfirmed')
+    detail = {
+        'contract_version': 'v2-explicit-gaps:v1',
+        'required_roles': list(required), 'missing_roles': missing,
+        'research_status': 'incomplete' if research_gaps else 'unconfirmed',
+        'research_gaps': research_gaps,
+        'earnings_call_source_status': 'available' if transcript else 'unavailable' if transcript_unavailable else 'unknown',
+        'position_sizing_status': position_status,
+        'positive_completeness_certified': False,
+    }
+    summary = ('研究缺口：' + '；'.join(research_gaps) + '。' if research_gaps
+               else '研究來源完整度尚未取得逐角色確認。')
+    if missing:
+        summary += '未保存完整角色輸出：' + '、'.join(str(num) for num in missing) + '。'
+    if position_status == 'unassessed':
+        summary += '執行狀態：部位比例未評估；等待與零部位僅表示本研究不新增部位，不代表實際持倉。'
+    elif position_status == 'unconfirmed':
+        summary += '執行狀態：部位計算收據缺漏或不一致，尚未確認。'
+    else:
+        summary += '部位比例已依可信輸入重算；此結果不替代研究來源完整度確認。'
+    return detail, reasons, summary
+
+
 def assess_report_analysis_completeness(payload) -> dict:
     root = safe_mapping_dict(payload) or {}
     context = {**(safe_mapping_dict(root.get('rerun_context')) or {}), **root}
@@ -41,6 +140,7 @@ def assess_report_analysis_completeness(payload) -> dict:
     source_status = safe_text(assessment.get('status')).strip()
     reason_codes = [x for x in assessment.get('reason_codes', []) if isinstance(x, str)][:12] if isinstance(assessment.get('reason_codes'), list) else []
     status, basis = 'quality_warning', 'unconfirmed'
+    mode_assessment, mode_summary = None, ''
     catalyst = safe_text(setup.get('core_catalyst')).strip()
     if pipeline == 'v4':
         completion = safe_mapping_dict(assessment.get('output_completion')) or {}
@@ -58,6 +158,13 @@ def assess_report_analysis_completeness(payload) -> dict:
             status, basis = 'complete', 'source_assessment'
         else:
             reason_codes.append('analysis_completeness_unconfirmed')
+    elif pipeline == 'v2':
+        mode_assessment, reason_codes, mode_summary = _v2_explicit_gaps(context)
+        basis = 'v2_role_source_contract'
+        # A transcript's availability is not an all-source certification.
+        source_status = 'degraded' if mode_assessment['earnings_call_source_status'] == 'unavailable' else 'unknown'
+        if mode_assessment['research_status'] == 'incomplete':
+            status = 'degraded'
     else:
         reason_codes.append('analysis_completeness_unconfirmed')
     if status in {'complete', 'observation'} and (warning or not recorded):
@@ -66,7 +173,8 @@ def assess_report_analysis_completeness(payload) -> dict:
     label = _LABELS[status]
     if status == 'quality_warning' and not warning:
         label = '分析完整度未確認'
-    return {'schema_version': 1, 'status': status, 'label': label, 'summary': _NOTES[status],
+    return {'schema_version': 1, 'status': status, 'label': label, 'summary': mode_summary or _NOTES[status],
             'basis': basis, 'reason_codes': list(dict.fromkeys(reason_codes)),
             'quality_warning': bool(warning), 'quality_recorded': bool(recorded),
-            'source_status': source_status or 'unknown', 'quality_statuses': statuses}
+            'source_status': source_status or 'unknown', 'quality_statuses': statuses,
+            **({'mode_assessment': mode_assessment} if mode_assessment is not None else {})}
