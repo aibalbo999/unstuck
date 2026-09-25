@@ -165,7 +165,7 @@ def format_data_for_prompt(data: dict, *, compact: bool = False, dense: bool = F
         "deterministic_financial_tool_results": build_financial_tool_context(data),
     }
 
-    if dict.get(data, "_prompt_agent_num") in {22, 24}:
+    if dict.get(data, "_prompt_agent_num") in {15, 16, 22, 24}:
         payload["short_term_market_context"] = build_short_term_market_context(data, compact=compact)
 
     if role_scoped:

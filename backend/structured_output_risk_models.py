@@ -40,29 +40,29 @@ class ManagementHighlight(StructuredModel):
 
 def _safe_management_highlights(value: Any) -> Any:
     if not isinstance(value, (list, tuple)):
-        return [{"keyword": "亮點", "quote": "資料不足"} for _ in range(3)]
+        return []
     highlights = []
-    items = safe_sequence_items(value)[:3]
+    items = safe_sequence_items(value)
     for item in items:
         highlight = safe_mapping_dict(item)
         if highlight is None:
-            highlights.append({"keyword": "亮點", "quote": "資料不足"})
+            continue
+        if not _safe_string_text(highlight.get("quote")):
             continue
         highlights.append({
             **highlight,
             "keyword": _safe_string_text(highlight.get("keyword"), "亮點"),
             "quote": _safe_string_text(highlight.get("quote"), "資料不足"),
         })
-    if items:
-        while len(highlights) < 3:
-            highlights.append({"keyword": "亮點", "quote": "資料不足"})
+        if len(highlights) == 3:
+            break
     return highlights
 
 
 class ManagementSentimentStructuredOutput(AnalysisMarkdownMixin):
     guidance_tone: Literal["樂觀", "中立", "保守", "資料不足"]
     confidence: float = Field(..., ge=0, le=1)
-    highlights: list[ManagementHighlight] = Field(..., min_length=3, max_length=3)
+    highlights: list[ManagementHighlight] = Field(..., max_length=3)
     analysis_markdown: str = Field(..., min_length=1)
 
     @model_validator(mode="before")
@@ -73,7 +73,7 @@ class ManagementSentimentStructuredOutput(AnalysisMarkdownMixin):
             return {
                 "guidance_tone": "資料不足",
                 "confidence": 0.0,
-                "highlights": [{"keyword": "亮點", "quote": "資料不足"} for _ in range(3)],
+                "highlights": [],
                 "analysis_markdown": "資料不足",
             }
         tone = _safe_string_text(root.get("guidance_tone"))
@@ -168,6 +168,17 @@ class BearAdvocateStructuredOutput(AnalysisMarkdownMixin):
         return normalized
 
 
+class TradeEventCatalyst(StructuredModel):
+    """An exact source calendar record, or explicit unknown; never news dates."""
+
+    description: str | None = None
+    date: str | None = None
+    end_date: str | None = None
+    timezone: str | None = None
+    status: Literal["unknown", "scheduled", "confirmed", "date_range"] = "unknown"
+    source_refs: list[str] = Field(default_factory=list, max_length=6)
+
+
 class SwingTradeSetup(StructuredModel):
     """Strict 1-2 week trade plan emitted by the v4 decision agent."""
 
@@ -200,6 +211,11 @@ class SwingTradeSetup(StructuredModel):
         description="催化劑僅引用本次完整可見 trade-source 清單中 catalyst_source_refs 的確切 short_term_market_context 路徑；無支持證據時可為空陣列。",
     )
     transaction_cost: str | None = Field(default=None, description="每股來回交易成本金額，含費稅與滑價；未知為 null，明確免費才為 0。")
+    observed_signal: str | None = Field(default=None, description="已觀測事實，保留日期、期間、主體、數值與單位；未知為 null。")
+    observed_source_refs: list[str] = Field(default_factory=list, max_length=6, description="observed_signal 自有的完整可見來源路徑；不可借摘要或事件的引用。")
+    event_catalyst: TradeEventCatalyst | None = Field(default=None, description="逐字對應 event_calendar record 的事件、日期、時區與狀態；缺資料為 null，不得把新聞日期當事件日。")
+    recheck_condition: str | None = Field(default=None, description="純未來條件，使用『等待…後再重新評估』；不含已发生事實或交易指令。")
+    financial_risk_flags: list[str] = Field(default_factory=list, max_length=6, description="模型輸出空陣列；由系統根據可驗證原始財務資料填入風險警示，不混入催化文字。")
 
     @model_validator(mode="before")
     @classmethod
@@ -220,6 +236,8 @@ class SwingTradeSetup(StructuredModel):
                 "catalyst_source_refs": [],
             }
         normalized = {**setup}
+        from trade_catalyst_semantics import normalize_trade_catalyst_fields
+        normalized.update(normalize_trade_catalyst_fields(setup))
         normalized["transaction_cost"] = optional_execution_text(setup.get("transaction_cost"))
         if _safe_mapping_has_key(setup, "trade_direction"):
             raw_trade_direction = _safe_mapping_value(setup, "trade_direction")

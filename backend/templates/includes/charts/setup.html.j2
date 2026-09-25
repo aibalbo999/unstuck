@@ -43,5 +43,11 @@
         <span class="trade-catalyst-label">核心催化劑</span>
         <p>{{ trade_setup.get('core_catalyst', '近期催化劑資料不足') }}</p>
     </div>
+    {% for row in trade_semantic_rows %}
+    <div class="trade-catalyst">
+        <span class="trade-catalyst-label">{{ row.label }}</span>
+        <p>{{ row.value }}</p>
+    </div>
+    {% endfor %}
 </section>
 {% endif %}

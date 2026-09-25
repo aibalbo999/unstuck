@@ -1,6 +1,6 @@
 # 前後端模式契約
 
-更新時間：2026-09-04
+更新時間：2026-09-25
 
 本文件是股票研究系統的模式對照基準，用來檢查前端選項、後端 pipeline、報告模板與使用者決策是否一致。若修改 `backend/pipeline_modes.py`、`backend/reporting/mode_templates.py` 或 `backend/static/ui_helpers.js`，必須同步檢查本文件與對應測試。
 
@@ -41,6 +41,16 @@ HTML 報告會在 `<main>` 上保留 `data-report-template` 與 `data-report-lay
 新產出的報告必須通過上述原生欄位的 final audit；normalizer 產生的「資料不足」相容值不能視為完整決策。舊報告不會自動重跑，也不會在查看時重新套用新版 HTML/Markdown 模板；已保存的產物維持產出當時的模板。若要取得新版模式專屬摘要與決策計畫，必須重新產出該報告。相容 fallback 只用於仍由新版 renderer 處理的舊 context，不得借用其他數值填滿欄位。
 
 新增或修改模式模板時，至少執行 `tests/test_report_mode_templates.py`、`tests/test_golden_reports.py`、`tests/test_report_conformance.py` 與 `tests/test_report_style_template_audit.py`，並確認四個 pipeline 的 template id、focus template 與輸出 marker 一一對應。
+
+## 角色與證據對齊（2026-09-25）
+
+- `v1`：Agent 4 與 5 維持並行；Agent 7 必須以 `assumption_reconciliation` 對照基期、期間、成長、產能／資本支出／利潤率及計算依據。引文須來自實際上游輸出，衝突必須標記待重算。此檢查驗證結構和引用，並不等於財務模型已重新計算。
+- `v1` / `v2`：護城河共用品牌影響力、網路效應、轉換成本、成本優勢與專利技術五個維度。`moat_trend` 另列擴張／穩定／收縮／未評估，缺證據不能補分數。估值方法須服從財務指標可用性與產業適用性。
+- `v2`：Agent 15 / 16 接收實際日線及技術指標；P/E 河流圖不得作為技術支撐停損來源。`position_plan` 顯示 `planning_context` 和 `sizing_evidence`；數字比例只接受 workflow 明示且有來源的資金、風險預算、幣別與持倉情境，並核對系統計算收據。現行公共 API 尚無資金輸入欄位，缺資料時等待、0%、未評估；這代表研究方案不建立新部位，不代表使用者持倉為零。研究推薦維持獨立判斷。
+- `v3`：Agent 17–21 須查核支持、反對及未評估的證據，不能預設公司有泡沫。非核心且無推導依據的價格期限用 N/A。Agent 20 保留 0–3 則真實引文，不以占位文字補滿；Agent 21 是反證角色，不能宣稱盲審或獨立模型驗證。
+- `v4`：`trade-sources:v3` 在原始輸出驗收要求明示 `observed_signal`、`observed_source_refs`、`event_catalyst`、`recheck_condition`、`financial_risk_flags`（未知允許 null / []）。事件日期、狀態、時區與來源必須對應本次 event calendar；無確定事件不能把新聞日期或未來條件當成已知催化。系統依原始財務資料另列財務警示，不能用新欄位掩蓋未被證據支持的舊 core_catalyst。v1/v2 來源契約保留歷史相容。
+
+新提示與契約版本會隔離舊快取；歷史報告不原地改寫。模型修復失敗的 deterministic fallback 也必須遵守角色證據邊界：不補固定護城河分數、不以當前股價倍率或預設股價生成目標，保留未評估與缺項品質檢查。驗證入口包含 `test_four_mode_role_instructions.py`、`test_role_alignment_integration.py`、`test_position_sizing_contract.py`、`test_trade_catalyst_semantics.py` 及報告顯示／既有品質關卡回歸，均透過 `tests/run_prompt_boundary_tests.py` 執行。
 
 ## 前後端模式漂移閘門
 

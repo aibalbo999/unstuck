@@ -22,10 +22,11 @@ def trade_input_fingerprint(data):
 
 
 def trade_manifest_matches_input(manifest, data):
+    from trade_source_contract import SUPPORTED_VERSIONS
     try:
         identity = trade_input_fingerprint(data)
         return bool(identity and isinstance(manifest, dict) and manifest.get("visible") is True
-            and manifest.get("version") in {"trade-sources:v1", "trade-sources:v2"}
+            and manifest.get("version") in SUPPORTED_VERSIONS
             and manifest.get("input_fingerprint") == identity
             and isinstance(manifest.get("catalog"), dict) and manifest["catalog"]
             and manifest.get("fingerprint") == _digest(manifest["catalog"]))

@@ -18,6 +18,7 @@ from structured_output_recommendation_outputs import (
     TradingDecisionStructuredOutput,
 )
 from structured_output_recommendation_types import Catalyst, ConfidenceBasis, ExecutiveThesisOutput, ScenarioTrigger
+from research_assumption_contract import ResearchDecisionStructuredOutput
 from structured_output_risk_models import (
     BearAdvocateStructuredOutput,
     DownsideRisk,
@@ -79,7 +80,7 @@ STRUCTURED_AGENT_RESPONSE_SCHEMAS: dict[int, type[StructuredModel]] = {
     11: DatedEvidenceMemoStructuredOutput,
     3: MoatStructuredOutput,
     4: PriceTargetStructuredOutput,
-    7: RecommendationStructuredOutput,
+    7: ResearchDecisionStructuredOutput,
     12: MoatStructuredOutput,
     13: DatedEvidenceMemoStructuredOutput,
     14: PriceTargetStructuredOutput,

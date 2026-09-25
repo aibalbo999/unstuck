@@ -142,10 +142,17 @@ def test_oversized_snapshot_preserves_short_term_sources_used_by_mode_d():
 
 def test_b_short_recommendation_uses_short_price_order_through_repair_contract():
     from final_audit_mode_contracts import mode_execution_contract_issues
+    from position_sizing import build_position_sizing_context, calculate_position_sizing
     plan = {"action": "進場", "entry_zone": "100", "target_price": "80", "stop_loss": "110",
-            "position_size": "10%", "risk_reward": "2:1", "invalidation_condition": "營收轉強時重審"}
+            "position_size": "10%", "risk_reward": "2:1", "invalidation_condition": "營收轉強時重審",
+            "transaction_cost": "0", "horizon_trading_days": 20, "planning_context": "research"}
+    sizing = build_position_sizing_context({
+        "capital_amount": 100000, "risk_budget_amount": 1000, "currency": "TWD",
+        "scenario_type": "research", "position_state": "no_position", "existing_position_percent": 0,
+    }, source_ref="test:explicit-short-scenario", quote_currency="TWD")
+    plan["sizing_evidence"] = calculate_position_sizing(plan, sizing, recommendation={"建議": "放空"})
     structured = {"recommendation": {"建議": "放空"}, "position_plan": plan}
-    context = {"pipeline_id": "v2", "structured_outputs": {16: structured}}
+    context = {"pipeline_id": "v2", "structured_outputs": {16: structured}, "position_sizing_context": sizing}
     assert not structured_output_missing(context, 16)
-    assert mode_execution_contract_issues(structured, position_plan_agent=16,
+    assert mode_execution_contract_issues(structured, position_plan_agent=16, position_sizing_context=sizing,
                                           short_setup_agent=None, trade_setup_agent=None) == []

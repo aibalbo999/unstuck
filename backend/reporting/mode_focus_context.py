@@ -62,6 +62,7 @@ def build_mode_focus_context(context: dict, parsed: dict, *, pipeline_id: str) -
             _row("每股來回成本", _text(optional_execution_text(plan.get("transaction_cost")), "未估計")),
             _row("風險報酬", plan.get("risk_reward")),
             _row("失效條件", plan.get("invalidation_condition")),
+            *decision["position_basis_rows"],
         ]}
 
     if pipeline_id == "v3":
@@ -86,6 +87,7 @@ def build_mode_focus_context(context: dict, parsed: dict, *, pipeline_id: str) -
         _row("壓力位", setup.get("resistance_level")),
         _row("核心催化劑", setup.get("core_catalyst")),
         _row("波動風險", setup.get("risk_level")),
+        *decision["trade_semantic_rows"],
     ]}
 
 

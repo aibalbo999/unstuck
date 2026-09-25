@@ -117,15 +117,32 @@ def run_final_report_audit(context: AnalysisContext, append_section: bool = True
             _add_unique_issue(warnings, f"Agent {moat_agent} 護城河仍有未評估項目：{'、'.join(unknown)}；不得當成低分或已完成評分。")
 
     recommendation = parsed.get("recommendation", {}) or {}
+    research = structured_outputs.get(7, structured_outputs.get("7", {})) or {}
+    if recommendation_agent == 7 and any(key in research for key in (
+        "assumption_reconciliation", "assumption_reconciliation_assessment")):
+        from research_assumption_contract import assess_reconciliation
+        reconciliation = assess_reconciliation(research.get("assumption_reconciliation"), context)
+        for issue in reconciliation["issues"]:
+            message = f"成長與估值假設對照未通過：{issue}；逐項引用 Agent 4/5 原文並揭露待重算，不得補造一致性。"
+            _add_unique_issue(critical, f"Agent 7 {message}")
+            add_agent_repair_issue(7, message)
+        if reconciliation.get("pending_recalculation"):
+            _add_unique_issue(warnings, "Agent 7 成長與估值假設存在待重算事項；既有價格不可視為新假設計算結果。")
     mode_contract_issues = mode_execution_contract_issues(
         parsed,
         position_plan_agent=position_plan_agent,
         short_setup_agent=short_setup_agent,
         trade_setup_agent=trade_setup_agent,
+        position_sizing_context=context.get("position_sizing_context"),
     )
     for agent_num, issue in mode_contract_issues:
         _add_unique_issue(critical, f"Agent {agent_num} {issue}")
         add_agent_repair_issue(agent_num, issue)
+    if position_plan_agent is not None:
+        output = structured_outputs.get(position_plan_agent, structured_outputs.get(str(position_plan_agent), {})) or {}
+        for issue in (output.get("position_sizing_assessment") or {}).get("issues", []):
+            _add_unique_issue(critical, f"Agent {position_plan_agent} 原始部位計畫未通過：{issue}")
+            add_agent_repair_issue(position_plan_agent, issue)
     if trade_setup_agent is not None:
         pass
     elif recommendation_agent is None:

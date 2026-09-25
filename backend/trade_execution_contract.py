@@ -36,7 +36,7 @@ def contains_trade_order(value) -> bool:
 
 def neutral_observation_is_explicit(setup: dict) -> bool:
     entry = safe_text(setup.get("entry_zone"))
-    catalyst = safe_text(setup.get("core_catalyst"))
+    catalyst = ' '.join(safe_text(setup.get(key)) for key in ("core_catalyst", "recheck_condition"))
     return (
         setup.get("trade_direction") == "Neutral"
         and bool(re.search(r"等待|暫不|不進場|不交易|觀望|wait|no.trade", f"{entry} {catalyst}", re.I))

@@ -171,7 +171,8 @@ def test_final_repair_limit_fallback_keeps_negative_fcf_warning_and_local_origin
     assert result[0]
     output = context["structured_outputs"][24]
     assert output["trade_direction"] == "Neutral" and output["risk_level"] == "High"
-    assert NEGATIVE_FCF_WARNING in output["core_catalyst"]
+    assert NEGATIVE_FCF_WARNING not in output["core_catalyst"]
+    assert NEGATIVE_FCF_WARNING in output["financial_risk_flags"]
     assert NEGATIVE_FCF_WARNING in context["analyses"][24]
     assert output["financial_risk_assessment"]["value"] == -1
     assert output["source_assessment"]["output_completion"]["status"] == "local_fallback"

@@ -9,6 +9,7 @@ from pydantic import Field, model_validator
 from mapping_fields import safe_mapping_dict
 from trade_price_inputs import optional_execution_text
 from structured_output_model_base import _safe_string_text, StructuredModel
+from structured_output_position_sizing import PositionSizingEvidence
 from structured_output_recommendation_mixins import NextCatalystsMixin, ReasoningStepsMixin, _normalize_recommendation_field, _populate_safe_next_catalysts
 from structured_output_recommendation_types import (
     _confidence_basis_fallback,
@@ -31,6 +32,8 @@ class PositionPlan(StructuredModel):
     target_price: str | None = Field(default=None, description="與部位計畫同一交易期間的可驗證目標價；未知保留 null，不套用其他期間的投資目標。")
     transaction_cost: str | None = Field(default=None, description="每股來回交易成本的金額，含手續費、稅及滑價；未知保留 null，明確免費才填 0，不填百分比。")
     horizon_trading_days: int | None = Field(default=None, strict=True, ge=1, le=252, description="部位計畫與目標價共同適用的交易日數，僅能明確指定 1 到 252 的整數；無法確定為 null。")
+    planning_context: Literal["research", "actual", "unassessed"] = Field(default="unassessed", description="比例基於明確研究情境或真實輸入；未知為 unassessed，不能推定使用者持倉。")
+    sizing_evidence: PositionSizingEvidence | None = Field(default=None, description="僅引用系統提供的資金、風險預算與持倉來源，保存 deterministic sizing 計算收據；不得自行設定預算。")
 
     @model_validator(mode="before")
     @classmethod

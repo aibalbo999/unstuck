@@ -8,7 +8,20 @@ _ASSERTED_OR_AMBIGUOUS = re.compile(r"但是|然而|但|其實|目前|已|截至
 _CLAUSE_BREAK = re.compile(r"，|(?<!\d),|,(?!\d)")
 
 
-def catalyst_observation_text(text):
+def split_exact_policy_suffix(text):
+    """Only the fixed terminal system policy is separable; mixed claims remain."""
+    from trade_financial_risk import NEGATIVE_FCF_WARNING
+    text = str(text or "").strip()
+    if text == NEGATIVE_FCF_WARNING:
+        return "", True
+    for delimiter in ("；", ";"):
+        suffix = delimiter + NEGATIVE_FCF_WARNING
+        if text.endswith(suffix):
+            return text[:-len(suffix)].rstrip(), True
+    return text, False
+
+
+def catalyst_observation_text(text, *, allow_policy_suffix=False):
     """Only omit an explicit terminal recheck, never earlier facts or mixed claims.
 
     This projection does not supply evidence. Long/Short still require references;
@@ -16,6 +29,8 @@ def catalyst_observation_text(text):
     against the original catalog. Unsupported/ambiguous suffixes stay visible.
     """
     text = str(text or "")
+    if allow_policy_suffix:
+        text, _ = split_exact_policy_suffix(text)
     for match in _RECHECK_START.finditer(text):
         suffix = text[match.end():]
         body = suffix.rstrip('。.!！?？\n ')

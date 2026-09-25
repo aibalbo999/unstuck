@@ -180,7 +180,7 @@ def state_view_for(role: str | int, state: AgentState) -> dict[str, Any]:
         if is_internal_prompt_key(section):
             continue
         if section == "root":
-            external_context = _external_context_for_state(state, include_short_term=role_key in {"22", "24"})
+            external_context = _external_context_for_state(state, include_short_term=str(role) in {"15", "16", "22", "24"})
             for key in keys:
                 if is_internal_prompt_key(key):
                     continue
@@ -196,6 +196,8 @@ def state_view_for(role: str | int, state: AgentState) -> dict[str, Any]:
             if section == "quant_metrics":
                 selected_keys.extend(("contract_version", "metric_status", "input_provenance", "calculation_methods", "assumptions"))
             view[section] = _pick(value, selected_keys)
+    if str(role) in {"15", "16"} and "short_term_market_context" not in view:
+        view["short_term_market_context"] = build_short_term_market_context(state.normalized_financials)
     return _jsonable(prompt_evidence_copy(view))
 
 

@@ -105,6 +105,8 @@ def normalize_structured_output(agent_num: int, payload: Any) -> Optional[dict]:
             "moat_scores": scores,
             "moat_evidence": normalize_moat_dimension_evidence(raw_payload.get("moat_evidence")),
             "moat_assessment": moat_assessment(scores),
+            "moat_trend": payload.get("moat_trend", "unassessed"),
+            "moat_trend_reason": payload.get("moat_trend_reason", "趨勢資料不足，未評估"),
             "analysis_markdown": _normalized_analysis_markdown(raw_payload, payload),
         }
 
@@ -208,6 +210,8 @@ def normalize_structured_output(agent_num: int, payload: Any) -> Optional[dict]:
             trade_setup["analysis_markdown"] = _normalized_analysis_markdown(raw_payload, payload)
         if "transaction_cost" in raw_payload:
             trade_setup["transaction_cost"] = payload.get("transaction_cost")
+        from trade_catalyst_semantics import normalize_trade_catalyst_fields
+        trade_setup.update(normalize_trade_catalyst_fields(raw_payload))
         return trade_setup
 
     if agent_num in {7, 16, 19}:
@@ -264,6 +268,11 @@ def normalize_structured_output(agent_num: int, payload: Any) -> Optional[dict]:
         }
         if agent_num == 16:
             normalized["position_plan"] = _coerce_position_plan_payload(payload.get("position_plan"))
+        if agent_num == 7 and "assumption_reconciliation" in raw_payload:
+            normalized["assumption_reconciliation"] = copy.deepcopy(raw_payload["assumption_reconciliation"])
+        for receipt in ("assumption_reconciliation_assessment", "position_sizing_assessment"):
+            if receipt in raw_payload:
+                normalized[receipt] = copy.deepcopy(raw_payload[receipt])
         if agent_num == 19:
             normalized["short_setup"] = _coerce_short_setup_payload(
                 payload.get("short_setup"), raw_payload.get("recommendation")

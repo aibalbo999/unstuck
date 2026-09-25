@@ -1833,6 +1833,9 @@ def test_compact_pe_river_chart_keeps_field_mapping_when_accessor_fails():
         "years": [2023, 2024, 2025],
         "multiples": [12, 13, 14],
         "band_labels": ["low", "mid"],
+        "coverage_notes": [],
+        "historical_quantiles_available": None,
+        "valuation_basis": None,
     }
 
 
@@ -1877,6 +1880,9 @@ def test_full_prompt_pe_river_chart_keeps_truthiness_broken_mapping():
                 "years": [2021, 2022, 2023, 2024, 2025],
                 "multiples": [10, 11, 12, 13, 14],
                 "band_labels": ["low", "mid"],
+                "coverage_notes": [],
+                "historical_quantiles_available": None,
+                "valuation_basis": None,
             },
         ),
     ],

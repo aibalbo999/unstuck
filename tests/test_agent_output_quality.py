@@ -30,13 +30,13 @@ def test_final_agent_prompts_preserve_risk_and_quality_contracts():
     agent16 = systems["16"] + "\n" + agents["16"]
     agent19 = systems["19"] + "\n" + agents["19"]
 
-    assert "[風險評估]" in agent7
+    assert "風險等級、上／下行空間與資料限制寫入 analysis_markdown" in agent7
     assert "recommendation 選擇「買入」、「持有」、「避免」或「放空」" in agent7
     assert "不可給出「買入/持有/避免」" not in agent7
     assert "不得添加未經證據支持的喊單" in agent7
     assert "confidence_basis" in agent7 or "信心" in agent7
 
-    assert "[風險評估]" in agent16
+    assert "風險等級、上／下行空間與資料限制寫入 analysis_markdown" in agent16
     assert "情境觸發器" in agent16 or "scenario_triggers" in agent16
     assert "position_plan" in agent16
     assert "action" in agent16
@@ -46,8 +46,14 @@ def test_final_agent_prompts_preserve_risk_and_quality_contracts():
     assert "做空觸發條件（Catalyst for crash）" in agent19
     assert "防軋空停損點（Stop-loss level）" in agent19
     assert "short_setup" in agent19
+    assert "recommendation" in agent19
     assert "[投資建議]" in agent19
-    assert "no text may appear after [/投資建議]" in agent19 or "不得在 [/投資建議] 後添加任何文字" in agent19
+    assert "Do not add any text after [/投資建議]" in agent19
+    assert "JSON-only structured output" in agent19
+    for prompt in (agent7, agent16):
+        assert "請只輸出合法 JSON" in prompt
+        assert "JSON 外前言或附註" in prompt
+        assert "展示區塊由 renderer 產生" in prompt
 
 
 def test_agent_prompt_config_validates_schema_and_exposes_prompt_version(tmp_path):

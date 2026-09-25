@@ -1,6 +1,7 @@
 """Payload-specific coercers for structured output normalization."""
 
 from __future__ import annotations
+import copy
 
 import re
 from typing import Any
@@ -45,6 +46,8 @@ def _coerce_position_plan_payload(value: Any) -> dict[str, str | int | None]:
         "target_price": optional_execution_text(plan.get("target_price")),
         "transaction_cost": optional_execution_text(plan.get("transaction_cost")),
         "horizon_trading_days": plan.get("horizon_trading_days"),
+        "planning_context": plan.get("planning_context", "unassessed"),
+        "sizing_evidence": copy.deepcopy(plan.get("sizing_evidence")),
     }
     if action == "等待":
         normalized.update({
@@ -162,30 +165,19 @@ def _coerce_bear_advocate_payload(value: Any) -> Any:
 
 def _coerce_management_highlights(value: Any, required: int = 3) -> list[dict[str, str]]:
     if not isinstance(value, (list, tuple)):
-        return [{"keyword": "亮點", "quote": "資料不足"} for _ in range(required)]
+        return []
     highlights = []
-    fallbacks = []
     for item in safe_sequence_items(value):
         row = safe_mapping_dict(item)
         if row is None:
-            fallbacks.append({"keyword": "亮點", "quote": "資料不足"})
             continue
-        keyword = _string_field_line(row.get("keyword"))
         quote = _string_field_line(row.get("quote"))
-        highlight = {
-            **row,
-            "keyword": keyword or "亮點",
-            "quote": quote or "資料不足",
-        }
-        if keyword and quote:
-            highlights.append(highlight)
-        else:
-            fallbacks.append(highlight)
-    while len(highlights) < required and fallbacks:
-        highlights.append(fallbacks.pop(0))
-    while len(highlights) < required:
-        highlights.append({"keyword": "亮點", "quote": "資料不足"})
-    return highlights[:required]
+        if not quote:
+            continue
+        highlights.append({**row, "keyword": _string_field_line(row.get("keyword")) or "亮點", "quote": quote})
+        if len(highlights) == required:
+            break
+    return highlights
 
 
 def _coerce_management_sentiment_payload(value: Any) -> Any:

@@ -1,0 +1,90 @@
+{
+  "provenance": "Exact 6488.TWO saved candidate and cited record values from 2026-09-25 rejection diagnostics; catalog is an extract for offline admission replay, not the original complete source manifest.",
+  "payload": {
+    "trade_direction": "Neutral",
+    "entry_zone": "N/A",
+    "target_price": "N/A",
+    "stop_loss": "N/A",
+    "support_level": "900-906元",
+    "resistance_level": "1010-1015元",
+    "core_catalyst": "截至2026-09-24，外資近30個交易日淨賣超23,840.33千股，且技術面日RSI為49.43呈現中性，需等待法人賣壓衰竭並帶量突破1015元壓力區後再重新評估；注意：自由現金流為負，短線財務壓力升高",
+    "risk_level": "High",
+    "support_source_refs": [
+      "short_term_market_context.daily_market_data.bars[0].low",
+      "short_term_market_context.daily_market_data.bars[3].low"
+    ],
+    "resistance_source_refs": [
+      "short_term_market_context.daily_market_data.bars[2].high",
+      "short_term_market_context.daily_market_data.bars[3].high"
+    ],
+    "catalyst_source_refs": [
+      "short_term_market_context.institutional_evidence.records[5]",
+      "short_term_market_context.technical_indicators.rsi_14",
+      "short_term_market_context.technical_indicators.volume_ratio_20"
+    ],
+    "transaction_cost": null
+  },
+  "context": {
+    "data": {
+      "free_cash_flow_raw": -21565024256.0
+    },
+    "_trade_source_manifest": {
+      "version": "trade-sources:v2",
+      "visible": true,
+      "fingerprint": "offline6488",
+      "catalog": {
+        "short_term_market_context": {
+          "daily_market_data": {
+            "availability": "available",
+            "source": "yfinance 5y history",
+            "as_of": "2026-09-24",
+            "bars": [
+              {
+                "date": "2026-09-18",
+                "low": 901.0
+              },
+              {},
+              {
+                "date": "2026-09-23",
+                "high": 1010.0
+              },
+              {
+                "date": "2026-09-24",
+                "low": 922.0,
+                "high": 1005.0
+              }
+            ]
+          },
+          "technical_indicators": {
+            "availability": "available",
+            "source": "yfinance 5y history",
+            "as_of": "2026-09-24",
+            "rsi_14": 49.43335008,
+            "volume_ratio_20": 0.9490864
+          },
+          "institutional_evidence": {
+            "records": [
+              {},
+              {},
+              {},
+              {},
+              {},
+              {
+                "path": "institutional_trading.net_buy_thousand_shares_by_category.foreign",
+                "value": -23840.33,
+                "unit": "thousand_shares",
+                "population": "foreign",
+                "window": {
+                  "kind": "trailing_trading_days",
+                  "trading_days": 30
+                },
+                "observed_at": "2026-09-24",
+                "provider": "FinMind TaiwanStockInstitutionalInvestorsBuySell"
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}

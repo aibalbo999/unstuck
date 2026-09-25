@@ -97,7 +97,10 @@ def test_structured_repair_falls_back_when_valuation_json_remains_unparseable():
 
     assert ok is True
     assert "三情境估值 fallback" in message
-    assert set(context["structured_outputs"][14]["price_targets"]) == {"熊市情境", "基本情境", "牛市情境"}
+    assert context["structured_outputs"][14]["price_targets"] == {}
+    assert context["structured_outputs"][14]["valuation_assessment"]["status"] == "unassessed"
+    assert context["structured_outputs"][14]["valuation_assessment"]["missing_scenarios"] == ["熊市情境", "基本情境", "牛市情境"]
+    assert audit_repair._structured_output_missing(context, 14)
     assert "[目標股價]" in context["analyses"][14]
     assert '"peer_reasoning": "Intel' not in context["analyses"][14]
 
@@ -106,6 +109,7 @@ def test_structured_repair_uses_fallback_when_model_repair_is_429_unavailable():
     context = complete_v2_context()
     context["structured_outputs"].pop(14)
     context["analyses"][14] = "## 二、DCF 模型與情境分析\n模型文字存在，但未提供可解析三情境 JSON。"
+    original_analysis = context["analyses"][14]
     with patch.object(
         audit_repair,
         "run_single_agent",
@@ -119,11 +123,16 @@ def test_structured_repair_uses_fallback_when_model_repair_is_429_unavailable():
             ["三情境目標價 未提供可解析 JSON 結構化輸出。"],
         )
 
-    assert ok is True
-    assert "模型修復暫不可用" in message
+    assert ok is False
+    assert "修復候選未通過契約檢查" in message
+    assert "Agent 14 結構化輸出" in message
     assert context["deterministic_fallbacks"][0]["trigger"] == "repair_429_failure"
     assert "429" in context["deterministic_fallbacks"][0]["raw_failure"]
-    assert set(context["structured_outputs"][14]["price_targets"]) == {"熊市情境", "基本情境", "牛市情境"}
+    assert 14 not in context["structured_outputs"]
+    assert context["analyses"][14] == original_analysis
+    assert context["repair_attempt_counts"][14] == 1
+    assert context["repair_candidate_history"]["14"]["rejections"]
+    assert any("三情境目標價" in issue for issue in context["repair_candidate_history"]["14"]["issue_checklist"])
 
 
 def test_per_job_repair_limit_skips_model_and_uses_fallback():
@@ -131,6 +140,7 @@ def test_per_job_repair_limit_skips_model_and_uses_fallback():
     context["structured_outputs"].pop(14)
     context["repair_attempt_counts"] = {14: 2}
     context["analyses"][14] = "## 成長與估值\n文字存在，但沒有可解析三情境 JSON。"
+    original_analysis = context["analyses"][14]
 
     with patch.object(audit_repair, "run_single_agent", side_effect=AssertionError("model repair should be skipped")):
         ok, message = audit_repair._repair_agent_output(
@@ -141,10 +151,15 @@ def test_per_job_repair_limit_skips_model_and_uses_fallback():
             ["三情境目標價 未提供可解析 JSON 結構化輸出。"],
         )
 
-    assert ok is True
-    assert "per-job" in message
+    assert ok is False
+    assert "修復候選未通過契約檢查" in message
+    assert "Agent 14 結構化輸出" in message
     assert context["repair_attempt_counts"][14] == 2
-    assert set(context["structured_outputs"][14]["price_targets"]) == {"熊市情境", "基本情境", "牛市情境"}
+    assert 14 not in context["structured_outputs"]
+    assert context["analyses"][14] == original_analysis
+    assert context["deterministic_fallbacks"][0]["trigger"] == "per_job_repair_limit"
+    assert context["deterministic_fallbacks"][0]["metadata"]["attempts"] == 2
+    assert context["repair_candidate_history"]["14"]["rejections"]
 
 
 def test_repair_429_circuit_persists_to_sqlite(tmp_path, monkeypatch):

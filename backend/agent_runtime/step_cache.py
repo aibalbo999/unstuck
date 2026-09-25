@@ -18,8 +18,8 @@ from market_context_manifest import CONTRACT_VERSION, FINAL_AGENTS, clear_market
 PROMPT_VERSION_DEFAULT = "runtime_rules:unversioned"
 # Step outputs are already normalized/rendered. Bump when the listed roles'
 # system/generation or output contract changes even if their user prompt does not.
-AGENT_OUTPUT_CONTRACT_VERSION = "agent-output:wire-decode-completion-v3-format:v2"
-_OUTPUT_CONTRACT_AGENTS = frozenset({7, 16, 18, 19, 20, 21})
+AGENT_OUTPUT_CONTRACT_VERSION = "agent-output:role-evidence:v4"
+_OUTPUT_CONTRACT_AGENTS = frozenset({3, 7, 12, 16, 18, 19, 20, 21})
 
 
 def build_agent_step_cache_key(
@@ -42,7 +42,7 @@ def build_agent_step_cache_key(
     if agent_num in {23, 24}:
         key_parts["institutional_evidence_contract"] = "typed-flow:v2"
     if agent_num == 24:
-        key_parts["trade_source_contract_version"] = "trade-sources:v2-completion:v8"
+        key_parts["trade_source_contract_version"] = "trade-sources:v3-completion:v9"
         from trade_financial_risk import FINANCIAL_RISK_POLICY_VERSION
         key_parts["financial_risk_policy_version"] = FINANCIAL_RISK_POLICY_VERSION
     if agent_num in _OUTPUT_CONTRACT_AGENTS:

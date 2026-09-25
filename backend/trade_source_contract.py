@@ -10,8 +10,8 @@ from short_term_market_data import build_short_term_market_context
 TEXT_FIELDS = ("trade_direction", "entry_zone", "target_price", "stop_loss",
                "support_level", "resistance_level", "core_catalyst", "risk_level")
 REF_FIELDS = ("support_source_refs", "resistance_source_refs", "catalyst_source_refs")
-CONTRACT_VERSION = "trade-sources:v2"
-SUPPORTED_VERSIONS = {"trade-sources:v1", CONTRACT_VERSION}
+CONTRACT_VERSION = "trade-sources:v3"
+SUPPORTED_VERSIONS = {"trade-sources:v1", "trade-sources:v2", CONTRACT_VERSION}
 # Price/volume observations cannot establish who traded or ownership changes.
 _INSTITUTIONAL_CATALYST = re.compile(r"外資|投信|自營商|法人(?!說明會)|大戶|持股|買超|賣超|籌碼|foreign\s+investor|institutional|ownership", re.I)
 
@@ -44,12 +44,17 @@ def trade_json_incomplete(raw_text):
     return quoted or stack != ["{"]
 
 
-def missing_trade_fields(payload):
+def missing_trade_fields(payload, *, context=None):
     if not isinstance(payload, dict):
         return list(TEXT_FIELDS + REF_FIELDS)
-    return [key for key in TEXT_FIELDS if not isinstance(payload.get(key), str) or not payload[key].strip()] + [
+    missing = [key for key in TEXT_FIELDS if not isinstance(payload.get(key), str) or not payload[key].strip()] + [
         key for key in REF_FIELDS if not isinstance(payload.get(key), list)
     ]
+    manifest = context.get("_trade_source_manifest") if isinstance(context, dict) else None
+    if isinstance(manifest, dict) and manifest.get("version") == CONTRACT_VERSION:
+        from trade_catalyst_semantics import SEMANTIC_FIELDS
+        missing.extend(key for key in SEMANTIC_FIELDS if key not in payload)
+    return missing
 
 
 def source_catalog(data):
@@ -91,10 +96,15 @@ def source_block(data):
             "法人主張須引用 institutional_evidence 中對應單位、統計主體、期間的完整record，不能以合計冒充外資；"
             "具體寫出主體、期間、觀測日、數值與單位；沒有對應record的『外資累積』或『法人買超』不可放進核心催化。"
             "Neutral 也必須遵守相同證據要求；技術觀望可只引用對應技術指標並列出重新評估條件。"
-            "現況與未來條件分開：先寫附有引用的已觀測事實，最後用『；等待…後再重新評估』表達尚未發生的條件，不能當成現況證據。"
+            "現況與未來條件分欄：observed_signal 只寫已觀測事實，observed_source_refs 逐項列其完整來源；"
+            "recheck_condition 使用『等待…後再重新評估』表達純未來條件，不能混入已發生主張。"
+            "event_catalyst 缺資料為 null；有資料時 description、date、end_date、timezone、status 和 source_refs "
+            "必須對應同一完整 event_calendar record。來源沒有時區就用 null，scheduled 不得改成 confirmed；"
+            "日期須落在日曆提供的已驗證範圍，新聞出版日不能當事件日。financial_risk_flags 由系統填入，模型輸出空陣列。"
+            "以上 observed_signal、observed_source_refs、event_catalyst、recheck_condition、financial_risk_flags 五欄必須明示；未知用 null／空陣列，不可省略。"
             "event_calendar 整個物件及 availability 不可作催化引用；日曆缺資料只能說未知，known_empty只代表提供區間內無紀錄。"
             "recent_news 只支持逐字引用的新聞標題，請明示新聞報導並保留完整標題；出版日期不是未來事件日，不支持確定未來舉行的主張。未知或過期來源不可推定。"
-            "core_catalyst 必須使用引用本身可支持的條件，其他未有對應來源的主張不可冒充催化證據。"
+            "core_catalyst 僅原文複述 observed_signal 或完整重新評估條件；財務警示與事件另欄，禁止加入新的無來源主張。"
             "Neutral 必須說明觀望及重新評估條件；禁止為通過檢查強迫方向。")
     return text, catalog, fingerprint
 
@@ -188,9 +198,11 @@ def bind_trade_payload(payload, context):
     """Check refs before normalization; never populate a missing model assertion."""
     result = dict(payload)
     from trade_catalyst_claims import catalyst_observation_text
-    observation = catalyst_observation_text(payload.get("core_catalyst", ""))
+    from trade_financial_risk import negative_fcf_value
+    from trade_catalyst_semantics import trade_semantic_issues, optional_claim_text
+    observation = catalyst_observation_text(payload.get("core_catalyst", ""), allow_policy_suffix=negative_fcf_value(context.get("data", {})) is not None)
     manifest = context.get("_trade_source_manifest")
-    reasons = []
+    reasons = trade_semantic_issues(payload, context)
     bound = isinstance(manifest, dict) and manifest.get("version") in SUPPORTED_VERSIONS
     for key in REF_FIELDS:
         refs = payload.get(key)
@@ -206,26 +218,27 @@ def bind_trade_payload(payload, context):
             reasons.append("missing_" + key)
     if bound and not manifest.get("visible"):
         reasons.append("source_block_not_visible")
-    if bound and _INSTITUTIONAL_CATALYST.search(observation):
-        from institutional_evidence import institutional_evidence_issues
-        refs = result.get("catalyst_source_refs") or []
-        institutional_refs = [ref for ref in refs if ".institutional_evidence.records[" in ref]
-        issues = institutional_evidence_issues(observation, manifest.get("catalog", {}), allowed_paths=institutional_refs)
-        from trade_catalog_evidence import ownership_claim_supported, institutional_catalyst_has_numeric_claim
-        text = observation
-        ownership_refs = [ref for ref in refs if ".ownership_evidence.records[" in ref]
-        has_ownership = bool(re.search(r"大戶|散戶|持股|ownership", text, re.I))
-        has_flow = bool(re.search(r"外資|投信|自營商|法人(?!說明會)|買超|賣超|foreign|institutional", text, re.I))
-        ownership_ok = ownership_claim_supported(text, [resolve_reference(manifest.get("catalog", {}), ref) for ref in ownership_refs]) if has_ownership else True
-        if (has_flow and (not institutional_refs or issues or not institutional_catalyst_has_numeric_claim(text))) or not ownership_ok or (not has_flow and not has_ownership):
-            reasons.append("catalyst_evidence_scope_mismatch")
-            result["catalyst_source_refs"] = []
     if bound:
-        from trade_catalog_evidence import news_catalyst_supported
-        news_refs = [ref for ref in result.get("catalyst_source_refs", []) if ".recent_news.items[" in ref]
-        if news_refs and not news_catalyst_supported(payload.get("core_catalyst", ""), [resolve_reference(manifest.get("catalog", {}), ref) for ref in news_refs]):
-            reasons.append("news_claim_scope_mismatch")
+        claim_issues = catalyst_claim_issues(observation, manifest.get("catalog", {}), result.get("catalyst_source_refs") or [])
+        if claim_issues:
+            reasons.extend(claim_issues)
             result["catalyst_source_refs"] = []
+    observed = optional_claim_text(payload.get("observed_signal"))
+    if observed:
+        refs = payload.get("observed_source_refs")
+        refs = refs if isinstance(refs, list) else []
+        catalog = manifest.get("catalog", {}) if bound else {}
+        valid = [ref for ref in refs if reference_is_evidence(catalog, ref, "catalyst_source_refs")]
+        if not bound or not manifest.get("visible") or not valid or len(valid) != len(refs):
+            reasons.append("invalid_observed_source_refs")
+            result["observed_source_refs"] = []
+        observed_issues = catalyst_claim_issues(observed, catalog, valid)
+        if observed_issues:
+            reasons.extend("observed_" + issue for issue in observed_issues)
+            result["observed_source_refs"] = []
+    # New semantic failures cannot leave an executable legacy reference set.
+    if reasons:
+        result["catalyst_source_refs"] = []
     if payload.get("trade_direction") in {"Long", "Short"} and any(
         payload.get(key, "").strip().upper() in {"N/A", "NA", "資料不足"} for key in ("entry_zone", "target_price", "stop_loss")
     ):
@@ -239,5 +252,25 @@ def bind_trade_payload(payload, context):
         assessment["source_fingerprint"] = manifest.get("fingerprint")
         if degraded:
             from trade_source_diagnostics import source_rejection_diagnostics
-            assessment["rejection_diagnostics"] = source_rejection_diagnostics(payload, manifest, reasons, result)
+            assessment["rejection_diagnostics"] = source_rejection_diagnostics(payload, manifest, reasons, result, data=context.get("data", {}))
     return result, assessment
+
+
+def catalyst_claim_issues(observation, catalog, refs):
+    """The same scoped proof applies independently to old and new fact fields."""
+    from trade_catalog_evidence import ownership_claim_supported, institutional_catalyst_has_numeric_claim, news_catalyst_supported
+    from institutional_evidence import institutional_evidence_issues
+    reasons = []
+    if _INSTITUTIONAL_CATALYST.search(observation):
+        institutional_refs = [ref for ref in refs if ".institutional_evidence.records[" in ref]
+        issues = institutional_evidence_issues(observation, catalog, allowed_paths=institutional_refs)
+        ownership_refs = [ref for ref in refs if ".ownership_evidence.records[" in ref]
+        has_ownership = bool(re.search(r"大戶|散戶|持股|ownership", observation, re.I))
+        has_flow = bool(re.search(r"外資|投信|自營商|法人(?!說明會)|買超|賣超|foreign|institutional", observation, re.I))
+        ownership_ok = ownership_claim_supported(observation, [resolve_reference(catalog, ref) for ref in ownership_refs]) if has_ownership else True
+        if (has_flow and (not institutional_refs or issues or not institutional_catalyst_has_numeric_claim(observation))) or not ownership_ok or (not has_flow and not has_ownership):
+            reasons.append("catalyst_evidence_scope_mismatch")
+    news_refs = [ref for ref in refs if ".recent_news.items[" in ref]
+    if news_refs and not news_catalyst_supported(observation, [resolve_reference(catalog, ref) for ref in news_refs]):
+        reasons.append("news_claim_scope_mismatch")
+    return reasons

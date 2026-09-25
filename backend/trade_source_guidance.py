@@ -89,7 +89,9 @@ def source_fact_cards(catalog):
     for card in cards:
         probe = {'trade_direction': 'Neutral', 'entry_zone': 'N/A', 'target_price': 'N/A',
                  'stop_loss': 'N/A', 'core_catalyst': card['fact'], 'support_source_refs': [],
-                 'resistance_source_refs': [], 'catalyst_source_refs': [card['ref']]}
+                 'resistance_source_refs': [], 'catalyst_source_refs': [card['ref']],
+                 'observed_signal': card['fact'], 'observed_source_refs': [card['ref']],
+                 'event_catalyst': None, 'recheck_condition': None, 'financial_risk_flags': []}
         if bind_trade_payload(probe, context)[1]['status'] == 'observation':
             verified.append(card)
     return verified

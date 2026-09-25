@@ -52,6 +52,7 @@ class AnalysisContext(TypedDict, total=False):
     parsed: ParsedStructuredData
     context_digests: dict[int, str]
     market_context_contract_version: str
+    position_sizing_context: dict[str, Any]
     market_context_manifests: dict[int, dict[str, Any]]
     analysis_provenance: dict[int, dict[str, Any]]
     invalidated_agents: list[int]

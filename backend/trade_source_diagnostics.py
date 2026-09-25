@@ -17,27 +17,31 @@ def _preview(value, depth=0):
     if isinstance(value, dict):
         keys = ('path', 'value', 'unit', 'population', 'window', 'kind', 'trading_days',
                 'date', 'observed_at', 'provider', 'source_ref', 'title', 'published_at',
-                'high', 'low', 'close', 'threshold', 'source', 'label')
+                'high', 'low', 'close', 'threshold', 'source', 'label', 'description',
+                'end_date', 'timezone', 'status')
         return {k: _preview(value[k], depth + 1) for k in keys if k in value}
     return value
 
 
 def candidate_fingerprint(output):
     from trade_source_contract import TEXT_FIELDS, REF_FIELDS
-    fields = {k: output.get(k) for k in (*TEXT_FIELDS, *REF_FIELDS, 'transaction_cost')}
+    from trade_catalyst_semantics import SEMANTIC_FIELDS
+    fields = {k: output.get(k) for k in (*TEXT_FIELDS, *REF_FIELDS, 'transaction_cost', *SEMANTIC_FIELDS)}
     return hashlib.sha256(json.dumps(fields, ensure_ascii=False, sort_keys=True).encode()).hexdigest()
 
 
-def source_rejection_diagnostics(payload, manifest, reasons, normalized_input):
+def source_rejection_diagnostics(payload, manifest, reasons, normalized_input, *, data=None):
     from trade_source_contract import REF_FIELDS, reference_is_evidence, resolve_reference
     from institutional_evidence import institutional_evidence_diagnostics
     from trade_catalog_evidence import institutional_catalyst_has_numeric_claim, news_catalyst_supported
     from trade_catalyst_claims import catalyst_observation_text
 
     from structured_output_normalizer import normalize_structured_output
+    from trade_financial_risk import enforce_trade_financial_risk
     catalog = manifest.get('catalog', {})
     text = str(payload.get('core_catalyst') or '')
-    observation = catalyst_observation_text(text)
+    # Diagnostic only: exact known suffix handling must match the claim gate.
+    observation = catalyst_observation_text(text, allow_policy_suffix='unverified_financial_policy_warning' not in reasons)
     refs = {key: [ref[:256] for ref in payload.get(key, [])[:8] if isinstance(ref, str)]
             if isinstance(payload.get(key), list) else [] for key in REF_FIELDS}
     fields = []
@@ -47,6 +51,17 @@ def source_rejection_diagnostics(payload, manifest, reasons, normalized_input):
             fields.append({'field': role, 'ref': ref,
                            'admissible_for_field': bool(manifest.get('visible')) and reference_is_evidence(catalog, ref, role),
                            'catalog_value': _preview(source)})
+    semantic_refs = {}
+    event = payload.get('event_catalyst')
+    for role, values in (('observed_source_refs', payload.get('observed_source_refs')),
+                         ('event_catalyst.source_refs', event.get('source_refs') if isinstance(event, dict) else None)):
+        if not isinstance(values, list):
+            continue
+        semantic_refs[role] = [ref[:256] for ref in values[:8] if isinstance(ref, str)]
+        for ref in semantic_refs[role]:
+            fields.append({'field': role, 'ref': ref,
+                           'admissible_for_field': bool(manifest.get('visible')) and reference_is_evidence(catalog, ref, 'catalyst_source_refs'),
+                           'catalog_value': _preview(resolve_reference(catalog, ref))})
     canonical = canonical_catalog(catalog)
     claim_refs = [r for r in refs['catalyst_source_refs'] if '.institutional_evidence.records[' in r]
     claims = institutional_evidence_diagnostics(observation, canonical, allowed_paths=claim_refs)[:6]
@@ -73,9 +88,12 @@ def source_rejection_diagnostics(payload, manifest, reasons, normalized_input):
                          'published_at': record.get('published_at'),
                          'requirement': 'literal_attributed_title_not_future_scheduled_event'})
     return {'version': 'trade-source-rejection:v1', 'source_fingerprint': manifest.get('fingerprint'),
-            'normalized_candidate_sha256': candidate_fingerprint(normalize_structured_output(24, normalized_input)),
+            'normalized_candidate_sha256': candidate_fingerprint(enforce_trade_financial_risk(normalize_structured_output(24, normalized_input), data or {})),
             'candidate_sha256': hashlib.sha256(json.dumps(payload, ensure_ascii=False, sort_keys=True).encode()).hexdigest(),
             'original_core_catalyst': text[:1200], 'core_catalyst_truncated': len(text) > 1200,
+            'original_semantic_fields': {key: _preview(payload.get(key)) for key in
+                ('observed_signal', 'observed_source_refs', 'event_catalyst', 'recheck_condition', 'financial_risk_flags') if key in payload},
+            'original_semantic_refs': semantic_refs,
             'original_refs': refs, 'refs_truncated': any(isinstance(payload.get(k), list) and
                 (len(payload[k]) > 8 or any(isinstance(r, str) and len(r) > 256 for r in payload[k])) for k in REF_FIELDS),
             'reasons': list(dict.fromkeys(reasons)), 'reference_checks': fields,

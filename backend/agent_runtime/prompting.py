@@ -190,6 +190,8 @@ def build_prompt(agent_num: int, data: StockData, context: AnalysisContext) -> s
     audit_reflection_instruction = _safe_prompt_text(context.get("_audit_reflection_instruction", ""))
     temporal_memory_section = build_temporal_memory_section(agent_num, prompt_data)
     final_audit_preflight_rule = build_final_audit_preflight_rule(agent_num, context.get("pipeline_id", ""))
+    from position_sizing_runtime import sizing_prompt
+    position_input_instruction = sizing_prompt(context) if agent_num == 16 else ""
 
     # v2 Agent 14：注入財務排雷品質警示
     forensic_warning = ""
@@ -232,6 +234,7 @@ def build_prompt(agent_num: int, data: StockData, context: AnalysisContext) -> s
         "" if gemma_prompt and rag_context in analysis_prompt else rag_context,
         "⚠️ 若上方任務文字包含 [護城河評分]、[目標股價]、[投資建議] 等舊式區塊格式，請忽略舊式格式；本次只遵守下方 JSON 結構化輸出規則。" if structured_instruction else "",
         structured_instruction,
+        position_input_instruction,
         trade_block,
         numeric_tool_instruction,
         enrichment_instruction,

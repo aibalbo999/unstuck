@@ -24,6 +24,7 @@ def build_markdown_decision_section(parsed: dict[str, Any], *, pipeline_id: str,
             f"- **壓力位:** {trade_setup.get('resistance_level', 'N/A')}",
             f"- **核心催化劑:** {trade_setup.get('core_catalyst', 'N/A')}",
             f"- **短期波動風險:** {trade_setup.get('risk_level', 'High')}",
+            *[f"- **{row['label']}:** {row['value']}" for row in context["trade_semantic_rows"]],
         ])
     if pipeline_id == "v2" and context["position_plan"]:
         plan = context["position_plan"]
@@ -36,6 +37,7 @@ def build_markdown_decision_section(parsed: dict[str, Any], *, pipeline_id: str,
             f"- **風險報酬:** {plan.get('risk_reward', 'N/A')}",
             f"- **假設失效:** {plan.get('invalidation_condition', 'N/A')}",
             f"- **信心指數:** {context['confidence']}",
+            *[f"- **{row['label']}:** {row['value']}" for row in context["position_basis_rows"]],
         ])
     if pipeline_id == "v3" and context["short_setup"]:
         setup = context["short_setup"]

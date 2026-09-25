@@ -67,7 +67,9 @@ def test_every_candidate_uses_lossless_financial_and_state_json(monkeypatch, age
 
 
 def test_candidate_budget_uses_attempted_model_and_counts_request_overhead(monkeypatch):
-    import config
+    # Settings reload tests may replace sys.modules['config']; patch the
+    # import-time binding used by the consumer, not a newly imported facade.
+    from agent_runtime.prompt_budget import config
     from agent_runtime import generation_config
 
     monkeypatch.setattr(prompt_budget, "AGENT_MODELS", {4: "primary-large"})
@@ -83,7 +85,7 @@ def test_candidate_budget_uses_attempted_model_and_counts_request_overhead(monke
 
 
 def test_context_ceiling_reserves_actual_output_and_keeps_unknown_distinct(monkeypatch):
-    import config
+    from agent_runtime.prompt_budget import config
 
     monkeypatch.setattr(config, "get_model_context_token_limit", lambda model: 8000 if model == "known" else 0)
     monkeypatch.setattr(config, "PROMPT_CONTEXT_SAFETY_MARGIN_TOKENS", 100)
@@ -94,7 +96,7 @@ def test_context_ceiling_reserves_actual_output_and_keeps_unknown_distinct(monke
 
 
 def test_complete_oversized_source_reaches_admission_instead_of_middle_slicing(monkeypatch):
-    import config
+    from agent_runtime.single_agent_admission import config
 
     data = fresh_audited_payload()
     data["institutional_trading"]["records"] = [{"index": i, "quote": f"KEEP_SOURCE_{i:03d} " * 20}
@@ -114,6 +116,7 @@ def test_complete_oversized_source_reaches_admission_instead_of_middle_slicing(m
     with pytest.raises(InputCapacityExceededError) as caught:
         _preflight_model_input_capacity(24, LITE, prompt)
     assert caught.value.basis == "local_input_budget"
+    assert caught.value.limit == 5000
 
 
 def test_generic_guard_keeps_whole_prompt_for_route_admission():

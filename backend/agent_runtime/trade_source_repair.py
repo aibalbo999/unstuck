@@ -40,7 +40,10 @@ async def repair_trade_sources(result, data, context, rotator, run_agent, *, val
         "法人主張需寫出主體、期間、觀測日、數值與單位，並引用同一 institutional_evidence record；不能只寫外資累積或法人買超。"
         "event_calendar 整個物件及 availability 不是催化引用；無已確認事件不等於市場没有事件。"
         "Neutral 也必須符合來源要求：可使用有來源的技術條件說明觀望，無法確認的其他主張保留為未知，不能當成事實。"
-        "把已觀測事實與未來條件分開：core_catalyst 先逐項寫可核驗的現況，最後用『；等待…後再重新評估』表達尚未發生的條件。"
+        "明示 observed_signal、observed_source_refs、event_catalyst、recheck_condition、financial_risk_flags 五欄，不可省略，未知用 null／空陣列。"
+        "observed_signal 逐項寫可核驗現況且自有 observed_source_refs；recheck_condition 僅用『等待…後再重新評估』表達尚未發生條件。"
+        "core_catalyst 僅複述 observed_signal 原文或完整重新評估條件；財務警示另欄，financial_risk_flags 模型輸出空陣列交由系統判定。"
+        "event_catalyst 的描述、日期、結束日、時區與狀態須與同一完整事件來源一致，缺資料用 null，不把新聞日期變成事件日期。"
         "現況不得使用單一累計值推定連續買超；未來重新評估條件也不能取代現況的來源引用。"
         "若資料不支持原方向，保持 Neutral 並具體說明缺口與重新評估条件；不得填假引用或強迫Long/Short。"
         + source_repair_feedback(assessment, manifest, original)
