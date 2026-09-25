@@ -72,3 +72,10 @@ def test_unavailable_telemetry_is_explicit_and_escapes_source_names():
     result = render([event("<script>bad</script>", "<img onerror=bad>", "error")])
     assert "<script>" not in result["html"]
     assert "&lt;script&gt;" in result["html"]
+
+def test_latest_eligibility_is_shown_separately_from_raw_acquisition():
+    row=event('recent_catalysts','Free news waterfall','degraded_enrichment',0)
+    row['details_json']=json.dumps({'event_kind':'aggregate','raw_count':9,'usable_count':0,'rejected_count':9,'quality_status':'no_eligible_evidence'})
+    result=render([row])
+    assert '原始 9 筆' in result['html'] and '可用 0 筆' in result['html']
+    assert '排除 9 筆' in result['html']

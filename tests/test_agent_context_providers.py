@@ -13,6 +13,8 @@ def test_social_sentiment_provider_directly_fetches_ptt_for_taiwan_ticker(monkey
     from data_fetch.agent_context_providers import SocialSentimentProvider
     from data_fetch.types import FetchRequest
 
+    from datetime import datetime, timezone, timedelta
+    published = (datetime.now(timezone.utc) - timedelta(days=1)).date().isoformat()
     google_calls = []
     ptt_calls = []
 
@@ -25,7 +27,7 @@ def test_social_sentiment_provider_directly_fetches_ptt_for_taiwan_ticker(monkey
         return [
             {
                 "title": "PTT 台積電討論",
-                "published_date": "2026-06-27",
+                "published_date": published,
                 "source": "PTT Stock",
                 "link": "https://ptt.example/2330",
                 "summary": "量價討論",
@@ -43,9 +45,12 @@ def test_social_sentiment_provider_directly_fetches_ptt_for_taiwan_ticker(monkey
     assert ptt_calls == [("2330", 5)]
     assert len(google_calls) == 3
     assert result.status == "success"
-    assert result.value["ptt_stock_direct"] == [
-        {"title": "PTT 台積電討論", "date": "2026-06-27", "source": "PTT Stock", "link": "https://ptt.example/2330"}
-    ]
+    selected = result.value["ptt_stock_direct"]
+    assert len(selected) == 1
+    assert selected[0]["title"] == "PTT 台積電討論"
+    assert selected[0]["date"] == published
+    assert selected[0]["issuer_match"] == "台積電"
+    assert result.audit["raw_count"] == result.audit["usable_count"] == 1
     assert result.audit["record_count"] == 1
 
 

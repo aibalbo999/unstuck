@@ -50,6 +50,7 @@ def prompt_source_audit_summary(data: dict) -> list[dict]:
             "provider": _safe_text(dict.get(entry, "provider")).strip(),
             "status": _safe_text(dict.get(entry, "status")).strip(),
             "record_count": audit_record_count,
+            **{k:entry[k] for k in ("raw_count", "usable_count", "rejected_count", "rejected_reason_counts", "quality_status", "retrieval_status") if k in entry},
             "merged_record_count": merged_record_count,
             "record_count_mismatch": (
                 source in PROMPT_COUNT_COMPARABLE_SOURCES

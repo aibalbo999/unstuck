@@ -9,7 +9,7 @@ def test_failed_news_refresh_does_not_renew_retained_news(monkeypatch):
     import data_fetch.enrichment_merge as merge
     epoch=datetime(2026,9,23,5,tzinfo=timezone.utc).timestamp()
     monkeypatch.setattr(merge.time_module,'time',lambda:epoch)
-    data={'ticker':'2305.TW','recent_catalysts':[{'title':'still within news window', 'date':'2026-09-20', 'link':'https://example.test/a'}],
+    data={'ticker':'2305.TW','recent_catalysts':[{'title':'still within news window', 'summary':'(2305)', 'date':'2026-09-20', 'link':'https://example.test/a'}],
           'source_freshness':{'recent_catalysts':{'fetched_at_epoch':epoch-86400}},
           'source_audit':[{'source':'recent_catalysts','provider':'Alternative Search','status':'error',
                            'error_kind':'HTTPStatusError','record_count':0,'stale':True,'fetched_at_epoch':epoch}]}

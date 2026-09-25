@@ -5,9 +5,9 @@ import math
 from provider_correlation import correlation_metadata
 
 _TEXT = {'outcome', 'error_kind', 'parser_version', 'response_sha256', 'actual_provider',
-         'coverage_status', 'fallback_reason', 'market', 'instrument_type', 'rate_kind'}
+         'coverage_status', 'quality_status', 'retrieval_status', 'selection_policy', 'selection_cutoff', 'fallback_reason', 'market', 'instrument_type', 'rate_kind'}
 _BOOL = {'http_request_sent', 'cache_hit', 'stale', 'mapping_verified'}
-_NUMBER = {'http_status', 'retry_at', 'fetched_at_epoch', 'response_bytes'}
+_NUMBER = {'http_status', 'retry_at', 'fetched_at_epoch', 'response_bytes', 'raw_count', 'usable_count', 'rejected_count'}
 
 
 def observation_details(entry: dict) -> dict:
@@ -23,6 +23,10 @@ def observation_details(entry: dict) -> dict:
         value = entry.get(key)
         if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value):
             result[key] = value
+    reasons = entry.get('rejected_reason_counts')
+    if isinstance(reasons, dict):
+        result['rejected_reason_counts'] = {str(k)[:60]: v for k,v in list(reasons.items())[:12]
+                                            if isinstance(v,int) and not isinstance(v,bool) and v >= 0}
     for key in ('coverage', 'component_statuses'):
         value = entry.get(key)
         if isinstance(value, dict):
@@ -30,7 +34,8 @@ def observation_details(entry: dict) -> dict:
                 str(name)[:80]: ({str(k): v[:160] if isinstance(v, str) else v for k, v in item.items()
                                  if k in {'status', 'as_of', 'provider', 'reason_code', 'series_id', 'error_kind',
                                           'fetched_at_epoch', 'stale', 'cache_hit', 'retry_after_epoch',
-                                          'observation_status', 'observation_age_days', 'date_status', 'retrieval_status'}
+                                          'observation_status', 'observation_age_days', 'date_status', 'retrieval_status', 'page_kind',
+                                          'http_status', 'response_sha256', 'response_bytes', 'parser_version'}
                                  and isinstance(v, (str, bool, int, float))
                                  and (not isinstance(v, (int, float)) or math.isfinite(v))}
                                 if isinstance(item, dict) else item[:80])

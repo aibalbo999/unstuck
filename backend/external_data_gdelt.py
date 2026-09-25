@@ -10,7 +10,9 @@ from urllib.parse import quote
 
 from cache_store import get_cache_json, set_cache_json
 from external_data_parsers import parse_gdelt_article_payload, parse_google_news_rss_payload
-from external_http_client import async_json_get, log_http_warning, proxy_url_for_provider
+from external_http_client import log_http_warning, proxy_url_for_provider
+from search_response_validation import observed_json_get as async_json_get, validate_payload
+from search_provider_runtime import cooldown_state, scope_key, fetch_search_upstream
 
 import httpx
 
@@ -71,25 +73,30 @@ async def fetch_gdelt_international_news_context(
                 topics.extend(parsed_topics)
                 coverage_notes.append(f"{tag} 使用 GDELT 快取。")
                 continue
-            if _gdelt_rate_limited():
-                fallback_reason = "GDELT 429 cooldown"
+            shared_cooldown = cooldown_state(scope_key('gdelt'))
+            if _gdelt_rate_limited() or shared_cooldown:
+                fallback_reason = 'GDELT ' + str(shared_cooldown.get('error_kind') or '429') + ' cooldown'
             else:
                 if gdelt_attempts and request_spacing_seconds > 0:
                     await asyncio.sleep(request_spacing_seconds)
                 gdelt_attempts += 1
                 try:
-                    payload = await async_json_get(
-                        client,
-                        GDELT_DOC_URL,
-                        {
-                            "query": query,
-                            "mode": "artlist",
-                            "format": "json",
-                            "maxrecords": str(max_records_per_topic),
-                            "timespan": f"{max(1, int(lookback_days))}d",
-                            "sort": "datedesc",
-                        },
+                    async def fetch_topic():
+                        payload = await async_json_get(
+                            client, GDELT_DOC_URL,
+                            {"query": query, "mode": "artlist", "format": "json",
+                             "maxrecords": str(max_records_per_topic),
+                             "timespan": f"{max(1, int(lookback_days))}d", "sort": "datedesc"},
+                        )
+                        validate_payload(payload, 'articles')
+                        return parse_gdelt_article_payload(payload, tag=tag)
+                    parsed_topics = await fetch_search_upstream(
+                        'gdelt', '', fetch_topic,
+                        min_interval_seconds=request_spacing_seconds,
+                        timeout_seconds=_GDELT_CONNECT_TIMEOUT_SECONDS + 1,
                     )
+                    if parsed_topics:
+                        _cache_gdelt_topics(cache_key, parsed_topics, topic_cache_seconds)
                 except Exception as exc:
                     if _is_gdelt_rate_limit_error(exc):
                         _mark_gdelt_rate_limited(cooldown_seconds)

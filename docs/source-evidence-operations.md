@@ -70,6 +70,16 @@ Agent 19 的初稿 JSON 範例與資料提示必須對齊既有 short_setup 檢�
 - `data_fetch.official_disclosures_provider` 將有效公告存入 operational DB 的 `source_documents`，僅回傳相符股票近三十日的最多二十件文件。公告日期、事實日期與取得時間分開；重讀快取不刷新原取得日期，日期未知不進日期篩選結果。每日快照及啟用後累積資料都只算 partial，不能證明整段期間沒有其他公告。
 - `source_document_index.py` 保存內容版本並按股票、來源類型、日期、中文關鍵字查詢；相同 URL 的不同公告不互相覆蓋。`GET /api/observability/source-documents?ticker=2330.TW&text=董事會&kind=official_disclosure&limit=20` 只讀本機，不觸發爬網。首次使用尚無資料時回空集合且不建立 DB。`since`、`until` 可用 ISO 日期或時間；日期上限含當天。
 - 財務核心快取命中時可單獨補公告，不重抓行情或其他來源。公告獨立放在 `official_disclosures`；不增加新聞媒體數、不假冒逐字稿、不推定未來事件日期，也不降低品質門檻。角色 3、5、12、13、21、24 可使用最多六件各一千字的原文片段，明示截斷；取得的文字保留於索引與新報告資料快照。
-- `company_ir_sources.py` / `CompanyIrProvider` 初始白名單是台積電、聯強。部署主機對投資人網站／新聞稿四次小型探測全部 HTTP 403，尚無成功全文解析證據，因此 `execute_in_workflow=False`。能力清單保留停用原因；不繞過網站拒絕，也不把搜尋摘要寫成公司原文。正式啟用前必須驗證真實成功頁及其日期、正文和 issuer。
+- `company_ir_sources.py` / `CompanyIrProvider` 初始白名單是台積電、大聯大（3702；聯強為2347）。部署主機對投資人網站／新聞稿四次小型探測全部 HTTP 403，尚無成功全文解析證據，因此 `execute_in_workflow=False`。能力清單保留停用原因；不繞過網站拒絕，也不把搜尋摘要寫成公司原文。正式啟用前必須驗證真實成功頁及其日期、正文和 issuer。
 
 本次來源驗收以公告端點、parser、共用快取、本機索引、正式查詢端點及模型輸入／快照邊界為準；完整報告品質仍須由完成的分析工作與新 artifact 另行判定。
+
+## 公司證據與來源缺口修復（2026-09-25）
+
+- 公司新聞及社群先驗證公司名稱、正式別名或明確股票標記，再計近期可用量。未知日期、過期、未來及無法核對公司的資料不能占用可用名額；URL、出版者及其他數字不作為公司命中。正文可提供身分依據，摘要仍標 `headline_or_snippet`。
+- `raw_count`、`usable_count`、排除原因、取得與品質狀態分開保存。來源面板顯示最近一次篩選，不能當作獨立媒體數。排除原件留於快照的 `source_record_archive`／`identity_rejected_catalysts`，通用與直接 prompt 都排除這些欄位；舊快取再次驗證時效與公司。
+- 合格新聞不足時最多兩組查詢；無關的原始結果不能終止補搜。搜尋端點共享 single-flight、總期限與連敗退避，Retry-After 是最早恢復下限。GDELT 公司及國際路徑共用冷卻；FMP news 與 quote 權限分開。
+- 法人不足時以 TWSE T86／TPEx dailyTrade 最多五個已發布交易日補齊，依日期／類別合併並保留衝突，不相加重複資料。官方缺股列標 `security_absent`，不補零、不據此宣稱停牌；五日取得不代表三十日完整。新 HTTP 受十二秒總預算與每次五秒上限限制，快取忙碌立即略過。
+- 上櫃借券獨立使用 TPEx `tpex_margin_sbl`，驗證日期、代號、欄位與股數，與融資券分開判定；兩項全市場表可跨股共用。
+- 同業依最新主檔、普通股及 TW/TWO 身分處理，排除歷史下市與特別股，最多十個候選。身分與可用指標分開計數；FinMind 僅補相符股票、有效日期的 PER/PBR，保留來源及期別限制。銀行不硬套毛利率，分類「其他」的個股不強配半導體同業。
+- 職缺頁區分 `client_rendered`、`access_denied`、正常解析與格式未知，保存 hash、大小與 parser 版本。招募新聞另驗公司、時效及主題，只能支持質性資訊；未知職缺數維持 null。WebPro 索引、公司 IR 停用與 spot／銀行報價原有邊界不變。

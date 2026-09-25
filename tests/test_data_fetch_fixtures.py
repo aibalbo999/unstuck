@@ -299,6 +299,8 @@ def test_gdelt_context_limits_topic_requests_and_spaces_calls(monkeypatch):
 
     calls = []
     sleeps = []
+    now = [1000.0]
+    monkeypatch.setattr(external_data_gdelt.time, "time", lambda: now[0])
 
     async def fake_json_get(_client, _url, params):
         calls.append(params["query"])
@@ -314,6 +316,7 @@ def test_gdelt_context_limits_topic_requests_and_spaces_calls(monkeypatch):
 
     async def fake_sleep(seconds):
         sleeps.append(seconds)
+        now[0] += seconds
 
     monkeypatch.setattr(external_data_gdelt, "async_client", lambda: FakeAsyncClient())
     monkeypatch.setattr(external_data_gdelt, "async_json_get", fake_json_get)

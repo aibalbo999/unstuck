@@ -6,13 +6,14 @@ class Session:
     def __init__(self,rows=None):self.calls=[];self.rows=rows
     def get(self,url,**kw):
         self.calls.append(url)
+        if '/tpex_margin_sbl' in url: return Response([])
         assert '/tpex_mainboard_margin_balance' in url
         return Response(self.rows if self.rows is not None else [{'Date':'1150921','SecuritiesCompanyCode':'3324','CompanyName':'雙鴻','MarginPurchaseBalance':'6961','ShortSaleBalance':'136','CashRedemption':'0','StockRedemption':'--'}])
 
 
 def test_two_uses_official_market_endpoint_and_preserves_roc_date_and_units():
     session=Session();result=fetch_twse_margin_short_sales('3324.TWO',session=session)
-    assert len(session.calls)==1
+    assert len(session.calls)==2
     assert result['source']=='TPEx OpenAPI tpex_mainboard_margin_balance'
     assert result['margin_as_of_date']=='2026-09-21'
     assert result['margin_unit']=='thousand_shares'
@@ -26,7 +27,7 @@ def test_two_uses_official_market_endpoint_and_preserves_roc_date_and_units():
 
 def test_no_matching_tpex_row_is_unknown_not_zero_or_twse_fallback():
     session=Session([]);result=fetch_twse_margin_short_sales('3324.TWO',session=session)
-    assert len(session.calls)==1 and result['reason_code']=='record_not_found'
+    assert len(session.calls)==2 and result['reason_code']=='record_not_found'
     assert 'margin_balance' not in result
 
 

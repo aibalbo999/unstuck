@@ -28,7 +28,9 @@ class FreeNewsWaterfallProvider(DataProvider):
         query = f"{ticker} {company_name}".strip()
         client = ExternalDataClient()
         records = client.get_news(query, ticker=ticker, limit=5)
-        status = AUDIT_STATUS_SUCCESS if records else AUDIT_STATUS_DEGRADED_ENRICHMENT
+        from source_content_selection import select_company_records
+        records, selection = select_company_records(records, {**data, "ticker": ticker})
+        status = AUDIT_STATUS_SUCCESS if records and not selection['rejected_count'] else AUDIT_STATUS_DEGRADED_ENRICHMENT
         return ProviderResult(
             source=self.source,
             provider=self.name,
@@ -41,8 +43,9 @@ class FreeNewsWaterfallProvider(DataProvider):
                 "record_count": len(records),
                 "cache_hit": safe_bool(data.get("_cache_hit")),
                 "stale": False,
-                "message": "免費新聞 waterfall 已回傳近期催化劑。" if records else "近期沒有命中新聞 waterfall，已視為可接受空結果。",
+                "message": "免費新聞 waterfall 已回傳近期催化劑。" if records else "未取得公司相符且在時間窗內的新聞；不代表沒有催化劑。",
                 "related_entries": list(client.last_news_audit),
+                **selection,
             },
         )
 
@@ -71,7 +74,9 @@ class YahooProvider(DataProvider):
             empty_status="degraded_enrichment",
             unavailable_message="Yahoo Finance 未回傳近期新聞。",
         )
-        return provider_result_from_audited(result, self.source, self.name)
+        from source_content_selection import annotate_result
+        return annotate_result(provider_result_from_audited(result, self.source, self.name),
+                               {**((context or {}).get("data") or {}), "ticker": request.ticker})
 
 
 class FmpNewsProvider(DataProvider):
@@ -104,7 +109,9 @@ class FmpNewsProvider(DataProvider):
             empty_status="degraded_enrichment",
             unavailable_message="FMP news 未回傳近期新聞。",
         )
-        return provider_result_from_audited(result, self.source, self.name)
+        from source_content_selection import annotate_result
+        return annotate_result(provider_result_from_audited(result, self.source, self.name),
+                               {**((context or {}).get("data") or {}), "ticker": request.ticker})
 
 
 class EarningsCallProvider(DataProvider):
@@ -199,13 +206,13 @@ class DynamicPeerMetricsProvider(DataProvider):
     cost_tier, capabilities = "free", {"peer_metrics"}
 
     def fetch(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
-        from .market_sources.peers import fetch_dynamic_peer_metrics
+        from .market_sources.peers import fetch_dynamic_peer_metrics_with_diagnostics
 
         data = (context or {}).get("data", {}) if isinstance((context or {}).get("data"), dict) else {}
         result = audited_fetch(
             self.source,
             self.name,
-            fetch_dynamic_peer_metrics,
+            fetch_dynamic_peer_metrics_with_diagnostics,
             (
                 str(data.get("ticker") or request.ticker).strip().upper(),
                 str(data.get("company_name") or request.ticker),
@@ -213,10 +220,16 @@ class DynamicPeerMetricsProvider(DataProvider):
                 str(data.get("industry") or ""),
                 data.get("company_identity") if isinstance(data.get("company_identity"), dict) else {},
             ),
-            default=[],
+            default={"peers":[],"audit":{}},
+            record_counter=lambda value: value.get("audit",{}).get("usable_count",0),
             empty_status="degraded_enrichment",
             unavailable_message="同業指標暫無可用資料。",
         )
+        payload = result.get('value') or {}
+        result['audit'].update(payload.get('audit') or {})
+        result['value'] = payload.get('peers') or []
+        if result['audit'].get('coverage_status') not in {'success', 'complete'} and result['audit'].get('status') == 'success':
+            result['audit']['status'] = 'degraded_enrichment'
         return provider_result_from_audited(result, self.source, self.name)
 
 

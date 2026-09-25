@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import re
 from typing import Any
 from urllib.parse import urlencode
@@ -69,6 +70,10 @@ def fetch_104_job_openings_count(
             provider="104 Job Search",
             session=session,
         )
+        diagnostic = _job_page_diagnostics(response)
+        blocked = _blocked_job_page(company, term, "104 Job Search", source_url, diagnostic)
+        if blocked:
+            return blocked
         job_count = _extract_104_job_count(response.text)
         if job_count is None:
             return _unavailable(
@@ -77,10 +82,11 @@ def fetch_104_job_openings_count(
                 "104 Job Search",
                 source_url,
                 "104 搜尋頁未揭露可解析的職缺總數。",
-                reason_code="parse_failure",
+                reason_code="parse_failure", diagnostics=diagnostic,
             )
 
         return {
+            **diagnostic,
             "status": "success",
             "company_name": company,
             "keyword": term,
@@ -120,11 +126,16 @@ def fetch_1111_job_openings_count(
             provider="1111 Job Search",
             session=session,
         )
+        diagnostic = _job_page_diagnostics(response)
+        blocked = _blocked_job_page(company, term, "1111 Job Search", source_url, diagnostic)
+        if blocked:
+            return blocked
         job_count = _extract_1111_job_count(response.text)
         if job_count is None:
-            return _unavailable(company, term, "1111 Job Search", source_url, "1111 搜尋頁未揭露可解析的職缺總數。", reason_code="parse_failure")
+            return _unavailable(company, term, "1111 Job Search", source_url, "1111 搜尋頁未揭露可解析的職缺總數。", reason_code="parse_failure", diagnostics=diagnostic)
             
         return {
+            **diagnostic,
             "status": "success",
             "company_name": company,
             "keyword": term,
@@ -142,10 +153,28 @@ def _google_news_fallback(company: str, keyword: str, source_name: str, source_u
     """Uses Google News RSS to find recent recruitment news when direct scraping fails."""
     try:
         from news_fetchers import fetch_google_news_rss
-        query = f'{company} {keyword} 徵才 OR 擴編 OR 招募'
-        news = fetch_google_news_rss(query, limit=5)
+        query = f'{company} {keyword} (徵才 OR 擴編 OR 招募)'
+        raw_news = fetch_google_news_rss(query, limit=5)
+        from source_content_selection import select_company_records
+        news, selection = select_company_records(raw_news, {'company_name': company})
+        # A company news match alone is not recruitment evidence.
+        relevant = []
+        for item in news:
+            text = ' '.join(str(item.get(k) or '') for k in ('title', 'summary', 'snippet', 'text'))
+            if re.search(r'徵才|擴編|招募|招聘|招聘會|hiring|recruit', text, re.I):
+                item['content_coverage'] = 'headline_or_snippet'
+                relevant.append(item)
+            else:
+                selection['source_record_archive'].append({'reason': 'recruitment_topic_unverified', 'record': item})
+                reasons = selection['rejected_reason_counts']
+                reasons['recruitment_topic_unverified'] = reasons.get('recruitment_topic_unverified', 0) + 1
+        news = relevant
+        selection.update(usable_count=len(news), rejected_count=len(selection['source_record_archive']),
+                         quality_status='eligible_evidence' if news else 'no_eligible_evidence',
+                         coverage_status='partial' if len(news) != len(raw_news or []) or not news else 'success')
         if news:
             return {
+                **selection,
                 "status": "success",
                 "company_name": company,
                 "keyword": keyword,
@@ -161,11 +190,42 @@ def _google_news_fallback(company: str, keyword: str, source_name: str, source_u
                 "message": "職缺頁取得失敗；新聞備援僅提供招募情報，無法確認職缺總數。"
             }
         else:
-            return _unavailable(company, keyword, source_name, source_url, "職缺頁取得失敗且新聞備援無結果；職缺數未知。", reason_code="transport_failure", fallback_status="empty_unknown")
+            return _unavailable(company, keyword, source_name, source_url, "職缺頁取得失敗且新聞備援無結果；職缺數未知。", reason_code="transport_failure", fallback_status="no_eligible_evidence" if raw_news else "empty_unknown", diagnostics=selection)
     except ImportError:
         return _unavailable(company, keyword, source_name, source_url, "職缺頁取得失敗且新聞備援未設定。", reason_code="transport_failure", fallback_status="not_configured")
     except Exception:
         return _unavailable(company, keyword, source_name, source_url, "職缺頁與新聞備援均取得失敗。", reason_code="transport_failure", fallback_status="error")
+
+
+def _job_page_diagnostics(response) -> dict:
+    """Classify the public response before interpreting any embedded count."""
+    html = str(response.text or '')
+    soup = BeautifulSoup(html, 'html.parser')
+    scripts = bool(soup.find('script'))
+    title = soup.title.get_text(' ', strip=True) if soup.title else ''
+    for node in soup(['script', 'style', 'noscript', 'title']):
+        node.decompose()
+    visible = soup.get_text(' ', strip=True)
+    blocked = re.search(r'背景驗證中|安全驗證失敗|驗證您是否為真人|verify you are human|access denied|checking your browser|just a moment', title + ' ' + visible, re.I)
+    kind = 'challenge' if blocked else 'normal_or_unknown'
+    if not blocked and scripts and not visible and ('104' in title or '1111' in title):
+        kind = 'client_rendered_shell'
+    return {'page_kind': kind, 'http_status': getattr(response, 'status_code', None),
+            'response_sha256': hashlib.sha256(html.encode()).hexdigest(),
+            'response_bytes': len(html.encode()), 'parser_version': 'job-search-v2'}
+
+
+def _blocked_job_page(company, keyword, source_name, source_url, diagnostics):
+    kind = diagnostics['page_kind']
+    if kind == 'challenge':
+        return _unavailable(company, keyword, source_name, source_url,
+                            '職缺來源回傳存取驗證頁，職缺數未知。',
+                            reason_code='access_denied', diagnostics=diagnostics)
+    if kind == 'client_rendered_shell':
+        return _unavailable(company, keyword, source_name, source_url,
+                            '職缺頁僅提供前端載入框架，未取得職缺總數。',
+                            reason_code='client_rendered', diagnostics=diagnostics)
+    return None
 
 
 def _extract_104_job_count(html: str) -> int | None:
@@ -219,9 +279,10 @@ def _unavailable(
     source_name: str,
     source_url: str,
     message: str,
-    *, reason_code: str = "invalid_query", fallback_status: str | None = None,
+    *, reason_code: str = "invalid_query", fallback_status: str | None = None, diagnostics: dict | None = None,
 ) -> dict[str, Any]:
     return {
+        **(diagnostics or {}),
         "status": "unavailable",
         "company_name": company_name,
         "keyword": keyword,

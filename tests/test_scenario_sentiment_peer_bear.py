@@ -222,9 +222,16 @@ def test_peer_metrics_include_dupont_inputs_and_ps(monkeypatch):
             }
 
     monkeypatch.setattr(peer_sources.yf, "Ticker", FakeTicker)
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    today = datetime.now(ZoneInfo("Asia/Taipei")).date().isoformat()
+    monkeypatch.setattr(peer_sources, "load_peer_stock_master", lambda: [
+        {"stock_id": "2356", "stock_name": "英業達", "type": "twse", "industry_category": "電腦及週邊設備業", "date": today},
+        {"stock_id": "2357", "stock_name": "華碩", "type": "twse", "industry_category": "電腦及週邊設備業", "date": today},
+    ])
     identity = {"same_industry_peers": [{"stock_id": "2357", "stock_name": "華碩"}]}
 
-    records = peer_sources.fetch_dynamic_peer_metrics("2308.TW", "台達電", "Technology", "Hardware", identity)
+    records = peer_sources.fetch_dynamic_peer_metrics("2356.TW", "英業達", "Technology", "Hardware", identity)
     dupont = calculate_dupont(net_margin_pct=16, asset_turnover=0.6, equity_multiplier=2.5)
 
     assert records[0]["roe_pct"] == 24.0

@@ -10,7 +10,7 @@ from config import CATALYST_LOOKBACK_DAYS, SEARCH_CATALYST_MAX_RESULTS
 from news_record_utils import canonical_link, parse_news_datetime
 
 _DATE_KEYS = ("date", "published_date", "published_at", "publication_date", "pubDate")
-_NEWS_BUCKETS = ("recent_catalysts", "additional_recent_catalysts", "historical_catalysts", "unverified_catalysts")
+_NEWS_BUCKETS = ("recent_catalysts", "additional_recent_catalysts", "historical_catalysts", "unverified_catalysts", "identity_rejected_catalysts")
 _WRAPPER_HOSTS = {"news.google.com", "www.google.com", "google.com", "search.yahoo.com"}
 _AGGREGATOR_NAMES = {"google", "google news", "google news rss", "yahoo", "yahoo finance", "yahoo news",
                      "gdelt", "finmind", "brave", "brave search", "bing", "tavily", "serpapi", "alternative"}
@@ -86,17 +86,24 @@ def apply_news_freshness(
     lookback_days: int = CATALYST_LOOKBACK_DAYS, limit: int = SEARCH_CATALYST_MAX_RESULTS,
 ) -> dict:
     """Normalize a working payload; callers must copy persisted snapshots before applying."""
+    from source_content_selection import issuer_match, company_aliases, reselect_social_context
+    reference = news_cutoff(cutoff)
+    reselect_social_context(data, cutoff=reference)
     if records is None and not any(key in data for key in _NEWS_BUCKETS):
         return data
-    reference = news_cutoff(cutoff)
     window = max(1, int(lookback_days))
     lower = reference - timedelta(days=window)
     candidates = list(records) if records is not None else [
         record for key in _NEWS_BUCKETS for record in (data.get(key) or []) if isinstance(record, dict)
     ]
     normalized = _dedupe([_normalized(record, reference, lower) for record in candidates if isinstance(record, dict)])
+    identity_rejected = []
+    if company_aliases(data) or str(data.get('ticker') or '').strip():
+        identity_rejected = [item for item in normalized if not issuer_match(item, data)]
+        normalized = [item for item in normalized if issuer_match(item, data)]
     recent = sorted((item for item in normalized if item["news_date_status"] == "recent"),
                     key=lambda item: item["date"], reverse=True)
+    data['identity_rejected_catalysts'] = identity_rejected
     selected, remaining, publishers = [], [], set()
     bounded_limit = max(0, int(limit))
     for item in recent:
@@ -116,6 +123,7 @@ def apply_news_freshness(
         "policy_version": "recent-news-v1", "cutoff": reference.isoformat(),
         "window_start": lower.isoformat(), "lookback_days": window,
         "recent_count": len(selected), "eligible_count": len(recent),
+        "identity_rejected_count": len(identity_rejected),
         "historical_count": len(data["historical_catalysts"]),
         "unknown_date_count": sum(item["news_date_status"] == "unknown" for item in normalized),
         "future_date_count": sum(item["news_date_status"] == "future" for item in normalized),

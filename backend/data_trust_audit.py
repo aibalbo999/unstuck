@@ -177,8 +177,14 @@ def source_record_count(source: str, data: Any) -> int:
             ]
             return 1 if any(has_value(child) for child in fallback_values) else 0
         return 0
+    if source == "social_sentiment":
+        social = safe_mapping_dict(data.get(source)) or {}
+        return sum(list_count(social.get(key)) for key in ("dcard", "mobile01", "pttweb", "ptt_stock_direct"))
     if source == "dynamic_peer_metrics":
-        return list_count(data.get("dynamic_peer_metrics"))
+        peers = data.get("dynamic_peer_metrics")
+        if not isinstance(peers, list):
+            return 0
+        return sum(1 for row in peers if isinstance(row, dict) and row.get("metrics_status") != "unavailable")
     if source == "pe_river_chart":
         value = safe_mapping_dict(data.get("pe_river_chart"))
         if value is None:

@@ -207,7 +207,7 @@ def ranked_profiles_from_identity(identity: dict) -> tuple[list[tuple[str, str]]
         if isinstance(payload, Mapping)
         if (profile := _company_profile_from_mapping(payload)) is not None
     ]
-    if target is None or not candidates:
+    if target is None:
         return None
 
     try:
@@ -216,9 +216,6 @@ def ranked_profiles_from_identity(identity: dict) -> tuple[list[tuple[str, str]]
         min_peers = 5
     selection = select_peer_profiles(target, candidates, min_peers=min_peers)
     selected_rows = selection["selected_peers"]
-    if not selected_rows:
-        return None
-
     rows_by_ticker = {row["ticker"].upper(): row for row in selected_rows}
     policy = {
         **selection["selection_policy"],

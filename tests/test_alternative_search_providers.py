@@ -79,7 +79,7 @@ def test_alternative_search_uses_free_sources_for_catalysts(monkeypatch):
     monkeypatch.setattr(provider_clients.httpx, "AsyncClient", lambda **_kwargs: FakeClient())
     monkeypatch.setattr(provider_clients, "_async_json_get", fake_json_get)
 
-    records = asyncio.run(search.fetch_alternative_search_catalysts_async("2330.TW", "台積電", {}, max_results=2))
+    records = asyncio.run(search.fetch_alternative_search_catalysts_async("2330.TW", "台積電", {"allowed_aliases": ["TSMC"]}, max_results=2))
 
     assert [record["source_type"] for record in records] == ["gdelt_search", "yahoo_rss_search"]
     assert records[0]["title"] == "TSMC earnings call points to AI demand"
@@ -131,7 +131,7 @@ def test_external_search_provider_clients_fetch_brave_payload(monkeypatch):
 def test_alternative_peer_discovery_uses_search_results(monkeypatch):
     import external_search_providers as search
 
-    async def fake_search(query, *, max_results=8, lookback_days=30, require_recent=False):
+    async def fake_search(query, *, max_results=8, lookback_days=30, require_recent=False, **kwargs):
         assert query == "台達電 competitors"
         assert max_results == 8
         return [
@@ -199,7 +199,7 @@ def test_google_news_rss_is_available_as_free_fallback(monkeypatch):
     monkeypatch.setattr(search, "WEB_SEARCH_PROVIDER_ORDER", "google_news_rss")
     monkeypatch.setattr(search, "async_client", lambda: FakeClient())
 
-    records = asyncio.run(search.fetch_alternative_search_catalysts_async("2330.TW", "台積電", {}))
+    records = asyncio.run(search.fetch_alternative_search_catalysts_async("2330.TW", "台積電", {"allowed_aliases": ["TSMC"]}))
 
     assert records[0]["source_type"] == "google_news_rss_search"
     assert records[0]["source"] == "Example Wire"
@@ -210,7 +210,7 @@ def test_catalyst_search_retries_with_broader_company_query(monkeypatch):
 
     calls = []
 
-    async def fake_search(query, *, max_results=8, lookback_days=30, require_recent=False):
+    async def fake_search(query, *, max_results=8, lookback_days=30, require_recent=False, **kwargs):
         assert max_results == 8
         calls.append(query)
         if len(calls) == 1:
@@ -221,18 +221,18 @@ def test_catalyst_search_retries_with_broader_company_query(monkeypatch):
                 snippet="Company update",
                 link="https://news.example/revenue",
                 source="Google News RSS",
-                published_at="",
+                published_at="2026-06-28",
                 provider="google_news_rss",
             )
         ]
 
     monkeypatch.setattr(search, "fetch_web_search_results_async", fake_search)
 
-    records = asyncio.run(search.fetch_alternative_search_catalysts_async("2330.TW", "台積電", {}))
+    records = asyncio.run(search.fetch_alternative_search_catalysts_async("2330.TW", "台積電", {"allowed_aliases": ["TSMC"]}))
 
     assert len(calls) == 2
     assert "earnings OR outlook" in calls[0]
-    assert calls[1] == "台積電 2330.TW"
+    assert calls[1] == '"台積電" 2330'
     assert records[0]["title"] == "TSMC reports monthly revenue"
 
 
@@ -409,7 +409,7 @@ def test_bing_requires_explicit_provider_order_opt_in(monkeypatch):
 def test_alternative_search_provider_fetches_catalysts(monkeypatch):
     from data_fetch.enrichment_providers import AlternativeSearchProvider
 
-    async def fake_fetch(ticker, company_name, identity):
+    async def fake_fetch(ticker, company_name, identity, *, diagnostics=None):
         assert ticker == "2330.TW"
         assert company_name == "台積電"
         assert identity == {"official_name": "Taiwan Semiconductor"}
@@ -473,7 +473,7 @@ def test_legacy_optional_enrichment_merges_alternative_search(monkeypatch):
         return []
 
     async def alternative_catalysts(*_args, **_kwargs):
-        return [{"title": "Alternative catalyst", "link": "https://example.test/catalyst", "date": datetime.now(timezone.utc).isoformat()}]
+        return [{"title": "台積電 Alternative catalyst", "link": "https://example.test/catalyst", "date": datetime.now(timezone.utc).isoformat()}]
 
     async def alternative_peers(*_args, **_kwargs):
         return [{"title": "Alternative peer", "link": "https://example.test/peer"}]
@@ -495,7 +495,7 @@ def test_legacy_optional_enrichment_merges_alternative_search(monkeypatch):
 
     result = asyncio.run(optional_enrichment.enrich_optional_http_async("2330", data))
 
-    assert result["recent_catalysts"][0]["title"] == "Alternative catalyst"
+    assert result["recent_catalysts"][0]["title"] == "台積電 Alternative catalyst"
     assert result["peer_discovery_results"][0]["title"] == "Alternative peer"
     assert {"Alternative Search", "Recent catalysts providers", "Peer discovery providers"} <= {
         entry["provider"] for entry in result["source_audit"]
