@@ -1,6 +1,8 @@
 import asyncio
 import json
 
+import pytest
+
 
 def test_numbered_agents_use_role_specific_generation_profiles():
     from agent_runtime.generation_config import build_generation_config
@@ -139,8 +141,11 @@ def test_neutral_or_incomplete_trade_setup_is_forced_to_safe_observation():
     assert incomplete["entry_zone"] == "N/A"
 
 
-def test_agent_20_without_transcript_skips_rag_and_model(monkeypatch):
+@pytest.mark.parametrize("pipeline_id", ["v1", "v2", "v3"])
+def test_agent_20_without_transcript_skips_rag_and_model(monkeypatch, pipeline_id):
     from agent_runtime import quality_gates
+    from reporting.analysis_structured_overlays import build_management_sentiment
+    from runtime_events import RUNTIME_EVENT_LOG_KEY
 
     async def forbidden(*_args, **_kwargs):
         raise AssertionError("missing transcript must not call RAG, digest, or model")
@@ -152,8 +157,8 @@ def test_agent_20_without_transcript_skips_rag_and_model(monkeypatch):
         "agent_positions": {20: 1},
         "agent_total": 1,
         "agent_sequence": [20],
-        "pipeline_id": "v2",
-        "pipeline_label": "模式 B",
+        "pipeline_id": pipeline_id,
+        "pipeline_label": pipeline_id,
         "structured_outputs": {},
         "analyses": {},
     }
@@ -175,6 +180,14 @@ def test_agent_20_without_transcript_skips_rag_and_model(monkeypatch):
     assert "法說會逐字稿缺漏" in result
     assert context["structured_outputs"][20]["guidance_tone"] == "資料不足"
     assert context["structured_outputs"][20]["confidence"] == 0.0
+    assert context["structured_outputs"][20]["highlights"] == []
+    assert context["analyses"][20] == result
+    assert build_management_sentiment(context)["highlights"] == []
+    events = context[RUNTIME_EVENT_LOG_KEY]
+    deterministic = [event for event in events if event["phase"] == "agent_deterministic_result"]
+    assert len(deterministic) == 1
+    assert deterministic[0]["metadata"]["model_id"] == "deterministic:earnings-call-unavailable"
+    assert deterministic[0]["metadata"]["skipped_llm"] is True
 
 
 def test_identity_guard_exists_even_without_enriched_company_identity():

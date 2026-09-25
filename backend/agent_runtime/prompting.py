@@ -20,6 +20,7 @@ from state_memory import state_view_for
 from structured_output_models import build_structured_output_instruction
 from temporal_memory_service import build_valuation_memory_slice
 from trade_source_contract import source_block, bind_source_prompt
+from trade_source_diagnostics import deduplicate_source_repair_guidance
 from market_context_manifest import CONTRACT_VERSION, FINAL_AGENTS, build_source_blocks, record_prompt_manifest
 
 from .prompt_budget import (
@@ -222,6 +223,7 @@ def build_prompt(agent_num: int, data: StockData, context: AnalysisContext) -> s
 
     structured_instruction = build_structured_output_instruction(agent_num)
     trade_block, trade_catalog, trade_fingerprint = source_block(data) if agent_num == 24 else ("", {}, "")
+    audit_retry_instruction = deduplicate_source_repair_guidance(audit_retry_instruction, trade_block, trade_catalog)
     from institutional_evidence_prompt import build_institutional_source_prompt
     from trade_catalog_evidence import INSTITUTIONAL_PROMPT_RULE
     prompt_parts = [

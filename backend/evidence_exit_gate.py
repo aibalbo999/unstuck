@@ -10,6 +10,7 @@ from evidence_technical_claims import CANONICAL_TECHNICAL_FIELDS, technical_snap
 from evidence_technical_assignments import explicit_atr14_policy
 from evidence_claim_types import public_metadata_claim
 from evidence_trade_plan_claims import COVER_STOP_PATH, saved_cover_stop_number
+from evidence_position_policy_claims import verified_position_policy_claim
 
 from evidence_exit_gate_claims import (
     _HORIZON_PREFIX_RE,
@@ -48,6 +49,15 @@ def evaluate_report_evidence(
     technical = data.get("technical_indicators") if isinstance(data, dict) else None
     technical = technical if isinstance(technical, dict) else {}
     claims = [{**claim, "_technical_as_of": valid_technical_date(technical.get("as_of")), "_technical_default_atr14": explicit_atr14_policy(technical)} for claim in claims]
+    policy_claims = []
+    financial_and_score_claims = []
+    for claim in claims:
+        policy = verified_position_policy_claim(claim, snapshot, markdown)
+        if policy is not None:
+            policy_claims.append(public_metadata_claim(policy))
+        else:
+            financial_and_score_claims.append(claim)
+    claims = financial_and_score_claims
     metadata_claims = [public_metadata_claim(claim) for claim in claims if claim.get("claim_type") == "analysis_score"]
     claims = [claim for claim in claims if claim.get("claim_type") != "analysis_score"]
     sample = sample_numeric_claims(claims, sample_ratio=sample_ratio, min_sample=min_sample, max_sample=max_sample, seed=seed)
@@ -88,8 +98,13 @@ def evaluate_report_evidence(
                           for item in metadata_claims if item["status"] != "valid"})
         if reasons:
             summary += "需確認：" + "、".join(reasons) + "。"
+    if policy_claims:
+        summary += f"另核對 {len(policy_claims)} 筆研究等待政策值，不計入財務證據，也不代表實際持倉。"
     return {
         "schema_version": 2,
+        "policy_claim_count": len(policy_claims),
+        "policy_checked_count": len(policy_claims),
+        "policy_claims": policy_claims,
         "metadata_claim_count": len(metadata_claims),
         "metadata_checked_count": len(metadata_claims),
         "metadata_invalid_count": metadata_invalid,

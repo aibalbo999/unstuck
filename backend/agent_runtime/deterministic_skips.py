@@ -19,11 +19,7 @@ def deterministic_agent_result(agent_num: int, data: StockData, context: Analysi
     payload = {
         "guidance_tone": "資料不足",
         "confidence": 0.0,
-        "highlights": [
-            {"keyword": "逐字稿", "quote": "資料不足"},
-            {"keyword": "Guidance", "quote": "資料不足"},
-            {"keyword": "管理層語氣", "quote": "資料不足"},
-        ],
+        "highlights": [],
         "analysis_markdown": (
             "## 管理層語氣與法說會分析\n"
             "法說會逐字稿缺漏，無法可靠判斷管理層 Guidance 語氣或引用管理層原話。"
