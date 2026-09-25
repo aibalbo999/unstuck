@@ -62,3 +62,14 @@ Agent 19 的初稿 JSON 範例與資料提示必須對齊既有 short_setup 檢�
 - ExchangeRate-API 的 USD 基底回應可同時提供 USD、EUR、JPY 對 TWD 的 spot。EUR/JPY 以 `rates.TWD / rates.<currency>` 換算並保留原始 rates、公式、單位、來源及觀測日期；不能填入臺銀買賣價。備援幣別齊全仍是第三方 spot，臺銀缺口維持 partial。
 - 催化劑搜尋以公司為錨點、主題用 OR 聯集，避免要求每篇新聞同時含所有中英文詞；日期、相關性及來源多樣性門檻沿用。缺乏結果時保留有界公司搜尋備援。
 - 職缺觀測保留 104/1111 各次查詢的 `component_statuses` 與 `reason_code`，區分解析失敗、傳輸失敗、有效零筆與新聞質性備援。未知職缺數不補零，新聞不計入數量覆蓋。
+
+
+## 免費官方文件與本機索引（2026-09-25）
+
+- `official_disclosure_sources.py` 從 TWSE `opendata/t187ap04_L`、TPEx `mopsfin_t187ap04_O` 取得每日全市場公告。每市場共用五分鐘快取；一般報告的 `force_refresh` 也遵守此批次間隔及持久冷卻，避免逐股重複抓整張表。合法空回應與網路／格式錯誤分開。
+- `data_fetch.official_disclosures_provider` 將有效公告存入 operational DB 的 `source_documents`，僅回傳相符股票近三十日的最多二十件文件。公告日期、事實日期與取得時間分開；重讀快取不刷新原取得日期，日期未知不進日期篩選結果。每日快照及啟用後累積資料都只算 partial，不能證明整段期間沒有其他公告。
+- `source_document_index.py` 保存內容版本並按股票、來源類型、日期、中文關鍵字查詢；相同 URL 的不同公告不互相覆蓋。`GET /api/observability/source-documents?ticker=2330.TW&text=董事會&kind=official_disclosure&limit=20` 只讀本機，不觸發爬網。首次使用尚無資料時回空集合且不建立 DB。`since`、`until` 可用 ISO 日期或時間；日期上限含當天。
+- 財務核心快取命中時可單獨補公告，不重抓行情或其他來源。公告獨立放在 `official_disclosures`；不增加新聞媒體數、不假冒逐字稿、不推定未來事件日期，也不降低品質門檻。角色 3、5、12、13、21、24 可使用最多六件各一千字的原文片段，明示截斷；取得的文字保留於索引與新報告資料快照。
+- `company_ir_sources.py` / `CompanyIrProvider` 初始白名單是台積電、聯強。部署主機對投資人網站／新聞稿四次小型探測全部 HTTP 403，尚無成功全文解析證據，因此 `execute_in_workflow=False`。能力清單保留停用原因；不繞過網站拒絕，也不把搜尋摘要寫成公司原文。正式啟用前必須驗證真實成功頁及其日期、正文和 issuer。
+
+本次來源驗收以公告端點、parser、共用快取、本機索引、正式查詢端點及模型輸入／快照邊界為準；完整報告品質仍須由完成的分析工作與新 artifact 另行判定。

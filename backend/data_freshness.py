@@ -163,7 +163,11 @@ def source_is_stale(
     from source_applicability import source_is_applicable
     if not source_is_applicable(source, data, ticker):
         return False
-    if source != "market_data" and source_record_count(source, data) <= 0:
+    payload = data.get(source)
+    observed_empty_documents = (source == 'official_disclosures' and isinstance(payload, dict)
+        and payload.get('retrieval_status') in {'success', 'valid_empty'}
+        and bool(payload.get('fetched_at_epoch')) and not safe_bool(payload.get('stale')))
+    if source != "market_data" and source_record_count(source, data) <= 0 and not observed_empty_documents:
         return True
     ticker = str(ticker or data.get("ticker") or "").strip().upper()
     entry = build_source_freshness_entry(

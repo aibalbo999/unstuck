@@ -11,6 +11,7 @@ ROUTED_EXTERNAL_CONTEXT_KEYS = {
     "social_sentiment": {17},
     "sec_edgar": {13, 14, 21},
     "taiwan_open_data": {11},
+    "official_disclosures": {3, 5, 12, 13, 21, 24},
     "earnings_call": {20},
     "dcard_sentiment": {17},
     "ptt_sentiment": {17},

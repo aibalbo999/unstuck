@@ -50,6 +50,7 @@ def _load_source_freshness_seconds() -> dict[str, int]:
         "social_sentiment": 30 * 60,
         "sec_edgar": 24 * 60 * 60,
         "taiwan_open_data": 24 * 60 * 60,
+        "official_disclosures": 5 * 60,
     }
     for key in list(defaults):
         defaults[key] = env_int(f"SOURCE_FRESHNESS_{key.upper()}_SECONDS", defaults[key])

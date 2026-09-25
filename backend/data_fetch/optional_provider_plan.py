@@ -21,16 +21,17 @@ OPTIONAL_WORKFLOW_SOURCES = (
     "social_sentiment",
     "sec_edgar",
     "taiwan_open_data",
+    "official_disclosures",
     "peer_discovery",
 )
 
 
-def collect_optional_providers(request: FetchRequest, registry, data: dict, resolved_ticker: str) -> tuple[list, dict[str, bool]]:
+def collect_optional_providers(request: FetchRequest, registry, data: dict, resolved_ticker: str, *, sources=None) -> tuple[list, dict[str, bool]]:
     """Return providers to execute and a per-source refresh decision."""
     cache_hit = safe_bool(data.get("_cache_hit"))
     refresh_by_source = {
         source: source_is_applicable(source, data, resolved_ticker) and ((not cache_hit) or source_is_stale(data, source, resolved_ticker))
-        for source in OPTIONAL_WORKFLOW_SOURCES
+        for source in OPTIONAL_WORKFLOW_SOURCES if sources is None or source in sources
     }
     providers = []
     for source, should_refresh in refresh_by_source.items():

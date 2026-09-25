@@ -23,6 +23,8 @@ from .taiwan_providers import FinMindProvider, InstitutionalTradingProvider, Mon
 from .sec_edgar_provider import SecEdgarProvider
 from .taiwan_open_data_provider import TaiwanOpenDataProvider
 from .types import FetchRequest
+from .official_disclosures_provider import OfficialDisclosuresProvider
+from .company_ir_provider import CompanyIrProvider
 
 
 class ProviderRegistry:
@@ -62,6 +64,8 @@ def default_providers() -> list[DataProvider]:
         InternationalNewsContextProvider(),
         MacroIndicatorsProvider(),
         TaiwanOpenDataProvider(),
+        OfficialDisclosuresProvider(),
+        CompanyIrProvider(),
         ChipDataProvider(),
         AlternativeJobOpeningsProvider(),
         SocialSentimentProvider(),
