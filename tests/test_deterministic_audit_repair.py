@@ -45,6 +45,7 @@ def test_missing_transcript_rebuild_uses_existing_source_absence_result(monkeypa
     assert ctx["analyses"][20] == expected
     assert ctx["structured_outputs"][20] == expected_ctx["structured_outputs"][20]
     assert ctx["structured_outputs"][20]["confidence"] == 0
+    assert ctx["structured_outputs"][20]["highlights"] == []
     assert ctx["repair_attempt_counts"] == counts
     assert "external:keep" in ctx["blocking_issues"]
 

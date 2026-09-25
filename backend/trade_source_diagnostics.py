@@ -6,6 +6,16 @@ import re
 from trade_source_guidance import canonical_catalog, source_guidance_text
 
 
+def deduplicate_source_repair_guidance(instruction, source_block, catalog):
+    """Keep one exact guide in the full source block; never remove diagnostics."""
+    if not instruction or not source_block or "【/trade-source】" not in source_block:
+        return instruction
+    guidance = source_guidance_text(catalog)
+    if guidance and source_block.count(guidance) == 1 and instruction.endswith(guidance):
+        return instruction[:-len(guidance)]
+    return instruction
+
+
 def _preview(value, depth=0):
     """A diagnostic preview, never a replacement for the full visible catalog."""
     if depth >= 3:
