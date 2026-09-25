@@ -63,7 +63,19 @@ def test_actual_prompt_shares_budget_and_keeps_raw_state(agent, pipeline, primar
     assert view["normalized_financials"] == prompting.state_view_for(agent, context["agent_state"])["normalized_financials"]
     if agent != 24:
         assert view["quant_metrics"] == before["agent_state"].quant_metrics
-    assert context == before
+    # Agent 24 records the evidence actually exposed by this prompt. The
+    # receipt may be added, but all pre-existing inputs must remain intact.
+    if agent == 24:
+        from trade_source_contract import source_block
+        block, catalog, fingerprint = source_block(data)
+        manifest = context["_trade_source_manifest"]
+        assert manifest["visible"] is True and block in prompt
+        assert manifest["catalog"] == catalog
+        assert manifest["fingerprint"] == fingerprint
+        assert {key: value for key, value in context.items()
+                if key != "_trade_source_manifest"} == before
+    else:
+        assert context == before
 
 
 def test_state_projection_deduplicates_report_flags(configured_budget):

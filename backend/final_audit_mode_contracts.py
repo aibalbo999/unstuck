@@ -11,7 +11,7 @@ from mapping_fields import safe_text
 from recommendation_labels import normalize_recommendation_label
 from structured_output_normalizer import structured_output_to_report_text
 from validators import strip_generated_audit_sections
-from trade_execution_contract import contains_trade_order, evaluate_trade_execution, neutral_observation_is_explicit, observation_reason_is_explicit, short_observation_is_explicit
+from trade_execution_contract import contains_trade_order, evaluate_trade_execution, neutral_observation_is_explicit, observation_reason_is_explicit, short_observation_action_conflicts, short_observation_is_explicit
 from trade_price_inputs import parse_position_percentage, price_contract_text
 from position_sizing import position_sizing_contract_issues
 
@@ -115,6 +115,16 @@ def v3_recommendation_contract_issues(
         issues.append("缺少防軋空停損點（Stop-loss level）章節。")
     if recommendation_agent in completed_agents and not _recommendation_block_at_tail(final_text):
         issues.append("最終 [投資建議] 區塊未位於 Agent 19 輸出尾端。")
+    if isinstance(structured, dict):
+        recommendation = structured.get("recommendation")
+        label = recommendation.get("建議", recommendation.get("recommendation")) if isinstance(recommendation, dict) else recommendation
+        if label == "避免":
+            for conflict in short_observation_action_conflicts(structured.get("scenario_triggers")):
+                issues.append(
+                    f"{conflict['field']}『{conflict['action']}』與不新增空方部位的研究政策矛盾。"
+                    "請核對原始決策，同步修正情境 action、short_setup 與正文；純觀察只能重新評估研究論點，"
+                    "不得宣稱已有部位或給開倉、回補、退出指令，不得為通過檢查改寫建議或補造無持倉聲明。"
+                )
     return issues
 
 

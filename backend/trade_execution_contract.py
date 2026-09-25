@@ -55,6 +55,66 @@ def short_observation_is_explicit(setup: dict) -> bool:
     return not contains_trade_order(text)
 
 
+def _entry_numbers_are_fundamental_rechecks(entry: str) -> bool:
+    """Allow numbers only inside a complete, unit-bearing research recheck.
+
+    This validates a narrow grammar without changing the original evidence.
+    Unknown numeric clauses remain insufficient for a price-free contract.
+    """
+    number = r"(?:[0-9]{1,3}(?:,[0-9]{3})+|[0-9]+)(?:\.[0-9]+)?"
+    comparison = r"(?:未能突破|未能回升至|未達|低於|高於|達到|突破|回升至|降至)"
+    revenue = r"(?:單月|月|季度|單季|全年|年度)?營收"
+    margin = r"(?:毛利率|營益率|營業利益率|淨利率)"
+    numeric_metric = rf"(?:{revenue}\s*{comparison}\s*{number}\s*(?:億元|百萬元)|{margin}\s*{comparison}\s*{number}\s*[%％])"
+    qualitative_metric = rf"(?:{revenue}|{margin})(?:未能|未|仍未)?(?:回升|改善|下降|惡化)"
+    metric = rf"(?:{numeric_metric}|{qualitative_metric})"
+    recheck = rf"等待\s*{metric}(?:\s*(?:且|及|與)\s*{metric})*(?:之條件達成)?後再?重新評估"
+    for clause in re.split(r"[，。；、\n]", entry):
+        if re.search(r"\d", clause) and not re.fullmatch(recheck, clause.strip()):
+            return False
+    return True
+
+
+def short_observation_action_conflicts(scenario_triggers) -> list[dict]:
+    """Inspect decision actions, never source quotes or general risk evidence."""
+    if not isinstance(scenario_triggers, list):
+        return []
+    order = r"(?:建立空方部位|建立空單|買入|賣出|做多|做空|放空|開倉|建倉|進場|下單|停損出場|回補|平倉|減碼|出清|清倉|停損|出場|退出|暫停|停止|終止|持有|建立|維持)"
+    position = r"(?:(?:任何|現有|既有|全部|所有|全數)?(?:空方部位|下行風險觀察部位|觀察部位|部位|空單|持倉))?"
+    forbidden = re.compile(
+        r"建立空方部位|建立空單|買入|賣出|做多|做空|放空|開倉|建倉|進場|下單|回補|平倉|減碼|出清|清倉|停損|出場|退出|持有|持倉|部位|空單"
+        r"|\b(?:buy|sell|short|trade|cover|close|position)\b", re.I,
+    )
+    prohibition = re.compile(
+        rf"(?:本研究情境)?(?:目前|暫時|現在)?(?:不|勿|禁止|不得|無需|不需|不必|毋須|尚未|沒有|並未|未)\s*"
+        rf"(?:立即|馬上|全部|全數)?\s*{order}\s*{position}"
+    )
+    question = re.compile(rf"(?:等待(?P<condition>[^，。；\n]{{1,60}})後再?)?重新評估是否(?:需要|適合)?{order}{position}(?:的(?:必要性|風險))?")
+    risk_reassessment = re.compile(r"重新評估(?:回補風險|停損策略|持倉風險)(?:與(?:回補風險|停損策略|持倉風險))*")
+    disclaimer = re.compile(r"(?:此為研究政策)?不代表使用者實際持倉為零")
+    english_prohibition = re.compile(r"(?:do not|don't|no|not)\s+(?:buy|sell|short|trade|cover|close)(?:\s+(?:any\s+)?(?:position|positions))?", re.I)
+    conflicts = []
+    for index, row in enumerate(scenario_triggers):
+        action = safe_text((safe_mapping_dict(row) or {}).get("action"))
+        for clause in re.split(r"[，,。.；;！？!\n]", action):
+            clause = clause.strip()
+            if not forbidden.search(clause):
+                continue
+            # Only an entire known prohibition, disclaimer or research question
+            # is safe. Never delete a negated fragment from an affirmative
+            # order (e.g. 不得不回補), or accept a question followed by an order.
+            question_match = question.fullmatch(clause)
+            if question_match and not forbidden.search(question_match.group("condition") or ""):
+                continue
+            if any(pattern.fullmatch(clause) for pattern in (
+                prohibition, risk_reassessment, disclaimer, english_prohibition,
+            )):
+                continue
+            conflicts.append({"field": f"scenario_triggers[{index}].action", "action": action})
+            break
+    return conflicts
+
+
 def explicit_short_no_position(short_setup) -> bool:
     """A price-free, affirmative no-position contract; silence is insufficient."""
     setup = safe_mapping_dict(short_setup) or {}
@@ -81,7 +141,8 @@ def explicit_short_no_position(short_setup) -> bool:
         and affirmative_no_position(stop)
         and "不適用" in stop
         and execution_value_missing(setup.get("downside_target"))
-        and not re.search(r"\d", f"{entry} {target} {stop}")
+        and _entry_numbers_are_fundamental_rechecks(entry)
+        and not re.search(r"\d", f"{target} {stop}")
         and not contains_trade_order(f"{entry} {target} {stop}")
         and not re.search(r"持有|持倉|既有|現有|已建立|已有\s*(?:空單|空方部位|部位)|未平倉|回補|加碼|減碼", f"{entry} {target} {position_stop}")
         and observation_reason_is_explicit(setup.get("squeeze_risk"))
@@ -171,4 +232,4 @@ def evaluate_trade_execution(
     return {"issues": issues, "details": details}
 
 
-__all__ = ["explicit_short_no_position", "evaluate_trade_execution", "neutral_observation_is_explicit", "observation_reason_is_explicit", "short_observation_is_explicit"]
+__all__ = ["explicit_short_no_position", "evaluate_trade_execution", "neutral_observation_is_explicit", "observation_reason_is_explicit", "short_observation_action_conflicts", "short_observation_is_explicit"]

@@ -50,8 +50,10 @@ def build_agent_step_cache_key(
     if agent_num == 7:
         from research_quote_fidelity import POLICY
         key_parts["research_quote_policy"] = POLICY
+        from research_prompt_encoding import POLICY as RESEARCH_PROMPT_POLICY
+        key_parts["research_prompt_policy"] = RESEARCH_PROMPT_POLICY
     if agent_num == 19:
-        key_parts["no_position_contract_version"] = "explicit-cover-stop:v2-research-wording"
+        key_parts["no_position_contract_version"] = "explicit-cover-stop:v3-fundamental-rechecks-action-consistency"
         key_parts["short_setup_feedback_contract"] = "schema-price-fields:v1"
     encoded = json.dumps(key_parts, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
     return "agent_step:" + hashlib.sha256(encoded.encode("utf-8")).hexdigest()
