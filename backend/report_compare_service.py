@@ -91,9 +91,9 @@ def _side(metadata: dict) -> dict:
     }
 
 
-def _numeric_delta(left, right) -> dict:
-    before = parse_optional_price(left)
-    after = parse_optional_price(right)
+def _numeric_delta(left, right, *, target_context=False) -> dict:
+    before = parse_optional_price(left, target_context=target_context)
+    after = parse_optional_price(right, target_context=target_context)
     if before is None or after is None:
         return {"before": left, "after": right, "delta": None, "delta_pct": None}
     delta = round(after - before, 4)
@@ -111,9 +111,9 @@ def _diff(left: dict, right: dict) -> dict:
             "after": rec_right.get("recommendation"),
         },
         "current_price": _numeric_delta(rec_left.get("current_price"), rec_right.get("current_price")),
-        "target_3m": _numeric_delta(rec_left.get("target_3m"), rec_right.get("target_3m")),
-        "target_6m": _numeric_delta(rec_left.get("target_6m"), rec_right.get("target_6m")),
-        "target_12m": _numeric_delta(rec_left.get("target_12m"), rec_right.get("target_12m")),
+        "target_3m": _numeric_delta(rec_left.get("target_3m"), rec_right.get("target_3m"), target_context=True),
+        "target_6m": _numeric_delta(rec_left.get("target_6m"), rec_right.get("target_6m"), target_context=True),
+        "target_12m": _numeric_delta(rec_left.get("target_12m"), rec_right.get("target_12m"), target_context=True),
         "confidence": {
             "before": rec_left.get("confidence"),
             "after": rec_right.get("confidence"),

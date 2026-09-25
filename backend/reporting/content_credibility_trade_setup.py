@@ -5,6 +5,7 @@ from __future__ import annotations
 from typing import Any
 
 from mapping_fields import safe_mapping_dict, safe_text
+from target_price_availability import target_price_context
 from trade_execution_contract import evaluate_trade_execution, neutral_observation_is_explicit
 from trade_price_inputs import parse_price_range
 
@@ -36,9 +37,11 @@ def evaluate_trade_setup_alignment(
     """Check mode-D execution against the full intended entry range."""
     setup = safe_mapping_dict(trade_setup) or {}
     direction = safe_text(setup.get("trade_direction")).strip() or "Neutral"
-    target_price_candidates = price_candidates(setup.get("target_price"))
+    raw_target = setup.get("target_price")
+    target_value = target_price_context(raw_target) if isinstance(raw_target, str) else raw_target
+    target_price_candidates = price_candidates(target_value)
     stop_loss_candidates = price_candidates(setup.get("stop_loss"))
-    target_price = first_price(setup.get("target_price"))
+    target_price = first_price(target_value)
     stop_loss = first_price(setup.get("stop_loss"))
     details = {
         "trade_direction": direction,
@@ -47,7 +50,7 @@ def evaluate_trade_setup_alignment(
         "stop_loss": stop_loss,
     }
     ambiguous_fields = []
-    if len(target_price_candidates) > 1 and not has_explicit_price_range(setup.get("target_price")):
+    if len(target_price_candidates) > 1 and not has_explicit_price_range(target_value):
         details["target_price_candidates"] = target_price_candidates
         ambiguous_fields.append("target_price")
     if len(stop_loss_candidates) > 1 and not has_explicit_price_range(setup.get("stop_loss")):

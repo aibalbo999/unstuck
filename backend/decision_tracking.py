@@ -7,18 +7,19 @@ import os
 from typing import Optional
 
 from confidence_calibration import build_confidence_calibration, has_unresolved_cross_source_conflict
-from price_parser import extract_price_numbers
+from price_parser import extract_price_numbers, extract_target_price_numbers
 from recommendation_labels import normalize_recommendation_label
 from report_freshness_summary import normalize_freshness_status, safe_bool
 
 
-def parse_optional_price(value) -> Optional[float]:
+def parse_optional_price(value, *, target_context: bool = False) -> Optional[float]:
     if isinstance(value, bool) or value is None:
         return None
     if isinstance(value, (int, float)):
         return round(float(value), 4)
     try:
-        numbers = extract_price_numbers(str(value))
+        extractor = extract_target_price_numbers if target_context else extract_price_numbers
+        numbers = extractor(str(value))
     except (TypeError, ValueError):
         return None
     if not numbers:
@@ -154,9 +155,9 @@ def build_decision_tracking(
         "recommendation": normalize_recommendation_label(recommendation.get("recommendation", "")),
         "initial_price": initial_price,
         "latest_price": latest_price,
-        "target_3m": parse_optional_price(recommendation.get("target_3m")),
-        "target_6m": parse_optional_price(recommendation.get("target_6m")),
-        "target_12m": parse_optional_price(recommendation.get("target_12m")),
+        "target_3m": parse_optional_price(recommendation.get("target_3m"), target_context=True),
+        "target_6m": parse_optional_price(recommendation.get("target_6m"), target_context=True),
+        "target_12m": parse_optional_price(recommendation.get("target_12m"), target_context=True),
         "confidence": str(recommendation.get("confidence") or "N/A"),
         "price_updated_at": _price_updated_at(snapshot),
         "snapshot_refreshed_at": _snapshot_refreshed_at(snapshot),

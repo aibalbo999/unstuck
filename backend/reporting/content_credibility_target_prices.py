@@ -8,6 +8,7 @@ from typing import Any
 from mapping_fields import safe_mapping_dict, safe_text
 from numeric_safety import is_non_finite_number
 from price_parser import extract_target_price_numbers
+from target_price_availability import target_price_context
 
 from .text_tokens import is_missing_text_token
 
@@ -66,7 +67,7 @@ def _target_price(value: Any, *, label: str = "") -> float | None:
     if isinstance(value, (int, float)):
         price = float(value)
         return price if price > 0 else None
-    text = _input_text(value)
+    text = target_price_context(_input_text(value))
     if not text:
         return None
     cleaned = re.sub(PERCENT_NUMBER_PATTERN, "", text)

@@ -7,6 +7,7 @@ import re
 
 from data_trust_values import has_value
 from mapping_fields import safe_mapping_dict, safe_text
+from target_price_availability import target_price_context
 from trade_price_inputs import execution_value_missing, parse_position_percentage, parse_price_range, parse_risk_reward
 
 
@@ -85,7 +86,8 @@ def evaluate_trade_execution(
     unavailable target or trading cost remains unknown and never becomes zero.
     """
     entry = parse_price_range(entry_zone)
-    target = parse_price_range(target_price)
+    target_value = target_price_context(target_price) if isinstance(target_price, str) else target_price
+    target = parse_price_range(target_value)
     stop = parse_price_range(stop_loss)
     issues = []
     details = {
@@ -105,7 +107,7 @@ def evaluate_trade_execution(
     if direction not in {"Long", "Short"}:
         add("invalid_trade_direction", "交易方向不足，無法驗證可執行交易。")
     for field, parsed, required in (("entry_zone", entry, True), ("target_price", target, require_target), ("stop_loss", stop, True)):
-        if parsed is None and (required or not execution_value_missing(target_price)):
+        if parsed is None and (required or not execution_value_missing(target_value)):
             add(f"invalid_{field}", f"{field} 必須是可解析的正數價格或單一明確價格區間。")
 
     if position_size is not None:
