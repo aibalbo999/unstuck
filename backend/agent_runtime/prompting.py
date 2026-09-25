@@ -1,15 +1,13 @@
-# Split from legacy_agent_runner.py. Keep this module logic-only; root compatibility lives in backend/agent_runner.py.
-
 import json
 
 from analysis_types import AnalysisContext, StockData
-from agent_catalog import AGENT_NAMES
 from assistant_context import _format_previous
 from config import GEMMA_STATE_REFERENCE_COMPACTION_ENABLED, PRIMARY_PROMPT_CONTEXT_TOTAL_CHAR_BUDGET, get_agent_context_budgets
 from prompt_builder import format_data_for_prompt, render_prompt_template
 from prompt_evidence import prompt_evidence_copy
 from prompt_record_tables import pack_record_tables
-from prompt_state_references import compact_state_reference_section
+from prompt_state_references import compact_state_reference_section, compact_research_state_reference_section
+from research_assumption_contract import build_reconciliation_source_prompt
 from prompt_rules import (
     build_agent_rule_block,
     build_final_audit_preflight_rule,
@@ -194,7 +192,6 @@ def build_prompt(agent_num: int, data: StockData, context: AnalysisContext) -> s
     from position_sizing_runtime import sizing_prompt
     position_input_instruction = sizing_prompt(context) if agent_num == 16 else ""
 
-    # v2 Agent 14：注入財務排雷品質警示
     forensic_warning = ""
     if agent_num == 14:
         raw_forensic_warning = context.get("_v2_forensic_warning")
@@ -217,9 +214,11 @@ def build_prompt(agent_num: int, data: StockData, context: AnalysisContext) -> s
         },
     )
 
-    if (GEMMA_STATE_REFERENCE_COMPACTION_ENABLED and gemma_prompt and not repair_prompt
-            and not context.get('_model_sequence_override') and analysis_prompt.count(fin_data) == 1):
-        state_view_section = compact_state_reference_section(fin_data, state_view_section)
+    gemma_references = (GEMMA_STATE_REFERENCE_COMPACTION_ENABLED and gemma_prompt
+                       and not repair_prompt and not context.get('_model_sequence_override'))
+    if analysis_prompt.count(fin_data) == 1 and (agent_num == 7 or gemma_references):
+        compactor = compact_research_state_reference_section if agent_num == 7 else compact_state_reference_section
+        state_view_section = compactor(fin_data, state_view_section)
 
     structured_instruction = build_structured_output_instruction(agent_num)
     trade_block, trade_catalog, trade_fingerprint = source_block(data) if agent_num == 24 else ("", {}, "")
@@ -233,6 +232,7 @@ def build_prompt(agent_num: int, data: StockData, context: AnalysisContext) -> s
         "\n".join(block["text"] for block in source_blocks),
         forensic_warning,   # v2 Agent 14 財務排雷品質警示
         state_view_section,
+        build_reconciliation_source_prompt(context) if agent_num == 7 else "",
         "" if gemma_prompt and rag_context in analysis_prompt else rag_context,
         "⚠️ 若上方任務文字包含 [護城河評分]、[目標股價]、[投資建議] 等舊式區塊格式，請忽略舊式格式；本次只遵守下方 JSON 結構化輸出規則。" if structured_instruction else "",
         structured_instruction,

@@ -52,6 +52,8 @@ HTML 報告會在 `<main>` 上保留 `data-report-template` 與 `data-report-lay
 
 新提示與契約版本會隔離舊快取；歷史報告不原地改寫。模型修復失敗的 deterministic fallback 也必須遵守角色證據邊界：不補固定護城河分數、不以當前股價倍率或預設股價生成目標，保留未評估與缺項品質檢查。驗證入口包含 `test_four_mode_role_instructions.py`、`test_role_alignment_integration.py`、`test_position_sizing_contract.py`、`test_trade_catalyst_semantics.py` 及報告顯示／既有品質關卡回歸，均透過 `tests/run_prompt_boundary_tests.py` 執行。
 
+Agent 7 的完整逐字來源與無損同業資料引用、B 的研究／執行缺口區分、C 的觀察／持有語意規則，詳見 [Agent 角色契約](agent-role-contracts.md)。`analysis_completeness.mode_assessment` 在 B 提供 `research_status`、`research_gaps` 與 `position_sizing_status`，目前只揭露已知缺口，不宣告完整來源認證。讀取清單可依保存證據投影新說明，既有 HTML、Markdown 與 snapshot 不原地改寫。
+
 ## 前後端模式漂移閘門
 
 執行語意仍由 `backend/pipeline_modes.py` 維護，使用者可見的完整模式 catalog 則由 `backend/pipeline_mode_catalog.py` 組裝並透過 `/api/pipeline-modes` 提供。前端依序載入 generated `pipeline_mode_fallback.js`、`ui_helpers.js` 與 `pipeline_mode_catalog.js` 的 runtime merge：API 成功時採用 canonical catalog，API 失敗時保留可用的初始選項，不阻擋首頁操作。`tests/test_pipeline_mode_catalog.py` 驗證後端 catalog、generator/CI check 與 API，`tests/test_pipeline_mode_metadata_sync.py` 驗證生成 fallback、runtime merge，以及前後端已知欄位的漂移。這是 drift guard 加上 runtime canonical source 與可逆的 generated fallback，不把 API 或 fallback 任一層誤寫成完全消除所有來源的 single source。舊版 drift guard 曾記錄「仍需設計 API 或 build-time catalog」；本輪已完成 runtime API 與 build-time artifact，剩餘工作是持續維護生成命令與新增模式的 schema 相容性。
