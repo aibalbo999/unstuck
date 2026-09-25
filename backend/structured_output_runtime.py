@@ -84,9 +84,9 @@ def process_agent_response(
     if agent_num not in STRUCTURED_AGENT_INSTRUCTIONS:
         return _sanitize_text(raw_text or "")
 
-    if agent_num == 24:
-        context.setdefault("structured_outputs", {}).pop(24, None)
-        context["structured_outputs"].pop("24", None)
+    if agent_num in {7, 24}:
+        context.setdefault("structured_outputs", {}).pop(agent_num, None)
+        context["structured_outputs"].pop(str(agent_num), None)
     receipt = _trade_completion_receipt(raw_text or "", context, completion_diagnostics) if agent_num == 24 else {}
     observed_completion = _completion_diagnostics(receipt.get("diagnostics"))
     finish_reasons = observed_completion["finish_reasons"]
@@ -142,6 +142,14 @@ def process_agent_response(
 
     if agent_num == 7:
         from research_assumption_contract import assess_reconciliation
+        from research_quote_fidelity import restore_reconciliation_quotes
+        # A model or a reused snapshot cannot attest a conversion for this response.
+        structured.pop("assumption_quote_restoration", None)
+        value, restoration = restore_reconciliation_quotes(
+            structured.get("assumption_reconciliation"), context, raw_text or "")
+        structured["assumption_reconciliation"] = value
+        if restoration is not None:
+            structured["assumption_quote_restoration"] = restoration
         structured["assumption_reconciliation_assessment"] = assess_reconciliation(
             structured.get("assumption_reconciliation"), context)
     if sizing_assessment is not None:

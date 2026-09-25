@@ -61,16 +61,29 @@ def explicit_short_no_position(short_setup) -> bool:
     entry = safe_text(setup.get("entry_trigger"))
     stop = safe_text(setup.get("cover_stop"))
     target = safe_text(setup.get("downside_target"))
-    no_position = r"(?:^|[，。；、\n])\s*(?:目前|暫時|現在)?\s*不(?:開倉|建倉|交易|建立(?:新|空方)?部位)(?=[，。；、\n]|$)"
+    no_position = r"(?:^|[，。；、\n])\s*(?:本研究情境)?\s*(?:目前|暫時|現在)?\s*不(?:開倉|建倉|交易|建立(?:新|空方)?部位)(?=[，。；、\n]|$)"
+    # The schema's complete non-applicability clause describes no short
+    # position; it is not a cover order. Any other 回補 wording still fails.
+    position_stop = re.sub(r"(?:^|[，。；、\n])\s*回補停損不適用(?=[，。；、\n]|$)", "", stop)
+
+    def affirmative_no_position(text: str) -> bool:
+        for match in re.finditer(no_position, text):
+            prefix = re.split(r"[。；\n]", text[:match.start()])[-1].strip()
+            # Unknown lead-ins may be conditions; only self-contained status
+            # phrases can precede the affirmative research statement.
+            if prefix in {"", "不適用", "回補停損不適用", "觀望", "目前觀望", "暫時觀望", "現在觀望"}:
+                return True
+        return False
+
     return (
         short_observation_is_explicit(setup)
-        and bool(re.search(no_position, entry))
-        and bool(re.search(no_position, stop))
+        and affirmative_no_position(entry)
+        and affirmative_no_position(stop)
         and "不適用" in stop
         and execution_value_missing(setup.get("downside_target"))
         and not re.search(r"\d", f"{entry} {target} {stop}")
         and not contains_trade_order(f"{entry} {target} {stop}")
-        and not re.search(r"持有|持倉|既有|現有|已建立|回補|加碼|減碼", f"{entry} {target} {stop}")
+        and not re.search(r"持有|持倉|既有|現有|已建立|已有\s*(?:空單|空方部位|部位)|未平倉|回補|加碼|減碼", f"{entry} {target} {position_stop}")
         and observation_reason_is_explicit(setup.get("squeeze_risk"))
         and observation_reason_is_explicit(setup.get("thesis_invalidation"))
     )

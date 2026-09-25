@@ -19,6 +19,18 @@ def repair_contract_issues(agent_num: int, context: dict) -> list[str]:
         issues.extend(audit_source_issues(context))
     if structured_output_missing(context, agent_num):
         issues.append(f"Agent {agent_num} 結構化輸出未通過本模式契約檢查。")
+        if agent_num == 7:
+            from research_assumption_contract import assess_reconciliation
+            outputs = context.get("structured_outputs") or {}
+            output = outputs.get(agent_num, outputs.get(str(agent_num)))
+            output = output if isinstance(output, dict) else {}
+            assessment = assess_reconciliation(output.get("assumption_reconciliation"), context)
+            if assessment['quote_issues']:
+                fields = [f"Agent {source}: " + ', '.join(f"{item['topic']}.{item['field']}"
+                          for item in assessment['quote_issues'] if item['source_agent'] == source)
+                          for source in (4, 5) if any(item['source_agent'] == source for item in assessment['quote_issues'])]
+                issues.append("假設對照逐字來源不符：" + '；'.join(fields)
+                              + "。保留括號與格式，不可省略拼接；無對應資料須留空並標 unassessed。")
         if get_structured_agent_num("short_setup", context) == agent_num:
             outputs = context.get("structured_outputs") or {}
             output = outputs.get(agent_num, outputs.get(str(agent_num)))

@@ -57,6 +57,10 @@ def _upstream(context, agent):
         outputs.get(agent, outputs.get(str(agent))))
 
 
+def reconciliation_sources(context):
+    return {str(agent): _upstream(context, agent) for agent in (4, 5)}
+
+
 def build_reconciliation_source_prompt(context):
     # Same string leaves as assess_reconciliation; exact duplicates alone collapse.
     sources = {str(agent): list(dict.fromkeys(_upstream(context, agent))) for agent in (4, 5)}
@@ -72,10 +76,10 @@ def build_reconciliation_source_prompt(context):
 
 
 def assess_reconciliation(value, context):
-    sources = {str(agent): _upstream(context, agent) for agent in (4, 5)}
+    sources = reconciliation_sources(context)
     fingerprint = hashlib.sha256(json.dumps(sources, ensure_ascii=False, sort_keys=True).encode()).hexdigest()
     result = {'contract_version': CONTRACT_VERSION, 'upstream_fingerprint': fingerprint,
-              'status': 'unassessed', 'issues': [], 'verification_scope': 'structure_and_upstream_quotes_only'}
+              'status': 'unassessed', 'issues': [], 'quote_issues': [], 'verification_scope': 'structure_and_upstream_quotes_only'}
     try:
         checked = AssumptionReconciliation.model_validate(value)
     except (ValidationError, TypeError, ValueError):
@@ -91,6 +95,7 @@ def assess_reconciliation(value, context):
             quote = getattr(row, field).strip()
             if (quote and (not any(char.isalnum() for char in quote) or not any(quote in text for text in sources[agent]))) or (not quote and row.status != 'unassessed'):
                 result['issues'].append('unsupported_' + field)
+                result['quote_issues'].append({'topic': row.topic, 'field': field, 'source_agent': int(agent)})
     statuses = {row.status for row in rows}
     expected = 'conflict' if 'conflict' in statuses else 'unassessed' if 'unassessed' in statuses else 'aligned'
     if checked.status != expected:

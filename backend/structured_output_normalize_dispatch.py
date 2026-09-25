@@ -270,6 +270,8 @@ def normalize_structured_output(agent_num: int, payload: Any) -> Optional[dict]:
             normalized["position_plan"] = _coerce_position_plan_payload(payload.get("position_plan"))
         if agent_num == 7 and "assumption_reconciliation" in raw_payload:
             normalized["assumption_reconciliation"] = copy.deepcopy(raw_payload["assumption_reconciliation"])
+        if agent_num == 7 and "assumption_quote_restoration" in raw_payload:
+            normalized["assumption_quote_restoration"] = copy.deepcopy(raw_payload["assumption_quote_restoration"])
         for receipt in ("assumption_reconciliation_assessment", "position_sizing_assessment"):
             if receipt in raw_payload:
                 normalized[receipt] = copy.deepcopy(raw_payload[receipt])
