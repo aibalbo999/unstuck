@@ -66,7 +66,7 @@ def run_due_backtests(
                 continue
             try:
                 prices = price_fetcher(str(report.get("ticker") or ""), generated, due_date)
-                target = parse_optional_price(recommendation.get(f"target_{horizon}m"))
+                target = parse_optional_price(recommendation.get(f"target_{horizon}m"), target_context=True)
                 metrics = evaluate_prediction(
                     recommendation=recommendation.get("recommendation", ""),
                     initial_price=prices["initial_price"],

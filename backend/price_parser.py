@@ -6,6 +6,7 @@ import re
 import unicodedata
 
 from price_parser_patterns import *  # noqa: F403,F401
+from target_price_availability import target_price_context
 
 def parse_price_number(raw: str) -> float:
     return float(str(raw).replace(",", "").replace("，", "").replace("．", "."))
@@ -131,7 +132,9 @@ def extract_price_numbers(text: str) -> list[float]:
     return prices
 def extract_target_price_numbers(text: str) -> list[float]:
     """Extract prices from target-price wording without treating horizon labels as prices."""
-    normalized_text = unicodedata.normalize("NFKC", str(text or ""))
+    normalized_text = target_price_context(text)
+    if not normalized_text:
+        return []
     cleaned = re.sub(PERCENT_NUMBER_PATTERN, "", normalized_text)
     if HORIZON_ONLY_PATTERN.match(cleaned):
         return []

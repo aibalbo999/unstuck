@@ -24,6 +24,8 @@ B 的完整度說明將研究缺口與部位評估分開：已記錄的逐字稿
 
 C 的「持有」仍須符合既有估值與方向條件。純研究觀察且不新增部位時，Agent 19 應明確表達該決策並使正文、進場條件與回補停損一致；不得為迴避警示而改推薦或補造目標價。歷史報告警示維持原證據判定。
 
+目標欄位明示 `N/A／未評估` 時，說明中的年份、歷史發行價、指標或舊目標都不能轉成這次目標價。此規則共用於品質檢查、目標追蹤、比較、回測與交易目標風控；現價等一般數字解析保留原語意。缺少目標及不開倉聲明不足時仍須警示，不能因為選擇「避免」就略過檢查。歷史 artifact 保留原樣，清單依當前規則呈現品質投影。
+
 輔助角色：chief_editor 是 deterministic 整理；context_digest 僅壓縮已有證據；tear_sheet 是展示摘要；audit_reflection 提供修復指引但不能宣告 gate 通過；embedding 做檢索；Gemma evidence batching 為 22／23 摘取證據，不代替最終角色判斷。有效模型與能力以 [agent-effective-settings.md](agent-effective-settings.md) 的 API／worker 證據為準。
 
 驗證使用隔離的 `tests/run_prompt_boundary_tests.py`，涵蓋角色提示、0／1／2／5 項反證、法人資料缺失／僅累計、負／零／正／無效 FCF、來源錯誤及生成截斷。這些契約檢查不等於所有供應商的即時成功率或全部新報告品質已驗收。
