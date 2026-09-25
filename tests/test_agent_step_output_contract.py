@@ -32,7 +32,7 @@ def _legacy_key(agent, data, context, *, output_version=None, extra_fields=None)
     return "agent_step:" + hashlib.sha256(encoded.encode()).hexdigest()
 
 
-@pytest.mark.parametrize("agent", [7, 16, 18, 19, 20, 21, 24])
+@pytest.mark.parametrize("agent", [3, 7, 12, 16, 18, 19, 20, 21, 24])
 def test_changed_output_roles_do_not_reuse_legacy_keys(agent):
     data, context = _inputs()
     current = step_cache.build_agent_step_cache_key(agent, data, context, "gemini-test", "unchanged source")
@@ -46,26 +46,26 @@ def test_unaffected_roles_keep_exact_legacy_keys(agent):
     assert current == _legacy_key(agent, data, context)
 
 
-@pytest.mark.parametrize("agent", [7, 16, 18, 19, 20, 21, 24])
+@pytest.mark.parametrize("agent", [3, 7, 12, 16, 18, 19, 20, 21, 24])
 def test_output_version_bump_changes_only_affected_role_keys(monkeypatch, agent):
     data, context = _inputs()
     before = step_cache.build_agent_step_cache_key(agent, data, context, "gemini-test", "unchanged source")
     monkeypatch.setattr(step_cache, "AGENT_OUTPUT_CONTRACT_VERSION", "future-contract")
     after = step_cache.build_agent_step_cache_key(agent, data, context, "gemini-test", "unchanged source")
-    assert (before != after) is (agent in {7, 16, 18, 19, 20, 21})
+    assert (before != after) is (agent in {3, 7, 12, 16, 18, 19, 20, 21})
 
 
 @pytest.mark.parametrize("agent", [7, 16, 18, 19, 20, 21])
-def test_no_position_format_invalidates_only_previously_normalized_agent19(agent):
+def test_role_evidence_contract_invalidates_previously_normalized_outputs(agent):
     data, context = _inputs()
     previous = _legacy_key(agent, data, context,
         output_version="agent-output:wire-decode-completion-v3-format:v2")
     current = step_cache.build_agent_step_cache_key(agent, data, context, "gemini-test", "unchanged source")
-    assert (current != previous) is (agent == 19)
+    assert current != previous
 
 
 @pytest.mark.parametrize("agent", [7, 16, 18, 19, 20, 21])
-def test_short_setup_guidance_does_not_reuse_pre_feedback_agent19_output(monkeypatch, agent):
+def test_role_evidence_guidance_does_not_reuse_pre_alignment_outputs(monkeypatch, agent):
     data, context = _inputs()
     previous = _legacy_key(agent, data, context,
         output_version="agent-output:wire-decode-completion-v3-format:v2",
@@ -75,4 +75,4 @@ def test_short_setup_guidance_does_not_reuse_pre_feedback_agent19_output(monkeyp
     monkeypatch.setattr(step_cache, "AGENT_STEP_CACHE_ENABLED", True)
     monkeypatch.setattr(step_cache, "get_cache_json", cache.get)
     current = step_cache.build_agent_step_cache_key(agent, data, context, "gemini-test", "unchanged source")
-    assert step_cache.get_cached_agent_step(current) == (None if agent == 19 else old_output)
+    assert step_cache.get_cached_agent_step(current) is None

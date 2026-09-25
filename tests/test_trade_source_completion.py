@@ -9,7 +9,9 @@ def setup_payload(**updates):
                 support_level="95", resistance_level="110", core_catalyst="等待確認突破條件", risk_level="High",
                 support_source_refs=["short_term_market_context.technical_indicators.sma_20"],
                 resistance_source_refs=["short_term_market_context.technical_indicators.sma_5"],
-                catalyst_source_refs=["short_term_market_context.technical_indicators.sma_5"], **updates)
+                catalyst_source_refs=["short_term_market_context.technical_indicators.sma_5"],
+                observed_signal=None, observed_source_refs=[], event_catalyst=None,
+                recheck_condition=None, financial_risk_flags=[], **updates)
 
 @pytest.mark.parametrize("missing", ["core_catalyst", "support_source_refs", "risk_level"])
 def test_incomplete_runtime_trade_response_is_not_normalized_to_success(missing):

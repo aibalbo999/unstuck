@@ -13,6 +13,7 @@ from structured_output_normalizer import structured_output_to_report_text
 from validators import strip_generated_audit_sections
 from trade_execution_contract import contains_trade_order, evaluate_trade_execution, neutral_observation_is_explicit, observation_reason_is_explicit, short_observation_is_explicit
 from trade_price_inputs import parse_position_percentage, price_contract_text
+from position_sizing import position_sizing_contract_issues
 
 
 REQUIRED_TRADE_SETUP_FIELDS = {
@@ -117,7 +118,7 @@ def v3_recommendation_contract_issues(
     return issues
 
 
-def v2_position_plan_contract_issues(position_plan: dict, *, target_price=None, recommendation=None) -> list[str]:
+def v2_position_plan_contract_issues(position_plan: dict, *, target_price=None, recommendation=None, sizing_context=None) -> list[str]:
     issues = []
     waiting = position_plan.get("action") == "等待"
     required = {"action", "position_size", "invalidation_condition"} if waiting else REQUIRED_POSITION_PLAN_FIELDS
@@ -130,6 +131,7 @@ def v2_position_plan_contract_issues(position_plan: dict, *, target_price=None, 
         issues.append(f"缺少或資料不足的實戰部位欄位：{', '.join(missing)}")
     if position_plan.get("action") not in {"進場", "續抱", "減碼", "等待"}:
         issues.append(f"position action 不在允許值內：{position_plan.get('action') or '空白'}")
+    issues.extend(position_sizing_contract_issues(position_plan, sizing_context, recommendation=recommendation))
     if waiting:
         if contains_trade_order(position_plan.get("entry_zone")):
             issues.append("等待且零部位的計畫不得同時包含買賣或進場指令。")
@@ -221,6 +223,7 @@ def mode_execution_contract_issues(
     position_plan_agent: int | None,
     short_setup_agent: int | None,
     trade_setup_agent: int | None,
+    position_sizing_context=None,
 ) -> list[tuple[int, str]]:
     """Return mode-specific repair issues with the responsible final agent."""
     checks = (
@@ -233,5 +236,7 @@ def mode_execution_contract_issues(
         if agent_num is None:
             continue
         kwargs = {"recommendation": parsed.get("recommendation")} if field in {"position_plan", "short_setup"} else {}
+        if field == "position_plan":
+            kwargs["sizing_context"] = position_sizing_context
         issues.extend((agent_num, issue) for issue in checker(parsed.get(field, {}) or {}, **kwargs))
     return issues

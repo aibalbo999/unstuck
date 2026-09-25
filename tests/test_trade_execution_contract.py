@@ -127,7 +127,10 @@ def test_b_rejects_claimed_ratio_that_does_not_match_prices():
 
 
 def test_b_keeps_unavailable_target_explicit_instead_of_inventing_one():
-    assert v2_position_plan_contract_issues(position(target_price=None)) == []
+    issues = v2_position_plan_contract_issues(position(target_price=None))
+    # An unavailable target stays unavailable. A legacy numerical position is
+    # now separately rejected until its external capital/risk basis is known.
+    assert issues and all("sizing" in issue for issue in issues)
 
 
 def test_d_all_entry_and_target_range_endpoints_must_be_consistent():
@@ -268,7 +271,8 @@ def test_b_optional_fields_survive_all_normalization_passes():
     twice = normalize_structured_output(16, normalized)
     assert twice["position_plan"]["target_price"] == "120"
     assert twice["position_plan"]["transaction_cost"] == "0"
-    assert v2_position_plan_contract_issues(twice["position_plan"]) == []
+    issues = v2_position_plan_contract_issues(twice["position_plan"])
+    assert issues and all("sizing" in issue for issue in issues)
 
 
 def test_b_normalization_does_not_copy_recommendation_target_into_trade_plan():

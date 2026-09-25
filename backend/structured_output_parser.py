@@ -199,6 +199,8 @@ def parse_structured_data(context: AnalysisContext) -> dict:
         }
         if "transaction_cost" in structured_outputs[trade_setup_agent]:
             parsed["trade_setup"]["transaction_cost"] = structured_outputs[trade_setup_agent]["transaction_cost"]
+        from trade_catalyst_semantics import normalize_trade_catalyst_fields
+        parsed["trade_setup"].update(normalize_trade_catalyst_fields(structured_outputs[trade_setup_agent]))
 
     if moat_agent is not None and not parsed["moat_scores"] and moat_agent in analyses:
         parsed["moat_scores"] = parse_moat_scores_from_text(analyses[moat_agent])

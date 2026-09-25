@@ -106,13 +106,19 @@ def process_agent_response(
         outputs = context.setdefault("structured_outputs", {})
         outputs.pop(24, None)
         outputs.pop("24", None)
-        missing = missing_trade_fields(payload)
+        missing = missing_trade_fields(payload, context=context)
         if missing:
             context["_trade_incomplete_fields"] = missing
             return _sanitize_text(raw_text or "")
         context.pop("_trade_incomplete_fields", None)
         payload, trade_assessment = bind_trade_payload(payload, context)
     payload = _decode_google_recommendation(agent_num, payload, model_id)
+    sizing_assessment = None
+    if agent_num == 16 and isinstance(payload, dict):
+        from position_sizing_runtime import assess_position_plan
+        raw_plan = payload.get("position_plan")
+        sizing_assessment = assess_position_plan(
+            raw_plan if isinstance(raw_plan, dict) else {}, context, payload.get("recommendation"), payload.get("analysis_markdown"))
     structured = normalize_structured_output(agent_num, payload)
     if not structured:
         if isinstance(payload, dict) and "analysis_markdown" in payload:
@@ -133,6 +139,13 @@ def process_agent_response(
 
     if agent_num == 24:
         structured = enforce_trade_financial_risk(structured, context.get("data", {}))
+
+    if agent_num == 7:
+        from research_assumption_contract import assess_reconciliation
+        structured["assumption_reconciliation_assessment"] = assess_reconciliation(
+            structured.get("assumption_reconciliation"), context)
+    if sizing_assessment is not None:
+        structured["position_sizing_assessment"] = sizing_assessment
 
     if agent_num in {4, 14}:
         structured = canonicalize_valuation_output(structured, context.get("data", {}))

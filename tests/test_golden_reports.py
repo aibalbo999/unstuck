@@ -27,6 +27,11 @@ def test_2330_v1_markdown_report_matches_golden_snapshot(monkeypatch):
         "format_model_routes",
         lambda agent_models=None, pipeline_id="v1": "golden model route",
     )
+    # Render-time provenance is intentionally live in production; fix it in the
+    # golden fixture so checkout commit/dirty state cannot change the snapshot.
+    import report_reproducibility
+    monkeypatch.setattr(report_reproducibility, "runtime_code_identity",
+                        lambda: {"commit": "golden-render456", "dirty": False})
     spec = json.loads(GOLDEN_MARKDOWN.read_text(encoding="utf-8"))
     context = deepcopy(spec["context"])
 

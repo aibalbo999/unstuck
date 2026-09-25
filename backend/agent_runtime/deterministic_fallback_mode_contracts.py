@@ -9,7 +9,12 @@ def event_swing_fallback() -> dict[str, object]:
         "stop_loss": "N/A",
         "support_level": "N/A",
         "resistance_level": "N/A",
-        "core_catalyst": "資料不足，等待可驗證事件與技術、籌碼同步確認；目前維持觀望，暫不交易。",
+        "core_catalyst": "等待可驗證事件與技術、籌碼同步確認後再重新評估",
+        "observed_signal": None,
+        "observed_source_refs": [],
+        "event_catalyst": None,
+        "recheck_condition": "等待可驗證事件與技術、籌碼同步確認後再重新評估",
+        "financial_risk_flags": [],
         "risk_level": "High",
         "support_source_refs": [],
         "resistance_source_refs": [],
@@ -27,15 +32,24 @@ def short_setup_fallback() -> dict[str, str]:
     }
 
 
-def position_plan_fallback() -> dict[str, str]:
-    return {
+def position_plan_fallback(context=None) -> dict[str, object]:
+    from position_sizing import calculate_position_sizing
+    from position_sizing_runtime import trusted_sizing_context
+
+    plan = {
         "action": "等待",
-        "entry_zone": "目前觀望，等待財報、籌碼與估值證據確認後重新評估；暫不交易。",
-        "position_size": "0%，等待觸發",
-        "stop_loss": "資料不足，暫不建立部位",
-        "risk_reward": "資料不足",
-        "invalidation_condition": "估值、籌碼或總經證據出現反向變化",
+        "entry_zone": "N/A",
+        "position_size": "0%",
+        "stop_loss": "N/A",
+        "risk_reward": "N/A",
+        "target_price": None,
+        "transaction_cost": None,
+        "horizon_trading_days": None,
+        "planning_context": "unassessed",
+        "invalidation_condition": "等待可驗證財報、估值與風險預算後重新評估；目前不新增部位，不推定使用者實際持倉。",
     }
+    plan["sizing_evidence"] = calculate_position_sizing(plan, trusted_sizing_context(context or {}))
+    return plan
 
 
 __all__ = ["event_swing_fallback", "position_plan_fallback", "short_setup_fallback"]

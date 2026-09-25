@@ -1270,11 +1270,7 @@ def test_management_sentiment_output_uses_fallback_for_malformed_root_before_val
 
     assert output.guidance_tone == "資料不足"
     assert output.confidence == 0.0
-    assert [(row.keyword, row.quote) for row in output.highlights] == [
-        ("亮點", "資料不足"),
-        ("亮點", "資料不足"),
-        ("亮點", "資料不足"),
-    ]
+    assert output.highlights == []
     assert output.analysis_markdown == "資料不足"
 
 
@@ -1291,14 +1287,13 @@ def test_management_sentiment_output_uses_fallback_for_malformed_text_fields_bef
     })
 
     assert output.guidance_tone == "資料不足"
-    assert output.highlights[0].keyword == "需求回溫"
-    assert output.highlights[1].keyword == "亮點"
-    assert output.highlights[1].quote == "管理層維持全年展望"
-    assert output.highlights[2].keyword == "資本支出"
-    assert output.highlights[2].quote == "資料不足"
+    assert [(row.keyword, row.quote) for row in output.highlights] == [
+        ("需求回溫", "AI 訂單恢復成長"),
+        ("亮點", "管理層維持全年展望"),
+    ]
 
 
-def test_management_sentiment_output_uses_fallback_for_malformed_highlight_rows_before_validation():
+def test_management_sentiment_output_skips_malformed_highlight_rows_before_validation():
     output = ManagementSentimentStructuredOutput.model_validate({
         "guidance_tone": "樂觀",
         "confidence": 0.7,
@@ -1310,13 +1305,13 @@ def test_management_sentiment_output_uses_fallback_for_malformed_highlight_rows_
         "analysis_markdown": "管理層正文",
     })
 
-    assert output.highlights[0].keyword == "需求回溫"
-    assert output.highlights[1].keyword == "亮點"
-    assert output.highlights[1].quote == "資料不足"
-    assert output.highlights[2].keyword == "資本支出"
+    assert [(row.keyword, row.quote) for row in output.highlights] == [
+        ("需求回溫", "AI 訂單恢復成長"),
+        ("資本支出", "供應鏈投資保持紀律"),
+    ]
 
 
-def test_management_sentiment_output_uses_fallback_for_malformed_highlight_collection_before_validation():
+def test_management_sentiment_output_keeps_empty_malformed_highlight_collection_before_validation():
     output = ManagementSentimentStructuredOutput.model_validate({
         "guidance_tone": "樂觀",
         "confidence": 0.7,
@@ -1324,32 +1319,24 @@ def test_management_sentiment_output_uses_fallback_for_malformed_highlight_colle
         "analysis_markdown": "管理層正文",
     })
 
-    assert [(row.keyword, row.quote) for row in output.highlights] == [
-        ("亮點", "資料不足"),
-        ("亮點", "資料不足"),
-        ("亮點", "資料不足"),
-    ]
+    assert output.highlights == []
     assert output.guidance_tone == "樂觀"
 
 
-def test_management_sentiment_output_uses_fallback_for_missing_highlights_before_validation():
+def test_management_sentiment_output_keeps_missing_highlights_empty_before_validation():
     output = ManagementSentimentStructuredOutput.model_validate({
         "guidance_tone": "樂觀",
         "confidence": 0.7,
         "analysis_markdown": "管理層正文",
     })
 
-    assert [(row.keyword, row.quote) for row in output.highlights] == [
-        ("亮點", "資料不足"),
-        ("亮點", "資料不足"),
-        ("亮點", "資料不足"),
-    ]
+    assert output.highlights == []
     assert output.guidance_tone == "樂觀"
     assert output.confidence == 0.7
     assert output.analysis_markdown == "管理層正文"
 
 
-def test_management_sentiment_output_pads_short_highlight_collection_before_validation():
+def test_management_sentiment_output_does_not_pad_short_highlight_collection_before_validation():
     output = ManagementSentimentStructuredOutput.model_validate({
         "guidance_tone": "樂觀",
         "confidence": 0.7,
@@ -1361,8 +1348,6 @@ def test_management_sentiment_output_pads_short_highlight_collection_before_vali
 
     assert [(row.keyword, row.quote) for row in output.highlights] == [
         ("需求回溫", "AI 訂單恢復成長"),
-        ("亮點", "資料不足"),
-        ("亮點", "資料不足"),
     ]
     assert output.guidance_tone == "樂觀"
 
@@ -1668,8 +1653,6 @@ def test_structured_display_models_ignore_non_string_literals_before_validation(
     assert management.guidance_tone == "資料不足"
     assert [(row.keyword, row.quote) for row in management.highlights] == [
         ("亮點", "有效引述"),
-        ("有效亮點", "資料不足"),
-        ("亮點", "資料不足"),
     ]
     assert downside_risk.title == "下行風險"
     assert downside_risk.evidence == "資料不足"
@@ -4027,8 +4010,7 @@ def test_normalize_structured_output_nested_display_rows_ignore_non_string_liter
 
     assert management is not None
     assert downside is not None
-    assert management["highlights"][0]["keyword"] == "亮點"
-    assert management["highlights"][1]["quote"] == "資料不足"
+    assert management["highlights"] == [{"keyword": "亮點", "quote": "有效引述"}]
     assert downside["downside_risks"][0]["title"] == "保留風險"
     assert downside["downside_risks"][0]["evidence"] == "保留證據"
     assert len(downside["downside_risks"]) == 1
@@ -4103,11 +4085,13 @@ def test_normalize_structured_output_agent20_uses_safe_text_before_validation():
 
     assert normalized is not None
     assert normalized["guidance_tone"] == "資料不足"
-    assert normalized["highlights"][1]["keyword"] == "亮點"
-    assert normalized["highlights"][2]["quote"] == "資料不足"
+    assert normalized["highlights"] == [
+        {"keyword": "需求回溫", "quote": "AI 訂單恢復成長"},
+        {"keyword": "亮點", "quote": "管理層維持全年展望"},
+    ]
 
 
-def test_normalize_structured_output_agent20_malformed_highlight_rows_use_fallback_before_validation():
+def test_normalize_structured_output_agent20_skips_malformed_highlight_rows_before_validation():
     from structured_output_normalizer import normalize_structured_output  # noqa: E402
 
     payload = {
@@ -4124,12 +4108,13 @@ def test_normalize_structured_output_agent20_malformed_highlight_rows_use_fallba
     normalized = normalize_structured_output(20, payload)
 
     assert normalized is not None
-    assert normalized["highlights"][0]["keyword"] == "需求回溫"
-    assert normalized["highlights"][1]["quote"] == "供應鏈投資保持紀律"
-    assert normalized["highlights"][2] == {"keyword": "亮點", "quote": "資料不足"}
+    assert normalized["highlights"] == [
+        {"keyword": "需求回溫", "quote": "AI 訂單恢復成長"},
+        {"keyword": "資本支出", "quote": "供應鏈投資保持紀律"},
+    ]
 
 
-def test_normalize_structured_output_agent20_missing_highlights_use_fallback_before_validation():
+def test_normalize_structured_output_agent20_keeps_missing_highlights_empty_before_validation():
     from structured_output_normalizer import normalize_structured_output  # noqa: E402
 
     payload = {
@@ -4143,15 +4128,11 @@ def test_normalize_structured_output_agent20_missing_highlights_use_fallback_bef
     assert normalized is not None
     assert normalized["guidance_tone"] == "樂觀"
     assert normalized["confidence"] == 0.4
-    assert normalized["highlights"] == [
-        {"keyword": "亮點", "quote": "資料不足"},
-        {"keyword": "亮點", "quote": "資料不足"},
-        {"keyword": "亮點", "quote": "資料不足"},
-    ]
+    assert normalized["highlights"] == []
     assert normalized["analysis_markdown"] == "管理層正文"
 
 
-def test_normalize_structured_output_agent20_empty_highlights_use_fallback_before_validation():
+def test_normalize_structured_output_agent20_keeps_empty_highlights_before_validation():
     from structured_output_normalizer import normalize_structured_output  # noqa: E402
 
     payload = {
@@ -4166,11 +4147,7 @@ def test_normalize_structured_output_agent20_empty_highlights_use_fallback_befor
     assert normalized is not None
     assert normalized["guidance_tone"] == "樂觀"
     assert normalized["confidence"] == 0.4
-    assert normalized["highlights"] == [
-        {"keyword": "亮點", "quote": "資料不足"},
-        {"keyword": "亮點", "quote": "資料不足"},
-        {"keyword": "亮點", "quote": "資料不足"},
-    ]
+    assert normalized["highlights"] == []
     assert normalized["analysis_markdown"] == "管理層正文"
 
 

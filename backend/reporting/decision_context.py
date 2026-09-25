@@ -10,6 +10,7 @@ from recommendation_labels import normalize_recommendation_label
 from .html_context import display_text
 from .html_sanitizer import sanitize_report_plain_text
 from .utils import get_recommendation_color, get_recommendation_icon
+from .role_contract_display import sanitized_trade_semantics, trade_semantic_rows, sanitized_position_basis, position_basis_rows
 
 
 _TRADE_SETUP_KEYS = (
@@ -79,8 +80,10 @@ def build_decision_context(parsed: dict[str, Any], *, pipeline_id: str) -> dict[
     rec_color = get_recommendation_color(rec_text)
     rec_icon = get_recommendation_icon(rec_text)
     position_plan = _build_structured_mapping(parsed_map, "position_plan", _POSITION_PLAN_KEYS)
+    position_plan.update(sanitized_position_basis(safe_mapping_dict(parsed_map.get("position_plan")) or {}))
     short_setup = _build_structured_mapping(parsed_map, "short_setup", _SHORT_SETUP_KEYS)
     trade_setup = _build_structured_mapping(parsed_map, "trade_setup", _TRADE_SETUP_KEYS)
+    trade_setup.update(sanitized_trade_semantics(safe_mapping_dict(parsed_map.get("trade_setup")) or {}))
     trade_direction = trade_setup.get("trade_direction", "Neutral")
 
     if pipeline_id == "v4" and trade_setup:
@@ -96,8 +99,10 @@ def build_decision_context(parsed: dict[str, Any], *, pipeline_id: str) -> dict[
         "target_12m": _clean_display_value(_recommendation_value(recommendation, "12個月", "N/A")),
         "confidence": _clean_display_value(_recommendation_value(recommendation, "信心", "N/A")),
         "position_plan": position_plan,
+        "position_basis_rows": position_basis_rows(position_plan) if position_plan else [],
         "short_setup": short_setup,
         "trade_setup": trade_setup,
+        "trade_semantic_rows": trade_semantic_rows(trade_setup),
         "trade_direction": trade_direction,
         "trade_direction_label": _TRADE_DIRECTION_LABELS.get(trade_direction, "中性 Neutral"),
         "trade_direction_icon": _TRADE_DIRECTION_ICONS.get(trade_direction, "→"),

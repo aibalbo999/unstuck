@@ -8,6 +8,7 @@ from analysis_types import AnalysisContext
 from mapping_fields import safe_mapping_dict, safe_text
 
 from .structured_intro import get_dict_value_by_substring, safe_report_text
+from .role_contract_display import trade_semantic_rows, position_basis_rows
 
 
 _MISSING_AGENT_VALUE = object()
@@ -51,6 +52,7 @@ def _event_swing_summary(data: dict, parsed: dict, ticker: str, company_name: st
         f"嚴格停損 {safe_report_text(setup.get('stop_loss'))}。{levels}"
         f"核心催化劑為「{safe_report_text(setup.get('core_catalyst'), '近期催化劑資料不足')}」，"
         f"短期波動風險為 {safe_report_text(setup.get('risk_level'), 'High')}。"
+        + "".join(f"{row['label']}：{row['value']}。" for row in trade_semantic_rows(setup))
     )
 
 
@@ -94,6 +96,7 @@ def _trading_summary(data: dict, parsed: dict, ticker: str, company_name: str, r
             f"進場 {safe_report_text(plan.get('entry_zone'))}，部位 {safe_report_text(plan.get('position_size'))}，"
             f"停損 {safe_report_text(plan.get('stop_loss'))}，風險報酬 {safe_report_text(plan.get('risk_reward'))}。"
             f"信心指數 {confidence}；假設失效條件為「{safe_report_text(plan.get('invalidation_condition'))}」。"
+            + "".join(f"{row['label']}：{row['value']}。" for row in position_basis_rows(plan))
         )
     institutional = safe_mapping_dict(data.get("institutional_trading")) or {}
     return (

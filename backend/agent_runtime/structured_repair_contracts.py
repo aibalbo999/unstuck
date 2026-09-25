@@ -34,9 +34,17 @@ def structured_output_missing(context: AnalysisContext, agent_num: int) -> bool:
 
     if any(not structured.get(_NESTED_SECTIONS[kind]) for kind in assigned_kinds & _NESTED_SECTIONS.keys()):
         return True
+    if agent_num == 7 and "assumption_reconciliation_assessment" in structured:
+        from research_assumption_contract import assess_reconciliation
+        if assess_reconciliation(structured.get("assumption_reconciliation"), context)["issues"]:
+            return True
     if "position_plan" in assigned_kinds:
+        from position_sizing_runtime import trusted_sizing_context
+        if (structured.get("position_sizing_assessment") or {}).get("issues"):
+            return True
         if v2_position_plan_contract_issues(
-            structured.get("position_plan", {}) or {}, recommendation=structured.get("recommendation")
+            structured.get("position_plan", {}) or {}, recommendation=structured.get("recommendation"),
+            sizing_context=trusted_sizing_context(context),
         ):
             return True
     if "short_setup" in assigned_kinds:

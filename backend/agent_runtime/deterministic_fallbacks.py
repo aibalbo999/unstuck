@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import math
+
 from analysis_types import AnalysisContext, StockData
 from structured_output_parser import parse_structured_data
 from structured_output_report_text import structured_output_to_report_text
@@ -45,31 +47,29 @@ def _deterministic_structured_fallback(
         parsed = parse_structured_data(temp_context)
         targets = {
             key: value for key, value in (parsed.get("price_targets", {}) or {}).items()
-            if key in {"熊市情境", "基本情境", "牛市情境"} and isinstance(value, (int, float))
+            if key in {"熊市情境", "基本情境", "牛市情境"}
+            and type(value) in {int, float} and math.isfinite(value) and value > 0
         }
-        if len(targets) < 3:
-            current_price = data.get("current_price") if isinstance(data, dict) else None
-            base_price = float(current_price or 100)
-            targets = {
-                "熊市情境": round(base_price * 0.75, 2),
-                "基本情境": round(base_price * 0.9, 2),
-                "牛市情境": round(base_price * 1.08, 2),
-            }
+        missing = [key for key in ("熊市情境", "基本情境", "牛市情境") if key not in targets]
         structured = {
             "price_targets": targets,
+            "valuation_assessment": {
+                "status": "unassessed", "missing_scenarios": missing,
+                "origin": "existing_analysis_only", "recalculated": False,
+                "reason": "只保留本角色既有文字中可解析的目標；缺項未評估，來源與假設尚須查核，未重算。",
+            },
             "valuation_reasoning": {
-                "scenario_reasoning": "LLM 修復未回傳完整可解析 JSON，系統依既有估值文字或當前股價套用保守三情境 fallback。",
+                "scenario_reasoning": "LLM 修復未回傳完整可解析 JSON；僅整理既有估值文字，未重算，也未使用現價或預設倍率補造目標。",
             },
             "valuation_summary": {
-                "primary_method": "blended",
                 "uses_market_value_wacc": False,
                 "uses_normalized_fcf": False,
-                "double_counting_check": "採用折讓情境與保守倍數，不把已隱含高成長的 Forward EPS 再套高倍數。",
+                "double_counting_check": "未評估；尚未完成假設查核，不代表已排除重複計價。",
             },
             "analysis_markdown": (
-                "## 保守估值摘要\n\n"
-                "在可解析估值資料不足的情況下，本段採用保守三情境目標價作為風險控管參考。"
-                "正式使用時應優先搭配資料可信度與來源審計判讀。"
+                "## 估值資料限制\n\n"
+                "可解析估值資料不足，缺少的情境保留未評估；只整理既有分析可解析的目標，未重算。"
+                "本段不能證明既有目標已完成來源、期間或假設驗證；須補齊證據後重新評估。"
             ),
         }
         structured_outputs[agent_num] = structured
@@ -78,17 +78,22 @@ def _deterministic_structured_fallback(
         return True, "已套用 deterministic 三情境估值 fallback"
 
     if agent_num in {3, 12}:
+        from moat_assessment import MOAT_FIELDS
+
         structured = {
-            "reasoning_steps": ["可解析護城河資料不足，採用保守護城河評分。"],
-            "moat_scores": {
-                "品牌影響力": 6,
-                "網路效應": 4,
-                "轉換成本": 7,
-                "成本優勢": 7,
-                "專利技術": 6,
-                "整體護城河": 6,
+            "reasoning_steps": [
+                "可解析護城河證據不足，各項評分保留未評估。",
+                "未完成來源及反證查核，缺少證據不代表護城河較弱。",
+                "趨勢須有跨期證據；本次不判定擴張、穩定或收縮。",
+            ],
+            "moat_scores": dict.fromkeys(MOAT_FIELDS),
+            "moat_evidence": {
+                key: {"finding": "資料不足，未評估", "source_refs": [], "counterevidence": "反證尚未完成查核"}
+                for key in MOAT_FIELDS
             },
-            "analysis_markdown": "## 保守護城河摘要\n\n在可解析護城河資料不足的情況下，本段採用保守評分作為風險控管參考。",
+            "moat_trend": "unassessed",
+            "moat_trend_reason": "缺少可驗證的跨期護城河證據，趨勢未評估。",
+            "analysis_markdown": "## 護城河資料限制\n\n可解析證據不足，各維度與整體分數均未評估；沒有新增評分、來源或已查核結論。",
         }
         structured_outputs[agent_num] = structured
         context["analyses"][agent_num] = structured_output_to_report_text(agent_num, structured, "")
@@ -150,41 +155,61 @@ def _deterministic_structured_fallback(
         return True, "已套用 deterministic 泡沫狙擊 fallback"
 
     if agent_num in {7, 16}:
+        from recommendation_labels import CANONICAL_RECOMMENDATIONS, normalize_recommendation_label
+
         temp_context = dict(context)
+        temp_context["pipeline_id"] = "v1" if agent_num == 7 else "v2"
         temp_context["structured_outputs"] = {}
         temp_context["analyses"] = {agent_num: previous_text or context.get("analyses", {}).get(agent_num, "")}
         temp_context["agent_sequence"] = [agent_num]
         parsed = parse_structured_data(temp_context)
-        recommendation = dict(parsed.get("recommendation", {}) or {})
-        price_targets = (context.get("parsed", {}) or {}).get("price_targets", {}) or {}
-        current_price = data.get("current_price") if isinstance(data, dict) else None
-        base_price = float(current_price or 100)
-
-        def _target_from(key: str, fallback_multiplier: float) -> str:
-            value = price_targets.get(key)
-            if not isinstance(value, (int, float)):
-                value = round(base_price * fallback_multiplier)
-            return f"NT${float(value):,.0f}"
-
-        if not recommendation:
-            recommendation = {
-                "建議": "持有",
-                "短期目標（3個月）": _target_from("基本情境", 0.95),
-                "中期目標（6個月）": _target_from("基本情境", 1.0),
-                "長期目標（12個月）": _target_from("牛市情境", 1.08),
-                "長期潛力（5年）": _target_from("牛市情境", 1.25),
-                "信心指數": "5/10",
-            }
+        previous = structured_outputs.get(agent_num, structured_outputs.get(str(agent_num), {})) or {}
+        previous_recommendation = previous.get("recommendation") if isinstance(previous, dict) else None
+        candidates = (previous_recommendation, parsed.get("recommendation"))
+        label = next((normalized for candidate in candidates if isinstance(candidate, dict)
+                      if (normalized := normalize_recommendation_label(candidate.get("建議", candidate.get("recommendation"))))
+                      in CANONICAL_RECOMMENDATIONS), "避免")
+        unavailable_target = "N/A（未評估；缺少同期間可驗證目標）"
+        recommendation = {
+            "建議": label,
+            "短期目標（3個月）": unavailable_target,
+            "中期目標（6個月）": unavailable_target,
+            "長期目標（12個月）": unavailable_target,
+            "長期潛力（5年）": unavailable_target,
+            "信心指數": "N/A（本次未重新評估）",
+        }
         structured = {
+            "reasoning_steps": [
+                "原始結構化輸出不足，本次僅保留已有的研究分類，沒有新增估值結論。",
+                "缺少可驗證同期間目標，目標價與信心均保留未評估，不從現價推算。",
+                "目前不新增部位；等待可驗證來源與完整分析後重新評估。",
+            ],
             "recommendation": recommendation,
             "analysis_markdown": (
-                "## 保守投資建議摘要\n\n"
-                "在可解析投資建議資料不足的情況下，本段依既有目標價與資料可信度採用中性保守建議。"
-                "正式使用時應優先搭配資料可信度與來源審計判讀。"
+                "## 研究資料限制\n\n"
+                "可解析決策資料不足；若已有研究分類則保留，沒有可辨識分類時採避免、不新增部位。"
+                "研究分類不代表個人持倉指令。缺少同期間可驗證目標與完整假設對照，尚未重算，亦未重新評估信心。"
+                "等待可驗證財報、估值與風險資料後重新評估；不推定使用者實際持倉。"
             ),
         }
+        if agent_num == 7:
+            from research_assumption_contract import TOPICS, assess_reconciliation
+
+            structured["assumption_reconciliation"] = {
+                "status": "unassessed", "pending_recalculation": False,
+                "checks": [{
+                    "topic": topic, "status": "unassessed", "valuation_quote": "", "growth_quote": "",
+                    "rationale": "本次 fallback 未完成此項假設對照；須取得可驗證的估值及成長分析後重新評估。",
+                } for topic in TOPICS],
+            }
+            structured["assumption_reconciliation_assessment"] = assess_reconciliation(
+                structured["assumption_reconciliation"], context)
         if agent_num == 16:
-            structured["position_plan"] = position_plan_fallback()
+            from position_sizing_runtime import assess_position_plan
+
+            structured["position_plan"] = position_plan_fallback(context)
+            structured["position_sizing_assessment"] = assess_position_plan(
+                structured["position_plan"], context, recommendation, structured["analysis_markdown"])
         structured_outputs[agent_num] = structured
         context["analyses"][agent_num] = structured_output_to_report_text(agent_num, structured, "")
         _clear_agent_blocking_issues(context, agent_num)

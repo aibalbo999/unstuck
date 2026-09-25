@@ -95,7 +95,8 @@ async def initial_or_checkpointed_draft(agent_num, data, context, rotator, gener
                 context["_trade_completion_receipt"] = copy.deepcopy(receipt)
             context.pop("_trade_source_manifest", None)
             trade_manifest = record.get("trade_source_manifest")
-            if isinstance(trade_manifest, dict) and trade_manifest.get("version") in {"trade-sources:v1", "trade-sources:v2"}:
+            from trade_source_contract import SUPPORTED_VERSIONS
+            if isinstance(trade_manifest, dict) and trade_manifest.get("version") in SUPPORTED_VERSIONS:
                 # The draft namespace already binds full input/upstream fingerprint.
                 context["_trade_source_manifest"] = copy.deepcopy(trade_manifest)
         outputs = context.setdefault("structured_outputs", {})

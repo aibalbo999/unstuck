@@ -27,7 +27,7 @@ def test_negative_fcf_escalates_risk_without_changing_price_or_source_evidence(v
     text = process_agent_response(24, json.dumps(payload), ctx)
     actual = ctx["structured_outputs"][24]
     assert actual["risk_level"] == "High"
-    assert WARNING in actual["core_catalyst"] and WARNING in text
+    assert WARNING not in actual["core_catalyst"] and WARNING in actual["financial_risk_flags"] and WARNING in text
     assert "TTM" not in actual["core_catalyst"]
     for field in ("trade_direction", "entry_zone", "target_price", "stop_loss",
                   "support_source_refs", "resistance_source_refs", "catalyst_source_refs"):
@@ -67,7 +67,7 @@ def test_financial_guard_does_not_authorize_fake_sources_or_incomplete_generatio
     actual = ctx["structured_outputs"][24]
     assert actual["trade_direction"] == "Neutral"
     assert actual["source_assessment"]["status"] == "degraded"
-    assert actual["risk_level"] == "High" and WARNING in actual["core_catalyst"]
+    assert actual["risk_level"] == "High" and WARNING in actual["financial_risk_flags"]
     process_agent_response(24, json.dumps(payload), ctx,
                            completion_diagnostics={"finish_reasons": ["MAX_TOKENS"]})
     assert not ctx["structured_outputs"].get(24)

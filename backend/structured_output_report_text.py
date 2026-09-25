@@ -1,6 +1,7 @@
 """Convert normalized structured output to legacy report text."""
 
 from __future__ import annotations
+import re
 
 from mapping_fields import safe_dict_list, safe_mapping_dict, safe_sequence_items
 from moat_assessment import moat_assessment
@@ -52,6 +53,9 @@ def structured_output_to_report_text(agent_num: int, structured: dict, fallback_
             score_lines = "護城河指標: N/A"
         reasoning_text = _moat_reasoning_steps_text(structured.get("reasoning_steps"))
         evidence_text = _moat_evidence_text(structured.get("moat_evidence"))
+        if "moat_trend" in structured:
+            trend = {"expanding": "擴張", "stable": "穩定", "contracting": "收縮", "unassessed": "未評估"}.get(structured.get("moat_trend"), "未評估")
+            evidence_text += f"\n護城河趨勢（獨立於類型評分）：{trend}；{_display_line(structured.get('moat_trend_reason'), '資料不足')}"
         if moat_assessment(scores)["unassessed_fields"]:
             reasoning_text += "\n護城河評估狀態：部分或全部項目未評估，缺少證據不代表低分。"
         return f"[護城河評分]\n{score_lines}\n[/護城河評分]{reasoning_text}{evidence_text}\n\n{body}".strip()
@@ -111,6 +115,18 @@ def structured_output_to_report_text(agent_num: int, structured: dict, fallback_
         )
 
     if agent_num == 24:
+        # Agent 24's native schema is a plan, not a markdown body. Never append
+        # its raw JSON envelope as prose after rendering the validated fields.
+        if not structured.get("analysis_markdown") and body.lstrip().startswith(("{", "```")):
+            from json_utils import extract_json_payload
+            wire = extract_json_payload(body)
+            if isinstance(wire, dict) and {"trade_direction", "core_catalyst"}.issubset(wire):
+                body = ""
+        # Cache/checkpoint callers may supply this renderer's previous output.
+        # Remove only its exact leading presentation block; preserve any prose
+        # after the blank-line boundary, including unsupported model claims.
+        if body.startswith("## 極短線交易計畫\n"):
+            body = re.sub(r"\A## 極短線交易計畫\n(?:- \*\*[^\n]*\*\*\n?)+", "", body, count=1).lstrip()
         body_content = "資料不足" if body and len(body) < 2 else body
         body_text = f"\n\n{body_content}" if body_content else ""
         trade_direction = _display_line(structured.get("trade_direction"), "Neutral")
@@ -132,6 +148,20 @@ def structured_output_to_report_text(agent_num: int, structured: dict, fallback_
             ]
             source_lines.append(f"- **{label}：{', '.join(refs) if refs else '未提供'}**")
         source_text = "\n".join(source_lines)
+        semantic_lines = []
+        if "observed_signal" in structured:
+            semantic_lines.append(f"- **已觀測訊號：{_trade_plan_field(structured.get('observed_signal'))}**")
+        if "event_catalyst" in structured:
+            event = safe_mapping_dict(structured.get("event_catalyst")) or {}
+            event_text = "事件日期未確認"
+            if event.get("description"):
+                event_text = '；'.join(_display_line(event.get(key), '未確認') for key in ("description", "date", "timezone", "status"))
+            semantic_lines.append(f"- **事件催化：{event_text}**")
+        if structured.get("recheck_condition"):
+            semantic_lines.append(f"- **重新評估條件：{_trade_plan_field(structured['recheck_condition'])}**")
+        for flag in safe_sequence_items(structured.get("financial_risk_flags")):
+            semantic_lines.append(f"- **財務風險：{_display_line(flag)}**")
+        semantic_text = '\n'.join(semantic_lines)
         return (
             "## 極短線交易計畫\n"
             f"- **交易方向：{trade_direction}**\n"
@@ -142,7 +172,7 @@ def structured_output_to_report_text(agent_num: int, structured: dict, fallback_
             f"- **壓力位：{_trade_plan_field(structured.get('resistance_level'))}**\n"
             f"- **核心催化劑：{_trade_plan_field(structured.get('core_catalyst'))}**\n"
             f"- **短期波動風險：{risk_level}**\n"
-            f"{source_text}"
+            f"{source_text}\n{semantic_text}"
             f"{body_text}"
         )
 
@@ -217,13 +247,20 @@ def structured_output_to_report_text(agent_num: int, structured: dict, fallback_
                 f"- 部位動作：{_display_line(plan.get('action'), '等待')}",
                 f"- 進場區間：{_display_line(plan.get('entry_zone'), '資料不足')}",
                 f"- 部位大小：{_display_line(plan.get('position_size'), '0%，等待觸發')}",
+                f"- 比例情境：{ {'research': '明確研究假設', 'actual': '明確實際輸入', 'unassessed': '未評估，未取得資金與持倉輸入'}.get(plan.get('planning_context'), '未評估')}",
+                "- 比例意義：對應明示資金基準的計畫總曝險；等待與 0% 只表示本研究不新增部位，不代表使用者實際持倉為零。",
                 f"- 停損條件：{_display_line(plan.get('stop_loss'), '資料不足')}",
                 f"- 同期間目標：{_display_line(optional_execution_text(plan.get('target_price')), '未驗證')}",
                 f"- 每股來回成本：{_display_line(optional_execution_text(plan.get('transaction_cost')), '未估計')}",
                 f"- 風險報酬：{_display_line(plan.get('risk_reward'), '資料不足')}",
                 f"- 失效條件：{_display_line(plan.get('invalidation_condition'), '資料不足')}",
             ])
+            sizing = safe_mapping_dict(plan.get("sizing_evidence")) or {}
+            if sizing.get("status") == "calculated":
+                position_text += f"\n- 比例依據：{_display_line(sizing.get('source_ref'))}；資金基準 {_display_line(sizing.get('capital_amount'))} {_display_line(sizing.get('currency'))}；風險預算 {_display_line(sizing.get('risk_budget_amount'))}；公式 {_display_line(sizing.get('formula'))}"
             return f"{recommendation_block}{reasoning_text}\n\n{position_text}\n\n{body}{basis_text}{calibration_text}{trigger_text}{catalyst_text}{market_text}".strip()
-        return f"{recommendation_block}{reasoning_text}\n\n{body}{basis_text}{calibration_text}{trigger_text}{catalyst_text}{market_text}".strip()
+        from research_assumption_contract import reconciliation_text
+        reconciliation = reconciliation_text(structured.get("assumption_reconciliation")) if agent_num == 7 else ""
+        return f"{recommendation_block}{reasoning_text}\n\n{body}{basis_text}{calibration_text}{trigger_text}{catalyst_text}{market_text}{reconciliation}".strip()
 
     return fallback_text

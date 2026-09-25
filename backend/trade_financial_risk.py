@@ -6,7 +6,19 @@ import math
 
 
 NEGATIVE_FCF_WARNING = "注意：自由現金流為負，短線財務壓力升高"
-FINANCIAL_RISK_POLICY_VERSION = "negative-fcf:v1"
+FINANCIAL_RISK_POLICY_VERSION = "negative-fcf:v2"
+
+
+def negative_fcf_value(data):
+    """Canonical finite raw fact; booleans and rounded presentation are not facts."""
+    raw = data.get("free_cash_flow_raw") if isinstance(data, dict) else None
+    if isinstance(raw, bool) or not isinstance(raw, (int, float, str)):
+        return None
+    try:
+        value = float(raw)
+    except (ValueError, OverflowError):
+        return None
+    return value if math.isfinite(value) and value < 0 else None
 
 
 def enforce_trade_financial_risk(structured: dict, data: dict) -> dict:
@@ -16,19 +28,16 @@ def enforce_trade_financial_risk(structured: dict, data: dict) -> dict:
     Inspect the unrounded raw fact so small negative values cannot round to zero.
     This policy never changes direction, prices, or source/completion validation.
     """
-    raw = data.get("free_cash_flow_raw") if isinstance(data, dict) else None
-    if isinstance(raw, bool) or not isinstance(raw, (int, float, str)):
+    value = negative_fcf_value(data)
+    if value is None:
         return structured
-    try:
-        value = float(raw)
-    except (ValueError, OverflowError):
-        return structured
-    if not math.isfinite(value) or value >= 0:
-        return structured
-    catalyst = str(structured.get("core_catalyst") or "").strip()
-    if NEGATIVE_FCF_WARNING not in catalyst:
-        catalyst = f"{catalyst}；{NEGATIVE_FCF_WARNING}" if catalyst else NEGATIVE_FCF_WARNING
+    from trade_catalyst_claims import split_exact_policy_suffix
+    catalyst, _ = split_exact_policy_suffix(structured.get("core_catalyst"))
+    flags = structured.get("financial_risk_flags")
+    flags = [flag for flag in flags if isinstance(flag, str)] if isinstance(flags, list) else []
+    flags = list(dict.fromkeys([*flags, NEGATIVE_FCF_WARNING]))
     return {**structured, "risk_level": "High", "core_catalyst": catalyst,
+            "financial_risk_flags": flags,
             "financial_risk_assessment": {
                 "policy_version": FINANCIAL_RISK_POLICY_VERSION,
                 "reason": "negative_free_cash_flow",

@@ -74,6 +74,8 @@ class MoatStructuredOutput(AnalysisMarkdownMixin):
     )
     moat_scores: MoatScores
     moat_evidence: MoatEvidence = Field(default_factory=MoatEvidence)
+    moat_trend: Literal["expanding", "stable", "contracting", "unassessed"] = "unassessed"
+    moat_trend_reason: str = "趨勢資料不足，未評估"
     analysis_markdown: str = Field(..., min_length=1)
 
     @model_validator(mode="before")

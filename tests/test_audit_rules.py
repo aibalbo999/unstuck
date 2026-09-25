@@ -582,7 +582,7 @@ class AuditRuleTests(unittest.TestCase):
         self.assertNotIn("三情境區間差距較大", "\n".join(audit["warnings"]))
         self.assertNotIn("建議/報酬矛盾", "\n".join(audit["critical"]))
 
-    def test_missing_and_failed_agents_are_repairable(self):
+    def test_missing_agent_candidate_does_not_hide_dependent_repair_failures(self):
         context = complete_context()
         del context["analyses"][1]
         context["blocking_issues"] = ["Agent 1 商業模式與整體分析: 前次失敗"]
@@ -590,11 +590,15 @@ class AuditRuleTests(unittest.TestCase):
         audit = ar.run_final_report_audit(context, append_section=False)
         self.assertIn(1, audit["repair_agent_issues"])
 
+        original_analyses = dict(context["analyses"])
         with patch.object(ar, "run_single_agent", return_value="## 商業模式\n大東電以電線電纜為核心業務。"):
             ar.attempt_final_audit_repair(context, audit, object())
 
-        self.assertIn(1, context["analyses"])
-        self.assertNotIn("blocking_issues", context)
+        # The same prose mock cannot repair the dependent valuation role. The
+        # round must retain the original state, not invent targets to commit it.
+        self.assertEqual(context["analyses"], original_analyses)
+        self.assertEqual(context["blocking_issues"], ["Agent 1 商業模式與整體分析: 前次失敗", "final_audit:dependency_rebuild_failed"])
+        self.assertTrue(any("Agent 4" in item and "未通過本模式契約" in item for item in context["audit_repair_log"]))
         self.assertTrue(any("商業模式與整體分析 AI 修復候選已通過" in item and "仍待整份報告稽核" in item for item in context["audit_repair_log"]))
 
         context = complete_context()
@@ -867,7 +871,8 @@ class AuditRuleTests(unittest.TestCase):
 
     def test_agent7_prompt_requires_quant_fallback_data_warning(self):
         self.assertIn("quant_metrics", ar.SYSTEM_PROMPTS[7])
-        self.assertIn("【資料警示】", ar.SYSTEM_PROMPTS[7])
+        self.assertIn("analysis_markdown 開頭明確列出資料警示", ar.SYSTEM_PROMPTS[7])
+        self.assertIn("不得基於該欄位推導目標價", ar.SYSTEM_PROMPTS[7])
         self.assertIn("__has_fallback=True", ar.SYSTEM_PROMPTS[7])
 
     def test_wacc_defaults_are_consistent_across_calculators(self):
@@ -1574,7 +1579,7 @@ class AuditRuleTests(unittest.TestCase):
             if "gdeltproject.org" in url:
                 return {
                     "articles": [{
-                        "title": "Alternative search headline",
+                        "title": "台積電 Alternative search headline",
                         "url": "https://example.test/search",
                         "domain": "example.test",
                         "seendate": "20260604T000000Z",
@@ -1587,6 +1592,11 @@ class AuditRuleTests(unittest.TestCase):
         async def fake_async_json_get(client, url, params, headers=None):
             return fake_sync_json_get(url, params)
 
+        async def parse_mock_upstream(provider, credential, callback, **kwargs):
+            # This exercises HTTP parsing and source selection. Endpoint pacing
+            # and concurrent admission have their own runtime contract tests.
+            return await callback()
+
         try:
             with patch.object(edc, "_sync_json_get", side_effect=fake_sync_json_get):
                 quote = edc.fetch_fmp_quote_fallback("2330.TW")
@@ -1598,6 +1608,7 @@ class AuditRuleTests(unittest.TestCase):
             async def run_async_checks():
                 with patch.object(edc, "_async_json_get", side_effect=fake_async_json_get), \
                         patch.object(edc._search, "WEB_SEARCH_PROVIDER_ORDER", "gdelt"), \
+                        patch.object(edc._search, "fetch_search_upstream", side_effect=parse_mock_upstream), \
                         patch.object(edc._search, "datetime", SearchCutoff):
                     quote_async = await edc.fetch_fmp_quote_fallback_async("2330.TW")
                     fmp_news_async = await edc.fetch_fmp_news_catalysts_async("2330.TW")
@@ -1616,6 +1627,7 @@ class AuditRuleTests(unittest.TestCase):
             self.assertEqual(fmp_news_async[0]["title"], "FMP headline")
             self.assertEqual(bundle["fmp_quote"]["price"], 123.4)
             self.assertEqual(bundle["search_catalysts"][0]["source_type"], "gdelt_search")
+            self.assertEqual(bundle["search_catalysts"][0]["title"], "台積電 Alternative search headline")
             self.assertEqual(bundle["search_peer_discovery"][0]["source_type"], "alternative_peer_discovery")
             self.assertNotIn("google_catalysts", bundle)
             self.assertNotIn("google_peer_discovery", bundle)
@@ -1742,7 +1754,7 @@ class AuditRuleTests(unittest.TestCase):
                 },
                 "sector": "Technology",
                 "industry": "Semiconductor",
-                "recent_catalysts": [{"date": publication_date, "title": "Yahoo headline", "source_type": "yfinance_news"}],
+                "recent_catalysts": [{"date": publication_date, "title": "台積電 Yahoo headline", "source_type": "yfinance_news"}],
                 "peer_discovery_results": [],
                 "data_source_notes": [],
             }
@@ -1751,7 +1763,10 @@ class AuditRuleTests(unittest.TestCase):
 
         async def fake_search_catalysts(ticker, company_name, identity):
             calls["search"] = (ticker, company_name, identity)
-            return [{"date": publication_date, "title": "Search headline", "source_type": "gdelt_search"}]
+            return [
+                {"date": publication_date, "title": "台積電 Search headline", "source_type": "gdelt_search"},
+                {"date": publication_date, "title": "聯發科 unrelated headline", "source_type": "gdelt_search"},
+            ]
 
         async def fake_peer_discovery(ticker, company_name, sector, industry):
             calls["peer"] = (ticker, company_name, sector, industry)
@@ -1774,9 +1789,10 @@ class AuditRuleTests(unittest.TestCase):
             data = asyncio.run(financial_data.async_fetch_stock_data("2330"))
 
         titles = [item["title"] for item in data["recent_catalysts"]]
-        self.assertIn("Yahoo headline", titles)
-        self.assertIn("Search headline", titles)
+        self.assertIn("台積電 Yahoo headline", titles)
+        self.assertIn("台積電 Search headline", titles)
         self.assertNotIn("FMP headline", titles)
+        self.assertNotIn("聯發科 unrelated headline", titles)
         self.assertEqual(data["peer_discovery_results"][0]["source_type"], "alternative_peer_discovery")
         self.assertEqual(calls["search"][0], "2330.TW")
         self.assertEqual(calls["search"][1], "台積電 / Taiwan Semiconductor")
