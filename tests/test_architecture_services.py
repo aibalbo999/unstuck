@@ -229,13 +229,14 @@ def test_single_agent_async_reuses_agent_step_cache(monkeypatch):
     import agent_runtime.single_agent as single_agent_module
     import cache_store
     from cache_backends import InMemoryCache
+    from test_research_completion_cache import generate
 
     calls = []
 
     async def fake_run_once(agent_num, context, rotator, model_id, prompt, quota_default=1, timeout_seconds=None):
         calls.append((agent_num, model_id, prompt))
-        context.setdefault("structured_outputs", {})[agent_num] = {"recommendation": {"建議": "持有"}}
-        return "cached agent result " * 20
+        # A7 cache admission requires a complete, assessed candidate.
+        return generate(context)
 
     try:
         cache_store.set_cache_backend(InMemoryCache())
@@ -252,7 +253,7 @@ def test_single_agent_async_reuses_agent_step_cache(monkeypatch):
 
         assert first == second
         assert calls == [(7, "cache-model", "stable prompt")]
-        assert second_context["structured_outputs"][7] == {"recommendation": {"建議": "持有"}}
+        assert second_context["structured_outputs"][7] == first_context["structured_outputs"][7]
         assert any(event.get("phase") == "agent_step_cache_hit" for event in second_context["_runtime_events"])
     finally:
         cache_store.reset_cache_store_for_tests()

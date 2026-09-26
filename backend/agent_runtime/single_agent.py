@@ -39,7 +39,10 @@ from .step_cache import (
     store_cached_agent_step,
     cached_market_context_matches,
 )
-from .single_agent_events import emit_async_model_event, emit_sync_model_event, reject_async_model, reject_sync_model
+from .single_agent_events import (
+    emit_async_model_event, emit_sync_model_event, reject_async_model, reject_sync_model,
+    emit_async_cache_decision, emit_sync_cache_decision,
+)
 from .single_agent_admission import (
     EvidenceBatchInvalid,
     admit_model_input_async,
@@ -104,7 +107,8 @@ def run_single_agent(
         prompt = _build_model_prompt(agent_num, data, context, model_id, model_index == 0 and has_fallback)
         prompt = append_evidence_notes(agent_num, model_id, prompt, evidence_notes, context)
         cache_key = build_agent_step_cache_key(agent_num, data, context, model_id, prompt)
-        cached_step = get_cached_agent_step(cache_key)
+        cache_observation = {"decision": "miss", "reason": "no_entry"}
+        cached_step = get_cached_agent_step(cache_key, cache_observation)
         if cached_step is not None and cached_market_context_matches(context, agent_num, cached_step, prompt):
             emit_sync_model_event(
                 context,
@@ -119,6 +123,9 @@ def run_single_agent(
             result = restore_cached_agent_step(context, agent_num, cached_step)
             record_node_cache_response(context, agent_num, cached_step)
             return result
+        if cached_step is not None:
+            cache_observation = {"decision": "reject", "reason": "context_contract_mismatch"}
+        emit_sync_cache_decision(context, agent_num, model_id, cache_key, cache_observation)
         try:
             admission = admit_model_input_sync(
                 agent_num, model_id, prompt, context, rotator,
@@ -208,7 +215,8 @@ async def run_single_agent_async(
         prompt = _build_model_prompt(agent_num, data, context, model_id, model_index == 0 and has_fallback)
         prompt = append_evidence_notes(agent_num, model_id, prompt, evidence_notes, context)
         cache_key = build_agent_step_cache_key(agent_num, data, context, model_id, prompt)
-        cached_step = get_cached_agent_step(cache_key)
+        cache_observation = {"decision": "miss", "reason": "no_entry"}
+        cached_step = get_cached_agent_step(cache_key, cache_observation)
         if cached_step is not None and cached_market_context_matches(context, agent_num, cached_step, prompt):
             await emit_async_model_event(
                 context,
@@ -223,6 +231,9 @@ async def run_single_agent_async(
             result = restore_cached_agent_step(context, agent_num, cached_step)
             record_node_cache_response(context, agent_num, cached_step)
             return result
+        if cached_step is not None:
+            cache_observation = {"decision": "reject", "reason": "context_contract_mismatch"}
+        await emit_async_cache_decision(context, agent_num, model_id, cache_key, cache_observation)
         try:
             admission = await admit_model_input_async(
                 agent_num, model_id, prompt, context, rotator,

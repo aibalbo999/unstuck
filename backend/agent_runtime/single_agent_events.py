@@ -2,10 +2,65 @@
 
 from __future__ import annotations
 
+import re
+import sys
+
 from analysis_types import AnalysisContext
 from runtime_events import emit_context_event, emit_context_event_async, make_runtime_event, emit_log
 from llm_input_capacity import InputCapacityExceededError
 from .retry_policy import AgentConfigurationError
+from .cancellation import raise_if_cancelled
+
+
+_CACHE_DECISION_REASONS = frozenset({
+    ("miss", "no_entry"), ("bypass", "repair_bypass"), ("bypass", "disabled"),
+    ("error", "read_error"), ("reject", "invalid_entry"),
+    ("reject", "a7_known_assessment_failure"), ("reject", "a7_invalid_entry"),
+    ("reject", "context_contract_mismatch"),
+})
+
+
+def _cache_decision_metadata(cache_key, observation):
+    decision, reason = observation.get("decision"), observation.get("reason")
+    if (not isinstance(cache_key, str) or re.fullmatch(r"agent_step:[0-9a-f]{64}", cache_key) is None
+            or not isinstance(decision, str) or not isinstance(reason, str)
+            or (decision, reason) not in _CACHE_DECISION_REASONS):
+        return None
+    return {"cache_key": cache_key, "decision": decision, "reason": reason}
+
+
+def _preserve_cache_event_cancellation(context, error):
+    from llm_key_admission import propagate_admission_cancel
+    propagate_admission_cancel(error)
+    # Job entrypoints import the runtime. Inspect an already loaded exception
+    # type instead of importing their service objects back into event handling.
+    for module, name in (("analysis_jobs", "AnalysisJobCancelled"),
+                         ("report_rerun_jobs", "ReportRerunJobCancelled")):
+        cancellation = getattr(sys.modules.get(module), name, None)
+        if isinstance(cancellation, type) and isinstance(error, cancellation):
+            raise error
+    raise_if_cancelled(context)
+
+
+def emit_sync_cache_decision(context, agent_num, model_id, cache_key, observation):
+    """Non-hit diagnostics are best effort and never count as provider calls."""
+    try:
+        metadata = _cache_decision_metadata(cache_key, observation)
+        if metadata:
+            emit_sync_model_event(context, agent_num, "agent_step_cache_decision", "info",
+                                  f"Agent {agent_num} 本次未使用步驟快取。", model_id, **metadata)
+    except Exception as exc:
+        _preserve_cache_event_cancellation(context, exc)
+
+
+async def emit_async_cache_decision(context, agent_num, model_id, cache_key, observation):
+    try:
+        metadata = _cache_decision_metadata(cache_key, observation)
+        if metadata:
+            await emit_async_model_event(context, agent_num, "agent_step_cache_decision", "info",
+                                         f"Agent {agent_num} 本次未使用步驟快取。", model_id, **metadata)
+    except Exception as exc:
+        _preserve_cache_event_cancellation(context, exc)
 
 
 def route_rejection_event(model_id, error):
