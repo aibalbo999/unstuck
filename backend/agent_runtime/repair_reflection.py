@@ -134,7 +134,8 @@ def build_audit_retry_instruction(agent_num: int, issues: list[str], *, previous
             diagnostics += ("\n【同份輸入的歷次問題回歸清單】\n"
                             "下列問題可能已修正；完整重寫仍需複查，這不是目前仍失敗的判定：\n"
                             + "\n".join(f"- {issue}" for issue in history) + "\n")
-        if agent_num == 19:
+        from pipeline_modes import get_structured_agent_num
+        if agent_num in (7, 16, 19) and agent_num == get_structured_agent_num('recommendation', context):
             from .repair_diagnostics import recommendation_repair_diagnostic
             diagnostics += recommendation_repair_diagnostic(context, data, previous_text or '')
         if agent_num == 7:

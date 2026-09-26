@@ -40,6 +40,28 @@ MAX_ANNUALIZED_RETURN_WARNING_PCT = 100.0
 # 目標價逆向偏差容忍度（3m -> 6m -> 12m 允許的回撤比例）
 TARGET_REVERSAL_TOLERANCE_PCT = 5.0
 
+RECOMMENDATION_REVIEW_GUIDANCE = (
+    "依來源證據重新檢查估值、分類與風險；文字說明不豁免數值門檻，不可為過關任意改價或改分類。"
+)
+
+
+def recommendation_contract_guidance() -> str:
+    """Describe the same return gates used by audit, without choosing a label."""
+    limits = []
+    for label, gate in RECOMMENDATION_RETURN_GATES.items():
+        bounds = []
+        if 'min_expected_return_pct' in gate:
+            bounds.append(f"≥{gate['min_expected_return_pct']:g}%")
+        if 'max_expected_return_pct' in gate:
+            bounds.append(f"≤{gate['max_expected_return_pct']:g}%")
+        limits.append(label + '且'.join(bounds))
+    return (
+        "推薦與報酬數值契約：12 個月隱含報酬=(目標價/現價−1)×100%；"
+        + '、'.join(limits) + '。'
+        "持有不是所有等待／觀察的代稱。避免表示本研究不新增部位，不預設目標價漲跌，須有證據支持此政策，"
+        "不代表實際零持倉；不可預設選避免。" + RECOMMENDATION_REVIEW_GUIDANCE
+    )
+
 
 def _pct_change(new_price: float, base_price: float) -> Optional[float]:
     if base_price <= 0:
@@ -79,14 +101,14 @@ def check_recommendation_return_alignment(
         issues.append(
             f"建議/報酬矛盾：建議為「{recommendation}」但 12 個月目標價 NT${target_12m:g} "
             f"相對現價 NT${current_price:g} 僅隱含 {expected_return:.1f}% 報酬，"
-            f"低於「{recommendation}」所需最低 {min_ret:.0f}%。需要降低建議等級或提高目標價。"
+            f"低於「{recommendation}」所需最低 {min_ret:.0f}%。{RECOMMENDATION_REVIEW_GUIDANCE}"
         )
 
     if max_ret is not None and expected_return > max_ret:
         issues.append(
             f"建議/報酬矛盾：建議為「{recommendation}」但 12 個月目標價 NT${target_12m:g} "
             f"相對現價 NT${current_price:g} 隱含 {expected_return:.1f}% 報酬，"
-            f"超過「{recommendation}」的合理上限 {max_ret:.0f}%。應升格為「買入」或說明折讓原因。"
+            f"超過「{recommendation}」的合理上限 {max_ret:.0f}%。{RECOMMENDATION_REVIEW_GUIDANCE}"
         )
 
     if abs(expected_return) > MAX_ANNUALIZED_RETURN_WARNING_PCT:

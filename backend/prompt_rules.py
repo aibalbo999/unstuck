@@ -126,7 +126,9 @@ def _coerce_rule_list(value) -> list[str]:
     return rules
 
 
-def build_final_audit_preflight_rule(agent_num: int, pipeline_id: str = "") -> str:
+def build_final_audit_preflight_rule(
+    agent_num: int, pipeline_id: str = "", *, include_recommendation_contract: bool = True,
+) -> str:
     """Build the pre-output checklist that mirrors final audit failure modes."""
     config = _runtime_rule_section("final_audit_preflight_rule")
     if not isinstance(config, dict):
@@ -147,6 +149,12 @@ def build_final_audit_preflight_rule(agent_num: int, pipeline_id: str = "") -> s
         per_pipeline = {}
     if normalized_pipeline:
         rules.extend(_coerce_rule_list(_rule_config_get(per_pipeline, normalized_pipeline, [])))
+
+    from pipeline_modes import get_structured_agent_num
+    if (include_recommendation_contract and agent_num in (7, 16, 19)
+            and agent_num == get_structured_agent_num('recommendation', normalized_pipeline)):
+        from forward_consistency_checker import recommendation_contract_guidance
+        rules.append(recommendation_contract_guidance())
 
     block_config = {
         "title": _rule_config_get(config, "title", "最終審核前自檢"),

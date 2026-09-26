@@ -5,7 +5,8 @@ import json
 import math
 
 from final_audit_helpers import extract_first_price, recommendation_value
-from forward_consistency_checker import RECOMMENDATION_RETURN_GATES
+from forward_consistency_checker import recommendation_contract_guidance
+from pipeline_modes import get_structured_agent_num
 from recommendation_labels import normalize_recommendation_label
 from structured_output_parser import parse_recommendation_from_text
 from trade_execution_contract import evaluate_trade_execution
@@ -43,8 +44,11 @@ def _short_setup_diagnostic(output: dict, label: str) -> str:
 
 def recommendation_repair_diagnostic(context: dict, data: dict, previous_text: str = '') -> str:
     """Describe rejected values; never select a replacement decision or target."""
+    agent_num = get_structured_agent_num('recommendation', context)
+    if agent_num not in (7, 16, 19):
+        return ''
     outputs = context.get('structured_outputs') or {}
-    output = outputs.get(19, outputs.get('19'))
+    output = outputs.get(agent_num, outputs.get(str(agent_num)))
     recommendation = output.get('recommendation') if isinstance(output, dict) else None
     if not isinstance(recommendation, dict):
         recommendation = parse_recommendation_from_text(previous_text)
@@ -59,14 +63,12 @@ def recommendation_repair_diagnostic(context: dict, data: dict, previous_text: s
         if price is not None and math.isfinite(price) and price > 0:
             implied = f'；隱含報酬 {(price / current - 1) * 100:.1f}%' if valid_current else ''
             lines.append(f'{horizon} 原值：{str(raw)[:200]}；稽核採用價：{price:g}{implied}。')
-    for name, gate in RECOMMENDATION_RETURN_GATES.items():
-        bounds = []
-        if 'min_expected_return_pct' in gate:
-            bounds.append(f"至少 {gate['min_expected_return_pct']:g}%")
-        if 'max_expected_return_pct' in gate:
-            bounds.append(f"至多 {gate['max_expected_return_pct']:g}%")
-        lines.append(f'{name} 的 12 個月報酬門檻：' + '、'.join(bounds) + '。')
-    return ('【前次決策數值診斷；不是新的估值或交易指示】\n' + '\n'.join(lines) + '\n'
+    lines.append(recommendation_contract_guidance())
+    summary = '【前次決策數值診斷；不是新的估值或交易指示】\n' + '\n'.join(lines) + '\n'
+    if agent_num != get_structured_agent_num('short_setup', context):
+        return (summary + '重寫完整正文與 JSON；若推薦或目標改變，依本次來源重新評估 '
+                'market_context_assessment，不沿用前次結論；缺證據保留未評估。\n')
+    return (summary
             + _short_setup_diagnostic(output, label) +
             '- 依證據重新判斷建議與估值；不可為通過門檻而調高目標價，也不可一律改為避免。\n'
             '- 持有不是所有「等待／觀察」的代稱；目標無法支持時，明確說明證據限制。\n'
