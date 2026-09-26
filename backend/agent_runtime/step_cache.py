@@ -166,7 +166,7 @@ def cached_market_context_matches(context: dict, agent_num: int, cached: dict, p
 
 
 def _research_cache_entry_valid(cached: dict) -> bool:
-    """Completion admission only; downstream research/evidence gates still run."""
+    """Exclude incomplete or known failed drafts; downstream gates still run."""
     from llm_completion_provenance import completion_is_incomplete
 
     output = cached.get("structured_output")
@@ -184,9 +184,7 @@ def _research_cache_entry_valid(cached: dict) -> bool:
     assessment = output.get("assumption_reconciliation_assessment")
     if isinstance(assessment, dict):
         issues = assessment.get("issues", [])
-        if not isinstance(issues, (list, tuple)) or any(not isinstance(issue, str) or issue in (
-            "missing_or_invalid_assumption_reconciliation", "incomplete_assumption_topics",
-        ) for issue in issues):
+        if not isinstance(issues, (list, tuple)) or issues:
             return False
     text = str(cached.get("text") or "")
     expected_text = cached.get("research_text_sha256")
