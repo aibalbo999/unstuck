@@ -95,6 +95,7 @@ RESULT_FIELDS = (
     "analyses", "structured_outputs", "agent_state", "parsed", "context_digests", "_digest_hash_map",
     "rag_context", "rag_index", "market_context_manifests", "analysis_provenance", "invalidated_agents",
     "_trade_source_manifest", "_trade_completion_receipt",
+    "_research_completion_receipt", "_research_incomplete_fields",
     "executive_thesis", "investment_thesis", "smoothed_markdown", "tear_sheet_summary", "report_cover", "next_catalysts",
 )
 

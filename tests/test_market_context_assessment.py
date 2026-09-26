@@ -202,6 +202,9 @@ def test_schema_normalizer_parser_snapshot_and_report_text_keep_the_same_assessm
     assessment = context["structured_outputs"][agent]["market_context_assessment"]
     payload = _recommendation_payload()
     payload["market_context_assessment"] = assessment
+    if agent == 7:
+        from test_research_quote_fidelity import candidate
+        payload["assumption_reconciliation"] = candidate(quote="")["assumption_reconciliation"]
     if agent == 16:
         payload["position_plan"] = {"action": "等待"}
     if agent == 19:

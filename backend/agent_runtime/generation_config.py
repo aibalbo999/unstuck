@@ -14,6 +14,7 @@ from forward_consistency_checker import RECOMMENDATION_RETURN_GATES, TARGET_REVE
 from google_prompt_safety import sanitize_google_system_instruction
 from llm_input_capacity import estimate_input_tokens
 from llm_client import generate_content, generate_content_async, generate_content_stream_async, response_text
+from research_assumption_contract import TOPICS as RESEARCH_ASSUMPTION_TOPICS
 from structured_output_models import STRUCTURED_AGENT_INSTRUCTIONS, get_structured_response_schema
 
 from .prompt_config import SYSTEM_PROMPTS
@@ -21,7 +22,8 @@ from .retry_policy import AgentTransientError
 from .routing import get_agent_function_tools
 
 
-GENERATION_POLICY_VERSION = "agent-generation:v4"
+GENERATION_POLICY_VERSION = "agent-generation:v5"
+AGENT7_COMPLETION_POLICY = "research-completion:v1-preview-low"
 _DEFAULT_GENERATION_PROFILE = {
     "temperature": 0.7,
     "top_p": 0.95,
@@ -57,6 +59,17 @@ AGENT_GENERATION_PROFILES = {
 _BOUNDED_THINKING_MODELS = {"gemini-3.5-flash-lite", "gemini-3.7-flash", "gemini-3.8-flash"}
 _MEDIUM_THINKING_AGENTS = {7, 16, 19, 24}
 _COMPLETION_LOW_THINKING_MODELS = _BOUNDED_THINKING_MODELS | {"gemini-3-flash-preview", "gemini-3.6-flash"}
+_AGENT7_COMPLETION_INSTRUCTION = (
+    "\n\nAgent 7 完整性契約：只輸出一份完整 JSON，先完成 response_schema 的所有必要欄位與結尾大括號。"
+    "analysis_markdown 以 800–1200 字的精煉正文為目標，避免重貼原始表格、逐字重複其他 JSON 欄位或前序分析；"
+    "若必要證據需更多文字，完整性與品質規則優先於此篇幅目標。"
+    "保留支持、反證、資料不足與各期研究情境；不得為通過檢查改寫研究分類或補造價格。"
+    f"assumption_reconciliation 必須涵蓋 {'、'.join(RESEARCH_ASSUMPTION_TOPICS)} 五項，並明確填寫 pending_recalculation；"
+    "valuation_quote 與 growth_quote 只能逐字引用對應角色的完整可見來源，不改數字、單位或補造引文，"
+    "找不到同語意來源時如實保留缺口，不以概述代替引文。"
+    "market_context_assessment 必須評估完整可見的全球市場與國際新聞來源，保留具體 reason 與有效 source_refs；"
+    "不得為省字略過來源評估或刪減必要引用。"
+)
 _AGENT19_COMPLETION_INSTRUCTION = (
     "\n\nAgent 19 完整性契約：請一次輸出完整 JSON，先完成 response_schema 的所有必要欄位，"
     "recommendation 分類只使用 response_schema 列舉值，不自行創造分類。"
@@ -91,6 +104,10 @@ def _agent19_recommendation_contract_instruction() -> str:
 
 def _thinking_level(agent_num: int | None, model_id: str) -> str | None:
     model = model_id.removeprefix("google:").removeprefix("models/")
+    # Preview defaults to high thinking within the same output budget. Bound
+    # this observed research fallback without changing other routes or roles.
+    if agent_num == 7 and model == "gemini-3-flash-preview":
+        return "low"
     if agent_num in {18, 19, 24} and model in _COMPLETION_LOW_THINKING_MODELS:
         return "low"
     if model_id in _BOUNDED_THINKING_MODELS:
@@ -205,7 +222,9 @@ def _response_text(response) -> str:
 
 def google_safe_agent_system_instruction(agent_num: int, model_id: str) -> str:
     system_instruction = SYSTEM_PROMPTS.get(agent_num, "")
-    if agent_num == 19:
+    if agent_num == 7:
+        system_instruction += _AGENT7_COMPLETION_INSTRUCTION
+    elif agent_num == 19:
         system_instruction += _AGENT19_COMPLETION_INSTRUCTION
         system_instruction += _agent19_recommendation_contract_instruction()
     elif agent_num == 24:

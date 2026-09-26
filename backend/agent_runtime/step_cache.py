@@ -5,6 +5,7 @@ from __future__ import annotations
 import hashlib
 import json
 import copy
+import re
 from typing import Any
 
 from cache_store import get_cache_json, set_cache_json
@@ -48,6 +49,8 @@ def build_agent_step_cache_key(
     if agent_num in _OUTPUT_CONTRACT_AGENTS:
         key_parts["output_contract_version"] = AGENT_OUTPUT_CONTRACT_VERSION
     if agent_num == 7:
+        from .generation_config import AGENT7_COMPLETION_POLICY
+        key_parts["research_completion_policy"] = AGENT7_COMPLETION_POLICY
         from research_quote_fidelity import POLICY
         key_parts["research_quote_policy"] = POLICY
         from research_prompt_encoding import POLICY as RESEARCH_PROMPT_POLICY
@@ -67,6 +70,8 @@ def get_cached_agent_step(cache_key: str) -> dict | None:
     except Exception:
         return None
     if not isinstance(cached, dict) or not str(cached.get("text") or "").strip():
+        return None
+    if str(cached.get("agent_num")) == "7" and not _research_cache_entry_valid(cached):
         return None
     return cached
 
@@ -90,6 +95,13 @@ def store_cached_agent_step(
         "text": str(text or ""),
         "structured_output": _structured_output_for_agent(context, agent_num),
     }
+    if agent_num == 7:
+        payload["research_completion_receipt"] = copy.deepcopy(context.get("_research_completion_receipt"))
+        # Verify this exact text was rendered by decoding or its bound market
+        # projection; calculating a digest here alone cannot authorize it.
+        payload["research_text_sha256"] = _sha256_text(payload["text"])
+        if not _research_cache_entry_valid(payload):
+            return
     if agent_num in FINAL_AGENTS and context.get("market_context_contract_version") == CONTRACT_VERSION:
         manifests = context.get("market_context_manifests", {})
         payload["market_context_manifest"] = copy.deepcopy(manifests.get(agent_num, manifests.get(str(agent_num))))
@@ -104,6 +116,17 @@ def store_cached_agent_step(
 
 def restore_cached_agent_step(context: dict, agent_num: int, cached: dict) -> str:
     clear_market_context_output(context, agent_num)
+    if agent_num == 7:
+        context.pop("_research_completion_receipt", None)
+        context.pop("_research_incomplete_fields", None)
+        if not _research_cache_entry_valid(cached):
+            outputs = context.setdefault("structured_outputs", {})
+            outputs.pop(7, None)
+            outputs.pop("7", None)
+            return ""
+        receipt = cached.get("research_completion_receipt")
+        if isinstance(receipt, dict):
+            context["_research_completion_receipt"] = copy.deepcopy(receipt)
     if agent_num == 24:
         context.pop("_trade_source_manifest", None)
         context.pop("_trade_completion_receipt", None)
@@ -128,6 +151,8 @@ def restore_cached_agent_step(context: dict, agent_num: int, cached: dict) -> st
 
 
 def cached_market_context_matches(context: dict, agent_num: int, cached: dict, prompt: str) -> bool:
+    if agent_num == 7 and not _research_cache_entry_valid(cached):
+        return False
     if agent_num == 24:
         return (_cached_trade_matches_input(context, cached)
                 and cached.get("trade_source_manifest") == context.get("_trade_source_manifest"))
@@ -138,6 +163,56 @@ def cached_market_context_matches(context: dict, agent_num: int, cached: dict, p
     expected = attempts.get(agent_num, attempts.get(str(agent_num)))
     return (manifest_matches_input(manifest, context.get("data", {}), agent_num)
             and manifest.get("prompt_hash") == prompt_fingerprint(prompt) and manifest == expected)
+
+
+def _research_cache_entry_valid(cached: dict) -> bool:
+    """Completion admission only; downstream research/evidence gates still run."""
+    from llm_completion_provenance import completion_is_incomplete
+
+    output = cached.get("structured_output")
+    if not isinstance(output, dict) or not output:
+        return False
+    from research_assumption_contract import AssumptionReconciliation, TOPICS
+    try:
+        reconciliation = AssumptionReconciliation.model_validate(output.get("assumption_reconciliation"))
+    except (ValueError, TypeError):
+        return False
+    if {row.topic for row in reconciliation.checks} != set(TOPICS):
+        return False
+    if not isinstance(output.get("recommendation"), dict) or not output["recommendation"]:
+        return False
+    assessment = output.get("assumption_reconciliation_assessment")
+    if isinstance(assessment, dict):
+        issues = assessment.get("issues", [])
+        if not isinstance(issues, (list, tuple)) or any(not isinstance(issue, str) or issue in (
+            "missing_or_invalid_assumption_reconciliation", "incomplete_assumption_topics",
+        ) for issue in issues):
+            return False
+    text = str(cached.get("text") or "")
+    expected_text = cached.get("research_text_sha256")
+    if expected_text is not None and expected_text != _sha256_text(text):
+        return False
+    receipt = cached.get("research_completion_receipt")
+    if receipt is None:
+        # Legacy complete report text has no finish receipt. An unclosed raw
+        # JSON draft cannot use that compatibility path to become complete.
+        if text.lstrip().startswith(("{", "```")):
+            from structured_output_runtime import _research_json_complete
+            return _research_json_complete(text)
+        return True
+    if (not isinstance(receipt, dict) or receipt.get("version") != 1
+            or completion_is_incomplete(receipt.get("diagnostics"))
+            or receipt.get("raw_json_complete") is not True or expected_text is None):
+        return False
+    raw_hash = receipt.get("raw_sha256")
+    text_hashes = receipt.get("text_sha256")
+    rendered_hashes = receipt.get("rendered_text_sha256")
+    if (not isinstance(raw_hash, str) or re.fullmatch(r"[0-9a-f]{64}", raw_hash) is None
+            or not isinstance(text_hashes, list) or raw_hash not in text_hashes
+            or not isinstance(rendered_hashes, list) or expected_text not in rendered_hashes):
+        return False
+    fingerprint = _sha256_text(json.dumps(output, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str))
+    return receipt.get("structured_output_sha256") == fingerprint
 
 
 def _cached_trade_matches_input(context, cached):

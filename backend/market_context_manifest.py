@@ -201,5 +201,21 @@ def adopt_market_context_result(context: dict, agent_num: int, data: dict, promp
     outputs = context.get("structured_outputs", {})
     output = outputs.get(agent_num, outputs.get(str(agent_num))) if isinstance(outputs, dict) else None
     if isinstance(output, dict):
-        return structured_output_to_report_text(agent_num, {**output, "market_context_assessment": projection}, text)
-    return text + market_assessment_text(projection)
+        result = structured_output_to_report_text(agent_num, {**output, "market_context_assessment": projection}, text)
+    else:
+        result = text + market_assessment_text(projection)
+    if agent_num == 7:
+        receipt = context.get("_research_completion_receipt")
+        hashes = receipt.get("text_sha256") if isinstance(receipt, dict) else None
+        if (isinstance(receipt, dict) and receipt.get("version") == 1
+                and isinstance(hashes, list) and prompt_fingerprint(text) in hashes):
+            # This exact local projection must not erase a known-incomplete
+            # provider finish during quality reparse or cold draft resume.
+            # An unrelated input cannot register another text as this response.
+            from output_sanitizer import sanitize_model_output
+            projected_hashes = [prompt_fingerprint(result), prompt_fingerprint(sanitize_model_output(result))]
+            receipt["text_sha256"] = list(dict.fromkeys([*hashes, *projected_hashes]))[:8]
+            rendered = receipt.get("rendered_text_sha256")
+            if isinstance(rendered, list) and prompt_fingerprint(text) in rendered:
+                receipt["rendered_text_sha256"] = list(dict.fromkeys([*rendered, *projected_hashes]))[:8]
+    return result
