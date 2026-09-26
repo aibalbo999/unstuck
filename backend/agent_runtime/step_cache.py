@@ -62,16 +62,33 @@ def build_agent_step_cache_key(
     return "agent_step:" + hashlib.sha256(encoded.encode("utf-8")).hexdigest()
 
 
-def get_cached_agent_step(cache_key: str) -> dict | None:
-    if not candidate_cache_read_allowed("step") or not AGENT_STEP_CACHE_ENABLED:
+def get_cached_agent_step(cache_key: str, observation: dict | None = None) -> dict | None:
+    def observe(decision, reason):
+        if isinstance(observation, dict):
+            observation.update(decision=decision, reason=reason)
+
+    if not candidate_cache_read_allowed("step"):
+        observe("bypass", "repair_bypass")
+        return None
+    if not AGENT_STEP_CACHE_ENABLED:
+        observe("bypass", "disabled")
         return None
     try:
         cached = get_cache_json(cache_key)
     except Exception:
+        observe("error", "read_error")
+        return None
+    if cached is None:
+        observe("miss", "no_entry")
         return None
     if not isinstance(cached, dict) or not str(cached.get("text") or "").strip():
+        observe("reject", "invalid_entry")
         return None
     if str(cached.get("agent_num")) == "7" and not _research_cache_entry_valid(cached):
+        output = cached.get("structured_output")
+        assessment = output.get("assumption_reconciliation_assessment") if isinstance(output, dict) else None
+        issues = assessment.get("issues") if isinstance(assessment, dict) else None
+        observe("reject", "a7_known_assessment_failure" if isinstance(issues, (list, tuple)) and issues else "a7_invalid_entry")
         return None
     return cached
 
