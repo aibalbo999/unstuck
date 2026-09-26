@@ -31,6 +31,7 @@ def evaluate_recommendation_target_alignment(
     main_target: dict[str, Any] | None,
     pipeline_id: str = "",
     short_setup: dict[str, Any] | None = None,
+    short_observation_conflicts: list[dict] | None = None,
 ) -> dict:
     """Evaluate whether the final recommendation direction matches target price."""
     blocking: list[dict] = []
@@ -50,6 +51,16 @@ def evaluate_recommendation_target_alignment(
             "最終建議不是可辨識的投資方向，無法完成方向一致性檢查。",
             details,
         )
+        warnings.append(issue)
+        checks.append(_check("recommendation_target_alignment", "warning", issue["message"], details))
+        return {"blocking_issues": blocking, "warnings": warnings, "checks": checks}
+
+    if pipeline_id == "v3" and recommendation_present and recommendation_label == "避免" and short_observation_conflicts:
+        details = {"recommendation": recommendation_label, "current_price": current_price,
+                   "target_price": main_target.get("price") if main_target else None,
+                   "conflicting_actions": short_observation_conflicts, "contract_verified": False}
+        issue = _issue("short_observation_action_conflict",
+                       "不新增空方部位的研究政策與情境 action 的開倉、既有持倉或退出指令矛盾，不能認證為無部位研究契約。", details)
         warnings.append(issue)
         checks.append(_check("recommendation_target_alignment", "warning", issue["message"], details))
         return {"blocking_issues": blocking, "warnings": warnings, "checks": checks}

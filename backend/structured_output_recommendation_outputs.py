@@ -66,7 +66,7 @@ class PositionPlan(StructuredModel):
 
 
 class ShortSetup(StructuredModel):
-    entry_trigger: str = Field(..., min_length=1, description="SHORT 研究情境的進場條件與有本次來源依據的正數價格或單一明確價格區間；通用檢查名稱為 entry_zone，純事件或均線名稱不足以驗證價格。避免且確實不新增部位時，明示『本研究情境不建立空方部位』並列等待重新評估的條件；不可加入數字價位、條件開倉或已持倉主張。缺少來源不得補造價格，不是實際交易指令。")
+    entry_trigger: str = Field(..., min_length=1, description="SHORT 研究情境的進場條件與有本次來源依據的正數價格或單一明確價格區間；通用檢查名稱為 entry_zone，純事件或均線名稱不足以驗證價格。避免且確實不新增部位時，先獨立明示『本研究情境不建立空方部位』，再以『等待基本面條件後再重新評估』列重評條件；保留有來源的營收金額（億元／百萬元）或毛利率／營益率／淨利率（%）門檻與單位，例如『等待單月營收未能突破 55 億元且毛利率未能回升之條件達成後再重新評估』；此例只示範格式，不是本次證據。不可加入股價、條件開倉或已持倉主張；其他數字證據可完整列入 scenario_triggers.trigger_condition 或 thesis_invalidation，不可刪除或改成交易指令。缺少來源不得補造價格，不是實際交易指令。")
     downside_target: str = Field(..., min_length=1, description="SHORT 研究情境中有本次來源依據的下行目標價格或單一明確價格區間；通用檢查名稱為 target_price，完整目標區間須低於完整進場區間。非放空分類依既有觀望契約；缺少來源不得補造價格。")
     cover_stop: str = Field(..., min_length=1, description="SHORT 研究情境中有本次來源依據的回補停損價格或單一明確價格區間；通用檢查名稱為 stop_loss，完整停損區間須高於完整進場區間，純事件條件不能代替價格。避免且確實不新增部位時，明示『本研究情境不建立空方部位，回補停損不適用』；此為研究政策，不代表使用者實際持倉為零。缺漏仍須揭露，不得補造無持倉聲明或價格，不是實際交易指令。")
     squeeze_risk: str = Field(..., min_length=1)
@@ -220,7 +220,7 @@ class BubbleSniperStructuredOutput(ReasoningStepsMixin):
         ...,
         min_length=2,
         max_length=5,
-        description="情境觸發器：列出 2-5 個崩盤催化、軋空停損或重新評估條件。",
+        description="情境觸發器：列出 2-5 個崩盤催化、軋空停損或重新評估條件。避免且不新增部位的研究政策下，action 只列重新評估研究論點，不能同時宣稱已有部位、開倉或要求回補、退出觀察部位；trigger_condition 保留有來源的完整數字與單位。",
     )
     next_catalysts: list[Catalyst] = Field(default_factory=list, min_length=1)
     short_setup: ShortSetup

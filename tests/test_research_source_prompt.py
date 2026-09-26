@@ -35,7 +35,10 @@ def test_complete_agent_sources_visible_in_initial_and_repair_without_mutating_e
     prompt = prompting.build_prompt(7, data, context)
     assert '【Agent 4／5 逐字對照來源】' in prompt
     catalog = json.JSONDecoder().raw_decode(prompt.split('【Agent 4／5 逐字對照來源】\n', 1)[1])[0]
-    assert catalog == {str(a): list(dict.fromkeys(_upstream(context, a))) for a in (4, 5)}
+    for agent in (4, 5):
+        originals = _upstream(context, agent)
+        assert all(any(value in source for source in catalog[str(agent)]) for value in originals)
+        assert all(source in originals for source in catalog[str(agent)])
     assert 'valuation_quote' in prompt and 'growth_quote' in prompt
     assert '改寫或摘要' in prompt
     assert (data, context) == before

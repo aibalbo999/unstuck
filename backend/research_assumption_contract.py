@@ -62,8 +62,13 @@ def reconciliation_sources(context):
 
 
 def build_reconciliation_source_prompt(context):
-    # Same string leaves as assess_reconciliation; exact duplicates alone collapse.
-    sources = {str(agent): list(dict.fromkeys(_upstream(context, agent))) for agent in (4, 5)}
+    # Keep complete original strings. A leaf already contained in a longer
+    # same-role string adds no legal verbatim quote; never combine fragments.
+    sources = {}
+    for agent, values in reconciliation_sources(context).items():
+        unique = list(dict.fromkeys(values))
+        sources[agent] = [text for text in unique if not any(
+            len(other) > len(text) and text in other for other in unique)]
     return '\n'.join((
         '【Agent 4／5 逐字對照來源】',
         json.dumps(sources, ensure_ascii=False, separators=(',', ':'), allow_nan=False),

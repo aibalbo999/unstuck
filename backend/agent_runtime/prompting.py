@@ -8,6 +8,7 @@ from prompt_evidence import prompt_evidence_copy
 from prompt_record_tables import pack_record_tables
 from prompt_state_references import compact_state_reference_section, compact_research_state_reference_section
 from research_assumption_contract import build_reconciliation_source_prompt
+from research_prompt_encoding import choose_financial_encoding, compact_previous_json
 from prompt_rules import (
     build_agent_rule_block,
     build_final_audit_preflight_rule,
@@ -169,7 +170,12 @@ def build_prompt(agent_num: int, data: StockData, context: AnalysisContext) -> s
     # Oversize input reaches admission intact and can take the full-data fallback.
     fin_data = (format_data_for_prompt(prompt_data, dense=True, role_scoped=role_scoped)
                 if gemma_prompt else format_data_for_prompt(prompt_data, compact=compact_primary, compact_json=True))
+    if agent_num == 7 and not gemma_prompt:
+        fin_data = choose_financial_encoding(fin_data, format_data_for_prompt(
+            prompt_data, compact=compact_primary, dense=True, role_scoped=False))
     prev = _format_previous(context, agent_num, max_total_chars=max(0, total_budget - state_budget))
+    if agent_num == 7:
+        prev = compact_previous_json(prev)
     raw_rag_context = context.get("rag_context")
     rag_contexts = raw_rag_context if isinstance(raw_rag_context, dict) else {}
     raw_agent_rag_context = rag_contexts.get(agent_num, "")

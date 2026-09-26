@@ -7,6 +7,7 @@ from typing import Any
 from data_trust_scoring import normalize_data_trust
 from mapping_fields import safe_mapping_dict, safe_text
 from recommendation_labels import normalize_recommendation_label
+from trade_execution_contract import short_observation_action_conflicts
 from .content_credibility_alignment import evaluate_recommendation_target_alignment
 from .content_credibility_confidence_calibration import evaluate_confidence_data_trust_calibration
 from .content_credibility_data_confidence import evaluate_data_confidence_target_guardrail
@@ -53,6 +54,16 @@ def evaluate_content_credibility(context: dict, snapshot: dict | None = None, ma
     evidence_verdict = safe_text(evidence_gate.get("verdict")).strip() or "not_recorded"
     confidence_score = recommendation_confidence_score(recommendation)
     final_audit = _as_dict(context.get("final_audit")) or _as_dict(snapshot.get("final_audit")) or final_audit_from_conformance(snapshot.get("report_conformance"))
+    short_observation_conflicts = []
+    if pipeline_id == "v3" and safe_text(raw_recommendation).strip() == "避免":
+        decisions = [parsed]
+        for holder in (context, snapshot):
+            structured_outputs = _as_dict(holder.get("structured_outputs"))
+            decisions.extend((_as_dict(structured_outputs.get(19)), _as_dict(structured_outputs.get("19"))))
+        for decision in decisions:
+            for conflict in short_observation_action_conflicts(decision.get("scenario_triggers")):
+                if conflict not in short_observation_conflicts:
+                    short_observation_conflicts.append(conflict)
 
     if pipeline_id == "v4":
         alignment = evaluate_trade_setup_alignment(trade_setup=trade_setup, current_price=current_price)
@@ -66,6 +77,7 @@ def evaluate_content_credibility(context: dict, snapshot: dict | None = None, ma
             # Normalized sell/reduce/compound labels can imply an existing
             # position; they are insufficient proof of a no-position contract.
             short_setup=_as_dict(parsed.get("short_setup")) if safe_text(raw_recommendation).strip() == "避免" else {},
+            short_observation_conflicts=short_observation_conflicts,
         )
     results = [
         alignment,
