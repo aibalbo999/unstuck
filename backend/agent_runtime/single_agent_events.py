@@ -16,7 +16,7 @@ _CACHE_DECISION_REASONS = frozenset({
     ("miss", "no_entry"), ("bypass", "repair_bypass"), ("bypass", "disabled"),
     ("error", "read_error"), ("reject", "invalid_entry"),
     ("reject", "a7_known_assessment_failure"), ("reject", "a7_invalid_entry"),
-    ("reject", "manifest_mismatch"),
+    ("reject", "context_contract_mismatch"),
 })
 
 

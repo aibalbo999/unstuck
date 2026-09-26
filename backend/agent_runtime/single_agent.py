@@ -124,7 +124,7 @@ def run_single_agent(
             record_node_cache_response(context, agent_num, cached_step)
             return result
         if cached_step is not None:
-            cache_observation = {"decision": "reject", "reason": "manifest_mismatch"}
+            cache_observation = {"decision": "reject", "reason": "context_contract_mismatch"}
         emit_sync_cache_decision(context, agent_num, model_id, cache_key, cache_observation)
         try:
             admission = admit_model_input_sync(
@@ -232,7 +232,7 @@ async def run_single_agent_async(
             record_node_cache_response(context, agent_num, cached_step)
             return result
         if cached_step is not None:
-            cache_observation = {"decision": "reject", "reason": "manifest_mismatch"}
+            cache_observation = {"decision": "reject", "reason": "context_contract_mismatch"}
         await emit_async_cache_decision(context, agent_num, model_id, cache_key, cache_observation)
         try:
             admission = await admit_model_input_async(

@@ -130,7 +130,7 @@ def invoke(mode, state):
 @pytest.mark.parametrize('case,reason', [
     ('none', 'no_entry'), ('repair', 'repair_bypass'), ('disabled', 'disabled'),
     ('read_error', 'read_error'), ('known_failure', 'a7_known_assessment_failure'),
-    ('manifest', 'manifest_mismatch'), ('denied', 'no_entry'),
+    ('manifest', 'context_contract_mismatch'), ('denied', 'no_entry'),
 ])
 def test_routed_miss_event_precedes_admission_and_never_becomes_a_provider_call(monkeypatch, mode, case, reason):
     state, calls, reads, events = configure_runner(monkeypatch, case)
