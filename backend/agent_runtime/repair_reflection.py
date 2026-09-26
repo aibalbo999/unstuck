@@ -126,6 +126,7 @@ def build_audit_retry_instruction(agent_num: int, issues: list[str], *, previous
     from institutional_evidence_prompt import institutional_repair_diagnostic_prompt
     diagnostics = (institutional_repair_diagnostic_prompt(previous_text, data)
                    if agent_num == 23 and previous_text and isinstance(data, dict) else "")
+    research_feedback = []
     if isinstance(context, dict) and isinstance(data, dict):
         from .repair_candidates import prior_repair_issues
         history = [issue for issue in prior_repair_issues(context, agent_num, data) if issue not in issues]
@@ -136,7 +137,15 @@ def build_audit_retry_instruction(agent_num: int, issues: list[str], *, previous
         if agent_num == 19:
             from .repair_diagnostics import recommendation_repair_diagnostic
             diagnostics += recommendation_repair_diagnostic(context, data, previous_text or '')
-    issue_lines = "\n".join(f"- {str(issue)[:1000]}" for issue in issues[:16])
+        if agent_num == 7:
+            from .repair_state import research_repair_feedback
+            research_feedback = research_repair_feedback(context)
+            if research_feedback:
+                diagnostics += ("\n【本次 A7 假設對照診斷】\n"
+                                + "\n".join(f"- {issue}" for issue in research_feedback) + "\n")
+    # The current field diagnosis is displayed once even when candidate
+    # validation already supplied the same messages as repair issues.
+    issue_lines = "\n".join(f"- {str(issue)[:1000]}" for issue in issues[:16] if issue not in research_feedback)
     return (
         "🚨【最終跨 Agent 稽核要求重寫本段】\n"
         "系統在正式報告存檔前發現以下問題，請完全重寫或補跑本 Agent 的輸出正文，"

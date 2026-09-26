@@ -11,6 +11,50 @@ from .state_report_adapter import record_agent_state_report
 from .structured_repair_contracts import structured_output_missing
 
 
+def research_repair_feedback(context: dict) -> list[str]:
+    """Explain existing A7 failures using validated fields, never alter a claim."""
+    from research_assumption_contract import AssumptionReconciliation, TOPICS, assess_reconciliation
+
+    outputs = context.get("structured_outputs") or {}
+    output = outputs.get(7, outputs.get("7")) if isinstance(outputs, dict) else None
+    if not isinstance(output, dict):
+        return []
+    value = output.get("assumption_reconciliation")
+    assessment = assess_reconciliation(value, context)
+    if not assessment["issues"]:
+        return []
+    try:
+        checked = AssumptionReconciliation.model_validate(value)
+    except (ValueError, TypeError):
+        return ["假設對照結構缺漏或格式錯誤；依既有 schema 重寫完整五項對照，不可補造證據。"]
+    if "incomplete_assumption_topics" in assessment["issues"]:
+        return ["假設對照五項 topic 必須各出現一次：" + "、".join(TOPICS) + "；不可用重複項目代替缺項。"]
+    rows = {row.topic: row for row in checked.checks}
+    feedback = []
+    for item in assessment["quote_issues"]:
+        row = rows[item["topic"]]
+        reason = ("引文為空，不能支持目前 aligned/conflict 判定。"
+                  if not getattr(row, item["field"]).strip()
+                  else "引文不是對應來源中的連續逐字片段。")
+        feedback.append(f"假設對照 {row.topic}.{item['field']}（來源 Agent {item['source_agent']}；"
+                        f"目前 status={row.status}）：{reason}")
+    if "missing_reconciliation_rationale" in assessment["issues"]:
+        fields = "、".join(f"{row.topic}.rationale" for row in checked.checks if not row.rationale.strip())
+        feedback.append(f"假設對照 {fields} 為空白；須逐項說明依據或資料缺口。")
+    if "inconsistent_reconciliation_status" in assessment["issues"]:
+        feedback.append(f"assumption_reconciliation.status={checked.status} 與各列不一致；"
+                        f"依目前五列應為 {assessment['status']}。修正各列後重新聚合："
+                        "conflict 優先，其次 unassessed，全部 aligned 才能標 aligned。")
+    if "conflict_requires_recalculation" in assessment["issues"]:
+        feedback.append("assumption_reconciliation.pending_recalculation=false；保留 conflict 時必須為 true，"
+                        "既有價格不代表已完成重算。修正各列後依最終狀態核對。")
+    if feedback:
+        feedback.append("只可引用對應 Agent 的連續原文，不可省略、拼接或補造；無對應證據時引文留空、"
+                        "本列標 unassessed 並說明缺口。重寫完整候選，同步核對正文、推薦與市場評估，"
+                        "不得只改標籤以通過檢查。")
+    return feedback
+
+
 def repair_contract_issues(agent_num: int, context: dict) -> list[str]:
     """Use existing per-agent contracts; the complete report audit still follows."""
     issues = []
@@ -20,17 +64,7 @@ def repair_contract_issues(agent_num: int, context: dict) -> list[str]:
     if structured_output_missing(context, agent_num):
         issues.append(f"Agent {agent_num} 結構化輸出未通過本模式契約檢查。")
         if agent_num == 7:
-            from research_assumption_contract import assess_reconciliation
-            outputs = context.get("structured_outputs") or {}
-            output = outputs.get(agent_num, outputs.get(str(agent_num)))
-            output = output if isinstance(output, dict) else {}
-            assessment = assess_reconciliation(output.get("assumption_reconciliation"), context)
-            if assessment['quote_issues']:
-                fields = [f"Agent {source}: " + ', '.join(f"{item['topic']}.{item['field']}"
-                          for item in assessment['quote_issues'] if item['source_agent'] == source)
-                          for source in (4, 5) if any(item['source_agent'] == source for item in assessment['quote_issues'])]
-                issues.append("假設對照逐字來源不符：" + '；'.join(fields)
-                              + "。保留括號與格式，不可省略拼接；無對應資料須留空並標 unassessed。")
+            issues.extend(research_repair_feedback(context))
         if get_structured_agent_num("short_setup", context) == agent_num:
             outputs = context.get("structured_outputs") or {}
             output = outputs.get(agent_num, outputs.get(str(agent_num)))
