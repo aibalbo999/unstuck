@@ -88,6 +88,12 @@ async def initial_or_checkpointed_draft(agent_num, data, context, rotator, gener
         manifests.pop(str(agent_num), None)
         if isinstance(record.get("market_context_manifest"), dict):
             manifests[agent_num] = copy.deepcopy(record["market_context_manifest"])
+        if agent_num == 7:
+            context.pop("_research_completion_receipt", None)
+            context.pop("_research_incomplete_fields", None)
+            receipt = record.get("research_completion_receipt")
+            if isinstance(receipt, dict) and receipt.get("version") == 1:
+                context["_research_completion_receipt"] = copy.deepcopy(receipt)
         if agent_num == 24:
             context.pop("_trade_completion_receipt", None)
             receipt = record.get("trade_completion_receipt")
@@ -130,6 +136,8 @@ async def checkpoint_unvalidated_draft(agent_num: int, result: str, context: dic
     if agent_num == 24:
         record["trade_source_manifest"] = copy.deepcopy(context.get("_trade_source_manifest"))
         record["trade_completion_receipt"] = copy.deepcopy(context.get("_trade_completion_receipt"))
+    if agent_num == 7:
+        record["research_completion_receipt"] = copy.deepcopy(context.get("_research_completion_receipt"))
     record["repair_candidate_history"] = _agent_value(context, "repair_candidate_history", agent_num)
     await _save_record(node, record)
 

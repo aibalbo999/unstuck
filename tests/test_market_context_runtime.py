@@ -21,7 +21,7 @@ def test_fallback_output_keeps_fallback_manifest_and_not_failed_primary(monkeypa
     monkeypatch.setattr(single_agent, "get_runtime_model_sequence", lambda *a: ["primary", "fallback"])
     monkeypatch.setattr(single_agent, "get_cached_agent_step", lambda *a: None)
     monkeypatch.setattr(single_agent, "store_cached_agent_step", lambda *a, **k: None)
-    monkeypatch.setattr(prompting, "get_agent_prompt_token_budget", lambda *a: 0)
+    monkeypatch.setattr(prompting, "get_agent_prompt_token_budget", lambda *a, **k: 0)
 
     def invoke(agent, ctx, rotator, model, prompt, **kwargs):
         attempted[model] = prompt
@@ -51,6 +51,7 @@ def test_fallback_output_keeps_fallback_manifest_and_not_failed_primary(monkeypa
 def test_cache_roundtrip_preserves_independent_manifest_and_requires_match(monkeypatch):
     from agent_runtime import step_cache
     from market_context_manifest import build_source_blocks, build_market_context_manifest
+    from test_research_quote_fidelity import candidate
 
     data = source_data()
     blocks = build_source_blocks(data, agent_num=7)
@@ -58,7 +59,7 @@ def test_cache_roundtrip_preserves_independent_manifest_and_requires_match(monke
     manifest = build_market_context_manifest(data, prompt, blocks, agent_num=7)
     context = {"data": data, "market_context_contract_version": "market_context.v1",
                "market_context_manifests": {7: manifest}, "_market_context_attempt_manifests": {7: manifest},
-               "structured_outputs": {7: {"analysis_markdown": "decision"}}}
+               "structured_outputs": {7: {**candidate(quote=""), "analysis_markdown": "decision"}}}
     saved = {}
     monkeypatch.setattr(step_cache, "AGENT_STEP_CACHE_ENABLED", True)
     monkeypatch.setattr(step_cache, "AGENT_STEP_CACHE_SECONDS", 100)
@@ -85,7 +86,7 @@ def test_failed_primary_structured_output_cannot_be_adopted_as_plain_fallback(mo
     monkeypatch.setattr(single_agent, "get_runtime_model_sequence", lambda *a: ["primary", "fallback"])
     monkeypatch.setattr(single_agent, "get_cached_agent_step", lambda *a: None)
     monkeypatch.setattr(single_agent, "store_cached_agent_step", lambda *a, **k: None)
-    monkeypatch.setattr(prompting, "get_agent_prompt_token_budget", lambda *a: 0)
+    monkeypatch.setattr(prompting, "get_agent_prompt_token_budget", lambda *a, **k: 0)
 
     async def invoke(agent, ctx, rotator, model, prompt, **kwargs):
         if model == "primary":

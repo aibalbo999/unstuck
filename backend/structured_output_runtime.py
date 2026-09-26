@@ -4,9 +4,10 @@ from __future__ import annotations
 
 import re
 import hashlib
+import json
 from analysis_types import AnalysisContext
 from google_prompt_safety import GOOGLE_SCHEMA_VALUE_REPLACEMENTS
-from json_utils import extract_json_payload
+from json_utils import _strip_code_fence, extract_json_payload
 from llm_provider_routes import provider_for_model
 from recommendation_labels import CANONICAL_RECOMMENDATIONS
 from structured_output_models import STRUCTURED_AGENT_INSTRUCTIONS
@@ -55,25 +56,75 @@ def _decode_google_recommendation(agent_num: int, payload, model_id: str | None)
     return {**payload, "recommendation": recommendation}
 
 
-def _trade_completion_receipt(raw_text, context, supplied):
+def _research_json_complete(raw_text: str) -> bool:
+    """Require the complete root as well as all strings/containers for A7."""
+    # Match the parser's fence handling, but never let its tolerant repair
+    # manufacture a missing outer root or select an unrelated inner object.
+    text = _strip_code_fence(str(raw_text or ""))
+    if not text.startswith("{"):
+        return False
+    quoted, escaped, stack = None, False, []
+    for index, character in enumerate(text):
+        if quoted:
+            if escaped:
+                escaped = False
+            elif character == "\\":
+                escaped = True
+            elif character == quoted:
+                quoted = None
+        elif character in ('"', "'", "“", "‘"):
+            quoted = {"“": "”", "‘": "’"}.get(character, character)
+        elif character in "{[":
+            stack.append(character)
+        elif character in "}]":
+            if not stack or stack.pop() != ("{" if character == "}" else "["):
+                return False
+            if not stack:
+                return not text[index + 1:].strip()
+    return False
+
+
+def _trade_completion_receipt(raw_text, context, supplied, *, agent_num=24):
     """Bind diagnostics to this response and its exact local sanitizer transforms."""
     from output_sanitizer import sanitize_model_output
     from agent_runtime.generation_config import GENERATION_POLICY_VERSION
+    key = "_research_completion_receipt" if agent_num == 7 else "_trade_completion_receipt"
+    policy = GENERATION_POLICY_VERSION
+    if agent_num == 7:
+        from agent_runtime.generation_config import AGENT7_COMPLETION_POLICY
+        policy = AGENT7_COMPLETION_POLICY
     digest = lambda value: hashlib.sha256(value.encode()).hexdigest()
     raw_hash = digest(raw_text)
+    if agent_num == 7 and isinstance(supplied, dict):
+        observed = _completion_diagnostics(supplied)
+        # No finish observation is not evidence that a known-incomplete
+        # identical response became complete during a second parsing pass.
+        if not observed["finish_reasons"] and observed.get("stream_completed") is not False:
+            supplied = None
     if isinstance(supplied, dict):
         cleaned = _sanitize_text(raw_text)
         receipt = {"version": 1, "raw_sha256": raw_hash,
                    "text_sha256": sorted({raw_hash, digest(cleaned), digest(sanitize_model_output(cleaned))}),
                    "diagnostics": _completion_diagnostics(supplied),
-                   "generation_policy_version": GENERATION_POLICY_VERSION}
-        context["_trade_completion_receipt"] = receipt
+                   "generation_policy_version": policy}
+        if agent_num == 7:
+            receipt["raw_json_complete"] = _research_json_complete(raw_text)
+        context[key] = receipt
         return receipt
-    receipt = context.get("_trade_completion_receipt")
+    receipt = context.get(key)
     if (isinstance(receipt, dict) and receipt.get("version") == 1
             and isinstance(receipt.get("text_sha256"), list) and raw_hash in receipt["text_sha256"]):
         return receipt
-    return {"raw_sha256": raw_hash, "diagnostics": {}, "generation_policy_version": GENERATION_POLICY_VERSION}
+    if agent_num == 7:
+        # A different legacy response must not inherit the previous finish fact.
+        cleaned = _sanitize_text(raw_text)
+        receipt = {"version": 1, "raw_sha256": raw_hash,
+                   "text_sha256": sorted({raw_hash, digest(cleaned), digest(sanitize_model_output(cleaned))}),
+                   "diagnostics": _completion_diagnostics({}), "generation_policy_version": policy,
+                   "raw_json_complete": _research_json_complete(raw_text)}
+        context[key] = receipt
+        return receipt
+    return {"raw_sha256": raw_hash, "diagnostics": {}, "generation_policy_version": policy}
 
 
 def process_agent_response(
@@ -87,9 +138,15 @@ def process_agent_response(
     if agent_num in {7, 24}:
         context.setdefault("structured_outputs", {}).pop(agent_num, None)
         context["structured_outputs"].pop(str(agent_num), None)
-    receipt = _trade_completion_receipt(raw_text or "", context, completion_diagnostics) if agent_num == 24 else {}
+    receipt = _trade_completion_receipt(raw_text or "", context, completion_diagnostics, agent_num=agent_num) if agent_num in {7, 24} else {}
     observed_completion = _completion_diagnostics(receipt.get("diagnostics"))
     finish_reasons = observed_completion["finish_reasons"]
+    if agent_num == 7:
+        incomplete = completion_is_incomplete(observed_completion)
+        if incomplete or not receipt.get("raw_json_complete"):
+            context["_research_incomplete_fields"] = ["provider_output_incomplete" if incomplete else "truncated_json"]
+            return _sanitize_text(raw_text or "")
+        context.pop("_research_incomplete_fields", None)
     if agent_num == 24 and completion_is_incomplete(observed_completion):
         context["_trade_incomplete_fields"] = ["provider_output_incomplete"]
         return _sanitize_text(raw_text or "")
@@ -170,5 +227,17 @@ def process_agent_response(
 
     warn_high_confidence_with_low_trust(agent_num, structured, context)
     context.setdefault("structured_outputs", {})[agent_num] = structured
+    if agent_num == 7:
+        receipt["structured_output_sha256"] = hashlib.sha256(json.dumps(
+            structured, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str,
+        ).encode()).hexdigest()
     final_text = structured_output_to_report_text(agent_num, structured, raw_text)
-    return _sanitize_text(final_text)
+    result = _sanitize_text(final_text)
+    if agent_num == 7:
+        from output_sanitizer import sanitize_model_output
+        rendered_hashes = sorted({hashlib.sha256(value.encode()).hexdigest()
+                                 for value in (result, sanitize_model_output(result))})
+        # Only this actual render authorizes report text for step-cache writes.
+        receipt["rendered_text_sha256"] = rendered_hashes
+        receipt["text_sha256"] = list(dict.fromkeys([*receipt["text_sha256"], *rendered_hashes]))[:8]
+    return result

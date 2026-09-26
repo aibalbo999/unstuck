@@ -54,7 +54,7 @@ def test_agent_google_system_instruction_is_data_parser_not_financial_advisor():
 def test_gemini_3_flash_preview_receives_fallback_detail_instruction():
     from agent_runtime.generation_config import google_safe_agent_system_instruction
 
-    safe_instruction = google_safe_agent_system_instruction(7, "gemini-3-flash-preview")
+    safe_instruction = google_safe_agent_system_instruction(6, "gemini-3-flash-preview")
 
     assert "You are operating as a fallback model" in safe_instruction
     assert "comprehensive, highly detailed, and complete analysis" in safe_instruction
