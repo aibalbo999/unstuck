@@ -194,7 +194,13 @@ def build_prompt(agent_num: int, data: StockData, context: AnalysisContext) -> s
     audit_retry_instruction = _safe_prompt_text(context.get("_audit_retry_instruction", ""))
     audit_reflection_instruction = _safe_prompt_text(context.get("_audit_reflection_instruction", ""))
     temporal_memory_section = build_temporal_memory_section(agent_num, prompt_data)
-    final_audit_preflight_rule = build_final_audit_preflight_rule(agent_num, context.get("pipeline_id", ""))
+    from forward_consistency_checker import recommendation_contract_guidance
+    # The standalone retry already carries this complete instruction. Only an
+    # exact instruction line suppresses its duplicate; source records stay intact.
+    final_audit_preflight_rule = build_final_audit_preflight_rule(
+        agent_num, context.get("pipeline_id", ""),
+        include_recommendation_contract=recommendation_contract_guidance() not in audit_retry_instruction.splitlines(),
+    )
     from position_sizing_runtime import sizing_prompt
     position_input_instruction = sizing_prompt(context) if agent_num == 16 else ""
 
