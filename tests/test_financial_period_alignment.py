@@ -197,7 +197,11 @@ def install_finmind_frames(monkeypatch, capex, statement_date="2025-12-31"):
     cash = {"NetCashInflowFromOperatingActivities": 5e8}
     if capex is not None:
         cash["PropertyAndPlantAndEquipment"] = capex
-    frames = {"financials": frame({"Revenue": 2e9, "IncomeAfterTaxes": 4e8}),
+    financial_rows = [{"date": f"2025-{suffix}", "type": kind, "value": value,
+                       "origin_name": "淨利（淨損）歸屬於母公司業主" if kind == "EquityAttributableToOwnersOfParent" else kind}
+                      for suffix in ("03-31", "06-30", "09-30", "12-31")
+                      for kind, value in {"Revenue": 5e8, "EquityAttributableToOwnersOfParent": 1e8}.items()]
+    frames = {"financials": pd.DataFrame(financial_rows),
               "balance": frame({"TotalAssets": 6e9, "Equity": 3e9}), "cashflow": frame(cash)}
     calls = []
     def fetches(stock_id, start_date):
@@ -209,24 +213,25 @@ def install_finmind_frames(monkeypatch, capex, statement_date="2025-12-31"):
     return taiwan, calls
 
 
-@pytest.mark.parametrize("capex, expected", [(None, None), (0, 0.5), (-1e8, 0.4)])
-def test_finmind_requires_known_capex_and_preserves_signed_formula(monkeypatch, capex, expected):
+@pytest.mark.parametrize("capex", [None, 0, -1e8])
+def test_finmind_ppe_component_is_not_complete_capex(monkeypatch, capex):
     taiwan, calls = install_finmind_frames(monkeypatch, capex)
     result = taiwan.fetch_finmind_financial_statement_fallback("2254.TW")
-    assert result["fcf_history"] == [expected]
+    assert result["fcf_history"] == [None]
+    assert result["rows_by_year"]["2025"]["operating_cash_flow"] == 5e8
+    assert result["rows_by_year"]["2025"]["property_and_equipment_cash_flow"] == capex
     assert result["rows_by_year"]["2025"]["statement_date"] == "2025-12-31"
     assert len(calls) == 1
 
 
 @pytest.mark.parametrize("capex, statement_date", [(None, "2025-12-31"), (-1e8, "2025-06-30"),
                                                   (0, "2025-12-31"), (-1e8, "2025-12-31")])
-def test_yahoo_to_finmind_fcf_fill_requires_both_capex_and_same_date(monkeypatch, capex, statement_date):
+def test_yahoo_to_finmind_cannot_fill_fcf_with_only_ppe(monkeypatch, capex, statement_date):
     _taiwan, calls = install_finmind_frames(monkeypatch, capex, statement_date)
     frames = captured_frames()
     frames["cashflow"] = frames["cashflow"].drop("Capital Expenditure")
     result = extract_financial_histories(StatementStock(frames), "2254.TW", [], data_loader_cls=object)
-    expected = round(0.5 + capex / 1e9, 2) if capex is not None and statement_date == "2025-12-31" else None
-    assert result["fcf_history"] == [None, None, None, expected]
+    assert result["fcf_history"] == [None, None, None, None]
     assert len(calls) == 1
     assert result["primary_financial_audit"]["status"] == "degraded_enrichment"
 

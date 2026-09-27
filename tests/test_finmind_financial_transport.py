@@ -48,7 +48,11 @@ def synthetic_tables():
     def rows(values):
         return [{"date": "2025-12-31", "stock_id": "5314", "type": name, "value": value,
                  "origin_name": name} for name, value in values.items()]
-    return {"financials": rows({"Revenue": 2e9, "IncomeAfterTaxes": 4e8}),
+    quarters = [{"date": f"2025-{suffix}", "stock_id": "5314", "type": kind, "value": value,
+                 "origin_name": "淨利（淨損）歸屬於母公司業主" if kind == "EquityAttributableToOwnersOfParent" else kind}
+                for suffix in ("03-31", "06-30", "09-30", "12-31")
+                for kind, value in {"Revenue": 5e8, "EquityAttributableToOwnersOfParent": 1e8}.items()]
+    return {"financials": quarters,
             "balance": rows({"TotalAssets": 6e9, "Equity": 3e9}),
             "cashflow": rows({"NetCashInflowFromOperatingActivities": 5e8,
                               "PropertyAndPlantAndEquipment": -1e8})}
@@ -77,7 +81,10 @@ def test_financial_fallback_uses_one_bounded_transport_without_sdk_login(monkeyp
     assert sdk_logins == []
     assert len(transport_calls) == 1
     assert transport_calls[0][0] == "5314"
-    assert result["fcf_history"] == [0.4]
+    assert result["fcf_history"] == [None]
+    assert result["rows_by_year"]["2025"]["operating_cash_flow"] == 5e8
+    assert result["rows_by_year"]["2025"]["property_and_equipment_cash_flow"] == -1e8
+    assert result["rows_by_year"]["2025"]["free_cash_flow_status"] == "capex_scope_unverified"
     assert result["revenue_history"] == [2.0]
 
 
@@ -320,22 +327,25 @@ def test_three_nonempty_tables_with_missing_fields_are_still_partial(monkeypatch
         "tables": tables, "components": {name: {"status": "success"} for name in tables}, "error": None})
     result = FinMindProvider().fetch(FetchRequest.from_ticker("5314.TWO"))
     assert result.status == "degraded_enrichment"
-    assert result.value["fcf_history"] == [0.4]
+    assert result.value["fcf_history"] == [None]
+    assert result.value["rows_by_year"]["2025"]["operating_cash_flow"] == 5e8
     assert result.value["gross_profit_history"] == [None]
     assert result.audit["quality_status"] == "not_assessed"
 
 
-def test_complete_selected_fields_and_zero_remain_available(monkeypatch):
+def test_annual_income_zero_remains_available_but_capex_scope_keeps_partial(monkeypatch):
     from data_fetch.market_sources import finmind_financial_transport as transport
     tables = synthetic_tables()
-    tables["financials"] += [{"date": "2025-12-31", "stock_id": "5314", "type": key, "value": 0}
+    tables["financials"] += [{"date": f"2025-{suffix}", "stock_id": "5314", "type": key, "value": 0}
+                             for suffix in ("03-31", "06-30", "09-30", "12-31")
                              for key in ("GrossProfit", "OperatingIncome")]
     monkeypatch.setattr(transport, "fetch_statement_tables", lambda *_: {
         "tables": tables, "components": {name: {"status": "success"} for name in tables}, "error": None})
     result = FinMindProvider().fetch(FetchRequest.from_ticker("5314.TWO"))
-    assert result.status == "success"
+    assert result.status == "degraded_enrichment"
     assert result.value["gross_profit_history"] == [0.0]
-    assert result.audit["coverage_status"] == "selected_fields_present"
+    assert result.value["fcf_history"] == [None]
+    assert result.audit["coverage_status"] == "partial"
     assert result.audit["quality_status"] == "not_assessed"
 
 

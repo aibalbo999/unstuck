@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta
 from typing import Optional
+import math
 
 import pandas as pd
 
@@ -165,44 +166,75 @@ def _history_has_values(values: list) -> bool:
     return bool(values) and any(value is not None for value in values)
 
 
+def _finmind_number(value) -> Optional[float]:
+    if not pd.api.types.is_number(value) or pd.api.types.is_bool(value) or pd.api.types.is_complex(value):
+        return None
+    try:
+        number = float(value)
+        return number if math.isfinite(number) else None
+    except (TypeError, ValueError, OverflowError):
+        return None
+
+
 def _raw_twd_to_billion(value) -> Optional[float]:
-    number = safe_float(value)
-    if number is None:
-        return None
-    return round(number / 1e9, 2)
+    number = _finmind_number(value)
+    return round(number / 1e9, 2) if number is not None else None
 
 
-def _finmind_value(df: pd.DataFrame, statement_date: str, type_candidates: list[str]) -> Optional[float]:
-    if df is None or df.empty:
+def _finmind_raw_value(df: pd.DataFrame, statement_date: str, type_candidates: list[str],
+                       *, prefer_first: bool = False, origin_name: str | None = None) -> Optional[float]:
+    """Require unique rows; aliases agree, or explicitly prioritize a present type."""
+    if df is None or df.empty or not {"date", "type", "value"}.issubset(df.columns):
         return None
-    rows = df[(df["date"] == statement_date) & (df["type"].isin(type_candidates))]
-    if rows.empty:
+    values = []
+    for field in type_candidates:
+        rows = df[(df["date"] == statement_date) & (df["type"] == field)]
+        if rows.empty:
+            continue
+        if len(rows) != 1:
+            return None
+        row = rows.iloc[0]
+        if origin_name is not None:
+            label = row.get("origin_name")
+            normalized = "".join(label.split()).replace("（", "(").replace("）", ")") if isinstance(label, str) else ""
+            if normalized != origin_name:
+                return None
+        value = _finmind_number(row.get("value"))
+        if value is None:
+            return None
+        if prefer_first:
+            return value
+        values.append(value)
+    return values[0] if values and all(value == values[0] for value in values) else None
+
+
+def _finmind_annual_income(df: pd.DataFrame, statement_date: str, field: str,
+                           *, parent_profit: bool = False) -> Optional[float]:
+    # FinancialStatements contains individual quarters, including the December row.
+    label = "淨利(淨損)歸屬於母公司業主" if parent_profit else None
+    values = [_finmind_raw_value(df, statement_date[:4] + suffix, [field], origin_name=label)
+              for suffix in ("-03-31", "-06-30", "-09-30", "-12-31")]
+    if any(value is None for value in values):
         return None
-    return _raw_twd_to_billion(rows.iloc[0].get("value"))
+    try:
+        return _raw_twd_to_billion(math.fsum(values))
+    except OverflowError:
+        return None
 
 
 def _finmind_statement_dates(*frames: pd.DataFrame) -> list[str]:
     dates = set()
     for df in frames:
         if df is not None and not df.empty and "date" in df.columns:
-            dates.update(str(value)[:10] for value in df["date"].dropna().unique())
-
-    annual_dates = sorted(date for date in dates if date.endswith("12-31"))
-    if annual_dates:
-        return annual_dates[-5:]
-
-    by_year: dict[str, list[str]] = {}
-    for statement_date in dates:
-        year = statement_date[:4]
-        if year.isdigit():
-            by_year.setdefault(year, []).append(statement_date)
-
-    selected = []
-    for _year, year_dates in by_year.items():
-        year_dates = sorted(year_dates)
-        annual = [date for date in year_dates if date.endswith("12-31")]
-        selected.append(annual[-1] if annual else year_dates[-1])
-    return sorted(selected)[-5:]
+            for value in df["date"]:
+                if not isinstance(value, str) or len(value) != 10 or not value.endswith("-12-31"):
+                    continue
+                try:
+                    if datetime.strptime(value, "%Y-%m-%d").strftime("%Y-%m-%d") == value:
+                        dates.add(value)
+                except ValueError:
+                    continue
+    return sorted(dates)[-5:]
 
 
 class _FinMindStatementValue(dict):
@@ -289,7 +321,7 @@ def fetch_finmind_financial_statement_fallback(ticker: str) -> dict:
 
 
 def _assemble_finmind_financial_statements(frames: dict) -> dict:
-    """Existing financial arithmetic/period selection, independent of transport."""
+    """Annual quarter sums, year-end balances, and incomplete CF components."""
     financials = frames.get("financials")
     balance = frames.get("balance")
     cashflow = frames.get("cashflow")
@@ -301,25 +333,27 @@ def _assemble_finmind_financial_statements(frames: dict) -> dict:
     rows_by_year = {}
     for statement_date in statement_dates:
         year = statement_date[:4]
-        operating_cash_flow = _finmind_value(
-            cashflow,
-            statement_date,
+        operating_cash_flow = _finmind_raw_value(
+            cashflow, statement_date,
             ["NetCashInflowFromOperatingActivities", "CashFlowsFromOperatingActivities"],
         )
-        capex = _finmind_value(cashflow, statement_date, ["PropertyAndPlantAndEquipment"])
-        free_cash_flow = None
-        if operating_cash_flow is not None and capex is not None:
-            free_cash_flow = round(operating_cash_flow + capex, 2)
-
+        ppe_cash_flow = _finmind_raw_value(cashflow, statement_date, ["PropertyAndPlantAndEquipment"])
         rows_by_year[year] = {
             "statement_date": statement_date,
-            "revenue": _finmind_value(financials, statement_date, ["Revenue"]),
-            "net_income": _finmind_value(financials, statement_date, ["EquityAttributableToOwnersOfParent", "IncomeAfterTaxes"]),
-            "gross_profit": _finmind_value(financials, statement_date, ["GrossProfit"]),
-            "operating_income": _finmind_value(financials, statement_date, ["OperatingIncome"]),
-            "free_cash_flow": free_cash_flow,
-            "total_assets": _finmind_value(balance, statement_date, ["TotalAssets"]),
-            "total_equity": _finmind_value(balance, statement_date, ["EquityAttributableToOwnersOfParent", "Equity"]),
+            "revenue": _finmind_annual_income(financials, statement_date, "Revenue"),
+            "net_income": _finmind_annual_income(financials, statement_date, "EquityAttributableToOwnersOfParent", parent_profit=True),
+            "gross_profit": _finmind_annual_income(financials, statement_date, "GrossProfit"),
+            "operating_income": _finmind_annual_income(financials, statement_date, "OperatingIncome"),
+            # This dataset lacks verified intangible acquisition outflows. PPE
+            # alone cannot stand in for the complete capital-expenditure scope.
+            "free_cash_flow": None,
+            "operating_cash_flow": operating_cash_flow,
+            "property_and_equipment_cash_flow": ppe_cash_flow,
+            "cash_flow_value_unit": "TWD",
+            "free_cash_flow_status": "capex_scope_unverified" if operating_cash_flow is not None and ppe_cash_flow is not None else "missing_components",
+            "total_assets": _raw_twd_to_billion(_finmind_raw_value(balance, statement_date, ["TotalAssets"])),
+            "total_equity": _raw_twd_to_billion(_finmind_raw_value(
+                balance, statement_date, ["EquityAttributableToOwnersOfParent", "Equity"], prefer_first=True)),
         }
 
     years = sorted(rows_by_year.keys())[-5:]
