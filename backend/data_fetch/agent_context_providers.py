@@ -207,21 +207,24 @@ class SocialSentimentProvider(DataProvider):
     def _fetch_uncached(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
         from data_trust import AUDIT_STATUS_DEGRADED_ENRICHMENT, AUDIT_STATUS_SUCCESS
         from news_fetchers import fetch_google_news_rss, fetch_ptt_stock_sentiment
+        from company_news_queries import company_news_query
 
         data = (context or {}).get("data", {}) if isinstance((context or {}).get("data"), dict) else {}
-        company_name = str(data.get("company_name") or request.ticker).strip()
+        company_query = company_news_query({**data, "ticker": data.get("ticker") or request.ticker})
+        if not company_query.endswith(" when:30d"):
+            company_query += " when:30d"
         ticker = _taiwan_stock_id(data.get("ticker") or request.ticker)
 
         # Dcard
-        query_dcard = f'site:dcard.tw ("{company_name}" OR "{ticker}") when:30d'
+        query_dcard = f'site:dcard.tw {company_query}'
         dcard_news = fetch_google_news_rss(query_dcard, limit=3)
 
         # Mobile01
-        query_m01 = f'site:mobile01.com ("{company_name}" OR "{ticker}") when:30d'
+        query_m01 = f'site:mobile01.com {company_query}'
         m01_news = fetch_google_news_rss(query_m01, limit=3)
 
         # PTTWeb (alternative to pure PTT)
-        query_pttweb = f'site:pttweb.cc ("{company_name}" OR "{ticker}") when:30d'
+        query_pttweb = f'site:pttweb.cc {company_query}'
         pttweb_news = fetch_google_news_rss(query_pttweb, limit=3)
         ptt_direct = []
         if ticker.isdigit():
