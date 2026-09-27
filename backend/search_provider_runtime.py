@@ -115,7 +115,7 @@ def record_observation(provider, started, *, outcome, count=0, details=None, sou
     entry = {
         **current_correlation(), **metadata, 'source': source, 'provider': provider,
         'event_kind': 'http_attempt' if sent else 'local_block',
-        'status': 'success' if outcome == 'results' else ('degraded_enrichment' if outcome == 'valid_empty' else 'unavailable' if not sent or metadata.get('error_kind') in {'transport_error', 'timeout', 'server_error'} else 'error'),
+        'status': 'success' if outcome == 'results' else ('degraded_enrichment' if outcome in {'valid_empty', 'partial'} else 'unavailable' if not sent or metadata.get('error_kind') in {'transport_error', 'timeout', 'server_error'} else 'error'),
         'duration_ms': max(0, int((time.monotonic() - started) * 1000)),
         'record_count': count,
         'message': ('skip: ' if not sent else '') + json.dumps(metadata, separators=(',', ':'))[:230],

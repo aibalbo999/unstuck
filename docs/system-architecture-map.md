@@ -18,6 +18,8 @@ Yahoo 年度財報的提取觀測在 `data_fetch/financial_statement_observation
 
 `data_fetch/yfinance_extractors.py` 的年度歷史以損益表選定財期為基準，用完整日期對齊現金流、資產與權益，避免不同表格多出一欄時將 ROE 配到鄰年。合法零值保留，缺少 CapEx 時不由 Yahoo 現金流推算 FCF；`yfinance_derived.py` 的歷史利潤率與 ROE 也保留零分子。備援替換年度時，既有欄位須重新對齊，缺年保留未知。原始三表的多餘年度、缺值與完整性觀測仍保留，不能因輸出對齊就宣稱來源完整；FinMind 財報備援也要求營運現金流與 CapEx 皆已知才推算 FCF，避免備援再次將缺值當零；已知值沿用原公式。
 
+`official_financials_webpro_conference.py` 逐筆檢查法說索引的活動連結；單筆連結未通過 HTTPS 規則時，保留其排除原件並讓同頁合格場次繼續使用，結果標示部分取得，避免公司特定的舊連結觸發全來源冷卻。跨分類、快取與官方資料整合仍保留排除原因、原取得時間及部分狀態；全數連結不合格不能當成有效空結果或成功。HTTP、逾時及資料格式錯誤的原防護仍保留。索引日期不改寫，活動連結不自動升級或下載，索引不能當作已讀逐字稿；排除原件不進入可用提示證據。
+
 修復候選的兩層cache隔離與hash收據、逐record法人提示、工作execution_state及壅塞transition觀測，見[錯誤防再發](error-prevention-2026-09-22.md)。修復呼叫不重用未驗證候選，既有provider/RPD/品質上限保留；歷史錯誤與正式canary分開驗收。
 
 來源證據 v2、完成憑據與刷新保存的入口是 `trade_catalog_evidence.py`、`institutional_evidence.py`、`llm_completion_provenance.py`、`report_analysis_evidence.py`；來源觀測日期、上櫃融資券及工作歸屬分別由 `source_observation_freshness.py`、`tpex_credit_source.py`、`provider_correlation.py` 處理。契約及驗證限制見 [來源證據最佳化](source-evidence-optimization-2026-09-21.md)。
