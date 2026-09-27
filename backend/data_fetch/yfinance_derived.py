@@ -16,24 +16,24 @@ def calculate_margin_histories(
     roe_history = []
 
     for i in range(len(revenue_history)):
-        if revenue_history[i] and gross_profit_history and i < len(gross_profit_history) and gross_profit_history[i]:
+        if revenue_history[i] and gross_profit_history and i < len(gross_profit_history) and gross_profit_history[i] is not None:
             gross_margin_history.append(round((gross_profit_history[i] / revenue_history[i]) * 100, 1))
         else:
             gross_margin_history.append(None)
 
-        if revenue_history[i] and operating_income_history and i < len(operating_income_history) and operating_income_history[i]:
+        if revenue_history[i] and operating_income_history and i < len(operating_income_history) and operating_income_history[i] is not None:
             op_margin_history.append(round((operating_income_history[i] / revenue_history[i]) * 100, 1))
         else:
             op_margin_history.append(None)
 
-        if revenue_history[i] and net_income_history and i < len(net_income_history) and net_income_history[i]:
+        if revenue_history[i] and net_income_history and i < len(net_income_history) and net_income_history[i] is not None:
             net_margin_history.append(round((net_income_history[i] / revenue_history[i]) * 100, 1))
         else:
             net_margin_history.append(None)
 
     for i in range(len(net_income_history)):
         if (
-            net_income_history[i]
+            net_income_history[i] is not None
             and total_equity_history
             and i < len(total_equity_history)
             and total_equity_history[i]

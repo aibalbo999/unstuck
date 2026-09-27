@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta
+from collections import Counter
+import math
 import time
 from uuid import uuid4
 
@@ -19,6 +21,48 @@ from .market_sources.taiwan import (
 from source_audit import audited_fetch
 from provider_correlation import current_correlation
 from .financial_statement_observation import observe_financial_statements
+
+
+def _financial_period_key(value):
+    """Require a real statement end date; a year label alone cannot join tables."""
+    if isinstance(value, (date, datetime)) and not pd.isna(value):
+        return value.strftime("%Y-%m-%d")
+    if isinstance(value, str) and len(value) >= 10 and value[4] == value[7] == "-":
+        try:
+            return datetime.fromisoformat(value).date().isoformat()
+        except ValueError:
+            pass
+    return None
+
+
+def _financial_number(value):
+    if value is None or pd.api.types.is_bool(value) or pd.isna(value):
+        return None
+    number = float(value)
+    return number if math.isfinite(number) else None
+
+
+def _financial_billions(value):
+    number = _financial_number(value)
+    return round(number / 1e9, 2) if number is not None else None
+
+
+def _store_financial_period(mapping, period, value):
+    if period is not None:
+        # Two representations of the same date are ambiguous, never last-wins.
+        mapping[period] = None if period in mapping else value
+
+
+def _reproject_retained_history(original_years, periods, original_values, final_years, final_periods, fallback_values):
+    if not _history_has_values(original_values):
+        return fallback_values
+    if len(original_values) != len(periods) or len(periods) != len(original_years):
+        return [None] * len(final_years)
+    original_counts, final_counts = Counter(map(str, original_years)), Counter(map(str, final_years))
+    by_period = {(str(year), period): value for year, period, value in zip(original_years, periods, original_values)
+               if period and str(year) == period[:4] and original_counts[str(year)] == 1}
+    return [by_period.get((str(year), period)) if period and final_counts[str(year)] == 1 else None
+            for year, period in zip(final_years, final_periods)]
 
 
 def extract_price_history(stock) -> dict:
@@ -52,6 +96,7 @@ def extract_financial_histories(stock, ticker: str, data_source_notes: list, dat
     total_assets_history = []
     total_equity_history = []
     years = []
+    income_periods = []
     finmind_financial_fallback_audit = None
     primary_started_at = time.time()
     primary_metadata = {**current_correlation(), "ticker": ticker, "operation_id": uuid4().hex}
@@ -66,15 +111,17 @@ def extract_financial_histories(stock, ticker: str, data_source_notes: list, dat
             for col in financials.columns[:5]:
                 year = col.year if hasattr(col, "year") else str(col)[:4]
                 years.append(str(year))
+                income_periods.append(_financial_period_key(col))
                 rev = financials.loc["Total Revenue", col] if "Total Revenue" in financials.index else None
                 ni = financials.loc["Net Income", col] if "Net Income" in financials.index else None
                 gp = financials.loc["Gross Profit", col] if "Gross Profit" in financials.index else None
                 oi = financials.loc["Operating Income", col] if "Operating Income" in financials.index else None
-                revenue_history.append(round(float(rev) / 1e9, 2) if rev and not pd.isna(rev) else None)
-                net_income_history.append(round(float(ni) / 1e9, 2) if ni and not pd.isna(ni) else None)
-                gross_profit_history.append(round(float(gp) / 1e9, 2) if gp and not pd.isna(gp) else None)
-                operating_income_history.append(round(float(oi) / 1e9, 2) if oi and not pd.isna(oi) else None)
+                revenue_history.append(_financial_billions(rev))
+                net_income_history.append(_financial_billions(ni))
+                gross_profit_history.append(_financial_billions(gp))
+                operating_income_history.append(_financial_billions(oi))
             years = list(reversed(years))
+            income_periods = list(reversed(income_periods))
             revenue_history = list(reversed(revenue_history))
             net_income_history = list(reversed(net_income_history))
             gross_profit_history = list(reversed(gross_profit_history))
@@ -83,19 +130,22 @@ def extract_financial_histories(stock, ticker: str, data_source_notes: list, dat
         primary_errors["financials"] = type(e).__name__
         emit_log(f"    ⚠️  財務報表獲取失敗：{e}")
 
+    fcf_history = [None] * len(income_periods)
+    total_assets_history = [None] * len(income_periods)
+    total_equity_history = [None] * len(income_periods)
     try:
         cashflow = stock.cashflow
         primary_tables["cashflow"] = cashflow
         if cashflow is not None and not cashflow.empty:
-            fcf_by_year = {}
+            fcf_by_period = {}
             for col in cashflow.columns:
-                yr_key = str(col.year if hasattr(col, "year") else str(col)[:4])
+                period = _financial_period_key(col)
                 ocf = cashflow.loc["Operating Cash Flow", col] if "Operating Cash Flow" in cashflow.index else None
                 capex_val = cashflow.loc["Capital Expenditure", col] if "Capital Expenditure" in cashflow.index else None
-                ocf_val = float(ocf) / 1e9 if ocf is not None and not pd.isna(ocf) else None
-                capex_val_f = float(capex_val) / 1e9 if capex_val is not None and not pd.isna(capex_val) else 0
-                fcf_by_year[yr_key] = round(ocf_val + capex_val_f, 2) if ocf_val is not None else None
-            fcf_history = [fcf_by_year.get(y, None) for y in years]
+                ocf_val, capex_val_f = _financial_number(ocf), _financial_number(capex_val)
+                fcf = round(ocf_val / 1e9 + capex_val_f / 1e9, 2) if ocf_val is not None and capex_val_f is not None else None
+                _store_financial_period(fcf_by_period, period, fcf)
+            fcf_history = [fcf_by_period.get(period) for period in income_periods]
     except Exception as e:
         primary_errors["cashflow"] = type(e).__name__
         emit_log(f"    ⚠️  現金流數據獲取失敗：{e}")
@@ -104,29 +154,35 @@ def extract_financial_histories(stock, ticker: str, data_source_notes: list, dat
         balance = stock.balance_sheet
         primary_tables["balance_sheet"] = balance
         if balance is not None and not balance.empty:
-            equity_raw = []
-            assets_raw = []
+            equity_by_period = {}
+            assets_by_period = {}
             for col in balance.columns[:5]:
+                period = _financial_period_key(col)
                 eq = balance.loc["Stockholders Equity", col] if "Stockholders Equity" in balance.index else (
                     balance.loc["Total Equity Gross Minority Interest", col] if "Total Equity Gross Minority Interest" in balance.index else None)
                 ta = balance.loc["Total Assets", col] if "Total Assets" in balance.index else None
-                equity_raw.append(round(float(eq) / 1e9, 2) if eq and not pd.isna(eq) else None)
-                assets_raw.append(round(float(ta) / 1e9, 2) if ta and not pd.isna(ta) else None)
-            total_equity_history = list(reversed(equity_raw))
-            total_assets_history = list(reversed(assets_raw))
+                _store_financial_period(equity_by_period, period, _financial_billions(eq))
+                _store_financial_period(assets_by_period, period, _financial_billions(ta))
+            total_equity_history = [equity_by_period.get(period) for period in income_periods]
+            total_assets_history = [assets_by_period.get(period) for period in income_periods]
     except Exception as e:
         primary_errors["balance_sheet"] = type(e).__name__
         emit_log(f"    ⚠️  資產負債表獲取失敗：{e}")
 
+    primary_histories = {
+        "years": years, "revenue_history": revenue_history, "net_income_history": net_income_history,
+        "gross_profit_history": gross_profit_history, "operating_income_history": operating_income_history,
+        "fcf_history": fcf_history, "total_assets_history": total_assets_history,
+        "total_equity_history": total_equity_history,
+    }
     primary_financial_audit = observe_financial_statements(
         tables=primary_tables, errors=primary_errors, metadata=primary_metadata,
         started_at=primary_started_at, finished_at=time.time(),
-        histories={"years": years, "revenue_history": revenue_history, "net_income_history": net_income_history,
-                   "gross_profit_history": gross_profit_history, "operating_income_history": operating_income_history,
-                   "fcf_history": fcf_history, "total_assets_history": total_assets_history,
-                   "total_equity_history": total_equity_history},
+        histories=primary_histories,
     )
 
+    fallback_reanchored = False
+    final_periods = income_periods
     if data_loader_cls is not None and (ticker.endswith(".TW") or ticker.endswith(".TWO")):
         needs_finmind_fallback = (
             not _history_has_values(revenue_history)
@@ -152,6 +208,13 @@ def extract_financial_histories(stock, ticker: str, data_source_notes: list, dat
                 rows_by_year = finmind_fallback.get("rows_by_year", {}) or {}
                 if not years or not _history_has_values(revenue_history) or not _history_has_values(net_income_history):
                     years = fallback_years
+                    final_periods = [_financial_period_key(rows_by_year.get(str(year), {}).get("statement_date"))
+                                     for year in years]
+                    fallback_reanchored = True
+                final_counts = Counter(map(str, years))
+                rows_by_year = {str(year): rows_by_year[str(year)] for year, period in zip(years, final_periods)
+                                if period and period[:4] == str(year) and final_counts[str(year)] == 1
+                                and _financial_period_key(rows_by_year.get(str(year), {}).get("statement_date")) == period}
                 if not _history_has_values(revenue_history):
                     revenue_history = _align_finmind_history(years, rows_by_year, "revenue")
                 if not _history_has_values(net_income_history):
@@ -169,6 +232,21 @@ def extract_financial_histories(stock, ticker: str, data_source_notes: list, dat
                 data_source_notes.append(
                     "yfinance 年度財報/資產負債/現金流資料缺漏時，已使用 FinMind 台股財報 API 補齊可用年度欄位。"
                 )
+
+    if fallback_reanchored:
+        # Keep the existing fallback fill policy. Only reindex primary values
+        # that it retained; new/ambiguous years stay missing, without refetching.
+        aligned = {key: _reproject_retained_history(primary_histories["years"], income_periods,
+                   primary_histories[key], years, final_periods, values) for key, values in {
+            "revenue_history": revenue_history, "net_income_history": net_income_history,
+            "gross_profit_history": gross_profit_history, "operating_income_history": operating_income_history,
+            "fcf_history": fcf_history, "total_assets_history": total_assets_history,
+            "total_equity_history": total_equity_history,
+        }.items()}
+        revenue_history, net_income_history = aligned["revenue_history"], aligned["net_income_history"]
+        gross_profit_history, operating_income_history = aligned["gross_profit_history"], aligned["operating_income_history"]
+        fcf_history = aligned["fcf_history"]
+        total_assets_history, total_equity_history = aligned["total_assets_history"], aligned["total_equity_history"]
 
     return {
         "years": years,
