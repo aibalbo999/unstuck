@@ -1,0 +1,116 @@
+{
+  "ticker": "2254.TW",
+  "started_at_epoch": 1790496015.8955898,
+  "source": "Yahoo SDK annual frames; direct bounded diagnostic, not SLA observation",
+  "frames": {
+    "financials": {
+      "columns": [
+        "2025-12-31 00:00:00",
+        "2024-12-31 00:00:00",
+        "2023-12-31 00:00:00",
+        "2022-12-31 00:00:00"
+      ],
+      "index": [
+        "Net Income",
+        "Operating Income",
+        "Gross Profit",
+        "Total Revenue"
+      ],
+      "data": [
+        [
+          -53391000.0,
+          -67491000.0,
+          -47558000.0,
+          148709000.0
+        ],
+        [
+          -65403000.0,
+          -50889000.0,
+          -40285000.0,
+          172427000.0
+        ],
+        [
+          105001000.0,
+          166117000.0,
+          156465000.0,
+          333881000.0
+        ],
+        [
+          477757000.0,
+          632839000.0,
+          549661000.0,
+          928668000.0
+        ]
+      ]
+    },
+    "cashflow": {
+      "columns": [
+        "2025-12-31 00:00:00",
+        "2024-12-31 00:00:00",
+        "2023-12-31 00:00:00",
+        "2022-12-31 00:00:00",
+        "2021-12-31 00:00:00"
+      ],
+      "index": [
+        "Capital Expenditure",
+        "Operating Cash Flow"
+      ],
+      "data": [
+        [
+          -26736000.0,
+          -119025000.0,
+          -276609000.0,
+          -295394000.0,
+          null
+        ],
+        [
+          86003000.0,
+          12339000.0,
+          2147000.0,
+          22611000.0,
+          null
+        ]
+      ]
+    },
+    "balance_sheet": {
+      "columns": [
+        "2025-12-31 00:00:00",
+        "2024-12-31 00:00:00",
+        "2023-12-31 00:00:00",
+        "2022-12-31 00:00:00",
+        "2021-12-31 00:00:00"
+      ],
+      "index": [
+        "Total Equity Gross Minority Interest",
+        "Stockholders Equity",
+        "Total Assets"
+      ],
+      "data": [
+        [
+          1100415000.0,
+          1161848000.0,
+          990905000.0,
+          760523000.0,
+          null
+        ],
+        [
+          1100415000.0,
+          1161848000.0,
+          990905000.0,
+          760523000.0,
+          null
+        ],
+        [
+          2177930000.0,
+          2420710000.0,
+          2400946000.0,
+          2091252000.0,
+          null
+        ]
+      ]
+    }
+  },
+  "finished_at_epoch": 1790496016.6904562,
+  "original_capture_sha256": "bbdbab4075a71c4bb4039440502ff7ba5dee24cded2ffa1eafc1558268f622db",
+  "fixture_note": "Selected actual required rows, all original period columns preserved. SDK diagnostic only; HTTP response/cache state unobserved."
+}

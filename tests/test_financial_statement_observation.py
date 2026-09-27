@@ -75,7 +75,7 @@ def test_primary_three_table_read_has_one_observation_and_preserves_values():
 
 @pytest.mark.parametrize("case", ["missing_field", "zero", "nan", "missing_capex", "missing_period",
                                   "balance_order", "invalid_period", "duplicate_year", "year_gap", "future_period"])
-def test_incomplete_primary_stays_partial_without_repairing_output(case):
+def test_primary_observation_reports_raw_gaps_and_preserved_zero(case):
     frames = statement_frames()
     if case == "missing_field":
         frames["financials"] = frames["financials"].drop("Gross Profit")
@@ -100,16 +100,16 @@ def test_incomplete_primary_stays_partial_without_repairing_output(case):
     stock = StatementStock(frames)
     result = extract_financial_histories(stock, "AAPL", [], data_loader_cls=None)
     audit = result["primary_financial_audit"]
-    assert audit["status"] == "degraded_enrichment"
-    assert audit["coverage_status"] == "partial"
+    assert audit["status"] == ("success" if case == "zero" else "degraded_enrichment")
+    assert audit["coverage_status"] == ("complete" if case == "zero" else "partial")
     assert audit["record_count"] > 0
     assert stock.calls == {"financials": 1, "cashflow": 1, "balance_sheet": 1}
     if case == "zero":
-        assert result["revenue_history"] == [1.0, None]  # Legacy zero loss is not repaired here.
+        assert result["revenue_history"] == [1.0, 0.0]
     if case == "missing_capex":
-        assert result["fcf_history"] == [0.3, 0.5]  # Existing CapEx default remains visible.
+        assert result["fcf_history"] == [None, None]
     if case == "balance_order":
-        assert result["total_assets_history"] == [6.0, 5.0]  # Existing position alignment.
+        assert result["total_assets_history"] == [5.0, 6.0]
 
 
 @pytest.mark.parametrize("name", ["financials", "cashflow", "balance_sheet"])
@@ -155,7 +155,7 @@ def test_fallback_success_cannot_promote_failed_primary(monkeypatch):
     def fallback(*args, **kwargs):
         calls.append(args)
         return {"audit": fallback_audit, "value": {
-            "years": ["2025"], "rows_by_year": {"2025": {"revenue": 1, "net_income": 0.2,
+            "years": ["2025"], "rows_by_year": {"2025": {"statement_date": "2025-12-31", "revenue": 1, "net_income": 0.2,
             "gross_profit": 0.4, "operating_income": 0.3, "free_cash_flow": 0.2,
             "total_assets": 5, "total_equity": 2}}}}
 
@@ -364,7 +364,7 @@ def test_duplicate_columns_keep_original_swallowed_error_and_other_tables():
     frames = statement_frames()
     frames["financials"].columns = pd.to_datetime(["2025-12-31", "2025-12-31"])
     result = extract_financial_histories(StatementStock(frames), "AAPL", [], data_loader_cls=None)
-    assert result["total_assets_history"] == [5.0, 6.0]
+    assert result["total_assets_history"] == [6.0]  # Only the known income period is retained.
     assert result["primary_financial_audit"]["status"] == "degraded_enrichment"
     assert result["primary_financial_audit"]["component_statuses"]["financials"]["error_kind"] == "ValueError"
 

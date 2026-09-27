@@ -1,7 +1,7 @@
 """Pure coverage evidence for already-read Yahoo annual statement frames.
 
 This observes one SDK operation, not HTTP traffic or complete statutory reports.
-It does not repair the legacy extractor's values, year alignment or fallback.
+It evaluates current aligned histories without changing values or fallback.
 """
 from __future__ import annotations
 
@@ -114,10 +114,10 @@ def observe_financial_statements(*, tables, errors, histories, metadata, started
         if not expected_periods or any(period not in actual for period in expected_periods):
             reasons[name].add("missing_period")
         if name == "balance_sheet" and actual != income_periods:
-            reasons[name].add("output_period_alignment")
+            reasons[name].add("source_period_order_or_range_mismatch")
 
-    # Preserve legacy numeric output. Missing/zero-dropped outputs cannot certify
-    # complete coverage even when the SDK frame contains the underlying value.
+    # Check current aligned histories. Missing outputs cannot certify complete
+    # coverage even when the SDK frame contains the underlying value.
     for name, fields in FIELDS.items():
         output_fields = ("fcf_history",) if name == "cashflow" else tuple(fields)
         for field in output_fields:

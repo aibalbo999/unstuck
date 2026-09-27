@@ -247,8 +247,8 @@ def fetch_finmind_financial_statement_fallback(ticker: str) -> dict:
         )
         capex = _finmind_value(cashflow, statement_date, ["PropertyAndPlantAndEquipment"])
         free_cash_flow = None
-        if operating_cash_flow is not None:
-            free_cash_flow = round(operating_cash_flow + (capex or 0), 2)
+        if operating_cash_flow is not None and capex is not None:
+            free_cash_flow = round(operating_cash_flow + capex, 2)
 
         rows_by_year[year] = {
             "statement_date": statement_date,
