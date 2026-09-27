@@ -12,6 +12,8 @@ Agent 有效設定的唯讀入口是 `/api/observability/agent-settings`（`agen
 
 公司新聞／社群的共同可用性判定在 `source_content_selection.py`；排除原件留在快照，由 `prompt_evidence.py` 隔離。官方法人與上櫃借券分別由 `official_institutional_source.py`、`tpex_borrowed_short_source.py` 取得；同業主檔與指標復原在 `data_fetch/market_sources/peer_recovery.py`。搜尋共享 admission 在 `search_admission.py`，跨供應商與補搜總期限在 `external_search_providers.py`，預設三十秒，可由 `WEB_SEARCH_TOTAL_TIMEOUT_SECONDS` 設為一至六十秒。
 
+催化劑備援的台股 Google RSS 查詢在 `external_search_providers.py` 沿用 `company_news_queries.py` 的公司與時間窗語法，其他引擎及品質檢查保持原規則。WebPro 的 `latest_eligible_category_v2` 比較兩個既有分類的合格日期，保存逐類結果與拒絕原件；第二類失敗仍可保留已知索引，但標示比較不完整。快取不更新原取得時間，索引不能當成已讀法說內容。
+
 台股同業搜尋的報導線索判定在 `peer_relationship_evidence.py`。中文查詢沿用既有搜尋期限與筆數上限；本公司身分沿用已取得的資料，對方公司的代碼與名稱只向現有有效快取核對，沒有每篇文章的外部身分查詢。明示業務比較保留發表日期、原文範圍及身分依據，並標示數值可比性尚未確認；未知、否定或客戶／供應鏈關係保留在排除原件。`enrichment_merge.py` 在新判定規則下優先合併已核對的新線索，避免舊搜尋結果占滿上限。這些線索不進入 `dynamic_peer_metrics`，也不改寫歷史來源觀測或成功率公式。
 
 Yahoo 年度財報的提取觀測在 `data_fetch/financial_statement_observation.py`。沿用既有提取器對損益、現金流、資產負債表的讀取；三表合為一次 SDK 操作觀測，不能據此推定 HTTP 請求次數。主來源完整性在備援補值前判定，缺欄、缺年或輸出對齊問題保留為部分取得。觀測經原服務寫入端記錄，放在既有整批摘要與備援 audit 之前，保留原資料、來源狀態及快取行為；不回補歷史事件。提取後若流程在輸出組裝前失敗，此觀測仍可能無法保存。

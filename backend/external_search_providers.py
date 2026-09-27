@@ -70,8 +70,16 @@ async def fetch_alternative_search_catalysts_async(
     deadline = _search_deadline(deadline)
     official_name = str((identity or {}).get("official_name") or company_name or ticker).strip()
     data = {"ticker":ticker, "company_name":company_name, "company_identity":identity}
-    queries = [f'{official_name} (法說會 OR 展望 OR 營收 OR earnings OR outlook OR revenue)',
+    topics = '(法說會 OR 展望 OR 營收 OR earnings OR outlook OR revenue)'
+    queries = [f'{official_name} {topics}',
                f'"{official_name}" {ticker.split(".")[0]}']
+    google_queries = {}
+    if re.fullmatch(r'\d{4,6}\.(?:TW|TWO)', str(ticker).strip().upper()):
+        from company_news_queries import company_news_query
+        local_query = company_news_query(data, lookback_days=CATALYST_LOOKBACK_DAYS)
+        # Reuse the normal Taiwan news identity/time query only on its engine.
+        # Other providers keep their own query syntax and the same quality gate.
+        google_queries = {queries[0]: f'{local_query} {topics}', queries[1]: local_query}
     raw, selected = [], []
     cutoff = datetime.now(timezone.utc)
     _, audit = select_company_records([], data, cutoff=cutoff, lookback_days=CATALYST_LOOKBACK_DAYS)
@@ -82,6 +90,7 @@ async def fetch_alternative_search_catalysts_async(
         results = await fetch_web_search_results_async(
             query, max_results=max_results, lookback_days=CATALYST_LOOKBACK_DAYS,
             require_recent=True, company_context=data, observed_records=observed, deadline=deadline,
+            provider_queries={'google_news_rss': google_queries[query]} if query in google_queries else None,
         )
         raw.extend(_news_record(result) for result in (observed or results))
         selected, audit = select_company_records(raw, data, cutoff=cutoff, lookback_days=CATALYST_LOOKBACK_DAYS)
@@ -175,6 +184,7 @@ async def fetch_web_search_results_async(
     company_context: dict | None = None,
     observed_records: list | None = None,
     deadline: float | None = None,
+    provider_queries: dict[str, str] | None = None,
 ) -> list[SearchResult]:
     """Run providers within one deadline, retaining evidence obtained before expiry."""
     deadline = _search_deadline(deadline)
@@ -214,13 +224,15 @@ async def fetch_web_search_results_async(
             if remaining_seconds <= 0:
                 break
             try:
+                provider_query = (provider_queries or {}).get(provider)
+                provider_query = provider_query.strip() if isinstance(provider_query, str) else ''
                 # Enforce the remaining *total* allowance in addition to the
                 # endpoint callback's own cap. Caller cancellation propagates.
                 async with asyncio.timeout(remaining_seconds):
                     fetched = await _fetch_provider_results(
                         client,
                         provider,
-                        cleaned_query,
+                        provider_query or cleaned_query,
                         max_results=request_size,
                         lookback_days=lookback_days,
                     )

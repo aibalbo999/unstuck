@@ -41,7 +41,8 @@ def upstream(monkeypatch):
         raise runtime.SourceResponseError('access_denied', status_code=200, parser_version='mops-conference-v2')
     def post(url, **kwargs):
         calls.append(('WebPro', kwargs))
-        return httpx.Response(200, json=payload(), request=httpx.Request('POST', url))
+        value = payload() if kwargs['data']['categoryId'] == '170' else payload([])
+        return httpx.Response(200, json=value, request=httpx.Request('POST', url))
     monkeypatch.setattr(official_financials, 'fetch_mops_investor_conference_events', denied)
     monkeypatch.setattr(external_http_client, 'sync_post', post)
     monkeypatch.setattr(webpro, 'sync_post', post)
@@ -65,7 +66,7 @@ def test_mops_denial_recovers_metadata_only_and_keeps_upstream_failure(upstream)
     assert result.audit['actual_provider'] == result.provider
     assert result.audit['component_statuses']['MOPS']['error_kind'] == 'access_denied'
     assert result.audit['component_statuses']['MOPS']['status'] == 'error'
-    assert [name for name, _ in upstream[1]] == ['MOPS', 'WebPro']
+    assert [name for name, _ in upstream[1]] == ['MOPS', 'WebPro', 'WebPro']
 
 
 def respond(monkeypatch, value, *, status=200, headers=None):
@@ -90,7 +91,7 @@ def test_shared_metadata_cache_preserves_acquisition_time_and_omits_content(upst
     assert second.audit['event_kind'] == 'aggregate'
     assert second.audit['component_statuses']['WebPro']['http_request_sent'] is False
     assert first.audit['fetched_at_epoch'] == second.audit['fetched_at_epoch']
-    assert sum(name == 'WebPro' for name, _ in upstream[1]) == 1
+    assert sum(name == 'WebPro' for name, _ in upstream[1]) == 2
     assert 'DO NOT COPY' not in json.dumps(upstream[0])
 
 
@@ -179,7 +180,8 @@ def test_official_empty_result_does_not_block_other_companies(monkeypatch, upstr
         calls.append(symbol)
         value = ({'status': {'code': '1'}, 'result': {},
                   'pagingObject': {'pagingSize': 3, 'totalPage': 0, 'totalCount': 0, 'currentPage': 1}}
-                 if symbol == '2321' else payload())
+                 if symbol == '2321' else payload([{**row, 'categoryId': int(kwargs['data']['categoryId'])}
+                                                   for row in payload()['result']['materials']['material']]))
         return httpx.Response(200, json=value, request=httpx.Request('POST', url))
 
     monkeypatch.setattr(webpro, 'sync_post', post)
@@ -193,7 +195,7 @@ def test_official_empty_result_does_not_block_other_companies(monkeypatch, upstr
     assert again.audit['cache_hit'] is True
     recovered = EarningsCallProvider().fetch(FetchRequest.from_ticker('2330.TW'))
     assert recovered.value['date'] == '2026-07-16'
-    assert calls == ['2321', '2321', '2330']
+    assert calls == ['2321', '2321', '2330', '2330']
     rows = [v for k, v in upstream[0].items() if k.startswith('shared_provider:') and v['value']['events'] == []]
     assert len(rows) == 2
     assert 299 <= rows[0]['fresh_until_epoch'] - rows[0]['fetched_at_epoch'] < 301
@@ -262,7 +264,7 @@ def test_real_http_observation_not_duplicated_by_workflow_audit_projection(upstr
     projected = _audit_entries_from_provider_results([result])
     entries = upstream[2] + projected
     http_entries = [entry for entry in entries if entry.get('event_kind') == 'http_attempt']
-    assert len(http_entries) == 1
+    assert len(http_entries) == 2
     assert http_entries[0]['provider'] == 'TWSE WebPro conference metadata'
     assert result.audit['event_kind'] == 'aggregate'
     assert 'http_request_sent' not in result.audit
@@ -299,7 +301,8 @@ def test_persisted_mops_cooldown_uses_backup_without_mops_http(monkeypatch, upst
     assert result.value['source'] == 'TWSE WebPro conference metadata'
     assert result.audit['component_statuses']['MOPS']['error_kind'] == 'access_denied'
     assert [(row['provider'], row['event_kind']) for row in upstream[2]] == [
-        ('MOPS', 'local_block'), ('TWSE WebPro conference metadata', 'http_attempt')]
+        ('MOPS', 'local_block'), ('TWSE WebPro conference metadata', 'http_attempt'),
+        ('TWSE WebPro conference metadata', 'http_attempt')]
 
 
 def test_confirmed_etf_scope_remains_outside_earnings_call_plan(upstream):
@@ -330,7 +333,7 @@ def test_merge_keeps_partial_metadata_and_single_http_observation(upstream):
     assert audit['event_kind'] == 'aggregate'
     assert 'http_request_sent' not in audit
     all_entries = upstream[2] + merged['source_audit']
-    assert sum(entry.get('event_kind') == 'http_attempt' for entry in all_entries) == 1
+    assert sum(entry.get('event_kind') == 'http_attempt' for entry in all_entries) == 2
 
 
 def test_transport_failure_does_not_inherit_previous_request_http_status(monkeypatch, upstream):
@@ -373,4 +376,4 @@ def test_legacy_sync_bundle_preserves_webpro_provenance_and_partial_coverage(mon
     assert audit['coverage_status'] == 'partial'
     assert audit['component_statuses']['MOPS']['error_kind'] == 'access_denied'
     assert audit['event_kind'] == 'aggregate'
-    assert sum(entry.get('event_kind') == 'http_attempt' for entry in upstream[2] + bundle['audit']) == 1
+    assert sum(entry.get('event_kind') == 'http_attempt' for entry in upstream[2] + bundle['audit']) == 2
