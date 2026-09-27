@@ -173,6 +173,7 @@ def fetch_stock_data(ticker: str, skip_optional_http: bool = False, market_data_
         total_assets_history = histories["total_assets_history"]
         total_equity_history = histories["total_equity_history"]
         finmind_financial_fallback_audit = histories["finmind_financial_fallback_audit"]
+        primary_financial_audit = histories.get("primary_financial_audit")
         
         # === 計算衍生指標 ===
         margin_histories = calculate_margin_histories(
@@ -257,6 +258,7 @@ def fetch_stock_data(ticker: str, skip_optional_http: bool = False, market_data_
             fmp_quote_audit=payload_context["fmp_quote_audit"],
             monthly_revenue_audit=monthly_revenue_audit,
             finmind_financial_fallback_audit=finmind_financial_fallback_audit,
+            primary_financial_audit=primary_financial_audit,
         )
 
         emit_log(f"  ✅ {company_name} 核心財務資料完成（後續補充資料另行處理）")

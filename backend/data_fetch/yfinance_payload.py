@@ -160,6 +160,7 @@ def finalize_and_cache_legacy_payload(
     fmp_quote_audit: dict | None,
     monthly_revenue_audit: dict | None,
     finmind_financial_fallback_audit: dict | None,
+    primary_financial_audit: dict | None = None,
 ) -> dict:
     fetched_at_epoch = time_module.time()
     from source_applicability import apply_source_applicability
@@ -184,6 +185,10 @@ def finalize_and_cache_legacy_payload(
                                 and "fetched_at_epoch" in entry), None)
     if institutional_audit is not None:
         apply_institutional_freshness(data, ticker, institutional_audit)
+    # Primary SDK evidence precedes the existing package/fallback summaries so
+    # their latest-source semantics remain unchanged. The service persists once.
+    if primary_financial_audit:
+        append_source_audit(data, primary_financial_audit)
     _append_full_fetch_audit(
         data,
         ticker,
