@@ -50,7 +50,8 @@ def fake_http(monkeypatch, body=None, status=200, headers=None):
             yield response
         finally:
             response.close()
-    monkeypatch.setattr(httpx, 'stream', stream)
+    from data_fetch.market_sources import yahoo_taiwan_news as regional
+    monkeypatch.setattr(regional, 'curl_stream', stream)
     return calls
 
 
@@ -282,7 +283,7 @@ def test_connection_failure_is_not_a_received_http_response(monkeypatch):
     def broken(*args,**kwargs):
         calls.append(args)
         raise httpx.ConnectError('connection failure')
-    monkeypatch.setattr(httpx,'stream',broken)
+    monkeypatch.setattr(__import__('data_fetch.market_sources.yahoo_taiwan_news',fromlist=['curl_stream']),'curl_stream',broken)
     result=YahooProvider().fetch(FetchRequest.from_ticker('5314.TWO'),context())
     assert result.status=='error' and result.audit['error_kind']=='transport_error'
     assert result.audit.get('http_status') is None
@@ -305,7 +306,7 @@ def test_bounded_body_hash_is_labelled_prefix_not_full_response(monkeypatch):
                 yield b'a'*60
                 yield b'b'*60
         yield Response()
-    monkeypatch.setattr(httpx,'stream',oversized)
+    monkeypatch.setattr(__import__('data_fetch.market_sources.yahoo_taiwan_news',fromlist=['curl_stream']),'curl_stream',oversized)
     result=YahooProvider().fetch(FetchRequest.from_ticker('5314.TWO'),context())
     assert result.status=='error' and result.audit['error_kind']=='response_too_large'
     assert result.audit['response_bytes']==100 and result.audit['response_bytes_read']==120
@@ -342,7 +343,7 @@ def test_timeout_during_body_does_not_adopt_or_retry(monkeypatch):
                 clock.value=13
                 yield FIXTURE.read_bytes()
         yield Response()
-    monkeypatch.setattr(httpx,'stream',delayed)
+    monkeypatch.setattr(__import__('data_fetch.market_sources.yahoo_taiwan_news',fromlist=['curl_stream']),'curl_stream',delayed)
     result=YahooProvider().fetch(FetchRequest.from_ticker('5314.TWO'),context())
     assert result.status=='error' and result.audit['error_kind']=='timeout' and result.value==[]
     assert len(calls)==1 and result.audit['response_complete'] is False
@@ -413,7 +414,7 @@ def test_provider_audit_merge_cache_snapshot_and_single_canonical_sink(monkeypat
 def test_persistent_transport_failure_does_not_inherit_prior_http_status(monkeypatch):
     from search_provider_runtime import observe_http_response,cooldown_state,scope_key
     observe_http_response(SimpleNamespace(status_code=200))
-    monkeypatch.setattr(httpx,'stream',lambda *a,**k:(_ for _ in ()).throw(httpx.ConnectError('offline')))
+    monkeypatch.setattr(__import__('data_fetch.market_sources.yahoo_taiwan_news',fromlist=['curl_stream']),'curl_stream',lambda *a,**k:(_ for _ in ()).throw(httpx.ConnectError('offline')))
     result=YahooProvider().fetch(FetchRequest.from_ticker('5314.TWO'),context())
     assert result.audit['http_status'] is None
     assert cooldown_state(scope_key('Yahoo Finance news',endpoint='yahoo_tw_quote_news'))['http_status'] is None
