@@ -1,0 +1,265 @@
+{
+  "capture_date": "2026-09-27",
+  "scope": "RSS precision only: eligible RSS counts remain zero; existing PTT records retained. Not coverage/80 percent proof.",
+  "cases": [
+    {
+      "ticker": "5314.TWO",
+      "data": {
+        "ticker": "5314.TWO",
+        "company_name": "世紀* / Myson Century, Inc.",
+        "company_identity": {
+          "official_name": "世紀*",
+          "legal_name": null,
+          "display_name": "世紀* / Myson Century, Inc.",
+          "allowed_aliases": [
+            "世紀*",
+            "世紀* / Myson Century, Inc.",
+            "Myson Century, Inc.",
+            "5314.TWO",
+            "5314",
+            "MYSON-CENTURY TECHNOLOGY INC"
+          ],
+          "forbidden_aliases": [],
+          "english_names": [
+            "Myson Century, Inc.",
+            "MYSON-CENTURY TECHNOLOGY INC"
+          ]
+        }
+      },
+      "cutoff": "2026-09-27T06:35:47.831035+00:00",
+      "baseline_query": {
+        "dcard": "site:dcard.tw (\"世紀* / Myson Century, Inc.\" OR \"5314\") when:30d",
+        "mobile01": "site:mobile01.com (\"世紀* / Myson Century, Inc.\" OR \"5314\") when:30d",
+        "pttweb": "site:pttweb.cc (\"世紀* / Myson Century, Inc.\" OR \"5314\") when:30d"
+      },
+      "baseline_records": {
+        "dcard": [
+          {
+            "title": "畫畫的最新討論 - dcard.tw",
+            "link": "https://news.google.com/rss/articles/CBMiWkFVX3lxTE9VSXpSNmhNZFR2V3EzZEhNWTByOHF4WjdNNDN3MV9JNjRmby15Tmo2Q2paZ3k1N0VBWHk1NHQ3ZWQ1cFdsSHhmbUZ5YmIzSjRiT0lEVVVlbHpmdw?oc=5",
+            "published_date": "2026-09-23T12:55:56+00:00",
+            "source": "dcard.tw",
+            "summary": "畫畫的最新討論 dcard.tw",
+            "social_channel": "dcard"
+          }
+        ],
+        "mobile01": [],
+        "pttweb": [
+          {
+            "title": "[新聞] 出貨了？友達昨爆量漲停、外資狂掃 今 重挫6%「爆量長黑」 - PTTweb.cc",
+            "link": "https://news.google.com/rss/articles/CBMiX0FVX3lxTE52UVY3R3pDTi1DN3VzR1Iza0RPR2pCdWJkLTMxcDhoZW43VlFCMHBac2UtbGRBbFRYRnA4RUxOcGpQbnVjN3Fpb2xIRy1lZkRJZVRYV2g5dl9YNXE3MUhn?oc=5",
+            "published_date": "2026-09-23T06:24:51+00:00",
+            "source": "PTTweb.cc",
+            "summary": "[新聞] 出貨了？友達昨爆量漲停、外資狂掃 今 重挫6%「爆量長黑」 PTTweb.cc",
+            "social_channel": "pttweb"
+          }
+        ]
+      },
+      "candidate_query": {
+        "dcard": "site:dcard.tw \"世紀\" 5314 when:30d",
+        "mobile01": "site:mobile01.com \"世紀\" 5314 when:30d",
+        "pttweb": "site:pttweb.cc \"世紀\" 5314 when:30d"
+      },
+      "candidate_records": {
+        "dcard": [],
+        "mobile01": [],
+        "pttweb": []
+      },
+      "candidate_response_sha256": {
+        "dcard": "4595d2231bd883c3714520d158b3944ba322f3db33c15187f821820983ccb58b",
+        "mobile01": "d780a3cc6996260a29b613db8ffcf4716c730f41f2cb48dad91c978eb4305f68",
+        "pttweb": "5bf0ce6d93d9b17e28ba3cab4f18c95a45bf05a53cae51bb062fb6c222bd0805"
+      },
+      "candidate_url": {
+        "dcard": "https://news.google.com/rss/search?q=site%3Adcard.tw+%22%E4%B8%96%E7%B4%80%22+5314+when%3A30d&hl=zh-TW&gl=TW&ceid=TW%3Azh-Hant",
+        "mobile01": "https://news.google.com/rss/search?q=site%3Amobile01.com+%22%E4%B8%96%E7%B4%80%22+5314+when%3A30d&hl=zh-TW&gl=TW&ceid=TW%3Azh-Hant",
+        "pttweb": "https://news.google.com/rss/search?q=site%3Apttweb.cc+%22%E4%B8%96%E7%B4%80%22+5314+when%3A30d&hl=zh-TW&gl=TW&ceid=TW%3Azh-Hant"
+      },
+      "ptt_records": [
+        {
+          "title": "[標的] 請問5314世紀除權",
+          "date": "2026-09-15T11:44:41+08:00",
+          "source": "PTT Stock",
+          "link": "https://www.ptt.cc/bbs/Stock/M.1789443883.A.5DA.html",
+          "social_channel": "ptt_stock_direct",
+          "issuer_match": "世紀",
+          "content_coverage": "headline_or_snippet"
+        },
+        {
+          "title": "[情報] 5314*世紀現金股利除息基準日 調整配股率",
+          "date": "2026-09-04T16:30:44+08:00",
+          "source": "PTT Stock",
+          "link": "https://www.ptt.cc/bbs/Stock/M.1788510647.A.463.html",
+          "social_channel": "ptt_stock_direct",
+          "issuer_match": "世紀",
+          "content_coverage": "headline_or_snippet"
+        }
+      ],
+      "expected_rejected": 2,
+      "baseline_origin": {
+        "kind": "production_data_canary_snapshot",
+        "filename": "live-data-5314.TWO.json",
+        "sha256": "22eee74ddb8920fea87ff0df01aa8ff73f67a7f59a575498c5f91e2dde8b15a4",
+        "selection_cutoff": "2026-09-27T06:35:47.831035+00:00"
+      },
+      "candidate_origin": {
+        "dcard": {
+          "kind": "bounded_public_rss_probe",
+          "http_status": 200,
+          "captured_at": "2026-09-27T06:38:14.745715+00:00",
+          "probe_selection_cutoff": "2026-09-27T06:38:12.879401+00:00",
+          "fixture_selection_cutoff": "2026-09-27T06:35:47.831035+00:00",
+          "response_sha256": "4595d2231bd883c3714520d158b3944ba322f3db33c15187f821820983ccb58b",
+          "raw_feed_count": 0
+        },
+        "mobile01": {
+          "kind": "bounded_public_rss_probe",
+          "http_status": 200,
+          "captured_at": "2026-09-27T06:40:42.803584+00:00",
+          "probe_selection_cutoff": "2026-09-27T06:35:47.831035+00:00",
+          "fixture_selection_cutoff": "2026-09-27T06:35:47.831035+00:00",
+          "response_sha256": "d780a3cc6996260a29b613db8ffcf4716c730f41f2cb48dad91c978eb4305f68",
+          "raw_feed_count": 0
+        },
+        "pttweb": {
+          "kind": "bounded_public_rss_probe",
+          "http_status": 200,
+          "captured_at": "2026-09-27T06:40:44.217814+00:00",
+          "probe_selection_cutoff": "2026-09-27T06:35:47.831035+00:00",
+          "fixture_selection_cutoff": "2026-09-27T06:35:47.831035+00:00",
+          "response_sha256": "5bf0ce6d93d9b17e28ba3cab4f18c95a45bf05a53cae51bb062fb6c222bd0805",
+          "raw_feed_count": 0
+        }
+      }
+    },
+    {
+      "ticker": "2367.TW",
+      "data": {
+        "ticker": "2367.TW",
+        "company_name": "燿華 / Unitech Printed Circuit Board Corp.",
+        "company_identity": {
+          "official_name": "燿華",
+          "legal_name": null,
+          "display_name": "燿華 / Unitech Printed Circuit Board Corp.",
+          "allowed_aliases": [
+            "燿華",
+            "燿華 / Unitech Printed Circuit Board Corp.",
+            "Unitech Printed Circuit Board Corp.",
+            "2367.TW",
+            "2367",
+            "UNITECH  PRINTED CIRCUIT BOARD"
+          ],
+          "forbidden_aliases": [],
+          "english_names": [
+            "Unitech Printed Circuit Board Corp.",
+            "UNITECH  PRINTED CIRCUIT BOARD"
+          ]
+        }
+      },
+      "cutoff": "2026-09-27T06:35:57.889571+00:00",
+      "baseline_query": {
+        "dcard": "site:dcard.tw (\"燿華 / Unitech Printed Circuit Board Corp.\" OR \"2367\") when:30d",
+        "mobile01": "site:mobile01.com (\"燿華 / Unitech Printed Circuit Board Corp.\" OR \"2367\") when:30d",
+        "pttweb": "site:pttweb.cc (\"燿華 / Unitech Printed Circuit Board Corp.\" OR \"2367\") when:30d"
+      },
+      "baseline_records": {
+        "dcard": [
+          {
+            "title": "防曬乳哪款好？Dcard 卡友真實討論排出的口碑 Top 10 - dcard.tw",
+            "link": "https://news.google.com/rss/articles/CBMiT0FVX3lxTE5Db0dXM2tvem1DUHhiSS05S3o3QWJNR1NHQ2xyREZQREFyckxlNU52RmJLandKa01YZHd2WkFPR1hQTlJ5TEFPZFlFM21WcVE?oc=5",
+            "published_date": "2026-09-15T07:00:00+00:00",
+            "source": "dcard.tw",
+            "summary": "防曬乳哪款好？Dcard 卡友真實討論排出的口碑 Top 10 dcard.tw",
+            "social_channel": "dcard"
+          },
+          {
+            "title": "外遇的最新討論 - dcard.tw",
+            "link": "https://news.google.com/rss/articles/CBMiWkFVX3lxTE1uRnJxQUV3dEFkZzFXQzk5TkpDeC1vbmhHUS1RYjFGbXEtQWtOYXpnUmNnaHEzOXVTU0RCakVNYU9ZOGFSNDU0U0JUbkVBQWVRMW1qdVF6X0VSQQ?oc=5",
+            "published_date": "2026-09-26T06:43:16+00:00",
+            "source": "dcard.tw",
+            "summary": "外遇的最新討論 dcard.tw",
+            "social_channel": "dcard"
+          }
+        ],
+        "mobile01": [],
+        "pttweb": [
+          {
+            "title": "作者 icedog122 的總覽 (PTT發文,留言,暱稱) - PTTweb.cc",
+            "link": "https://news.google.com/rss/articles/CBMiTEFVX3lxTE5fcDF4MG1yZXpNY29BU2l0ZDE4QTdPVXBIVkpwYTA5NkJ0NUgxQThINWZETDNFcVFJakNtU2pnTFQ3LXV0TTdpOGt1Rjk?oc=5",
+            "published_date": "2019-06-27T15:52:23+00:00",
+            "source": "PTTweb.cc",
+            "summary": "作者 icedog122 的總覽 (PTT發文,留言,暱稱) PTTweb.cc",
+            "social_channel": "pttweb"
+          }
+        ]
+      },
+      "candidate_query": {
+        "dcard": "site:dcard.tw \"燿華\" 2367 when:30d",
+        "mobile01": "site:mobile01.com \"燿華\" 2367 when:30d",
+        "pttweb": "site:pttweb.cc \"燿華\" 2367 when:30d"
+      },
+      "candidate_records": {
+        "dcard": [],
+        "mobile01": [],
+        "pttweb": []
+      },
+      "candidate_response_sha256": {
+        "dcard": "953612ae00c5e162a385c7f6f21870b9109d3166a6f6c59181d49739515b0a47",
+        "mobile01": "95a03d57f9e879ab8f7e9645cbfab27167705eb0b9e560a4114ab4c3d94be2b0",
+        "pttweb": "25ca72eddcc3d604baba0920abeb6b947913656014b3e15765b0193c64596a93"
+      },
+      "candidate_url": {
+        "dcard": "https://news.google.com/rss/search?q=site%3Adcard.tw+%22%E7%87%BF%E8%8F%AF%22+2367+when%3A30d&hl=zh-TW&gl=TW&ceid=TW%3Azh-Hant",
+        "mobile01": "https://news.google.com/rss/search?q=site%3Amobile01.com+%22%E7%87%BF%E8%8F%AF%22+2367+when%3A30d&hl=zh-TW&gl=TW&ceid=TW%3Azh-Hant",
+        "pttweb": "https://news.google.com/rss/search?q=site%3Apttweb.cc+%22%E7%87%BF%E8%8F%AF%22+2367+when%3A30d&hl=zh-TW&gl=TW&ceid=TW%3Azh-Hant"
+      },
+      "ptt_records": [
+        {
+          "title": "[情報] 2367 燿華 公告本公司火災事件說明",
+          "date": "2026-09-09T08:27:35+08:00",
+          "source": "PTT Stock",
+          "link": "https://www.ptt.cc/bbs/Stock/M.1788913657.A.603.html",
+          "social_channel": "ptt_stock_direct",
+          "issuer_match": "燿華",
+          "content_coverage": "headline_or_snippet"
+        }
+      ],
+      "expected_rejected": 3,
+      "baseline_origin": {
+        "kind": "production_data_canary_snapshot",
+        "filename": "live-data-2367.TW.json",
+        "sha256": "e16dff753e73dd06554c8c5a64601b3aa4ff20aeae79f60ee1f0e71ac9997cd9",
+        "selection_cutoff": "2026-09-27T06:35:57.889571+00:00"
+      },
+      "candidate_origin": {
+        "dcard": {
+          "kind": "bounded_public_rss_probe",
+          "http_status": 200,
+          "captured_at": "2026-09-27T06:38:17.271616+00:00",
+          "probe_selection_cutoff": "2026-09-27T06:38:12.879401+00:00",
+          "fixture_selection_cutoff": "2026-09-27T06:35:57.889571+00:00",
+          "response_sha256": "953612ae00c5e162a385c7f6f21870b9109d3166a6f6c59181d49739515b0a47",
+          "raw_feed_count": 0
+        },
+        "mobile01": {
+          "kind": "bounded_public_rss_probe",
+          "http_status": 200,
+          "captured_at": "2026-09-27T06:40:45.553058+00:00",
+          "probe_selection_cutoff": "2026-09-27T06:35:57.889571+00:00",
+          "fixture_selection_cutoff": "2026-09-27T06:35:57.889571+00:00",
+          "response_sha256": "95a03d57f9e879ab8f7e9645cbfab27167705eb0b9e560a4114ab4c3d94be2b0",
+          "raw_feed_count": 0
+        },
+        "pttweb": {
+          "kind": "bounded_public_rss_probe",
+          "http_status": 200,
+          "captured_at": "2026-09-27T06:40:46.789804+00:00",
+          "probe_selection_cutoff": "2026-09-27T06:35:57.889571+00:00",
+          "fixture_selection_cutoff": "2026-09-27T06:35:57.889571+00:00",
+          "response_sha256": "25ca72eddcc3d604baba0920abeb6b947913656014b3e15765b0193c64596a93",
+          "raw_feed_count": 0
+        }
+      }
+    }
+  ]
+}
