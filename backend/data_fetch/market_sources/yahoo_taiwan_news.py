@@ -14,6 +14,7 @@ from urllib.parse import urlsplit
 import httpx
 
 from external_http_client import proxy_url_for_request
+from .yahoo_taiwan_transport import curl_stream
 from news_record_utils import clean_text
 from search_admission import endpoint_admission
 from search_provider_runtime import SourceResponseError, cooldown_state, remember_failure, scope_key, observe_http_response
@@ -289,15 +290,13 @@ def _fetch_page(ticker: str, diagnostics: dict, deadline: float, owns) -> list[d
         remaining = deadline - time.monotonic()
         if remaining <= 0 or not owns():
             raise SourceResponseError('timeout' if remaining <= 0 else 'lease_lost', parser_version=PARSER_VERSION)
-        kwargs = {'headers': {'Accept': 'text/html', 'Accept-Encoding': 'identity'},
-                  'timeout': httpx.Timeout(min(8.0, remaining), connect=min(3.0, remaining)),
-                  'follow_redirects': False}
+        kwargs = {'follow_redirects': False}
         proxy = proxy_url_for_request(url, PROVIDER)
         if proxy:
             kwargs['proxy'] = proxy
         observe_http_response(None)
         diagnostics['http_request_sent'] = True
-        with httpx.stream('GET', url, **kwargs) as response:
+        with curl_stream('GET', url, deadline=deadline, diagnostics=diagnostics, **kwargs) as response:
             response_status = response.status_code
             observe_http_response(response)
             diagnostics['http_status'] = response_status
@@ -349,6 +348,11 @@ def _fetch_page(ticker: str, diagnostics: dict, deadline: float, owns) -> list[d
             # Common SLA metadata drops scope extensions; do not export a prefix
             # digest under its full-response hash field. Full audit keeps it.
             diagnostics['captured_prefix_sha256'] = hashlib.sha256(body).hexdigest()
+        # Native curl may already have captured a bounded HTTP error body.
+        # Preserve its full/prefix scope even when no body reaches the parser.
+        captured = diagnostics.pop('_transport_capture', None)
+        if captured is not None:
+            diagnostics.update(captured)
 
 
 def annotate_regional_result(result, data: dict, diagnostics: dict):
