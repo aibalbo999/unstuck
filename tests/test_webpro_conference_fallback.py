@@ -100,7 +100,10 @@ def test_shared_metadata_cache_preserves_acquisition_time_and_omits_content(upst
 def test_wrong_company_invalid_and_future_events_do_not_become_latest(monkeypatch, upstream, changes):
     import official_financials_webpro_conference as webpro
     row = payload()['result']['materials']['material'][0]
-    respond(monkeypatch, payload([{**row, **changes}]))
+    def post(url, **kwargs):
+        value = payload([{**row, **changes, 'categoryId': int(kwargs['data']['categoryId'])}])
+        return httpx.Response(200, json=value, request=httpx.Request('POST', url))
+    monkeypatch.setattr(webpro, 'sync_post', post)
     audit = {}
     assert webpro.fetch_webpro_conference_context('2330.TW', diagnostics=audit) == {}
     assert audit['outcome'] == 'valid_empty'
@@ -153,7 +156,7 @@ def test_valid_empty_is_index_scope_only_and_has_short_cache(monkeypatch, upstre
     assert first.audit['record_count'] == 0
     assert '不能據此判定公司沒有法說會' in first.audit['message']
     assert first.audit['component_statuses']['MOPS']['error_kind'] == 'access_denied'
-    assert len(calls) == 1
+    assert len(calls) == 2
     row = next(v for k, v in upstream[0].items() if k.startswith('shared_provider:'))
     assert 299 <= row['fresh_until_epoch'] - row['fetched_at_epoch'] < 301
 
@@ -184,9 +187,9 @@ def test_official_empty_result_does_not_block_other_companies(monkeypatch, upstr
     assert again.audit['cache_hit'] is True
     recovered = EarningsCallProvider().fetch(FetchRequest.from_ticker('2330.TW'))
     assert recovered.value['date'] == '2026-07-16'
-    assert calls == ['2321', '2330']
+    assert calls == ['2321', '2321', '2330']
     rows = [v for k, v in upstream[0].items() if k.startswith('shared_provider:') and v['value']['events'] == []]
-    assert len(rows) == 1
+    assert len(rows) == 2
     assert 299 <= rows[0]['fresh_until_epoch'] - rows[0]['fetched_at_epoch'] < 301
 
 
@@ -343,6 +346,11 @@ def test_transport_failure_does_not_inherit_previous_request_http_status(monkeyp
 
 def test_legacy_sync_bundle_preserves_webpro_provenance_and_partial_coverage(monkeypatch, upstream):
     import data_fetch.yfinance_sync_enrichment as legacy
+    import official_institutional_source
+    # This test isolates the conference flow, including the newer institutional
+    # fallback that can otherwise issue an unrelated public-source attempt.
+    monkeypatch.setattr(official_institutional_source, 'recover_institutional_observations',
+                        lambda ticker, value, **kwargs: (value, {}))
     for name in ('fetch_finmind_news_catalysts', 'fetch_yfinance_news_catalysts',
                  'fetch_fmp_news_catalysts', 'fetch_institutional_trading_trend',
                  'fetch_dynamic_peer_metrics', 'build_pe_river_chart_data'):

@@ -1,6 +1,7 @@
 """Bounded WebPro public conference index; factual metadata and links only."""
 from __future__ import annotations
 
+from copy import deepcopy
 from datetime import date, datetime
 import ipaddress
 import re
@@ -16,7 +17,7 @@ PROVIDER = 'TWSE WebPro conference metadata'
 INDEX_URL = 'https://webpro.twse.com.tw/WebPortal/vod/101/?categoryId=170'
 LIST_URL = 'https://webpro.twse.com.tw/WebPortal/service/vodChannel/categoryMaterialList'
 PARSER_VERSION = 'webpro-conference-metadata-v2'
-COVERAGE_NOTE = '僅取得 WebPro 站外法說會索引的日期與連結；未取得簡報、影音內容或逐字稿，來源涵蓋不完整。'
+COVERAGE_NOTE = '僅取得 WebPro 法說會索引的日期與連結；未取得簡報、影音內容或逐字稿，來源涵蓋不完整。'
 COOLDOWN_KEY = scope_key(PROVIDER, endpoint='conference_index')
 
 
@@ -26,19 +27,81 @@ def taiwan_company_symbol(ticker: str) -> str | None:
 
 
 def fetch_webpro_conference_context(ticker: str, *, diagnostics: dict | None = None) -> dict:
-    """Return the latest completed event from one public page, never its content."""
+    """Return metadata from at most one page in each of two public categories."""
     symbol = taiwan_company_symbol(ticker)
     if not symbol:
         return {}
+    from cache_store import get_cache_json, set_cache_json
+    context_key = f'webpro-conference-context:v1:{symbol}'
+    try:
+        cached = get_cache_json(context_key)
+    except Exception:
+        cached = None
+    if (isinstance(cached, dict) and isinstance(cached.get('context'), dict)
+            and cached['context'] and isinstance(cached.get('diagnostic'), dict)
+            and time.time() < float(cached.get('fresh_until_epoch') or 0)):
+        details = deepcopy(cached['diagnostic'])
+        details.update(cache_hit=True, http_request_sent=False, event_kind='cache_hit')
+        for category in details.get('category_observations', []):
+            category.update(cache_hit=True, http_request_sent=False, event_kind='cache_hit', cache_scope='context')
+        if diagnostics is not None:
+            diagnostics.update(details)
+        return deepcopy(cached['context'])
+    categories = []
+    for category_id in (170, 148):
+        try:
+            result, details = _fetch_category(symbol, category_id)
+        except SourceResponseError as exc:
+            exc.diagnostic['category_observations'] = [*categories, {'category_id': category_id, **exc.diagnostic}]
+            raise
+        categories.append({'category_id': category_id, **details})
+        if result['events']:
+            break
+    details = {**details, 'category_observations': categories,
+               'cache_hit': all(row.get('cache_hit') for row in categories)}
+    if diagnostics is not None:
+        diagnostics.update(details)
+    events = result['events']
+    if not events:
+        return {}
+    event = events[0]
+    context = {
+        'ticker': symbol, 'date': event['date'], 'period': event['date'],
+        'title': f"{event['company_name'] or symbol} 法人說明會（索引）",
+        'summary': '', 'transcript_excerpt': '', 'transcript_available': False,
+        'materials': [], 'source': PROVIDER,
+        'source_url': INDEX_URL.replace('categoryId=170', f'categoryId={category_id}'),
+        'category_id': category_id, 'event_url': event['url'], 'event_id': event['event_id'],
+        'coverage_status': 'metadata_only', 'coverage_notes': [COVERAGE_NOTE],
+        'fetched_at_epoch': details['fetched_at_epoch'], 'event_date_raw': event['event_date_raw'],
+        'upstream_source': 'MOPS-derived WebPro public index',
+    }
+    # The selected positive observation has the same 24-hour lifetime as its
+    # category cache. Its original acquisition time is never renewed by reuse.
+    remaining = max(0, details['fetched_at_epoch'] + 86400 - time.time())
+    if remaining > 0:
+        try:
+            set_cache_json(context_key, {'context': context, 'diagnostic': details,
+                                         'fresh_until_epoch': details['fetched_at_epoch'] + 86400},
+                           ttl_seconds=max(1, int(remaining)))
+        except Exception:
+            pass
+    return context
+
+
+
+def _fetch_category(symbol: str, category_id: int) -> tuple[dict, dict]:
     captured = {}
     def fetch():
         try:
-            return _fetch_index(symbol)
+            return _fetch_index(symbol, category_id)
         except SourceResponseError as exc:
             captured.update(exc.diagnostic)
             raise
+    # Preserve the existing category-170 cache while isolating category 148.
+    key = f'{PARSER_VERSION}:{symbol}' if category_id == 170 else f'{PARSER_VERSION}:{category_id}:{symbol}'
     result, meta = shared_fetch(
-        f'{PARSER_VERSION}:{symbol}', fetch, freshness_seconds=86400,
+        key, fetch, freshness_seconds=86400,
         result_ttl=lambda value: 86400 if value['events'] else 300,
     )
     if meta.get('error_kind'):
@@ -52,25 +115,10 @@ def fetch_webpro_conference_context(ticker: str, *, diagnostics: dict | None = N
     details = {**result['diagnostic'], **meta, 'actual_provider': PROVIDER, 'coverage_status': 'metadata_only'}
     if meta.get('cache_hit'):
         details.update(http_request_sent=False, event_kind='cache_hit')
-    if diagnostics is not None:
-        diagnostics.update(details)
-    events = result['events']
-    if not events:
-        return {}
-    event = events[0]
-    return {
-        'ticker': symbol, 'date': event['date'], 'period': event['date'],
-        'title': f"{event['company_name'] or symbol} 法人說明會（索引）",
-        'summary': '', 'transcript_excerpt': '', 'transcript_available': False,
-        'materials': [], 'source': PROVIDER, 'source_url': INDEX_URL,
-        'event_url': event['url'], 'event_id': event['event_id'],
-        'coverage_status': 'metadata_only', 'coverage_notes': [COVERAGE_NOTE],
-        'fetched_at_epoch': meta['fetched_at_epoch'], 'event_date_raw': event['event_date_raw'],
-        'upstream_source': 'MOPS-derived WebPro public index',
-    }
+    return result, details
 
 
-def _fetch_index(symbol: str) -> dict:
+def _fetch_index(symbol: str, category_id: int = 170) -> dict:
     started = time.monotonic()
     blocked = cooldown_state(COOLDOWN_KEY)
     if blocked:
@@ -82,13 +130,13 @@ def _fetch_index(symbol: str) -> dict:
     observe_http_response(None)
     try:
         response = sync_post(LIST_URL, data={
-            'categoryId': '170', 'vodChannelId': '101', 'returnType': 'json', 'platform': 'web',
+            'categoryId': str(category_id), 'vodChannelId': '101', 'returnType': 'json', 'platform': 'web',
             'pageNumber': '1', 'pagingSize': '3', 'order': 'eventDate', 'sortOrder': 'desc',
             'stockCodeOrCompanyName': symbol,
         }, timeout=(5, 15), provider=PROVIDER)
         observe_http_response(response)
         response.raise_for_status()
-        events = _parse_index(response.json(), symbol)
+        events = _parse_index(response.json(), symbol, category_id)
     except Exception as original:
         if isinstance(original, (ValueError, TypeError, KeyError)):
             original = SourceResponseError('parse_error', status_code=getattr(response, 'status_code', None), parser_version=PARSER_VERSION)
@@ -106,7 +154,7 @@ def _fetch_index(symbol: str) -> dict:
     return {'events': events, 'diagnostic': details}
 
 
-def _parse_index(payload: dict, symbol: str) -> list[dict]:
+def _parse_index(payload: dict, symbol: str, category_id: int = 170) -> list[dict]:
     if not isinstance(payload, dict) or not isinstance(payload.get('status'), dict):
         raise ValueError('Unknown WebPro envelope')
     code = payload['status'].get('code')
@@ -139,7 +187,7 @@ def _parse_index(payload: dict, symbol: str) -> list[dict]:
             raise ValueError('Missing WebPro row validity')
         if not row['isValid']:
             continue
-        if row.get('categoryId') != 170:
+        if row.get('categoryId') != category_id:
             raise ValueError('Unexpected WebPro category')
         raw_date = str(row.get('eventDate') or '')
         if not re.fullmatch(r'\d{4}-\d{2}-\d{2} 00:00:00(?:\.0)?', raw_date):

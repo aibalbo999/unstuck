@@ -8,6 +8,8 @@ import time
 from io import StringIO
 from email.utils import parsedate_to_datetime
 from external_http_client import sync_get
+from megabank_fx import (fetch_megabank_exchange_rates, PROVIDER as MEGABANK_PROVIDER,
+                         SOURCE_URL as MEGABANK_SOURCE_URL)
 from .provider_base import DataProvider
 from .types import FetchRequest, ProviderResult
 
@@ -45,7 +47,9 @@ class TaiwanOpenDataProvider(DataProvider):
                    "status": status, "record_count": sum(bool(v) for v in value["rates"].values()) if value else 0,
                    "coverage_status": value.get("status") if value else "unavailable",
                    "coverage": value.get("coverage", {}) if value else {},
-                   "component_statuses": value.get("component_statuses", {}) if value else {}, **meta,
+                   "component_statuses": value.get("component_statuses", {}) if value else {},
+                   "source_evidence": value.get("source_evidence", []) if value else [],
+                   "fallback_attempts": value.get("fallback_attempts", []) if value else [], **meta,
                    "message": ("匯率依實際上游及報價種類提供；缺少幣別不代表完整。" if value else "匯率來源暫無可用資料。")},
         )
 
@@ -68,31 +72,57 @@ def _screen_quote_recency(value: dict, *, ticker: str, now_epoch: float) -> None
     value["stale"] = any(item["status"] != "success" for item in components.values())
     if value["stale"]:
         value["status"] = "partial"
-        value.setdefault("coverage_notes", []).append("匯率觀測日期過舊、未知或位於未來時，不可當作最新報價。")
+        note = "匯率觀測日期過舊、未知或位於未來時，不可當作最新報價。"
+        if note not in value.setdefault("coverage_notes", []):
+            value["coverage_notes"].append(note)
 
 
 def _fetch_exchange_rates() -> dict:
-    attempts = []
-    try:
-        rates = _fetch_bot_exchange_rates()
-        selected = {}
-        for currency in ("USD", "EUR", "JPY"):
-            quote = rates.get(currency)
-            if isinstance(quote, dict) and any(_valid_rate(quote.get(k)) for k in ("buy", "sell")):
-                selected[currency] = {**quote, **{k: quote[k] if _valid_rate(quote.get(k)) else None for k in ("buy", "sell")},
-                                      "rate_kind": "bank_quote", "quote_currency": "TWD"}
-            else:
-                selected[currency] = None
-        if not any(selected.values()):
-            raise ValueError("BOT CSV did not include USD/EUR/JPY rates")
-        coverage = {currency: "available" if quote and all(_valid_rate(quote.get(k)) for k in ("buy", "sell"))
-                    else "partial" if quote else "unavailable" for currency, quote in selected.items()}
-        return {"dataset": "Bank of Taiwan Exchange Rates (牌告匯率)",
-                "source": "Open Data (rate.bot.com.tw)", "actual_provider": "Bank of Taiwan",
-                "source_url": BOT_EXCHANGE_RATE_URL, "rates": selected, "coverage": coverage,
-                "status": "success" if all(v == "available" for v in coverage.values()) else "partial"}
-    except Exception as exc:
-        attempts.append({"provider": "Bank of Taiwan", "error_kind": type(exc).__name__})
+    attempts, partial = [], None
+    for provider, fetcher, dataset, source, url in (
+        ("Bank of Taiwan", _fetch_bot_exchange_rates, "Bank of Taiwan Exchange Rates (牌告匯率)",
+         "Open Data (rate.bot.com.tw)", BOT_EXCHANGE_RATE_URL),
+        (MEGABANK_PROVIDER, fetch_megabank_exchange_rates, "Mega Bank Exchange Rates (即期銀行買賣牌告)",
+         "Mega Bank public exchange rates", MEGABANK_SOURCE_URL),
+    ):
+        try:
+            rates = fetcher()
+            selected = {}
+            for currency in ("USD", "EUR", "JPY"):
+                quote = rates.get(currency)
+                if isinstance(quote, dict) and any(_valid_rate(quote.get(k)) for k in ("buy", "sell")):
+                    selected[currency] = {**quote, **{k: quote[k] if _valid_rate(quote.get(k)) else None for k in ("buy", "sell")},
+                                          "rate_kind": "bank_quote", "quote_currency": "TWD"}
+                else:
+                    selected[currency] = None
+            if not any(selected.values()):
+                raise ValueError("Bank source did not include USD/EUR/JPY rates")
+            coverage = {currency: "available" if quote and all(_valid_rate(quote.get(k)) for k in ("buy", "sell"))
+                        else "partial" if quote else "unavailable" for currency, quote in selected.items()}
+            candidate = {"dataset": dataset, "source": source, "actual_provider": provider,
+                    "source_url": url, "rates": selected, "coverage": coverage,
+                    "fallback_attempts": attempts,
+                    "status": "success" if all(v == "available" for v in coverage.values()) else "partial",
+                    "source_evidence": next((q.get('source_evidence', []) for q in selected.values() if q), [])}
+            _screen_quote_recency(candidate, ticker='FX.TW', now_epoch=time.time())
+            if candidate['status'] == 'success':
+                return candidate
+            attempts.append({'provider': provider, 'error_kind': 'incomplete_bank_quotes',
+                             'coverage': coverage, 'component_statuses': candidate['component_statuses']})
+            # Keep the best actual bank observations if all later banks fail.
+            # Rank by recent complete pairs, then complete pairs, then currencies.
+            def rank(value):
+                quotes = [q for q in value['rates'].values() if q]
+                complete = [q for q in quotes if all(_valid_rate(q.get(k)) for k in ('buy', 'sell'))]
+                return sum(not q.get('stale') for q in complete), len(complete), len(quotes)
+            if partial is None or rank(candidate) > rank(partial):
+                partial = candidate
+        except Exception as exc:
+            attempts.append({"provider": provider, "error_kind": getattr(exc, "error_kind", type(exc).__name__),
+                             **getattr(exc, 'diagnostic', {})})
+    if partial:
+        partial['fallback_attempts'] = attempts
+        return partial
     for provider, fetcher, dataset, source, url in (
         ("open.er-api.com", _fetch_er_api_usd_twd_rate, "ExchangeRate-API free USD latest", "open.er-api.com fallback", ER_API_USD_URL),
         ("FRED DEXTAUS", _fetch_fred_usd_twd_rate, "Taiwan Dollars to U.S. Dollar Spot Exchange Rate (DEXTAUS)", "FRED DEXTAUS fallback", FRED_TWD_USD_URL),
