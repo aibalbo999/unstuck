@@ -349,7 +349,7 @@ def test_optional_http_merge_preserves_exact_records_for_ai_payload():
         "international_news_context": {"topics": [{"headline": "SENT_INTERNATIONAL"}]},
         "macro_indicators": {"summary_text": "SENT_MACRO"},
         "chip_data": {"tdcc_shareholder_distribution": {"note": "SENT_CHIP"}},
-        "alternative_data": {"job_openings_104": {"note": "SENT_ALT"}},
+        "alternative_data": {"job_openings_104": {"status": "success", "job_count": 7, "note": "SENT_ALT"}},
         "social_sentiment": {"ptt_stock_direct": [{"title": "SENT_SOCIAL", "summary":"台積電", "date":published_date, "link":"https://example.test/social"}]},
         "sec_edgar": {"recent_filings": [{"form": "SENT_SEC_10Q"}]},
         "taiwan_open_data": {"rates": {"USD": {"sell": "SENT_TAIWAN_OPEN"}}},

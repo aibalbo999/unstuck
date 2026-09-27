@@ -1,6 +1,8 @@
-"""Nonwaiting endpoint admission using the existing provider lock backends."""
-from contextlib import contextmanager, ExitStack
+"""Endpoint admission using the existing provider lock backends."""
+import asyncio
+from contextlib import asynccontextmanager, contextmanager, ExitStack
 import hashlib
+import math
 import threading
 
 from shared_provider_cache import _process_lock
@@ -37,3 +39,31 @@ def endpoint_admission(key, *, timeout_seconds):
             yield owns if acquired else None
     finally:
         local.release()
+
+
+@asynccontextmanager
+async def async_endpoint_admission(key, *, timeout_seconds, wait_seconds=0):
+    """Optionally wait a little for ownership without blocking the event loop.
+
+    Every acquisition remains nonblocking, including the process lock. Polling
+    only repeats local admission, never an HTTP request. Cancellation while
+    waiting cannot release another caller's lock.
+    """
+    wait_seconds = float(wait_seconds)
+    if not math.isfinite(wait_seconds) or wait_seconds < 0:
+        raise ValueError('wait_seconds must be finite and nonnegative')
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + min(wait_seconds, max(0, timeout_seconds))
+    while True:
+        with endpoint_admission(key, timeout_seconds=timeout_seconds) as owns:
+            if owns is not None:
+                yield owns
+                return
+        remaining = deadline - loop.time()
+        if remaining <= 0:
+            yield None
+            return
+        await asyncio.sleep(min(0.025, remaining))
+        if loop.time() >= deadline:
+            yield None
+            return

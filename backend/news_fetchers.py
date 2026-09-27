@@ -115,12 +115,14 @@ def fetch_google_news_rss(query: str, limit: int = 10) -> list[NewsRecord]:
             raise ValueError("invalid RSS feed")
         records = []
         for entry in getattr(feed, "entries", []):
+            publisher = getattr(entry, "source", {})
+            publisher = publisher.get("title") if isinstance(publisher, dict) else None
             record = _record(
                 title=getattr(entry, "title", ""),
                 link=getattr(entry, "link", ""),
                 published_date=getattr(entry, "published_parsed", None)
                 or getattr(entry, "updated_parsed", None),
-                source="Google News RSS",
+                source=publisher or "Google News RSS",
                 summary=getattr(entry, "summary", ""),
             )
             if record:

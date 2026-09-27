@@ -24,12 +24,23 @@ class FreeNewsWaterfallProvider(DataProvider):
 
         data = (context or {}).get("data", {}) if isinstance((context or {}).get("data"), dict) else {}
         ticker = str((context or {}).get("original_ticker") or data.get("ticker") or request.ticker).strip().upper()
-        company_name = str(data.get("company_name") or ticker).strip()
-        query = f"{ticker} {company_name}".strip()
+        from company_news_queries import company_news_query
+        from config import CATALYST_LOOKBACK_DAYS
+        from news_freshness_policy import apply_news_freshness
+        company_data = {**data, "ticker": ticker}
+        query = company_news_query(company_data, lookback_days=CATALYST_LOOKBACK_DAYS)
         client = ExternalDataClient()
-        records = client.get_news(query, ticker=ticker, limit=5)
+        # Search ranking may put old/unrelated hits first. Apply the unchanged
+        # company/date gate to a bounded pool before spending the five slots.
+        records = client.get_news(query, ticker=ticker, limit=20)
         from source_content_selection import select_company_records
-        records, selection = select_company_records(records, {**data, "ticker": ticker})
+        records, selection = select_company_records(records, company_data, lookback_days=CATALYST_LOOKBACK_DAYS)
+        selected = apply_news_freshness(dict(company_data), records=records,
+                                        lookback_days=CATALYST_LOOKBACK_DAYS, limit=5)
+        records = selected["recent_catalysts"]
+        # Capacity exclusions are eligible evidence, not company/date failures.
+        selection["news_selection"] = selected["news_selection"]
+        selection["additional_recent_catalysts"] = selected["additional_recent_catalysts"]
         status = AUDIT_STATUS_SUCCESS if records and not selection['rejected_count'] else AUDIT_STATUS_DEGRADED_ENRICHMENT
         return ProviderResult(
             source=self.source,

@@ -17,7 +17,7 @@ from cache_store import get_cache_json, set_cache_json
 from provider_correlation import current_correlation, provider_attempt
 from provider_resilience import provider_circuit_state
 from provider_sla import record_source_audit_entries
-from search_admission import endpoint_admission
+from search_admission import async_endpoint_admission
 
 
 _HTTP_STATUS = ContextVar("search_upstream_http_status", default=None)
@@ -128,47 +128,73 @@ def record_observation(provider, started, *, outcome, count=0, details=None, sou
 
 
 async def fetch_search_upstream(provider, credential, callback, *, endpoint='search',
-                                min_interval_seconds=None, timeout_seconds=20):
-    """One bounded call per endpoint; cooldown/busy steps immediately yield fallback."""
+                                min_interval_seconds=None, timeout_seconds=20,
+                                admission_wait_seconds=0):
+    """One call within one deadline; optional admission wait never retries HTTP."""
     key = scope_key(provider, credential, endpoint=endpoint)
     started = time.monotonic()
     timeout_seconds = max(0.001, min(float(timeout_seconds), 60))
+    wait_seconds = float(admission_wait_seconds)
+    if not math.isfinite(wait_seconds) or wait_seconds < 0:
+        raise ValueError('admission_wait_seconds must be finite and nonnegative')
+    wait_seconds = min(wait_seconds, 2.0, timeout_seconds)
+    deadline = started + timeout_seconds
+    wait_deadline = started + wait_seconds
     interval = (5.1 if provider == 'gdelt' else 0.25) if min_interval_seconds is None else max(0, float(min_interval_seconds))
-    with endpoint_admission(key, timeout_seconds=timeout_seconds) as owns:
+    async with async_endpoint_admission(key, timeout_seconds=timeout_seconds,
+                                        wait_seconds=wait_seconds) as owns:
         if owns is None:
             record_observation(provider, started, outcome='busy', details={'error_kind': 'single_flight_busy', 'endpoint': endpoint}, sent=False)
             return []
-        try:
-            saved = get_cache_json(key) or {}
-        except Exception:
-            record_observation(provider, started, outcome='unavailable', details={'error_kind': 'guard_storage_unavailable', 'endpoint': endpoint}, sent=False)
-            return []
-        blocked = saved if float(saved.get('retry_at') or 0) > time.time() else {}
-        if provider == 'gdelt':
-            # Preserve cooldowns written by older international-news workers.
+        while True:
+            if not owns():
+                record_observation(provider, started, outcome='unavailable', details={'error_kind': 'lease_lost', 'endpoint': endpoint}, sent=False)
+                return []
             try:
-                legacy = get_cache_json('gdelt_rate_limit_cooldown:v1') or {}
-                until = float(legacy.get('cooldown_until') or 0)
-                if until > max(time.time(), float(blocked.get('retry_at') or 0)):
-                    blocked = {'error_kind': 'rate_limited', 'retry_at': until}
+                saved = get_cache_json(key) or {}
+                if not isinstance(saved, dict):
+                    raise ValueError('Invalid endpoint guard')
+                blocked = saved if float(saved.get('retry_at') or 0) > time.time() else {}
+                if provider == 'gdelt':
+                    # Preserve cooldowns written by older international-news workers.
+                    legacy = get_cache_json('gdelt_rate_limit_cooldown:v1') or {}
+                    until = float(legacy.get('cooldown_until') or 0)
+                    if until > max(time.time(), float(blocked.get('retry_at') or 0)):
+                        blocked = {'error_kind': 'rate_limited', 'retry_at': until}
+                if not blocked:
+                    circuit = provider_circuit_state(key)
+                    if circuit.get('open') and float(circuit.get('opened_until') or 0) > time.time():
+                        blocked = {'error_kind': 'circuit_open', 'retry_at': circuit['opened_until']}
+                pacing_until = float(saved.get('next_request_at') or 0)
             except Exception:
                 record_observation(provider, started, outcome='unavailable', details={'error_kind': 'guard_storage_unavailable', 'endpoint': endpoint}, sent=False)
                 return []
-        if not blocked and float(saved.get('next_request_at') or 0) > time.time():
-            blocked = {'error_kind': 'request_pacing', 'retry_at': saved['next_request_at']}
-        if not blocked:
-            circuit = provider_circuit_state(key)
-            if circuit.get('open') and float(circuit.get('opened_until') or 0) > time.time():
-                blocked = {'error_kind': 'circuit_open', 'retry_at': circuit['opened_until']}
-        if blocked:
-            record_observation(provider, started, outcome='cooldown', details={**blocked, 'endpoint': endpoint}, sent=False)
+            if blocked:
+                record_observation(provider, started, outcome='cooldown', details={**blocked, 'endpoint': endpoint}, sent=False)
+                return []
+            pacing_delay = max(0, pacing_until - time.time())
+            if not pacing_delay:
+                break
+            remaining_wait = min(wait_deadline, deadline) - time.monotonic()
+            if wait_seconds <= 0 or pacing_delay > remaining_wait:
+                record_observation(provider, started, outcome='cooldown', details={
+                    'error_kind': 'request_pacing', 'retry_at': pacing_until, 'endpoint': endpoint}, sent=False)
+                return []
+            # Pacing is a short scheduling delay, not a provider cooldown. Keep
+            # ownership and recheck every guard before starting the one callback.
+            await asyncio.sleep(pacing_delay)
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            record_observation(provider, started, outcome='busy', details={
+                'error_kind': 'search_budget_exhausted', 'endpoint': endpoint}, sent=False)
             return []
         status_token = _HTTP_STATUS.set(None)
         try:
             with provider_attempt(provider, 1):
                 try:
+                    # Admission and pacing consumed this same original allowance.
                     # asyncio.timeout preserves HTTP observation ContextVars.
-                    async with asyncio.timeout(timeout_seconds):
+                    async with asyncio.timeout(remaining):
                         records = await callback()
                 except Exception as exc:
                     state = remember_failure(key, exc) if owns() else {**error_details(exc), 'state_write_skipped': 'lease_lost'}

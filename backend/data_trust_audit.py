@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import math
+import re
 import time
 from collections.abc import Mapping
 from datetime import datetime, timezone
@@ -143,12 +144,51 @@ def append_source_audit(data: dict, entry: dict) -> dict:
     return data
 
 
+def _alternative_observation_count(data: dict) -> int:
+    """Count job observations and eligible unique news, never diagnostic fields."""
+    from news_record_utils import canonical_link, clean_text
+    from source_content_selection import select_company_records
+
+    payload = safe_mapping_dict(data.get("alternative_data")) or {}
+    numeric_count = 0
+    news = safe_sequence_items(payload.get("recent_recruitment_news"))
+    for field in ("job_openings_104", "job_openings_1111"):
+        component = payload.get(field)
+        entries = [component] if isinstance(component, Mapping) else safe_sequence_items(component)
+        for raw in entries:
+            item = safe_mapping_dict(raw) or {}
+            if item.get("status") != "success":
+                continue
+            value = item.get("job_count")
+            if isinstance(value, int) and not isinstance(value, bool) and value >= 0 and has_value(value):
+                numeric_count += 1
+            if item.get("evidence_kind") == "recruitment_news":
+                news.extend(safe_sequence_items(item.get("recent_recruitment_news")))
+    if not news:
+        return numeric_count
+    selected, _ = select_company_records(news, data)
+    links, titles = set(), set()
+    for item in selected:
+        text = clean_text(" ".join(str(item.get(key) or "") for key in ("title", "summary", "snippet", "text")))
+        if re.search(r"徵才|擴編|招募|招聘|hiring|recruit", text, re.I):
+            link = canonical_link(item.get("link") or item.get("url"))
+            title = clean_text(item.get("title") or item.get("headline")).casefold()
+            if not link or link in links or (title and title in titles):
+                continue
+            links.add(link)
+            if title:
+                titles.add(title)
+    return numeric_count + len(links)
+
+
 def source_record_count(source: str, data: Any) -> int:
     data_map = safe_mapping_dict(data)
     if data_map is None:
         return 0
     data = data_map
     source = _safe_text(source).strip()
+    if source == "alternative_data":
+        return _alternative_observation_count(data)
     if source == "market_data":
         fields = ("current_price", "market_cap_raw", "pe_ratio_raw", "pb_ratio", "price_history")
         return sum(1 for field in fields if has_value(data.get(field)))

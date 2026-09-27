@@ -35,7 +35,8 @@ def observation_details(entry: dict) -> dict:
                                  if k in {'status', 'as_of', 'provider', 'reason_code', 'series_id', 'error_kind',
                                           'fetched_at_epoch', 'stale', 'cache_hit', 'retry_after_epoch',
                                           'observation_status', 'observation_age_days', 'date_status', 'retrieval_status', 'page_kind',
-                                          'http_status', 'response_sha256', 'response_bytes', 'parser_version'}
+                                          'http_status', 'response_sha256', 'response_bytes', 'parser_version',
+                                          'primary_provider', 'primary_status', 'fallback_status'}
                                  and isinstance(v, (str, bool, int, float))
                                  and (not isinstance(v, (int, float)) or math.isfinite(v))}
                                 if isinstance(item, dict) else item[:80])
