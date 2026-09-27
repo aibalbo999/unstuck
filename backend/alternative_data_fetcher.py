@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
+from copy import deepcopy
 import hashlib
+import json
 import re
 from typing import Any
 from urllib.parse import urlencode
@@ -50,6 +52,8 @@ def fetch_104_job_openings_count(
     *,
     session: Any | None = None,
     timeout: float = 15,
+    company_context: dict | None = None,
+    fallback_memo: dict | None = None,
 ) -> dict[str, Any]:
     """Search 104 job listings and return the total job count only. Includes fallback to Google News."""
     company = str(company_name or "").strip()
@@ -73,17 +77,15 @@ def fetch_104_job_openings_count(
         diagnostic = _job_page_diagnostics(response)
         blocked = _blocked_job_page(company, term, "104 Job Search", source_url, diagnostic)
         if blocked:
-            return blocked
+            return _google_news_fallback(company, term, blocked["source"], source_url,
+                                         primary=blocked, company_context=company_context, fallback_memo=fallback_memo)
         job_count = _extract_104_job_count(response.text)
         if job_count is None:
-            return _unavailable(
-                company,
-                term,
-                "104 Job Search",
-                source_url,
-                "104 搜尋頁未揭露可解析的職缺總數。",
-                reason_code="parse_failure", diagnostics=diagnostic,
-            )
+            primary = _unavailable(company, term, "104 Job Search", source_url,
+                                   "104 搜尋頁未揭露可解析的職缺總數。",
+                                   reason_code="parse_failure", diagnostics=diagnostic)
+            return _google_news_fallback(company, term, "104 Job Search", source_url,
+                                         primary=primary, company_context=company_context, fallback_memo=fallback_memo)
 
         return {
             **diagnostic,
@@ -98,7 +100,8 @@ def fetch_104_job_openings_count(
         }
     except _JobSearchTransportError:
         # Fallback on HTTP and connection errors.
-        return _google_news_fallback(company, term, "104 Job Search", source_url)
+        return _google_news_fallback(company, term, "104 Job Search", source_url,
+                                     company_context=company_context, fallback_memo=fallback_memo)
 
 
 def fetch_1111_job_openings_count(
@@ -107,6 +110,8 @@ def fetch_1111_job_openings_count(
     *,
     session: Any | None = None,
     timeout: float = 15,
+    company_context: dict | None = None,
+    fallback_memo: dict | None = None,
 ) -> dict[str, Any]:
     """Search 1111 job listings and return the total job count. Includes fallback to Google News."""
     company = str(company_name or "").strip()
@@ -129,10 +134,14 @@ def fetch_1111_job_openings_count(
         diagnostic = _job_page_diagnostics(response)
         blocked = _blocked_job_page(company, term, "1111 Job Search", source_url, diagnostic)
         if blocked:
-            return blocked
+            return _google_news_fallback(company, term, blocked["source"], source_url,
+                                         primary=blocked, company_context=company_context, fallback_memo=fallback_memo)
         job_count = _extract_1111_job_count(response.text)
         if job_count is None:
-            return _unavailable(company, term, "1111 Job Search", source_url, "1111 搜尋頁未揭露可解析的職缺總數。", reason_code="parse_failure", diagnostics=diagnostic)
+            primary = _unavailable(company, term, "1111 Job Search", source_url,
+                                   "1111 搜尋頁未揭露可解析的職缺總數。", reason_code="parse_failure", diagnostics=diagnostic)
+            return _google_news_fallback(company, term, "1111 Job Search", source_url,
+                                         primary=primary, company_context=company_context, fallback_memo=fallback_memo)
             
         return {
             **diagnostic,
@@ -146,55 +155,112 @@ def fetch_1111_job_openings_count(
             "source_url": source_url,
         }
     except _JobSearchTransportError:
-        return _google_news_fallback(company, term, "1111 Job Search", source_url)
+        return _google_news_fallback(company, term, "1111 Job Search", source_url,
+                                     company_context=company_context, fallback_memo=fallback_memo)
 
 
-def _google_news_fallback(company: str, keyword: str, source_name: str, source_url: str) -> dict[str, Any]:
-    """Uses Google News RSS to find recent recruitment news when direct scraping fails."""
-    try:
-        from news_fetchers import fetch_google_news_rss
-        query = f'{company} {keyword} (徵才 OR 擴編 OR 招募)'
-        raw_news = fetch_google_news_rss(query, limit=5)
-        from source_content_selection import select_company_records
-        news, selection = select_company_records(raw_news, {'company_name': company})
-        # A company news match alone is not recruitment evidence.
-        relevant = []
-        for item in news:
-            text = ' '.join(str(item.get(k) or '') for k in ('title', 'summary', 'snippet', 'text'))
-            if re.search(r'徵才|擴編|招募|招聘|招聘會|hiring|recruit', text, re.I):
-                item['content_coverage'] = 'headline_or_snippet'
-                relevant.append(item)
-            else:
-                selection['source_record_archive'].append({'reason': 'recruitment_topic_unverified', 'record': item})
-                reasons = selection['rejected_reason_counts']
-                reasons['recruitment_topic_unverified'] = reasons.get('recruitment_topic_unverified', 0) + 1
-        news = relevant
-        selection.update(usable_count=len(news), rejected_count=len(selection['source_record_archive']),
-                         quality_status='eligible_evidence' if news else 'no_eligible_evidence',
-                         coverage_status='partial' if len(news) != len(raw_news or []) or not news else 'success')
-        if news:
-            return {
-                **selection,
-                "status": "success",
-                "company_name": company,
-                "keyword": keyword,
-                "job_count": None,
-                "evidence_kind": "recruitment_news",
-                "result_kind": "qualitative_only",
-                "fallback_reason": "transport_failure",
-                "actual_provider": "Google News RSS",
-                "recent_recruitment_news": news,
-                "source": f"{source_name} (Fallback to News)",
-                "source_url": None,
-                "requested_source_url": source_url,
-                "message": "職缺頁取得失敗；新聞備援僅提供招募情報，無法確認職缺總數。"
-            }
-        else:
-            return _unavailable(company, keyword, source_name, source_url, "職缺頁取得失敗且新聞備援無結果；職缺數未知。", reason_code="transport_failure", fallback_status="no_eligible_evidence" if raw_news else "empty_unknown", diagnostics=selection)
-    except ImportError:
-        return _unavailable(company, keyword, source_name, source_url, "職缺頁取得失敗且新聞備援未設定。", reason_code="transport_failure", fallback_status="not_configured")
-    except Exception:
-        return _unavailable(company, keyword, source_name, source_url, "職缺頁與新聞備援均取得失敗。", reason_code="transport_failure", fallback_status="error")
+def recruitment_company_name(company: str, data: dict | None = None) -> str:
+    """Choose an issuer anchor, never the bilingual UI display string."""
+    from source_content_selection import company_aliases
+    context = {**(data or {})}
+    context.setdefault("company_name", company)
+    identity = context.get("company_identity") or {}
+    identity = identity if isinstance(identity, dict) else {}
+    allowed = company_aliases(context)
+    for candidate in (identity.get("official_name"), str(company).split(" / ")[0], *allowed):
+        name = str(candidate or "").strip().strip("*").strip()
+        if name.casefold() in allowed:
+            return name
+    return ""
+
+
+def unique_recruitment_records(records: list[dict]) -> list[dict]:
+    """Count a repeated URL or headline once across keywords and primary sites."""
+    from news_record_utils import canonical_link, clean_text
+    result, links, titles = [], set(), set()
+    for item in records:
+        if not isinstance(item, dict):
+            continue
+        link = canonical_link(item.get("link") or item.get("url"))
+        title = clean_text(item.get("title") or item.get("headline")).casefold()
+        if not link or link in links or (title and title in titles):
+            continue
+        links.add(link)
+        if title:
+            titles.add(title)
+        result.append(deepcopy(item))
+    return result
+
+
+def _acquire_recruitment_news(query: str, data: dict) -> dict:
+    from news_fetchers import fetch_google_news_rss
+    from news_record_utils import canonical_link, clean_text
+    from source_content_selection import select_company_records
+
+    raw_news = fetch_google_news_rss(query, limit=5)
+    news, selection = select_company_records(raw_news, data)
+    relevant, links, titles = [], set(), set()
+    for item in news:
+        text = ' '.join(str(item.get(k) or '') for k in ('title', 'summary', 'snippet', 'text'))
+        link = canonical_link(item.get('link') or item.get('url'))
+        title = clean_text(item.get('title') or item.get('headline')).casefold()
+        reason = ('recruitment_topic_unverified' if not re.search(r'徵才|擴編|招募|招聘|招聘會|hiring|recruit', text, re.I)
+                  else 'duplicate' if link in links or (title and title in titles) else '')
+        if reason:
+            selection['source_record_archive'].append({'reason': reason, 'record': item})
+            reasons = selection['rejected_reason_counts']
+            reasons[reason] = reasons.get(reason, 0) + 1
+            continue
+        links.add(link)
+        if title:
+            titles.add(title)
+        item['content_coverage'] = 'headline_or_snippet'
+        relevant.append(item)
+    selection.update(usable_count=len(relevant), rejected_count=len(selection['source_record_archive']),
+                     quality_status='eligible_evidence' if relevant else 'no_eligible_evidence',
+                     coverage_status='partial', recent_recruitment_news=relevant,
+                     fallback_status='qualitative_only' if relevant else 'no_eligible_evidence' if raw_news else 'empty_unknown')
+    return selection
+
+
+def _google_news_fallback(company: str, keyword: str, source_name: str, source_url: str,
+                          *, primary: dict | None = None, company_context: dict | None = None,
+                          fallback_memo: dict | None = None) -> dict[str, Any]:
+    """Retain the primary failure and recover only verified recruitment evidence."""
+    from source_content_selection import company_aliases
+    data = {**(company_context or {})}
+    data.setdefault('company_name', company)
+    primary = deepcopy(primary) if primary else _unavailable(
+        company, keyword, source_name, source_url, '職缺頁取得失敗；職缺數未知。', reason_code='transport_failure')
+    anchor = recruitment_company_name(company, data)
+    # The occupational keyword is metadata, not a mandatory AND condition on news.
+    query = f'"{anchor}" (徵才 OR 擴編 OR 招募 OR hiring OR recruitment) when:30d' if anchor else ''
+    identity = data.get('company_identity') or {}
+    identity = identity if isinstance(identity, dict) else {}
+    key = json.dumps([data.get('ticker'), sorted(company_aliases(data)),
+                      sorted(str(v) for v in (identity.get('forbidden_aliases') or [])), query], ensure_ascii=False)
+    if fallback_memo is not None and key in fallback_memo:
+        selection = deepcopy(fallback_memo[key])
+    else:
+        try:
+            selection = _acquire_recruitment_news(query, data) if query else {'fallback_status': 'issuer_unknown'}
+        except ImportError:
+            selection = {'fallback_status': 'not_configured'}
+        except Exception:
+            selection = {'fallback_status': 'error'}
+        if fallback_memo is not None:
+            fallback_memo[key] = deepcopy(selection)
+    news = selection.get('recent_recruitment_news') or []
+    reason = primary.get('reason_code') or 'transport_failure'
+    result = {**primary, **selection, 'primary_status': primary['status'], 'primary_provider': source_name,
+              'reason_code': reason, 'fallback_reason': reason, 'job_count': None,
+              'coverage_status': 'partial' if news else 'unavailable'}
+    if news:
+        result.update(status='success', evidence_kind='recruitment_news', result_kind='qualitative_only',
+                      actual_provider='Google News RSS', source=f'{source_name} (Fallback to News)',
+                      source_url=None, requested_source_url=source_url,
+                      message='職缺數未知；新聞備援僅提供已核對公司與日期的招募情報。')
+    return result
 
 
 def _job_page_diagnostics(response) -> dict:

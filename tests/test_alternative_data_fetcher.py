@@ -106,10 +106,11 @@ def test_fetch_1111_job_openings_count_uses_shared_http_client(monkeypatch):
 def test_fetch_104_job_openings_count_returns_unavailable_on_parse_failure():
     from alternative_data_fetcher import fetch_104_job_openings_count
 
-    with patch("alternative_data_fetcher._google_news_fallback") as news_fallback:
+    with patch("news_fetchers.fetch_google_news_rss", return_value=[]) as news_fallback:
         result = fetch_104_job_openings_count("台達電", "AI", session=FakeSession("<html></html>"))
 
-    news_fallback.assert_not_called()
+    news_fallback.assert_called_once()
+    assert result["reason_code"] == "parse_failure"
     assert result["status"] == "unavailable"
     assert result["job_count"] is None
     assert "未揭露可解析的職缺總數" in result["message"]
@@ -127,7 +128,7 @@ def test_fetch_104_job_openings_count_uses_news_fallback_on_transport_failure():
     with patch("news_fetchers.fetch_google_news_rss", return_value=fake_news) as fetch_news:
         result = fetch_104_job_openings_count("台達電", "AI", session=FailingSession())
 
-    fetch_news.assert_called_once_with("台達電 AI (徵才 OR 擴編 OR 招募)", limit=5)
+    fetch_news.assert_called_once_with('"台達電" (徵才 OR 擴編 OR 招募 OR hiring OR recruitment) when:30d', limit=5)
     assert result["status"] == "success"
     assert result["job_count"] is None
     assert result["recent_recruitment_news"][0]["title"] == fake_news[0]["title"]

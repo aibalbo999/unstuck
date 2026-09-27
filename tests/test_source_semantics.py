@@ -90,13 +90,13 @@ def test_jobs_news_only_never_counts_as_numeric_coverage(monkeypatch):
     import alternative_data_fetcher as jobs
     from data_fetch.agent_context_providers import AlternativeJobOpeningsProvider
     from data_fetch.types import FetchRequest
-    payload={'status':'success','job_count':None,'recent_recruitment_news':[{'title':'Hiring'}]}
-    monkeypatch.setattr(jobs,'fetch_104_job_openings_count',lambda *a: dict(payload))
-    monkeypatch.setattr(jobs,'fetch_1111_job_openings_count',lambda *a: dict(payload))
+    payload={'status':'success','job_count':None,'recent_recruitment_news':[{'title':'Hiring','link':'https://publisher.test/hiring'}]}
+    monkeypatch.setattr(jobs,'fetch_104_job_openings_count',lambda *a, **kw: dict(payload))
+    monkeypatch.setattr(jobs,'fetch_1111_job_openings_count',lambda *a, **kw: dict(payload))
     result=AlternativeJobOpeningsProvider().fetch(FetchRequest.from_ticker('2330.TW'))
     assert result.status == 'degraded_enrichment'
     assert result.value['numeric_count_coverage'] == 0
-    assert result.value['recruitment_news_count'] == 2
+    assert result.value['recruitment_news_count'] == 1
     assert result.value['status'] == 'qualitative_only'
 
 
@@ -104,8 +104,8 @@ def test_jobs_zero_is_valid_empty_not_failure(monkeypatch):
     import alternative_data_fetcher as jobs
     from data_fetch.agent_context_providers import AlternativeJobOpeningsProvider
     from data_fetch.types import FetchRequest
-    monkeypatch.setattr(jobs,'fetch_104_job_openings_count',lambda *a: {'status':'success','job_count':0})
-    monkeypatch.setattr(jobs,'fetch_1111_job_openings_count',lambda *a: {'status':'success','job_count':0})
+    monkeypatch.setattr(jobs,'fetch_104_job_openings_count',lambda *a, **kw: {'status':'success','job_count':0})
+    monkeypatch.setattr(jobs,'fetch_1111_job_openings_count',lambda *a, **kw: {'status':'success','job_count':0})
     result=AlternativeJobOpeningsProvider().fetch(FetchRequest.from_ticker('2330.TW'))
     assert result.status == 'success'
     assert result.value['status'] == 'valid_empty'
@@ -115,7 +115,8 @@ def test_jobs_zero_is_valid_empty_not_failure(monkeypatch):
 def test_1111_parse_failure_is_not_transport_failure(monkeypatch):
     import alternative_data_fetcher as jobs
     monkeypatch.setattr(jobs,'_get_job_search_response',lambda *a,**k: type('R',(),{'text':'<html></html>'})())
-    monkeypatch.setattr(jobs,'_google_news_fallback',lambda *a,**k: pytest.fail('parse errors must stay distinct'))
+    import news_fetchers
+    monkeypatch.setattr(news_fetchers,'fetch_google_news_rss',lambda *a,**k: [])
     result=jobs.fetch_1111_job_openings_count('Company','engineer')
     assert result['reason_code'] == 'parse_failure'
 
@@ -164,7 +165,7 @@ def test_jobs_cache_reuses_same_company_keywords(monkeypatch):
     from data_fetch.agent_context_providers import AlternativeJobOpeningsProvider
     from data_fetch.types import FetchRequest
     calls=[]
-    def count(*args):
+    def count(*args, **kwargs):
         calls.append(args)
         return {'status':'success','job_count':5}
     monkeypatch.setattr(jobs,'fetch_104_job_openings_count',count)
@@ -240,8 +241,8 @@ def test_jobs_one_zero_and_one_failure_is_partial_not_empty(monkeypatch):
     import alternative_data_fetcher as jobs
     from data_fetch.agent_context_providers import AlternativeJobOpeningsProvider
     from data_fetch.types import FetchRequest
-    monkeypatch.setattr(jobs,'fetch_104_job_openings_count',lambda *a: {'status':'success','job_count':0})
-    monkeypatch.setattr(jobs,'fetch_1111_job_openings_count',lambda *a: {'status':'unavailable','job_count':None,'reason_code':'parse_failure'})
+    monkeypatch.setattr(jobs,'fetch_104_job_openings_count',lambda *a, **kw: {'status':'success','job_count':0})
+    monkeypatch.setattr(jobs,'fetch_1111_job_openings_count',lambda *a, **kw: {'status':'unavailable','job_count':None,'reason_code':'parse_failure'})
     result=AlternativeJobOpeningsProvider().fetch(FetchRequest.from_ticker('2330.TW'))
     assert result.value['status'] == 'partial'
     assert result.status == 'degraded_enrichment'

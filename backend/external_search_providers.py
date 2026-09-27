@@ -225,7 +225,7 @@ async def _fetch_provider_results(
                   "tavily": TAVILY_API_KEY, "serpapi": SERPAPI_API_KEY}.get(provider, "")
     return await fetch_search_upstream(provider, credential or "", lambda: fetch_provider_results(
         client, provider, query, max_results=max_results, lookback_days=lookback_days,
-    ))
+    ), admission_wait_seconds=2.0)
 
 
 def _provider_order() -> list[str]:

@@ -122,11 +122,15 @@ class AlternativeJobOpeningsProvider(DataProvider):
         return cached_context_result(self, request, context, self._fetch_uncached)
 
     def _fetch_uncached(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
-        from data_trust import AUDIT_STATUS_DEGRADED_ENRICHMENT, AUDIT_STATUS_SUCCESS
-        from alternative_data_fetcher import fetch_104_job_openings_count, fetch_1111_job_openings_count
+        from data_trust import AUDIT_STATUS_DEGRADED_ENRICHMENT, AUDIT_STATUS_SUCCESS, source_record_count
+        from alternative_data_fetcher import (fetch_104_job_openings_count, fetch_1111_job_openings_count,
+                                              recruitment_company_name, unique_recruitment_records)
 
         data = (context or {}).get("data", {}) if isinstance((context or {}).get("data"), dict) else {}
-        company_name = str(data.get("company_name") or request.ticker).strip()
+        company_name = recruitment_company_name(str(data.get("company_name") or request.ticker), data)
+        company_name = company_name or str(data.get("company_name") or request.ticker).strip()
+        company_context = {**data, "ticker": request.ticker}
+        fallback_memo = {}
         raw_keywords = data.get("alternative_data_keywords") or data.get("job_opening_keywords") or []
         if isinstance(raw_keywords, str):
             keywords = [raw_keywords]
@@ -135,14 +139,15 @@ class AlternativeJobOpeningsProvider(DataProvider):
         if not keywords:
             keywords = _default_job_opening_keywords(data)
 
-        results_104 = [fetch_104_job_openings_count(company_name, keyword) for keyword in keywords[:3]]
-        results_1111 = [fetch_1111_job_openings_count(company_name, keyword) for keyword in keywords[:3]]
+        results_104 = [fetch_104_job_openings_count(company_name, keyword, company_context=company_context, fallback_memo=fallback_memo) for keyword in keywords[:3]]
+        results_1111 = [fetch_1111_job_openings_count(company_name, keyword, company_context=company_context, fallback_memo=fallback_memo) for keyword in keywords[:3]]
         
         records = [item for item in results_104 + results_1111 if isinstance(item, dict)]
         numeric = [item for item in records if item.get("status") == "success"
                    and isinstance(item.get("job_count"), int) and not isinstance(item.get("job_count"), bool)
                    and item["job_count"] >= 0]
-        news_count = sum(len(item.get("recent_recruitment_news") or []) for item in records)
+        recruitment_news = unique_recruitment_records([row for item in records for row in (item.get("recent_recruitment_news") or [])])
+        news_count = len(recruitment_news)
         complete_numeric = len(numeric) == len(results_104) + len(results_1111)
         components = {}
         for provider, results in (("104", results_104), ("1111", results_1111)):
@@ -157,7 +162,8 @@ class AlternativeJobOpeningsProvider(DataProvider):
                 components[f"{provider}_{index}"] = {
                     "status": component_status,
                     "provider": str(item.get("actual_provider") or f"{provider} Job Search"),
-                    **{k:item[k] for k in ("page_kind", "http_status", "response_sha256", "response_bytes", "parser_version") if k in item},
+                    **{k:item[k] for k in ("page_kind", "http_status", "response_sha256", "response_bytes", "parser_version",
+                                           "primary_provider", "primary_status", "fallback_status") if k in item},
                     "reason_code": str(item.get("reason_code") or item.get("fallback_reason")
                                        or ("numeric_count" if valid_count else "count_not_reported")),
                 }
@@ -170,13 +176,15 @@ class AlternativeJobOpeningsProvider(DataProvider):
             "job_openings_104": results_104[0] if len(results_104) == 1 else results_104,
             "job_openings_1111": results_1111[0] if len(results_1111) == 1 else results_1111,
             "numeric_count_coverage": len(numeric), "recruitment_news_count": news_count,
+            "recent_recruitment_news": recruitment_news,
             "component_statuses": components,
             "coverage_notes": ["徵才新聞僅為質性訊號，不能代替職缺數；失敗不代表零職缺。"],
         }
         return ProviderResult(
             source=self.source, provider=self.name, status=status, value=value,
             audit={"source": self.source, "provider": self.name, "status": status,
-                   "record_count": len(numeric), "cache_hit": False, "stale": False,
+                   "record_count": source_record_count(self.source, {**company_context, self.source: value}),
+                   "cache_hit": False, "stale": False,
                    "coverage_status": coverage, "numeric_count_coverage": len(numeric),
                    "recruitment_news_count": news_count,
                    "component_statuses": components,

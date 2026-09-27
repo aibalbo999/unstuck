@@ -61,11 +61,11 @@ def test_job_openings_provider_derives_default_keywords_when_missing(monkeypatch
 
     calls = []
 
-    def fake_104(company, keyword):
+    def fake_104(company, keyword, **kwargs):
         calls.append(("104", company, keyword))
         return {"status": "success", "job_count": 12, "source": "104 Job Search"}
 
-    def fake_1111(company, keyword):
+    def fake_1111(company, keyword, **kwargs):
         calls.append(("1111", company, keyword))
         return {"status": "unavailable", "job_count": None, "source": "1111 Job Search"}
 

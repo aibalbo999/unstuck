@@ -11,9 +11,9 @@ import provider_sla
 
 
 def test_job_components_preserve_distinct_failures_in_sla(monkeypatch):
-    monkeypatch.setattr(jobs, 'fetch_104_job_openings_count', lambda *a: {
+    monkeypatch.setattr(jobs, 'fetch_104_job_openings_count', lambda *a, **kw: {
         'status': 'unavailable', 'job_count': None, 'reason_code': 'parse_failure'})
-    monkeypatch.setattr(jobs, 'fetch_1111_job_openings_count', lambda *a: {
+    monkeypatch.setattr(jobs, 'fetch_1111_job_openings_count', lambda *a, **kw: {
         'status': 'unavailable', 'job_count': None, 'reason_code': 'transport_failure'})
     result = AlternativeJobOpeningsProvider()._fetch_uncached(
         FetchRequest.from_ticker('2330.TW'),
@@ -39,8 +39,8 @@ def test_job_components_preserve_distinct_failures_in_sla(monkeypatch):
     ({'status': 'success', 'job_count': True}, 'unavailable'),
 ])
 def test_job_diagnostics_do_not_promote_news_or_unknown_to_numeric(monkeypatch, payload, expected):
-    monkeypatch.setattr(jobs, 'fetch_104_job_openings_count', lambda *a: dict(payload))
-    monkeypatch.setattr(jobs, 'fetch_1111_job_openings_count', lambda *a: dict(payload))
+    monkeypatch.setattr(jobs, 'fetch_104_job_openings_count', lambda *a, **kw: dict(payload))
+    monkeypatch.setattr(jobs, 'fetch_1111_job_openings_count', lambda *a, **kw: dict(payload))
     result = AlternativeJobOpeningsProvider()._fetch_uncached(FetchRequest.from_ticker('2330.TW'))
     components = result.audit['component_statuses']
     assert all(v['status'] == expected for v in components.values())

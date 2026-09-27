@@ -15,7 +15,7 @@ from zoneinfo import ZoneInfo
 from source_observation_freshness import parse_observation_date
 
 
-NON_SPECIFIC_CATEGORIES = {"上市股票", "上櫃股票", "興櫃股票", "電子工業", "其他", "其他業"}
+NON_SPECIFIC_CATEGORIES = {"上市股票", "上櫃股票", "興櫃股票", "創新板股票", "創新版股票", "電子工業", "其他", "其他業"}
 NON_EQUITY_CATEGORIES = {"ETF", "ETN", "指數", "受益證券", "認購權證", "認售權證", "存託憑證", "大盤"}
 MASTER_MAX_AGE_DAYS = 7
 
