@@ -55,6 +55,7 @@ def main() -> int:
     with tempfile.TemporaryDirectory(prefix="prompt-boundary-tests-") as directory:
         root = Path(directory).resolve()
         os.environ.update({
+            "STOCK_AGENT_TEST_NO_NETWORK": "1",
             "CACHE_DIR": str(root / "cache"),
             "CACHE_DB_PATH": str(root / "stock_agent_cache.sqlite3"),
             "OPERATIONAL_DB_PATH": str(root / "operational.sqlite3"),

@@ -17,6 +17,7 @@ from .market_sources.taiwan import (
     _align_finmind_history,
     _history_has_values,
     fetch_finmind_financial_statement_fallback,
+    audited_finmind_financial_statement_fallback,
 )
 from source_audit import audited_fetch
 from provider_correlation import current_correlation
@@ -192,13 +193,8 @@ def extract_financial_histories(stock, ticker: str, data_source_notes: list, dat
             or not _history_has_values(fcf_history)
         )
         if needs_finmind_fallback:
-            finmind_fallback_result = audited_fetch(
-                "financial_statements",
-                "FinMind financial statement fallback",
-                fetch_finmind_financial_statement_fallback,
-                (ticker,),
-                default={},
-                unavailable_message="FinMind 財報備援未回傳可用年度資料。",
+            finmind_fallback_result = audited_finmind_financial_statement_fallback(
+                ticker, fetcher=fetch_finmind_financial_statement_fallback, audit_fetch=audited_fetch,
             )
             finmind_fallback = finmind_fallback_result.get("value") or {}
             finmind_financial_fallback_audit = finmind_fallback_result.get("audit")
