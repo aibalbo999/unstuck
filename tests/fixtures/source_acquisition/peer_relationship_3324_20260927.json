@@ -1,0 +1,239 @@
+{
+  "provenance": "Actual2026-09-27 GoogleNews RSS top8 per authorized native query; identity subset from current normal financial_data cache. No fulltext or numeric peer proof.",
+  "now_epoch": 1790492554.233866,
+  "issuer": {
+    "ticker": "3324.TWO",
+    "quote_type": "EQUITY",
+    "exchange": "TWO",
+    "company_name": "雙鴻 / Auras Technology Co., Ltd.",
+    "cache_generated_at_epoch": 1790485707.0270321,
+    "cache_generated_at": "2026-09-27T05:08:27.027032+00:00",
+    "market_data_fetched_at_epoch": 1790485703.304317,
+    "market_data_fetched_at": "2026-09-27T05:08:23.304317+00:00",
+    "fetch_date": "2026年09月27日",
+    "company_identity": {
+      "ticker": "3324.TWO",
+      "stock_id": "3324",
+      "official_name": "雙鴻",
+      "instrument_type": "EQUITY",
+      "instrument_type_source": "yfinance quoteType",
+      "allowed_aliases": [
+        "雙鴻",
+        "雙鴻 / Auras Technology Co., Ltd.",
+        "Auras Technology Co., Ltd.",
+        "3324.TWO",
+        "3324",
+        "AURAS TECHNOLOGY CO"
+      ],
+      "forbidden_aliases": []
+    },
+    "identity_source_freshness": null
+  },
+  "cache": {
+    "financial_data:3017.TW": {
+      "ticker": "3017.TW",
+      "quote_type": "EQUITY",
+      "exchange": "TAI",
+      "company_name": "奇鋐 / Asia Vital Components Co., Ltd.",
+      "cache_generated_at_epoch": 1790485529.523387,
+      "cache_generated_at": "2026-09-27T05:05:29.523387+00:00",
+      "market_data_fetched_at_epoch": 1790485525.7607439,
+      "market_data_fetched_at": "2026-09-27T05:05:25.760744+00:00",
+      "fetch_date": "2026年09月27日",
+      "company_identity": {
+        "ticker": "3017.TW",
+        "stock_id": "3017",
+        "official_name": "奇鋐",
+        "instrument_type": "EQUITY",
+        "instrument_type_source": "yfinance quoteType",
+        "allowed_aliases": [
+          "奇鋐",
+          "奇鋐 / Asia Vital Components Co., Ltd.",
+          "Asia Vital Components Co., Ltd.",
+          "3017.TW",
+          "3017",
+          "ASIA VITAL COMPONENTS CO LTD"
+        ],
+        "forbidden_aliases": []
+      },
+      "identity_source_freshness": null
+    },
+    "financial_data:3017.TWO": null
+  },
+  "queries": [
+    {
+      "query": "雙鴻 同業",
+      "response_sha256": "0f6a8cd8a2891e1fcbc631a3f27de48b596cb6735301343ea0f7afa4a3f5db9e",
+      "results": [
+        {
+          "title": "AI散熱族群概念股有哪些？奇鋐、雙鴻、台達電上中下游供應鏈全指南 - pocket.tw",
+          "snippet": "<a href=\"https://news.google.com/rss/articles/CBMiY0FVX3lxTFA0eWNaMWZkZ2lkdmdXeTRRLVJZMGVfRUx6LUhpZ2lKTUlIQTVNSDFpLW5ucUROWVJMVm1MbTR6T0owZVB1dWpJb1BQVGhFQnBwYkxkM1FCME9ld0xSX3BIZ0hVTQ?oc=5\" target=\"_blank\">AI散熱族群概念股有哪些？奇鋐、雙鴻、台達電上中下游供應鏈全指南</a>&nbsp;&nbsp;<font color=\"#6f6f6f\">pocket.tw</font>",
+          "link": "https://news.google.com/rss/articles/CBMiY0FVX3lxTFA0eWNaMWZkZ2lkdmdXeTRRLVJZMGVfRUx6LUhpZ2lKTUlIQTVNSDFpLW5ucUROWVJMVm1MbTR6T0owZVB1dWpJb1BQVGhFQnBwYkxkM1FCME9ld0xSX3BIZ0hVTQ?oc=5",
+          "source": "pocket.tw",
+          "published_at": "Wed, 16 Sep 2026 07:00:00 GMT",
+          "provider": "google_news_rss"
+        },
+        {
+          "title": "【即時新聞】雙鴻(3324)營收飆30億列注意股，這「3 檔概念股」多空交戰？ - CMoney投資網誌",
+          "snippet": "<a href=\"https://news.google.com/rss/articles/CBMikAFBVV95cUxQUklublFCRnlQcnFIWkkzenJra2hwTDVWR00tZS1WaHBtek54YTRiVEdqYjdmZEtlRmJQUkpEYkZXeExHa2tKT2ZqVV9KYW9hSXRKZFZZS0ZQdG9NR3l4em92ZjRkVERyXzV2QUplUTBLNnJTXzlKbjZRdGtpVUJSdnZ6elB0a0xfOEJLdnhqTDg?oc=5\" target=\"_blank\">【即時新聞】雙鴻(3324)營收飆30億列注意股，這「3 檔概念股」多空交戰？</a>&nbsp;&nbsp;<font color=\"#6f6f6f\">CMoney投資網誌</font>",
+          "link": "https://news.google.com/rss/articles/CBMikAFBVV95cUxQUklublFCRnlQcnFIWkkzenJra2hwTDVWR00tZS1WaHBtek54YTRiVEdqYjdmZEtlRmJQUkpEYkZXeExHa2tKT2ZqVV9KYW9hSXRKZFZZS0ZQdG9NR3l4em92ZjRkVERyXzV2QUplUTBLNnJTXzlKbjZRdGtpVUJSdnZ6elB0a0xfOEJLdnhqTDg?oc=5",
+          "source": "CMoney投資網誌",
+          "published_at": "Tue, 10 Feb 2026 08:00:00 GMT",
+          "provider": "google_news_rss"
+        },
+        {
+          "title": "大咖投顧調升奇鋐到1950…雙鴻、建準、高力散熱四強一次看：3家本益比還在「1字頭」 - 旺得富理財網",
+          "snippet": "<a href=\"https://news.google.com/rss/articles/CBMiakFVX3lxTFBBWnJCQ0kyV1ItZW94Y245ZTFNLWxIaWwza05vcDh6aWRCdXo3MTRITHkzbVpydW9nbHAwYndGd2tSeHpvR19ob2NfNC1NSmpXTWFTaDdMd0M3UVZ5WVY0MGZwV19lZllTRGc?oc=5\" target=\"_blank\">大咖投顧調升奇鋐到1950…雙鴻、建準、高力散熱四強一次看：3家本益比還在「1字頭」</a>&nbsp;&nbsp;<font color=\"#6f6f6f\">旺得富理財網</font>",
+          "link": "https://news.google.com/rss/articles/CBMiakFVX3lxTFBBWnJCQ0kyV1ItZW94Y245ZTFNLWxIaWwza05vcDh6aWRCdXo3MTRITHkzbVpydW9nbHAwYndGd2tSeHpvR19ob2NfNC1NSmpXTWFTaDdMd0M3UVZ5WVY0MGZwV19lZllTRGc?oc=5",
+          "source": "旺得富理財網",
+          "published_at": "Tue, 06 Jan 2026 08:00:00 GMT",
+          "provider": "google_news_rss"
+        },
+        {
+          "title": "高力(8996)做什麼的？從熱處理老廠跨入AI液冷散熱，首季EPS飆增3.4倍創新高 - pocket.tw",
+          "snippet": "<a href=\"https://news.google.com/rss/articles/CBMiXEFVX3lxTFAyUVZ4c3VsRTZiWnUza09GV2lnWGY0WEx0ZEZhREJ2VUhzZ3dwQkFtcVM4MFZtZzJKQV9YaVNHcVV5UFNCcTVsSVItMnFGYlA5aXgxcVJvaC14QXN0?oc=5\" target=\"_blank\">高力(8996)做什麼的？從熱處理老廠跨入AI液冷散熱，首季EPS飆增3.4倍創新高</a>&nbsp;&nbsp;<font color=\"#6f6f6f\">pocket.tw</font>",
+          "link": "https://news.google.com/rss/articles/CBMiXEFVX3lxTFAyUVZ4c3VsRTZiWnUza09GV2lnWGY0WEx0ZEZhREJ2VUhzZ3dwQkFtcVM4MFZtZzJKQV9YaVNHcVV5UFNCcTVsSVItMnFGYlA5aXgxcVJvaC14QXN0?oc=5",
+          "source": "pocket.tw",
+          "published_at": "Wed, 22 Jul 2026 07:00:00 GMT",
+          "provider": "google_news_rss"
+        },
+        {
+          "title": "私募巨頭 KKR 考慮以逾 30 億美元出售液冷技術龍頭 CoolIT Systems - 優分析UAnalyze",
+          "snippet": "<a href=\"https://news.google.com/rss/articles/CBMiVkFVX3lxTE5SVzNCUTIzdVNzZm9mZkFNS2FIRnhocVV3LUdXNnpXVkpNVDZ2NmltR3NNWE5QdGplR3hKTlN4ZWJ1bTNVQ25ZNmFpa213ZllfemlaZ3Zn?oc=5\" target=\"_blank\">私募巨頭 KKR 考慮以逾 30 億美元出售液冷技術龍頭 CoolIT Systems</a>&nbsp;&nbsp;<font color=\"#6f6f6f\">優分析UAnalyze</font>",
+          "link": "https://news.google.com/rss/articles/CBMiVkFVX3lxTE5SVzNCUTIzdVNzZm9mZkFNS2FIRnhocVV3LUdXNnpXVkpNVDZ2NmltR3NNWE5QdGplR3hKTlN4ZWJ1bTNVQ25ZNmFpa213ZllfemlaZ3Zn?oc=5",
+          "source": "優分析UAnalyze",
+          "published_at": "Mon, 09 Mar 2026 07:00:00 GMT",
+          "provider": "google_news_rss"
+        },
+        {
+          "title": "△個股：雙鴻獲兩大客戶ASIC水冷大單並切入記憶體散熱領域，明年水冷業務飆 - ww2.money-link.com.tw",
+          "snippet": "<a href=\"https://news.google.com/rss/articles/CBMiiAFBVV95cUxPMlczOGM2WGdZRmFxY2xPWWViajI2aEM4RU1oVG8weHdmUmp0WjlRVkc3dlBpVGQ2eXRCYlc1Qk4zSHlRNE56TE1IWEdjNUVtSG1obTR6NjdtbjdXUndpYmtQT0dkX3VSX1c2UUNZU2ZpZjJEU0ZULW5EQlhUczdSbklxbWFDNXhO?oc=5\" target=\"_blank\">△個股：雙鴻獲兩大客戶ASIC水冷大單並切入記憶體散熱領域，明年水冷業務飆</a>&nbsp;&nbsp;<font color=\"#6f6f6f\">ww2.money-link.com.tw</font>",
+          "link": "https://news.google.com/rss/articles/CBMiiAFBVV95cUxPMlczOGM2WGdZRmFxY2xPWWViajI2aEM4RU1oVG8weHdmUmp0WjlRVkc3dlBpVGQ2eXRCYlc1Qk4zSHlRNE56TE1IWEdjNUVtSG1obTR6NjdtbjdXUndpYmtQT0dkX3VSX1c2UUNZU2ZpZjJEU0ZULW5EQlhUczdSbklxbWFDNXhO?oc=5",
+          "source": "ww2.money-link.com.tw",
+          "published_at": "Thu, 27 Nov 2025 08:00:00 GMT",
+          "provider": "google_news_rss"
+        },
+        {
+          "title": "雙鴻伺服器營收Q4達7成，MCL已正式出貨| MoneyDJ理財網 - today.line.me",
+          "snippet": "<a href=\"https://news.google.com/rss/articles/CBMiVkFVX3lxTFAtcEtnVjVaSFJod2ZHZWVtZVFPX3A5S2xwRkpDREpLRmpVd0ZJWUE1T2RpMHUtamh6a3I3RWpvT2ZlV1RCVUFHTU5qVVhHU3V4M1IwWklR?oc=5\" target=\"_blank\">雙鴻伺服器營收Q4達7成，MCL已正式出貨| MoneyDJ理財網</a>&nbsp;&nbsp;<font color=\"#6f6f6f\">today.line.me</font>",
+          "link": "https://news.google.com/rss/articles/CBMiVkFVX3lxTFAtcEtnVjVaSFJod2ZHZWVtZVFPX3A5S2xwRkpDREpLRmpVd0ZJWUE1T2RpMHUtamh6a3I3RWpvT2ZlV1RCVUFHTU5qVVhHU3V4M1IwWklR?oc=5",
+          "source": "today.line.me",
+          "published_at": "Wed, 17 Sep 2025 07:00:00 GMT",
+          "provider": "google_news_rss"
+        },
+        {
+          "title": "雙鴻取得均熱片認證；水冷板市占提高推升Q4動能 - MoneyDJ",
+          "snippet": "<a href=\"https://news.google.com/rss/articles/CBMikgFBVV95cUxPUUwxLWxjTkxjREg1ZjlhTVdJNVNVX2xGZFBVYzhhRUkyN1VlN3Z2RWFjOHd2aEN3XzdsYTZpZ2hxRlh3U0hjQ1E0aElib0pvRVRfc2ZvSjJIbmZVX1hUem43SHRRTGhQaE1JOGVGSXlfSS1GLTNTRDRFWXpiUENMTzYzY0c4WDFiMFF1aWVPS2lDdw?oc=5\" target=\"_blank\">雙鴻取得均熱片認證；水冷板市占提高推升Q4動能</a>&nbsp;&nbsp;<font color=\"#6f6f6f\">MoneyDJ</font>",
+          "link": "https://news.google.com/rss/articles/CBMikgFBVV95cUxPUUwxLWxjTkxjREg1ZjlhTVdJNVNVX2xGZFBVYzhhRUkyN1VlN3Z2RWFjOHd2aEN3XzdsYTZpZ2hxRlh3U0hjQ1E0aElib0pvRVRfc2ZvSjJIbmZVX1hUem43SHRRTGhQaE1JOGVGSXlfSS1GLTNTRDRFWXpiUENMTzYzY0c4WDFiMFF1aWVPS2lDdw?oc=5",
+          "source": "MoneyDJ",
+          "published_at": "Tue, 16 Sep 2025 07:00:00 GMT",
+          "provider": "google_news_rss"
+        }
+      ]
+    },
+    {
+      "query": "雙鴻 競爭對手",
+      "response_sha256": "30869f9fbef680cc193b4c3b0d7b0cc49d5afae742febbfa3ae923fe58544059",
+      "results": [
+        {
+          "title": "對手飛龍在天，它還在千元徘徊！氣冷轉向液冷，3月營收創高、4月中外資卡位，股價還有機會嗎？ - 經濟日報",
+          "snippet": "<a href=\"https://news.google.com/rss/articles/CBMiWkFVX3lxTE9xYTl1ZWFuLUt3cTNLQ3phZGQ1Qm9hNXpVYlZTSlhPN3N4bFhBUlV0LWZaTUhBVUJ6aUtYM1VWaVFVbDR2bkZFSC15R1B0bWhLVHoxWGEyQjBpQdIBX0FVX3lxTE1mbmNOQ3ZZQmY3eTgtTHpFbDlSV1FrN2x6WTJOTUFQOWl3T2VKcDRWcjNmblczVkFnelZaMGZuS3lXUk5SUThOWmhuaDdIMldWSmliLUNrVEs5YmRaM2hV?oc=5\" target=\"_blank\">對手飛龍在天，它還在千元徘徊！氣冷轉向液冷，3月營收創高、4月中外資卡位，股價還有機會嗎？</a>&nbsp;&nbsp;<font color=\"#6f6f6f\">經濟日報</font>",
+          "link": "https://news.google.com/rss/articles/CBMiWkFVX3lxTE9xYTl1ZWFuLUt3cTNLQ3phZGQ1Qm9hNXpVYlZTSlhPN3N4bFhBUlV0LWZaTUhBVUJ6aUtYM1VWaVFVbDR2bkZFSC15R1B0bWhLVHoxWGEyQjBpQdIBX0FVX3lxTE1mbmNOQ3ZZQmY3eTgtTHpFbDlSV1FrN2x6WTJOTUFQOWl3T2VKcDRWcjNmblczVkFnelZaMGZuS3lXUk5SUThOWmhuaDdIMldWSmliLUNrVEs5YmRaM2hV?oc=5",
+          "source": "經濟日報",
+          "published_at": "Fri, 24 Apr 2026 07:00:00 GMT",
+          "provider": "google_news_rss"
+        },
+        {
+          "title": "雙鴻（3324）做什麼？從散熱模組廠到 AI 伺服器液冷系統商的營收轉型解析 - pocket.tw",
+          "snippet": "<a href=\"https://news.google.com/rss/articles/CBMiXEFVX3lxTE5HcGVmRnY5THZnWjFjMDNkOU5vbGVMbE12WEhaODQ4aGxLUmdsWVZ5Vkc3TkVyNTEyTzR5Z2hEVFQ4LWNYbWRWRWY1NHRfTnRDem9lZzUtRXlqUnJh?oc=5\" target=\"_blank\">雙鴻（3324）做什麼？從散熱模組廠到 AI 伺服器液冷系統商的營收轉型解析</a>&nbsp;&nbsp;<font color=\"#6f6f6f\">pocket.tw</font>",
+          "link": "https://news.google.com/rss/articles/CBMiXEFVX3lxTE5HcGVmRnY5THZnWjFjMDNkOU5vbGVMbE12WEhaODQ4aGxLUmdsWVZ5Vkc3TkVyNTEyTzR5Z2hEVFQ4LWNYbWRWRWY1NHRfTnRDem9lZzUtRXlqUnJh?oc=5",
+          "source": "pocket.tw",
+          "published_at": "Fri, 04 Sep 2026 07:00:00 GMT",
+          "provider": "google_news_rss"
+        },
+        {
+          "title": "小編下班聊點錢》揮別砍價鬼故事 水冷板不跌反漲 散熱雙雄奇鋐、雙鴻買誰好？法人曝最新目標價EPS - 旺得富理財網",
+          "snippet": "<a href=\"https://news.google.com/rss/articles/CBMiakFVX3lxTFB0eUZPcDJoX2E5UkFLbmMzcE9aMWM0SEt0eFJ0VjV0VlpXSkE2R250YU10M296Y29qeEdtSUh6bnl0X1pSV20yT3RCVzczN3ZrRzBteUNsZ3dLX2hoNGw0NVlENzJ2d2JrY1E?oc=5\" target=\"_blank\">小編下班聊點錢》揮別砍價鬼故事 水冷板不跌反漲 散熱雙雄奇鋐、雙鴻買誰好？法人曝最新目標價EPS</a>&nbsp;&nbsp;<font color=\"#6f6f6f\">旺得富理財網</font>",
+          "link": "https://news.google.com/rss/articles/CBMiakFVX3lxTFB0eUZPcDJoX2E5UkFLbmMzcE9aMWM0SEt0eFJ0VjV0VlpXSkE2R250YU10M296Y29qeEdtSUh6bnl0X1pSV20yT3RCVzczN3ZrRzBteUNsZ3dLX2hoNGw0NVlENzJ2d2JrY1E?oc=5",
+          "source": "旺得富理財網",
+          "published_at": "Sat, 05 Sep 2026 07:00:00 GMT",
+          "provider": "google_news_rss"
+        },
+        {
+          "title": "【即時新聞】雙鴻最新財測上修，第一季營收達80.5億元，EPS11.5元全年成長47％ - CMoney",
+          "snippet": "<a href=\"https://news.google.com/rss/articles/CBMiZ0FVX3lxTFBVZU11WXBXR2ZaN3FtbmF0eVZKOGtQdW5ONGE5am9hb21MS2ZYQVFZSFAtLXgtREkxV19pTThxZS1xdGcwdm9HVG5QejJlTTZNZXh6WFhrZTJRcjhhRTFOcDEzUEo1SUE?oc=5\" target=\"_blank\">【即時新聞】雙鴻最新財測上修，第一季營收達80.5億元，EPS11.5元全年成長47％</a>&nbsp;&nbsp;<font color=\"#6f6f6f\">CMoney</font>",
+          "link": "https://news.google.com/rss/articles/CBMiZ0FVX3lxTFBVZU11WXBXR2ZaN3FtbmF0eVZKOGtQdW5ONGE5am9hb21MS2ZYQVFZSFAtLXgtREkxV19pTThxZS1xdGcwdm9HVG5QejJlTTZNZXh6WFhrZTJRcjhhRTFOcDEzUEo1SUE?oc=5",
+          "source": "CMoney",
+          "published_at": "Sat, 28 Mar 2026 07:00:00 GMT",
+          "provider": "google_news_rss"
+        },
+        {
+          "title": "目標價給到1280元！「散熱大廠」今年EPS估看5股本 GB300訂單帶動水冷產品出貨增溫 - FTNN",
+          "snippet": "<a href=\"https://news.google.com/rss/articles/CBMiS0FVX3lxTE5FS3VNTUE4WVdZVlFkM0p6ZDdUTDYzSE5fZ1pQcmZzY0JoTjRiTl9pVGloXzRBTU5jdDFNNUgtYXlORGZXeEZhQTEzQQ?oc=5\" target=\"_blank\">目標價給到1280元！「散熱大廠」今年EPS估看5股本 GB300訂單帶動水冷產品出貨增溫</a>&nbsp;&nbsp;<font color=\"#6f6f6f\">FTNN</font>",
+          "link": "https://news.google.com/rss/articles/CBMiS0FVX3lxTE5FS3VNTUE4WVdZVlFkM0p6ZDdUTDYzSE5fZ1pQcmZzY0JoTjRiTl9pVGloXzRBTU5jdDFNNUgtYXlORGZXeEZhQTEzQQ?oc=5",
+          "source": "FTNN",
+          "published_at": "Wed, 12 Aug 2026 07:00:00 GMT",
+          "provider": "google_news_rss"
+        },
+        {
+          "title": "散熱雙雄誰勝出？雙鴻 (3324) 與奇鋐 (3017) 液冷佈局、獲利展望深度比較 - pocket.tw",
+          "snippet": "<a href=\"https://news.google.com/rss/articles/CBMiY0FVX3lxTE16eURkdlN1YzRjeE5lX0lnQnRlc3VTWU1CVDBDbFg3ci1CZl83UUxjM0tnY2x2VjBnSTBMNlJZc1RhVjlxN1EzY3pZNE1ETGM0OTBOMHZRMUM1TlRUdGpnQlpfNA?oc=5\" target=\"_blank\">散熱雙雄誰勝出？雙鴻 (3324) 與奇鋐 (3017) 液冷佈局、獲利展望深度比較</a>&nbsp;&nbsp;<font color=\"#6f6f6f\">pocket.tw</font>",
+          "link": "https://news.google.com/rss/articles/CBMiY0FVX3lxTE16eURkdlN1YzRjeE5lX0lnQnRlc3VTWU1CVDBDbFg3ci1CZl83UUxjM0tnY2x2VjBnSTBMNlJZc1RhVjlxN1EzY3pZNE1ETGM0OTBOMHZRMUM1TlRUdGpnQlpfNA?oc=5",
+          "source": "pocket.tw",
+          "published_at": "Wed, 18 Mar 2026 07:00:00 GMT",
+          "provider": "google_news_rss"
+        },
+        {
+          "title": "液冷產業規模擴大雙鴻有良好機會| 雜誌 - UDN",
+          "snippet": "<a href=\"https://news.google.com/rss/articles/CBMiUEFVX3lxTFBMT185RjNRT0I0Q3Y0MmFrN3d6V2ZsbVJNY1o2eElVQzZYRmlaamNpVDF6cDlRQkRIOWNKc0RuMXpTU3Fsa1F5TDlsZTk0QW5H?oc=5\" target=\"_blank\">液冷產業規模擴大雙鴻有良好機會| 雜誌</a>&nbsp;&nbsp;<font color=\"#6f6f6f\">UDN</font>",
+          "link": "https://news.google.com/rss/articles/CBMiUEFVX3lxTFBMT185RjNRT0I0Q3Y0MmFrN3d6V2ZsbVJNY1o2eElVQzZYRmlaamNpVDF6cDlRQkRIOWNKc0RuMXpTU3Fsa1F5TDlsZTk0QW5H?oc=5",
+          "source": "UDN",
+          "published_at": "Thu, 23 Apr 2026 07:00:00 GMT",
+          "provider": "google_news_rss"
+        },
+        {
+          "title": "【0305法人焦點】市場最新個股動態：Apple(AAPL US)新品發表、是方(6561 TT)、研華 (2395 TT)、雙鴻(3324 TT)、群電(6412 TT)、晶碩(6491 TT)｜豐雲學堂2026 年 09 月 - sinotrade.com.tw",
+          "snippet": "<a href=\"https://news.google.com/rss/articles/CBMiogRBVV95cUxPRWZiSEpPbUNhc2o0aXBfblR6TkYxejhpQS1Pd1NxckFzNUJfZ1Z3dy15VnZPNXBKWkRhOXJKRDhYVWpoX0l3UzFxbS1LRTZOOTMxcWE5bGMzeHVLNTFGX3NybzRtbmx6MWoxMzBERFQ3WW92R2VBOHFMRkNOUlRGZEctdk1ZTTIxUkN1SzNYd3lVU2NkWlI2TjZvN3ZKcXBVOXJPcXphUmxkZWMwMTR1UXNUODFOUG1FaTVSLTl3X1ZDbXdmNDRFYjBpT3g2TEd0LTBJTWhDa0RkTXFlejd3RDdLYTctSUFONDUzUzlZcUdjV0hac05DMVE1c1NZOElJYnBlMkQwN3NXT3ZpdDNOdHZCZUp5ZzRZNk5UbUVIcDV0QjJWWTl4d2k5VFlWaG9xaHZfckI1em9NTGVZc0VFb0JEdlNmTG05QzB3OW5fcFFXSVFxajlLblNpMFh4bzV4SWxWeGd1VWdwb2drRTd5WmwxNGl5Y1R2V2Yxdm5iUzQwSzdlTHhHMDBnNFVUQXFHSHFSaUlOek10d2RnNjBGM040cGNLeG5VekxuZTZ2Z3RVeUhMMDVsQ2U0em1Wb243Ym13N3lTSGxDT0ZKdDdudHo4REVBX1VBdk5jWnhMdEdNVnRUYjBtUGNVRjNtNVBMcW96ampLb3Y3bmkzWFdjc1U1N0JMdzRqM0JBc0dmWFRIVHYwdXJudkFMWGxZLV9uOHc?oc=5\" target=\"_blank\">【0305法人焦點】市場最新個股動態：Apple(AAPL US)新品發表、是方(6561 TT)、研華 (2395 TT)、雙鴻(3324 TT)、群電(6412 TT)、晶碩(6491 TT)｜豐雲學堂2026 年 09 月</a>&nbsp;&nbsp;<font color=\"#6f6f6f\">sinotrade.com.tw</font>",
+          "link": "https://news.google.com/rss/articles/CBMiogRBVV95cUxPRWZiSEpPbUNhc2o0aXBfblR6TkYxejhpQS1Pd1NxckFzNUJfZ1Z3dy15VnZPNXBKWkRhOXJKRDhYVWpoX0l3UzFxbS1LRTZOOTMxcWE5bGMzeHVLNTFGX3NybzRtbmx6MWoxMzBERFQ3WW92R2VBOHFMRkNOUlRGZEctdk1ZTTIxUkN1SzNYd3lVU2NkWlI2TjZvN3ZKcXBVOXJPcXphUmxkZWMwMTR1UXNUODFOUG1FaTVSLTl3X1ZDbXdmNDRFYjBpT3g2TEd0LTBJTWhDa0RkTXFlejd3RDdLYTctSUFONDUzUzlZcUdjV0hac05DMVE1c1NZOElJYnBlMkQwN3NXT3ZpdDNOdHZCZUp5ZzRZNk5UbUVIcDV0QjJWWTl4d2k5VFlWaG9xaHZfckI1em9NTGVZc0VFb0JEdlNmTG05QzB3OW5fcFFXSVFxajlLblNpMFh4bzV4SWxWeGd1VWdwb2drRTd5WmwxNGl5Y1R2V2Yxdm5iUzQwSzdlTHhHMDBnNFVUQXFHSHFSaUlOek10d2RnNjBGM040cGNLeG5VekxuZTZ2Z3RVeUhMMDVsQ2U0em1Wb243Ym13N3lTSGxDT0ZKdDdudHo4REVBX1VBdk5jWnhMdEdNVnRUYjBtUGNVRjNtNVBMcW96ampLb3Y3bmkzWFdjc1U1N0JMdzRqM0JBc0dmWFRIVHYwdXJudkFMWGxZLV9uOHc?oc=5",
+          "source": "sinotrade.com.tw",
+          "published_at": "Thu, 05 Mar 2026 08:00:00 GMT",
+          "provider": "google_news_rss"
+        }
+      ]
+    }
+  ],
+  "negative_examples": [
+    {
+      "title": "材料*-KY砸百億小吃大，併購同業Cerdia - Yahoo股市",
+      "snippet": "<a href=\"https://news.google.com/rss/articles/CBMi-AFBVV95cUxQUDc2ZWV5V3FsdVI2bUtJOFZtZXQ4Z1JaVTgwdkF5UGh0U1BBLXpKREhqX3U4UlNjQ2R3UFAtbmZWaVdmeDJFRjQ1c0tMaTU4YXJkN215ZWlXV24xelhmT3FSbXJQNzhuYzhoLVR5dFNGTTRpVGZtMDFKNVhfWmcyaWVzR3FrVzVyRnJyNHczcEktZlVHOV96dlg3dC1Rb1BDYUFIZHEtRHpnbU1keHN5N1hIeG45alNLc3JUZFZkOXBBZ2pRQVZVZUhFM3o4QVRiUnZwOVFpQno5LWtHX0NTNlMxNmJlSDN5Tkc2Y09DUnZNdjhfT1pCZg?oc=5\" target=\"_blank\">材料*-KY砸百億小吃大，併購同業Cerdia</a>&nbsp;&nbsp;<font color=\"#6f6f6f\">Yahoo股市</font>",
+      "link": "https://news.google.com/rss/articles/CBMi-AFBVV95cUxQUDc2ZWV5V3FsdVI2bUtJOFZtZXQ4Z1JaVTgwdkF5UGh0U1BBLXpKREhqX3U4UlNjQ2R3UFAtbmZWaVdmeDJFRjQ1c0tMaTU4YXJkN215ZWlXV24xelhmT3FSbXJQNzhuYzhoLVR5dFNGTTRpVGZtMDFKNVhfWmcyaWVzR3FrVzVyRnJyNHczcEktZlVHOV96dlg3dC1Rb1BDYUFIZHEtRHpnbU1keHN5N1hIeG45alNLc3JUZFZkOXBBZ2pRQVZVZUhFM3o4QVRiUnZwOVFpQno5LWtHX0NTNlMxNmJlSDN5Tkc2Y09DUnZNdjhfT1pCZg?oc=5",
+      "source": "Yahoo股市",
+      "published_at": "Tue, 22 Sep 2026 02:46:45 GMT",
+      "provider": "google_news_rss"
+    },
+    {
+      "title": "【即時新聞】聯電今日獲外資買超，同業力積電台積電遭大賣下逆勢成焦點 - CMoney投資網誌",
+      "snippet": "<a href=\"https://news.google.com/rss/articles/CBMikAFBVV95cUxONnNPNW84a2UzR3NkblJpOEJ3SC1HY2lrOTROUjJnWk1LMDNLZDF3RnNlbFhMWEI2VkdiakZaN3pFSXo3Mm11U0VHU0Y5TDltc3VheDJySTdiMDBPRm4yaTkxMjBVTXF2SnJ1VjNTYzRnQ0dJelpPdHhQam5pTkJmX09qYVRCVjBGcWhnWW54YzU?oc=5\" target=\"_blank\">【即時新聞】聯電今日獲外資買超，同業力積電台積電遭大賣下逆勢成焦點</a>&nbsp;&nbsp;<font color=\"#6f6f6f\">CMoney投資網誌</font>",
+      "link": "https://news.google.com/rss/articles/CBMikAFBVV95cUxONnNPNW84a2UzR3NkblJpOEJ3SC1HY2lrOTROUjJnWk1LMDNLZDF3RnNlbFhMWEI2VkdiakZaN3pFSXo3Mm11U0VHU0Y5TDltc3VheDJySTdiMDBPRm4yaTkxMjBVTXF2SnJ1VjNTYzRnQ0dJelpPdHhQam5pTkJmX09qYVRCVjBGcWhnWW54YzU?oc=5",
+      "source": "CMoney投資網誌",
+      "published_at": "Mon, 24 Nov 2025 08:00:00 GMT",
+      "provider": "google_news_rss"
+    },
+    {
+      "title": "不把他人當競爭對手！陳立武：英特爾仍是台積電前十大客戶 - TVBS新聞網",
+      "snippet": "<a href=\"https://news.google.com/rss/articles/CBMiTkFVX3lxTE0zdV8yeF85eEpmRWEtV3ludW9SMXc5OWlwQ3IwUUZYM0N2eXNUcldXTVh2S2ktWmNsVUd0dS1TUWVxZ0FVMXdTQXRBazZWZw?oc=5\" target=\"_blank\">不把他人當競爭對手！陳立武：英特爾仍是台積電前十大客戶</a>&nbsp;&nbsp;<font color=\"#6f6f6f\">TVBS新聞網</font>",
+      "link": "https://news.google.com/rss/articles/CBMiTkFVX3lxTE0zdV8yeF85eEpmRWEtV3ludW9SMXc5OWlwQ3IwUUZYM0N2eXNUcldXTVh2S2ktWmNsVUd0dS1TUWVxZ0FVMXdTQXRBazZWZw?oc=5",
+      "source": "TVBS新聞網",
+      "published_at": "Sat, 26 Sep 2026 02:03:00 GMT",
+      "provider": "google_news_rss"
+    },
+    {
+      "title": "陳立武：台積電不是競爭對手而是重要夥伴 英特爾將維持合作關係 - UDN",
+      "snippet": "<a href=\"https://news.google.com/rss/articles/CBMiUEFVX3lxTE1BdFpVMEh3XzNQSUpGTnB4NGFLdEZUZ0x6dnJkZXVVZVQ5U2dVS1RnX1B3RVFmeHItSXdNUDBwcXZqem1xOGlBcHU0QkotM0510gFWQVVfeXFMUHNkTjZQazVZZDFWMk9jTU1VMnFQRnVOMjNQRXk3VkVtOFZrVFkySjBzQnRnYjdOOXZKeW9CUDNDSmpMWE92WmQtWEhTd3lfV0Y0YjhGOFE?oc=5\" target=\"_blank\">陳立武：台積電不是競爭對手而是重要夥伴 英特爾將維持合作關係</a>&nbsp;&nbsp;<font color=\"#6f6f6f\">UDN</font>",
+      "link": "https://news.google.com/rss/articles/CBMiUEFVX3lxTE1BdFpVMEh3XzNQSUpGTnB4NGFLdEZUZ0x6dnJkZXVVZVQ5U2dVS1RnX1B3RVFmeHItSXdNUDBwcXZqem1xOGlBcHU0QkotM0510gFWQVVfeXFMUHNkTjZQazVZZDFWMk9jTU1VMnFQRnVOMjNQRXk3VkVtOFZrVFkySjBzQnRnYjdOOXZKeW9CUDNDSmpMWE92WmQtWEhTd3lfV0Y0YjhGOFE?oc=5",
+      "source": "UDN",
+      "published_at": "Tue, 02 Jun 2026 07:00:00 GMT",
+      "provider": "google_news_rss"
+    }
+  ]
+}

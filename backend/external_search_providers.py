@@ -106,18 +106,50 @@ async def fetch_alternative_search_catalysts_async(
 
 
 async def fetch_alternative_peer_discovery_async(
-    ticker: str,
-    company_name: str,
-    sector: str,
-    industry: str,
-    *,
+    ticker: str, company_name: str, sector: str, industry: str, *,
     max_results: int = SEARCH_PEER_DISCOVERY_MAX_RESULTS,
-    deadline: float | None = None,
+    deadline: float | None = None, company_context: dict | None = None,
+    diagnostics: dict | None = None,
 ) -> list[dict]:
-    """Fetch search snippets that help identify public peers/competitors."""
+    """Keep US compatibility; Taiwan results require a reported business relation."""
     deadline = _search_deadline(deadline)
+    if re.fullmatch(r"\d{4,6}(?:\.(?:TW|TWO))?", str(ticker).strip().upper()):
+        from peer_relationship_evidence import PeerRelationshipSelector
+        max_results = max(1, min(8, int(max_results)))
+        data = dict(company_context or {})
+        data.setdefault('ticker', str(ticker).strip().upper())
+        data.setdefault('company_name', company_name)
+        requested = str(ticker).strip().upper()
+        resolved = str(data.get('ticker') or '').strip().upper()
+        if ('.' in requested and resolved != requested) or ('.' not in requested and resolved.split('.')[0] != requested):
+            data.pop('company_identity', None)
+        selector = PeerRelationshipSelector(data, deadline=deadline)
+        try:
+            if not selector.issuer:
+                return []
+            name = selector.issuer['official_name']
+            for query in (f'{name} 同業', f'{name} 競爭對手'):
+                await asyncio.sleep(0)
+                if monotonic() >= deadline:
+                    break
+                observed = []
+                selected = await fetch_web_search_results_async(
+                    query, max_results=max_results, deadline=deadline,
+                    company_context=data, observed_records=observed)
+                keys = {(r.link, r.title) for r in selected}
+                for item in observed or selected:
+                    record = {'title': item.title, 'snippet': item.snippet, 'source': item.source,
+                              'link': item.link, 'published_at': item.published_at,
+                              'source_type': 'alternative_peer_discovery',
+                              'provider': item.provider or 'alternative'}
+                    await selector.consider(record, quality_selected=(item.link, item.title) in keys)
+                if selector.records:
+                    break
+            return selector.records[:max_results]
+        finally:
+            if diagnostics is not None:
+                diagnostics.update(selector.audit())
     name = str(company_name or ticker).strip()
-    # Short stages preserve the company anchor; sector is only a broad fallback.
     queries = [f"{name} competitors", f"{name} {str(industry or sector).strip()} peers"]
     results = []
     for query in dict.fromkeys(queries):
@@ -127,14 +159,9 @@ async def fetch_alternative_peer_discovery_async(
         if results:
             break
     return [
-        {
-            "title": result.title,
-            "snippet": result.snippet,
-            "source": result.source,
-            "link": result.link,
-            "source_type": "alternative_peer_discovery",
-            "provider": result.provider or "alternative",
-        }
+        {"title": result.title, "snippet": result.snippet, "source": result.source,
+         "link": result.link, "source_type": "alternative_peer_discovery",
+         "provider": result.provider or "alternative"}
         for result in results
     ]
 

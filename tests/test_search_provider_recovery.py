@@ -30,8 +30,11 @@ def test_peer_discovery_retries_with_short_staged_queries(monkeypatch):
         return []
 
     monkeypatch.setattr(search, 'fetch_web_search_results_async', fetch)
-    assert asyncio.run(search.fetch_alternative_peer_discovery_async('2308.TW', '台達電', 'Technology', 'Power supply')) == []
-    assert queries == ['台達電 competitors', '台達電 Power supply peers']
+    context = {'ticker': '2308.TW', 'company_name': '台達電', 'quote_type': 'EQUITY', 'exchange': 'TAI',
+               'company_identity': {'ticker':'2308.TW','stock_id':'2308','official_name':'台達電','instrument_type':'EQUITY'}}
+    assert asyncio.run(search.fetch_alternative_peer_discovery_async(
+        '2308.TW', '台達電', 'Technology', 'Power supply', company_context=context)) == []
+    assert queries == ['台達電 同業', '台達電 競爭對手']
 
 
 def test_mops_security_page_is_explicit_failure_not_no_announcements(monkeypatch):

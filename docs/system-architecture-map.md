@@ -12,6 +12,8 @@ Agent 有效設定的唯讀入口是 `/api/observability/agent-settings`（`agen
 
 公司新聞／社群的共同可用性判定在 `source_content_selection.py`；排除原件留在快照，由 `prompt_evidence.py` 隔離。官方法人與上櫃借券分別由 `official_institutional_source.py`、`tpex_borrowed_short_source.py` 取得；同業主檔與指標復原在 `data_fetch/market_sources/peer_recovery.py`。搜尋共享 admission 在 `search_admission.py`，跨供應商與補搜總期限在 `external_search_providers.py`，預設三十秒，可由 `WEB_SEARCH_TOTAL_TIMEOUT_SECONDS` 設為一至六十秒。
 
+台股同業搜尋的報導線索判定在 `peer_relationship_evidence.py`。中文查詢沿用既有搜尋期限與筆數上限；本公司身分沿用已取得的資料，對方公司的代碼與名稱只向現有有效快取核對，沒有每篇文章的外部身分查詢。明示業務比較保留發表日期、原文範圍及身分依據，並標示數值可比性尚未確認；未知、否定或客戶／供應鏈關係保留在排除原件。`enrichment_merge.py` 在新判定規則下優先合併已核對的新線索，避免舊搜尋結果占滿上限。這些線索不進入 `dynamic_peer_metrics`，也不改寫歷史來源觀測或成功率公式。
+
 修復候選的兩層cache隔離與hash收據、逐record法人提示、工作execution_state及壅塞transition觀測，見[錯誤防再發](error-prevention-2026-09-22.md)。修復呼叫不重用未驗證候選，既有provider/RPD/品質上限保留；歷史錯誤與正式canary分開驗收。
 
 來源證據 v2、完成憑據與刷新保存的入口是 `trade_catalog_evidence.py`、`institutional_evidence.py`、`llm_completion_provenance.py`、`report_analysis_evidence.py`；來源觀測日期、上櫃融資券及工作歸屬分別由 `source_observation_freshness.py`、`tpex_credit_source.py`、`provider_correlation.py` 處理。契約及驗證限制見 [來源證據最佳化](source-evidence-optimization-2026-09-21.md)。

@@ -54,9 +54,13 @@ async def fetch_alternative_search_catalysts_async(ticker: str, company_name: st
     return await _search.fetch_alternative_search_catalysts_async(ticker, company_name, identity)
 
 
-async def fetch_alternative_peer_discovery_async(ticker: str, company_name: str, sector: str, industry: str) -> list[dict]:
+async def fetch_alternative_peer_discovery_async(
+    ticker: str, company_name: str, sector: str, industry: str, *,
+    company_context: dict | None = None, diagnostics: dict | None = None,
+) -> list[dict]:
     _sync_source_seams()
-    return await _search.fetch_alternative_peer_discovery_async(ticker, company_name, sector, industry)
+    return await _search.fetch_alternative_peer_discovery_async(
+        ticker, company_name, sector, industry, company_context=company_context, diagnostics=diagnostics)
 
 
 def fetch_fmp_news_catalysts(ticker: str) -> list[dict]:
@@ -76,16 +80,24 @@ async def fetch_optional_http_data_bundle(
     sector: str = "",
     industry: str = "",
     include_quote: bool = False,
+    *, company_context: dict | None = None,
 ) -> dict:
     """
     Fetch all optional HTTP-backed sources concurrently.
 
     SDK-backed sources such as yfinance and FinMind stay outside this bundle.
     """
+    from peer_relationship_evidence import peer_selection_diagnostics
+    peer_diagnostics = peer_selection_diagnostics(ticker)
+    peer_context = dict(company_context or {})
+    peer_context.setdefault("ticker", ticker)
+    peer_context.setdefault("company_name", company_name)
+    peer_context.setdefault("company_identity", identity)
     tasks = {
         "search_catalysts": fetch_alternative_search_catalysts_async(ticker, company_name, identity),
         "fmp_news": fetch_fmp_news_catalysts_async(ticker),
-        "search_peer_discovery": fetch_alternative_peer_discovery_async(ticker, company_name, sector, industry),
+        "search_peer_discovery": fetch_alternative_peer_discovery_async(
+            ticker, company_name, sector, industry, company_context=peer_context, diagnostics=peer_diagnostics),
     }
     if include_quote:
         tasks["fmp_quote"] = fetch_fmp_quote_fallback_async(ticker)
@@ -100,6 +112,14 @@ async def fetch_optional_http_data_bundle(
             warnings.append(build_http_warning("optional_http_bundle", name, result))
         else:
             bundle[name] = result
+    if peer_diagnostics:
+        peer_result = results[names.index("search_peer_discovery")]
+        peer_diagnostics.update(
+            source="peer_discovery", provider="Alternative Search",
+            status="error" if isinstance(peer_result, Exception) else "success" if peer_result else "degraded_enrichment",
+            record_count=len(bundle.get("search_peer_discovery") or []),
+        )
+        bundle["_peer_discovery_audit"] = peer_diagnostics
     if warnings:
         bundle["_warnings"] = warnings
     return bundle

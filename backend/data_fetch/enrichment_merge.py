@@ -48,14 +48,41 @@ def _merge_optional_http_bundle(
     combined_catalysts.extend(http_bundle.get("yahoo_news", []) or [])
     apply_news_freshness(data, cutoff=refresh_epoch, records=combined_catalysts, limit=SEARCH_CATALYST_MAX_RESULTS)
 
-    peer_discovery = []
-    peer_discovery.extend(data.get("peer_discovery_results", []) or [])
-    peer_discovery.extend(http_bundle.get("search_peer_discovery", []) or [])
-    if peer_discovery:
-        data["peer_discovery_results"] = _dedupe_records(
-            peer_discovery,
-            limit=SEARCH_PEER_DISCOVERY_MAX_RESULTS,
-        )
+    from peer_relationship_evidence import POLICY, is_reported_peer_record, peer_selection_diagnostics
+    peer_audit = http_bundle.get("_peer_discovery_audit") or {}
+    if not peer_audit and "peer_discovery" in refreshed_sources:
+        peer_audit = next((entry for entry in reversed(data.get("source_audit", []))
+                           if isinstance(entry, dict) and entry.get("source") == "peer_discovery"), {})
+    if peer_audit.get("selection_policy") == POLICY and http_bundle.get("_peer_discovery_audit"):
+        from data_trust import append_source_audit
+        append_source_audit(data, peer_audit)
+    previous_peers = data.get("peer_discovery_results", []) or []
+    incoming_peers = http_bundle.get("search_peer_discovery", []) or []
+    if peer_selection_diagnostics(ticker) and peer_audit.get("selection_policy") == POLICY:
+        from copy import deepcopy
+        archive = data.setdefault("source_record_archive", [])
+        # New qualified fields/date win over an old record with the same URL.
+        verified_incoming = [item for item in incoming_peers if is_reported_peer_record(item, ticker)]
+        # Aggregate freshness/status must use the newly accepted evidence, not raw input.
+        http_bundle = {**http_bundle, "search_peer_discovery": verified_incoming}
+        peer_discovery = []
+        for records, reason in ((incoming_peers, "incoming_peer_relationship_unverified"),
+                                (previous_peers, "legacy_peer_relationship_unverified")):
+            for record in records:
+                if is_reported_peer_record(record, ticker):
+                    peer_discovery.append(record)
+                else:
+                    archived = {"source": "peer_discovery", "reason": reason, "record": deepcopy(record)}
+                    if archived not in archive:
+                        archive.append(archived)
+        for archived in peer_audit.get("source_record_archive", []):
+            if archived not in archive:
+                archive.append(deepcopy(archived))
+        data["peer_discovery_results"] = _dedupe_records(peer_discovery, limit=SEARCH_PEER_DISCOVERY_MAX_RESULTS)
+    else:
+        peer_discovery = [*previous_peers, *incoming_peers]
+        if peer_discovery:
+            data["peer_discovery_results"] = _dedupe_records(peer_discovery, limit=SEARCH_PEER_DISCOVERY_MAX_RESULTS)
 
     global_context = http_bundle.get("global_market_context", {}) or {}
     if isinstance(global_context, dict) and global_context:
