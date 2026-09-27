@@ -48,6 +48,19 @@ def _financial_billions(value):
     return round(number / 1e9, 2) if number is not None else None
 
 
+def _reported_free_cash_flow(cashflow, column):
+    """Use one finite numeric reported total; do not infer missing components."""
+    if list(cashflow.index).count("Free Cash Flow") != 1:
+        return None
+    value = cashflow.loc["Free Cash Flow", column]
+    if not pd.api.types.is_number(value) or pd.api.types.is_bool(value):
+        return None
+    try:
+        return _financial_billions(value)
+    except (TypeError, ValueError, OverflowError):
+        return None
+
+
 def _store_financial_period(mapping, period, value):
     if period is not None:
         # Two representations of the same date are ambiguous, never last-wins.
@@ -98,6 +111,7 @@ def extract_financial_histories(stock, ticker: str, data_source_notes: list, dat
     total_equity_history = []
     years = []
     income_periods = []
+    reported_fcf_periods = set()
     finmind_financial_fallback_audit = None
     primary_started_at = time.time()
     primary_metadata = {**current_correlation(), "ticker": ticker, "operation_id": uuid4().hex}
@@ -145,11 +159,20 @@ def extract_financial_histories(stock, ticker: str, data_source_notes: list, dat
                 capex_val = cashflow.loc["Capital Expenditure", col] if "Capital Expenditure" in cashflow.index else None
                 ocf_val, capex_val_f = _financial_number(ocf), _financial_number(capex_val)
                 fcf = round(ocf_val / 1e9 + capex_val_f / 1e9, 2) if ocf_val is not None and capex_val_f is not None else None
+                if fcf is None and period is not None:
+                    fcf = _reported_free_cash_flow(cashflow, col)
+                    if fcf is not None:
+                        reported_fcf_periods.add(period)
                 _store_financial_period(fcf_by_period, period, fcf)
             fcf_history = [fcf_by_period.get(period) for period in income_periods]
     except Exception as e:
         primary_errors["cashflow"] = type(e).__name__
         emit_log(f"    ⚠️  現金流數據獲取失敗：{e}")
+
+    # A candidate rejected by period ambiguity or a table error was not used.
+    reported_fcf_periods.intersection_update(
+        period for period, value in zip(income_periods, fcf_history) if value is not None
+    )
 
     try:
         balance = stock.balance_sheet
@@ -243,6 +266,14 @@ def extract_financial_histories(stock, ticker: str, data_source_notes: list, dat
         gross_profit_history, operating_income_history = aligned["gross_profit_history"], aligned["operating_income_history"]
         fcf_history = aligned["fcf_history"]
         total_assets_history, total_equity_history = aligned["total_assets_history"], aligned["total_equity_history"]
+
+    used_reported_periods = sorted({period for period, value in zip(final_periods, fcf_history)
+                                    if period in reported_fcf_periods and value is not None})
+    if used_reported_periods:
+        data_source_notes.append(
+            "yfinance 現金流分項仍不足；" + "、".join(used_reported_periods)
+            + " 已採用同一現金流報表、相同截止日的原始 Free Cash Flow 欄位，未補推營業現金流或資本支出。"
+        )
 
     return {
         "years": years,
