@@ -1,0 +1,440 @@
+{
+  "schema": "captured.yahoo-cashflow-subset.v1",
+  "ticker": "5314.TWO",
+  "provenance": "Single instrumented SDK cashflow property; only cashflow is captured, income and balance in tests are synthetic controls.",
+  "original_frame_sha256": "a7df49c1bd33c0b56fd58e9c00c4ae6df080367d6ef7671a76b294604195d61c",
+  "original_receipt_sha256": "983bcb0b447597e5054784348ad11e49c5590d54d7b1906255c1284d7e92810d",
+  "frame_file_mtime_utc": "2026-09-27T12:26:06.426254+00:00",
+  "http_response_sha256": "a05b65fad4620b3149ef0715bf41a19e890eda517c2f6959a1caae54a65abccd",
+  "columns": [
+    "2025-12-31T00:00:00",
+    "2024-12-31T00:00:00",
+    "2023-12-31T00:00:00",
+    "2022-12-31T00:00:00",
+    "2021-12-31T00:00:00"
+  ],
+  "rows": [
+    {
+      "name": {
+        "field_present": true,
+        "value": "Free Cash Flow",
+        "kind": "string"
+      },
+      "values": [
+        {
+          "field_present": true,
+          "value": 992331000.0,
+          "kind": "number"
+        },
+        {
+          "field_present": true,
+          "value": 313602000.0,
+          "kind": "number"
+        },
+        {
+          "field_present": true,
+          "value": -40102000.0,
+          "kind": "number"
+        },
+        {
+          "field_present": true,
+          "value": -10890000.0,
+          "kind": "number"
+        },
+        {
+          "field_present": true,
+          "value": null,
+          "kind": "nan"
+        }
+      ]
+    },
+    {
+      "name": {
+        "field_present": true,
+        "value": "Capital Expenditure",
+        "kind": "string"
+      },
+      "values": [
+        {
+          "field_present": true,
+          "value": -16357000.0,
+          "kind": "number"
+        },
+        {
+          "field_present": true,
+          "value": -26173000.0,
+          "kind": "number"
+        },
+        {
+          "field_present": true,
+          "value": -6468000.0,
+          "kind": "number"
+        },
+        {
+          "field_present": true,
+          "value": null,
+          "kind": "nan"
+        },
+        {
+          "field_present": true,
+          "value": -241000.0,
+          "kind": "number"
+        }
+      ]
+    },
+    {
+      "name": {
+        "field_present": true,
+        "value": "Operating Cash Flow",
+        "kind": "string"
+      },
+      "values": [
+        {
+          "field_present": true,
+          "value": 1008688000.0,
+          "kind": "number"
+        },
+        {
+          "field_present": true,
+          "value": 339775000.0,
+          "kind": "number"
+        },
+        {
+          "field_present": true,
+          "value": -33634000.0,
+          "kind": "number"
+        },
+        {
+          "field_present": true,
+          "value": -10890000.0,
+          "kind": "number"
+        },
+        {
+          "field_present": true,
+          "value": null,
+          "kind": "nan"
+        }
+      ]
+    }
+  ],
+  "response_metadata": [
+    {
+      "symbol": {
+        "field_present": true,
+        "kind": "list",
+        "value": [
+          "5314.TWO"
+        ]
+      },
+      "meta_type_present": true,
+      "meta_type": [
+        "annualFreeCashFlow"
+      ],
+      "annual": {
+        "annualFreeCashFlow": [
+          {
+            "asOfDate": {
+              "field_present": true,
+              "value": "2022-12-31",
+              "kind": "string"
+            },
+            "periodType": {
+              "field_present": true,
+              "value": "12M",
+              "kind": "string"
+            },
+            "currencyCode": {
+              "field_present": true,
+              "value": "TWD",
+              "kind": "string"
+            },
+            "reportedValue.raw": {
+              "field_present": true,
+              "value": -10890000.0,
+              "kind": "number"
+            }
+          },
+          {
+            "asOfDate": {
+              "field_present": true,
+              "value": "2023-12-31",
+              "kind": "string"
+            },
+            "periodType": {
+              "field_present": true,
+              "value": "12M",
+              "kind": "string"
+            },
+            "currencyCode": {
+              "field_present": true,
+              "value": "TWD",
+              "kind": "string"
+            },
+            "reportedValue.raw": {
+              "field_present": true,
+              "value": -40102000.0,
+              "kind": "number"
+            }
+          },
+          {
+            "asOfDate": {
+              "field_present": true,
+              "value": "2024-12-31",
+              "kind": "string"
+            },
+            "periodType": {
+              "field_present": true,
+              "value": "12M",
+              "kind": "string"
+            },
+            "currencyCode": {
+              "field_present": true,
+              "value": "TWD",
+              "kind": "string"
+            },
+            "reportedValue.raw": {
+              "field_present": true,
+              "value": 313602000.0,
+              "kind": "number"
+            }
+          },
+          {
+            "asOfDate": {
+              "field_present": true,
+              "value": "2025-12-31",
+              "kind": "string"
+            },
+            "periodType": {
+              "field_present": true,
+              "value": "12M",
+              "kind": "string"
+            },
+            "currencyCode": {
+              "field_present": true,
+              "value": "TWD",
+              "kind": "string"
+            },
+            "reportedValue.raw": {
+              "field_present": true,
+              "value": 992331000.0,
+              "kind": "number"
+            }
+          }
+        ]
+      },
+      "meta_type_kind": "list"
+    },
+    {
+      "symbol": {
+        "field_present": true,
+        "kind": "list",
+        "value": [
+          "5314.TWO"
+        ]
+      },
+      "meta_type_present": true,
+      "meta_type": [
+        "annualOperatingCashFlow"
+      ],
+      "annual": {
+        "annualOperatingCashFlow": [
+          {
+            "asOfDate": {
+              "field_present": true,
+              "value": "2022-12-31",
+              "kind": "string"
+            },
+            "periodType": {
+              "field_present": true,
+              "value": "12M",
+              "kind": "string"
+            },
+            "currencyCode": {
+              "field_present": true,
+              "value": "TWD",
+              "kind": "string"
+            },
+            "reportedValue.raw": {
+              "field_present": true,
+              "value": -10890000.0,
+              "kind": "number"
+            }
+          },
+          {
+            "asOfDate": {
+              "field_present": true,
+              "value": "2023-12-31",
+              "kind": "string"
+            },
+            "periodType": {
+              "field_present": true,
+              "value": "12M",
+              "kind": "string"
+            },
+            "currencyCode": {
+              "field_present": true,
+              "value": "TWD",
+              "kind": "string"
+            },
+            "reportedValue.raw": {
+              "field_present": true,
+              "value": -33634000.0,
+              "kind": "number"
+            }
+          },
+          {
+            "asOfDate": {
+              "field_present": true,
+              "value": "2024-12-31",
+              "kind": "string"
+            },
+            "periodType": {
+              "field_present": true,
+              "value": "12M",
+              "kind": "string"
+            },
+            "currencyCode": {
+              "field_present": true,
+              "value": "TWD",
+              "kind": "string"
+            },
+            "reportedValue.raw": {
+              "field_present": true,
+              "value": 339775000.0,
+              "kind": "number"
+            }
+          },
+          {
+            "asOfDate": {
+              "field_present": true,
+              "value": "2025-12-31",
+              "kind": "string"
+            },
+            "periodType": {
+              "field_present": true,
+              "value": "12M",
+              "kind": "string"
+            },
+            "currencyCode": {
+              "field_present": true,
+              "value": "TWD",
+              "kind": "string"
+            },
+            "reportedValue.raw": {
+              "field_present": true,
+              "value": 1008688000.0,
+              "kind": "number"
+            }
+          }
+        ]
+      },
+      "meta_type_kind": "list"
+    },
+    {
+      "symbol": {
+        "field_present": true,
+        "kind": "list",
+        "value": [
+          "5314.TWO"
+        ]
+      },
+      "meta_type_present": true,
+      "meta_type": [
+        "annualCapitalExpenditure"
+      ],
+      "annual": {
+        "annualCapitalExpenditure": [
+          {
+            "asOfDate": {
+              "field_present": true,
+              "value": "2021-12-31",
+              "kind": "string"
+            },
+            "periodType": {
+              "field_present": true,
+              "value": "12M",
+              "kind": "string"
+            },
+            "currencyCode": {
+              "field_present": true,
+              "value": "TWD",
+              "kind": "string"
+            },
+            "reportedValue.raw": {
+              "field_present": true,
+              "value": -241000.0,
+              "kind": "number"
+            }
+          },
+          {
+            "asOfDate": {
+              "field_present": true,
+              "value": "2023-12-31",
+              "kind": "string"
+            },
+            "periodType": {
+              "field_present": true,
+              "value": "12M",
+              "kind": "string"
+            },
+            "currencyCode": {
+              "field_present": true,
+              "value": "TWD",
+              "kind": "string"
+            },
+            "reportedValue.raw": {
+              "field_present": true,
+              "value": -6468000.0,
+              "kind": "number"
+            }
+          },
+          {
+            "asOfDate": {
+              "field_present": true,
+              "value": "2024-12-31",
+              "kind": "string"
+            },
+            "periodType": {
+              "field_present": true,
+              "value": "12M",
+              "kind": "string"
+            },
+            "currencyCode": {
+              "field_present": true,
+              "value": "TWD",
+              "kind": "string"
+            },
+            "reportedValue.raw": {
+              "field_present": true,
+              "value": -26173000.0,
+              "kind": "number"
+            }
+          },
+          {
+            "asOfDate": {
+              "field_present": true,
+              "value": "2025-12-31",
+              "kind": "string"
+            },
+            "periodType": {
+              "field_present": true,
+              "value": "12M",
+              "kind": "string"
+            },
+            "currencyCode": {
+              "field_present": true,
+              "value": "TWD",
+              "kind": "string"
+            },
+            "reportedValue.raw": {
+              "field_present": true,
+              "value": -16357000.0,
+              "kind": "number"
+            }
+          }
+        ]
+      },
+      "meta_type_kind": "list"
+    }
+  ]
+}
