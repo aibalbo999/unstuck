@@ -1,6 +1,7 @@
 """Bounded WebPro public conference index; factual metadata and links only."""
 from __future__ import annotations
 
+from collections import Counter
 from copy import deepcopy
 from datetime import date, datetime
 import ipaddress
@@ -16,7 +17,7 @@ from shared_provider_cache import shared_fetch
 PROVIDER = 'TWSE WebPro conference metadata'
 INDEX_URL = 'https://webpro.twse.com.tw/WebPortal/vod/101/?categoryId=170'
 LIST_URL = 'https://webpro.twse.com.tw/WebPortal/service/vodChannel/categoryMaterialList'
-PARSER_VERSION = 'webpro-conference-metadata-v2'
+PARSER_VERSION = 'webpro-conference-metadata-v3'
 COVERAGE_NOTE = '僅取得 WebPro 法說會索引的日期與連結；未取得簡報、影音內容或逐字稿，來源涵蓋不完整。'
 COOLDOWN_KEY = scope_key(PROVIDER, endpoint='conference_index')
 
@@ -59,6 +60,15 @@ def fetch_webpro_conference_context(ticker: str, *, diagnostics: dict | None = N
             break
     details = {**details, 'category_observations': categories,
                'cache_hit': all(row.get('cache_hit') for row in categories)}
+    if any(row.get('rejected_count', 0) for row in categories):
+        archive = [deepcopy(item) for row in categories for item in row.get('source_record_archive', [])]
+        details.update(
+            outcome='partial', coverage_status='partial', quality_status='partial_row_rejection',
+            raw_count=sum(row.get('raw_count', 0) for row in categories),
+            usable_count=sum(row.get('usable_count', 0) for row in categories),
+            rejected_count=len(archive), source_record_archive=archive,
+            rejected_reason_counts=dict(Counter(item['reason'] for item in archive)),
+        )
     if diagnostics is not None:
         diagnostics.update(details)
     events = result['events']
@@ -76,6 +86,11 @@ def fetch_webpro_conference_context(ticker: str, *, diagnostics: dict | None = N
         'fetched_at_epoch': details['fetched_at_epoch'], 'event_date_raw': event['event_date_raw'],
         'upstream_source': 'MOPS-derived WebPro public index',
     }
+    if details.get('rejected_count', 0):
+        context.update(selection_status='partial', quality_status='partial_row_rejection')
+        for key in ('raw_count', 'usable_count', 'rejected_count', 'rejected_reason_counts', 'source_record_archive'):
+            context[key] = deepcopy(details[key])
+        context['coverage_notes'].append('本次索引含無法使用的活動連結；僅保留通過連結檢查的場次，未取得完整內容。')
     # The selected positive observation has the same 24-hour lifetime as its
     # category cache. Its original acquisition time is never renewed by reuse.
     remaining = max(0, details['fetched_at_epoch'] + 86400 - time.time())
@@ -98,7 +113,7 @@ def _fetch_category(symbol: str, category_id: int) -> tuple[dict, dict]:
         except SourceResponseError as exc:
             captured.update(exc.diagnostic)
             raise
-    # Preserve the existing category-170 cache while isolating category 148.
+    # Version row-selection semantics; both categories retain the same host guard.
     key = f'{PARSER_VERSION}:{symbol}' if category_id == 170 else f'{PARSER_VERSION}:{category_id}:{symbol}'
     result, meta = shared_fetch(
         key, fetch, freshness_seconds=86400,
@@ -112,7 +127,7 @@ def _fetch_category(symbol: str, category_id: int) -> tuple[dict, dict]:
                                   status_code=details.get('http_status'), parser_version=PARSER_VERSION)
         exc.diagnostic.update(details, actual_provider=PROVIDER)
         raise exc
-    details = {**result['diagnostic'], **meta, 'actual_provider': PROVIDER, 'coverage_status': 'metadata_only'}
+    details = {**result['diagnostic'], **meta, 'actual_provider': PROVIDER, 'coverage_status': result['diagnostic'].get('coverage_status', 'metadata_only')}
     if meta.get('cache_hit'):
         details.update(http_request_sent=False, event_kind='cache_hit')
     return result, details
@@ -136,7 +151,8 @@ def _fetch_index(symbol: str, category_id: int = 170) -> dict:
         }, timeout=(5, 15), provider=PROVIDER)
         observe_http_response(response)
         response.raise_for_status()
-        events = _parse_index(response.json(), symbol, category_id)
+        selection = {}
+        events = _parse_index(response.json(), symbol, category_id, diagnostics=selection)
     except Exception as original:
         if isinstance(original, (ValueError, TypeError, KeyError)):
             original = SourceResponseError('parse_error', status_code=getattr(response, 'status_code', None), parser_version=PARSER_VERSION)
@@ -147,14 +163,16 @@ def _fetch_index(symbol: str, category_id: int = 170) -> dict:
         exc = SourceResponseError(details['error_kind'], status_code=details.get('http_status'), parser_version=PARSER_VERSION)
         exc.diagnostic.update(details)
         raise exc from original
-    details = {'http_status': response.status_code, 'parser_version': PARSER_VERSION,
-               'outcome': 'results' if events else 'valid_empty', 'http_request_sent': True,
-               'event_kind': 'http_attempt', 'coverage_status': 'metadata_only'}
+    partial = bool(selection.get('rejected_count'))
+    details = {**selection, 'http_status': response.status_code, 'parser_version': PARSER_VERSION,
+               'outcome': 'partial' if partial else 'results' if events else 'valid_empty',
+               'http_request_sent': True, 'event_kind': 'http_attempt',
+               'coverage_status': 'partial' if partial else 'metadata_only'}
     record_observation(PROVIDER, started, outcome=details['outcome'], count=len(events), source='earnings_call', details=details)
     return {'events': events, 'diagnostic': details}
 
 
-def _parse_index(payload: dict, symbol: str, category_id: int = 170) -> list[dict]:
+def _parse_index(payload: dict, symbol: str, category_id: int = 170, *, diagnostics: dict | None = None) -> list[dict]:
     if not isinstance(payload, dict) or not isinstance(payload.get('status'), dict):
         raise ValueError('Unknown WebPro envelope')
     code = payload['status'].get('code')
@@ -170,6 +188,8 @@ def _parse_index(payload: dict, symbol: str, category_id: int = 170) -> list[dic
     # Official zero-result pages omit materials. Require explicit successful
     # paging evidence; missing/unknown envelopes must remain parser failures.
     if total == 0 and payload.get('result') == {}:
+        if diagnostics is not None:
+            diagnostics.update(raw_count=0, usable_count=0, rejected_count=0, rejected_reason_counts={})
         return []
     rows = payload['result']['materials']['material']
     if not isinstance(rows, list):
@@ -177,7 +197,7 @@ def _parse_index(payload: dict, symbol: str, category_id: int = 170) -> list[dic
     if total < len(rows) or (total and not rows):
         raise ValueError('Inconsistent WebPro paging')
     today = datetime.now(ZoneInfo('Asia/Taipei')).date()
-    events, seen = [], set()
+    events, rejected, seen = [], [], set()
     for row in rows:
         if not isinstance(row, dict) or not isinstance(row.get('agentUserName'), str):
             raise ValueError('Unknown WebPro row')
@@ -197,7 +217,8 @@ def _parse_index(payload: dict, symbol: str, category_id: int = 170) -> list[dic
             continue
         url = _https_link(row.get('webLinkPath'))
         if not url:
-            raise ValueError('Unusable event link')
+            rejected.append({'reason': 'unusable_event_link', 'category_id': category_id, 'record': deepcopy(row)})
+            continue
         identity = (event_date.isoformat(), url)
         if identity in seen:
             continue
@@ -205,6 +226,11 @@ def _parse_index(payload: dict, symbol: str, category_id: int = 170) -> list[dic
         events.append({'date': event_date.isoformat(), 'event_date_raw': raw_date, 'url': url,
                        'company_name': str(row.get('agentSimpleName') or '')[:120],
                        'event_id': str(row.get('guid') or '')[:120]})
+    if diagnostics is not None:
+        diagnostics.update(raw_count=len(rows), usable_count=len(events), rejected_count=len(rejected),
+                           rejected_reason_counts=dict(Counter(item['reason'] for item in rejected)))
+        if rejected:
+            diagnostics.update(quality_status='partial_row_rejection', source_record_archive=rejected)
     return sorted(events, key=lambda row: row['date'], reverse=True)
 
 

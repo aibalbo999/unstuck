@@ -137,12 +137,18 @@ def test_unknown_shapes_and_invalid_calendar_date_are_typed_parse_failure(monkey
 ])
 def test_unsafe_or_non_https_link_is_not_promoted_to_evidence(monkeypatch, upstream, link):
     import official_financials_webpro_conference as webpro
-    from search_provider_runtime import SourceResponseError
     row = payload()['result']['materials']['material'][0]
-    respond(monkeypatch, payload([{**row, 'webLinkPath': link}]))
-    with pytest.raises(SourceResponseError) as caught:
-        webpro.fetch_webpro_conference_context('2330.TW')
-    assert caught.value.error_kind == 'parse_error'
+    def post(url, **kwargs):
+        value = payload([{**row, 'webLinkPath': link, 'categoryId': int(kwargs['data']['categoryId'])}])
+        return httpx.Response(200, json=value, request=httpx.Request('POST', url))
+    monkeypatch.setattr(webpro, 'sync_post', post)
+    diagnostic = {}
+    assert webpro.fetch_webpro_conference_context('2330.TW', diagnostics=diagnostic) == {}
+    assert diagnostic['outcome'] == 'partial'
+    assert diagnostic['usable_count'] == 0 and diagnostic['rejected_count'] == 2
+    assert all(item['record']['webLinkPath'] == link for item in diagnostic['source_record_archive'])
+    assert webpro.COOLDOWN_KEY not in upstream[0]
+    assert all(item['status'] == 'degraded_enrichment' for item in upstream[2])
 
 
 def test_valid_empty_is_index_scope_only_and_has_short_cache(monkeypatch, upstream):
