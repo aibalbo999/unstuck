@@ -191,7 +191,7 @@ def test_fallback_year_change_reprojects_all_retained_primary_histories(monkeypa
 
 
 def install_finmind_frames(monkeypatch, capex, statement_date="2025-12-31"):
-    from data_fetch.market_sources import taiwan
+    from data_fetch.market_sources import taiwan, finmind_financial_transport
     def frame(values):
         return pd.DataFrame([{"date": statement_date, "type": key, "value": value} for key, value in values.items()])
     cash = {"NetCashInflowFromOperatingActivities": 5e8}
@@ -200,11 +200,12 @@ def install_finmind_frames(monkeypatch, capex, statement_date="2025-12-31"):
     frames = {"financials": frame({"Revenue": 2e9, "IncomeAfterTaxes": 4e8}),
               "balance": frame({"TotalAssets": 6e9, "Equity": 3e9}), "cashflow": frame(cash)}
     calls = []
-    def fetches(tasks, **kwargs):
-        calls.append(tuple(tasks))
-        return frames
+    def fetches(stock_id, start_date):
+        calls.append((stock_id, start_date))
+        return {"tables": {name: frame.to_dict("records") for name, frame in frames.items()},
+                "components": {name: {"status": "success"} for name in frames}, "error": None}
     monkeypatch.setattr(taiwan, "DataLoader", object)
-    monkeypatch.setattr(taiwan, "_run_named_fetches", fetches)
+    monkeypatch.setattr(finmind_financial_transport, "fetch_statement_tables", fetches)
     return taiwan, calls
 
 

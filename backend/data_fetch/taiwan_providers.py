@@ -17,16 +17,9 @@ class FinMindProvider(DataProvider):
     capabilities = {"financial_statements"}
 
     def fetch(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
-        from .market_sources.taiwan import fetch_finmind_financial_statement_fallback
+        from .market_sources.taiwan import audited_finmind_financial_statement_fallback
 
-        result = audited_fetch(
-            self.source,
-            "FinMind financial statement fallback",
-            fetch_finmind_financial_statement_fallback,
-            (request.ticker,),
-            default={},
-            unavailable_message="FinMind 財報備援未回傳可用年度資料。",
-        )
+        result = audited_finmind_financial_statement_fallback(request.ticker, audit_fetch=audited_fetch)
         return provider_result_from_audited(result, self.source, "FinMind financial statement fallback")
 
 

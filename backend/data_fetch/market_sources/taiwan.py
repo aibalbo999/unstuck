@@ -205,6 +205,69 @@ def _finmind_statement_dates(*frames: pd.DataFrame) -> list[str]:
     return sorted(selected)[-5:]
 
 
+class _FinMindStatementValue(dict):
+    """Keep the legacy value keys, with transport coverage owned by the audit."""
+    def __init__(self, value: dict, components: dict):
+        super().__init__(value)
+        self.components = components
+
+
+def _finmind_selected_fields_present(value: dict) -> bool:
+    import math
+    years = value.get("years") or []
+    fields = ("revenue_history", "net_income_history", "gross_profit_history", "operating_income_history",
+              "fcf_history", "total_assets_history", "total_equity_history")
+    return bool(years) and all(
+        len(value.get(field) or []) == len(years)
+        and all(isinstance(number, (int, float)) and not isinstance(number, bool) and math.isfinite(number)
+                for number in value[field]) for field in fields
+    )
+
+
+def audited_finmind_financial_statement_fallback(ticker: str, *, fetcher=None, audit_fetch=None) -> dict:
+    """Keep the existing guard/failure audit while retaining completed table values."""
+    from source_audit import audited_fetch
+    from .finmind_financial_transport import FinMindFinancialFetchError
+
+    captured_error = None
+
+    def fetch():
+        nonlocal captured_error
+        try:
+            return (fetcher or fetch_finmind_financial_statement_fallback)(ticker)
+        except FinMindFinancialFetchError as exc:
+            captured_error = exc
+            raise
+        except Exception:
+            # Even an unexpected adapter/parser failure must not replay the
+            # entire three-request operation through the generic retry layer.
+            captured_error = FinMindFinancialFetchError("unexpected_financial_failure")
+            raise captured_error from None
+
+    result = (audit_fetch or audited_fetch)(
+        "financial_statements", "FinMind financial statement fallback", fetch,
+        default={}, unavailable_message="FinMind 財報備援未回傳可用年度資料。",
+    )
+    if captured_error is not None:
+        # audited_fetch already recorded the failure/cooldown. Do not clear it or
+        # turn a nonempty partial dict into a successful provider operation.
+        result["value"] = captured_error.partial_value
+        result["audit"] = {**result["audit"], "component_statuses": captured_error.component_statuses}
+    elif isinstance(result.get("value"), _FinMindStatementValue):
+        value = result["value"]
+        result["audit"] = {**result["audit"], "component_statuses": value.components,
+                           "quality_status": "not_assessed"}
+        complete = (all(value.components.get(name, {}).get("status") == "success"
+                        for name in ("financials", "balance", "cashflow"))
+                    and _finmind_selected_fields_present(value))
+        if value and result["audit"]["status"] == "success" and not complete:
+            result["audit"].update(status="degraded_enrichment", coverage_status="partial",
+                                   message="FinMind 已取得部分財報；空表或必要欄位缺值仍保留。")
+        else:
+            result["audit"]["coverage_status"] = "selected_fields_present" if complete else "empty"
+    return result
+
+
 def fetch_finmind_financial_statement_fallback(ticker: str) -> dict:
     if DataLoader is None or not is_taiwan_ticker(ticker):
         return {}
@@ -212,23 +275,21 @@ def fetch_finmind_financial_statement_fallback(ticker: str) -> dict:
     stock_id = _stock_id_from_ticker(ticker)
     start_date = (datetime.now() - timedelta(days=365 * 6 + 30)).strftime("%Y-%m-%d")
 
-    def fetch_financial_statement():
-        return DataLoader().taiwan_stock_financial_statement(stock_id=stock_id, start_date=start_date)
+    from .finmind_financial_transport import fetch_statement_tables, FinMindFinancialFetchError
 
-    def fetch_balance_sheet():
-        return DataLoader().taiwan_stock_balance_sheet(stock_id=stock_id, start_date=start_date)
+    outcome = fetch_statement_tables(stock_id, start_date)
+    frames = {name: pd.DataFrame(rows) for name, rows in outcome["tables"].items()}
+    result = _assemble_finmind_financial_statements(frames)
+    if outcome["error"]:
+        raise FinMindFinancialFetchError(
+            outcome["error"]["reason"], status_code=outcome["error"].get("status_code"),
+            partial_value=result, component_statuses=outcome["components"],
+        )
+    return _FinMindStatementValue(result, outcome["components"])
 
-    def fetch_cash_flow_statement():
-        return DataLoader().taiwan_stock_cash_flows_statement(stock_id=stock_id, start_date=start_date)
 
-    frames = _run_named_fetches(
-        {
-            "financials": (fetch_financial_statement, (), pd.DataFrame(), "FinMind 損益表獲取失敗"),
-            "balance": (fetch_balance_sheet, (), pd.DataFrame(), "FinMind 資產負債表獲取失敗"),
-            "cashflow": (fetch_cash_flow_statement, (), pd.DataFrame(), "FinMind 現金流量表獲取失敗"),
-        },
-        max_workers=3,
-    )
+def _assemble_finmind_financial_statements(frames: dict) -> dict:
+    """Existing financial arithmetic/period selection, independent of transport."""
     financials = frames.get("financials")
     balance = frames.get("balance")
     cashflow = frames.get("cashflow")
