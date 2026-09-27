@@ -9,6 +9,7 @@ from typing import Any
 from fastapi import HTTPException
 from agent_runtime import AnalysisRequest
 from agent_runtime.cancellation import attach_cancel_check
+from agent_runtime.accepted_output_provenance import final_rerun_provenance_scope, attach_accepted_final_model
 from agent_runtime.quality_gates import run_agent_with_quality_gates_async
 from company_display import company_display_name
 from config import LLM_API_KEYS_BY_PROVIDER
@@ -181,8 +182,10 @@ async def _run_final_recommendation_rerun(
     if callable(cancel_check):
         cancel_check()
     rotator = KeyRotator(LLM_API_KEYS_BY_PROVIDER)
-    await run_final_rerun_audit(context, final_agent, rotator, run_agent=run_agent_with_quality_gates_async,
-                               parse=parse_structured_data, audit=run_final_report_audit, progress_callback=progress_callback)
+    with final_rerun_provenance_scope(context, final_agent):
+        await run_final_rerun_audit(context, final_agent, rotator, run_agent=run_agent_with_quality_gates_async,
+                                   parse=parse_structured_data, audit=run_final_report_audit, progress_callback=progress_callback)
+        attach_accepted_final_model(context, final_agent)
     context["total_time"] = time.time() - context["start_time"]
     if callable(progress_callback):
         await emit_runtime_event_async(progress_callback, {

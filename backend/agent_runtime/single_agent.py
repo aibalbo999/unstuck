@@ -19,6 +19,7 @@ from .llm_calls import (
 from .repair_candidates import fresh_candidate_for_retry
 from .cancellation import raise_if_cancelled
 from .attempt_telemetry import record_node_cache_response
+from .accepted_output_provenance import seal_returned_output
 from .deferred import failed_route_result, unavailable_model
 from .model_policy import (
     make_model_retry_stop_for_rotator,
@@ -122,6 +123,7 @@ def run_single_agent(
             )
             result = restore_cached_agent_step(context, agent_num, cached_step)
             record_node_cache_response(context, agent_num, cached_step)
+            seal_returned_output(context, agent_num, result)
             return result
         if cached_step is not None:
             cache_observation = {"decision": "reject", "reason": "context_contract_mismatch"}
@@ -159,6 +161,7 @@ def run_single_agent(
                         model_id=model_id,
                         text=result,
                     )
+                    seal_returned_output(context, agent_num, result)
                     return result
         except (InputCapacityExceededError, AgentMissingModelError, AgentConfigurationError, EvidenceBatchInvalid) as exc:
             last_error = reject_sync_model(context, agent_num, model_id, exc)
@@ -230,6 +233,7 @@ async def run_single_agent_async(
             )
             result = restore_cached_agent_step(context, agent_num, cached_step)
             record_node_cache_response(context, agent_num, cached_step)
+            seal_returned_output(context, agent_num, result)
             return result
         if cached_step is not None:
             cache_observation = {"decision": "reject", "reason": "context_contract_mismatch"}
@@ -267,6 +271,7 @@ async def run_single_agent_async(
                         model_id=model_id,
                         text=result,
                     )
+                    seal_returned_output(context, agent_num, result)
                     return result
         except (InputCapacityExceededError, AgentMissingModelError, AgentConfigurationError, EvidenceBatchInvalid) as exc:
             last_error = await reject_async_model(context, agent_num, model_id, exc)
