@@ -176,24 +176,21 @@ def test_limit_is_clamped_and_blank_input_short_circuits(monkeypatch):
 
 
 def test_ptt_expands_relative_links_skips_deleted_and_filters_ticker(monkeypatch):
-    html = """
-    <div class="r-ent"><div class="title"><a href="/bbs/Stock/M.1.html">[新聞] 2330 台積電擴產</a></div><div class="date"> 6/19</div></div>
+    path = "/bbs/Stock/M.1781829000.A.ABC.html"
+    html = f"""
+    <div class="r-ent"><div class="title"><a href="{path}">[新聞] 2330 台積電擴產</a></div><div class="date"> 6/19</div></div>
     <div class="r-ent"><div class="title">(本文已被刪除)</div><div class="date"> 6/19</div></div>
-    <div class="r-ent"><div class="title"><a href="/bbs/Stock/M.2.html">[新聞] 2317 鴻海展望</a></div><div class="date"> 6/19</div></div>
+    <div class="r-ent"><div class="title"><a href="/bbs/Stock/M.1781829001.A.ABC.html">[新聞] 2317 鴻海展望</a></div><div class="date"> 6/19</div></div>
     """
-    captured = {}
-
-    class Response:
-        text = html
-
-        @staticmethod
-        def raise_for_status():
-            return None
+    article = """<div id="main-content">
+    <div class="article-metaline"><span class="article-meta-tag">標題</span><span class="article-meta-value">[新聞] 2330 台積電擴產</span></div>
+    <div class="article-metaline"><span class="article-meta-tag">時間</span><span class="article-meta-value">Fri Jun 19 08:30:00 2026</span></div>
+    </div>"""
+    captured = []
 
     def fake_get(url, **kwargs):
-        captured["url"] = url
-        captured.update(kwargs)
-        return Response()
+        captured.append({"url": url, **kwargs})
+        return SimpleNamespace(text=html if len(captured) == 1 else article, status_code=200)
 
     monkeypatch.setattr(news_fetchers, "sync_get", fake_get)
     monkeypatch.setattr(news_fetchers, "_current_taipei_datetime", lambda: news_fetchers.datetime(
@@ -204,15 +201,15 @@ def test_ptt_expands_relative_links_skips_deleted_and_filters_ticker(monkeypatch
 
     assert result == [{
         "title": "[新聞] 2330 台積電擴產",
-        "link": "https://www.ptt.cc/bbs/Stock/M.1.html",
-        "published_date": "2026-06-19T00:00:00+08:00",
+        "link": "https://www.ptt.cc" + path,
+        "published_date": "2026-06-19T08:30:00+08:00",
         "source": "PTT Stock",
         "summary": "[新聞] 2330 台積電擴產",
     }]
-    assert captured["url"].endswith("/bbs/Stock/index.html")
-    assert captured["timeout"] == news_fetchers.REQUEST_TIMEOUT_SECONDS
-    assert captured["provider"] == "PTT Stock"
-    assert "Mozilla" in captured["headers"]["User-Agent"]
+    assert captured[0]["url"].endswith("/bbs/Stock/search?q=2330")
+    assert 0 < captured[1]["timeout"] <= captured[0]["timeout"] <= news_fetchers.REQUEST_TIMEOUT_SECONDS
+    assert captured[0]["provider"] == "PTT Stock"
+    assert "Mozilla" in captured[0]["headers"]["User-Agent"]
     assert news_fetchers.fetch_ptt_stock_sentiment("../../etc/passwd") == []
 
 
