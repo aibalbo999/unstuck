@@ -21,6 +21,37 @@ _fmp_transcript_cooldown_until = 0.0
 
 
 def fetch_free_earnings_call_context(ticker: str, *, diagnostics: dict | None = None) -> dict:
+    """Prefer verified issuer content; retain the existing index fallback."""
+    from company_conference_content import fetch_company_conference, supports_company, AGGREGATE_MESSAGE
+    from search_provider_runtime import SourceResponseError
+
+    diagnostics = diagnostics if diagnostics is not None else {}
+    if not supports_company(ticker):
+        return _fetch_official_index_context(ticker, diagnostics=diagnostics)
+    try:
+        value = fetch_company_conference(ticker, diagnostics=diagnostics)
+        if value:
+            return value
+    except SourceResponseError as exc:
+        if exc.error_kind in {'lease_lost', 'timeout', 'single_flight_busy', 'guard_storage_unavailable'}:
+            raise
+        diagnostics.update(exc.diagnostic)
+    issuer_details = dict(diagnostics)
+    secondary = {}
+    try:
+        value = _fetch_official_index_context(ticker, diagnostics=secondary)
+    except SourceResponseError as exc:
+        exc.diagnostic['component_statuses'] = {
+            'issuer_content': issuer_details, 'official_index': {**secondary, **exc.diagnostic}}
+        raise
+    diagnostics.clear()
+    diagnostics.update(secondary, actual_provider=secondary.get('actual_provider') or value.get('source') or FREE_EARNINGS_CALL_PROVIDER_NAME,
+        coverage_status='partial', message=AGGREGATE_MESSAGE,
+        component_statuses={'issuer_content': issuer_details, 'official_index': dict(secondary)})
+    return value
+
+
+def _fetch_official_index_context(ticker: str, *, diagnostics: dict | None = None) -> dict:
     """Return free official investor-conference context for Taiwan tickers."""
     from official_financials import fetch_mops_investor_conference_events
 

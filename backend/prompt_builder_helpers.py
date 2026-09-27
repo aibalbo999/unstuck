@@ -166,6 +166,7 @@ def _agent_context(data: dict) -> dict:
         "sec_edgar",
         "taiwan_open_data",
         "earnings_call",
+        "conference_presentation",
     )
     context = {key: value for key in keys if _has_prompt_value(value := dict.get(data, key))}
     documents = dict.get(data, "official_disclosures")

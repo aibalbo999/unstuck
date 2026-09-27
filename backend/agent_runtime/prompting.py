@@ -45,6 +45,16 @@ def data_for_agent_prompt(agent_num: int, data: StockData) -> StockData:
     agent_id = int(agent_num)
     prompt_data = prompt_evidence_copy(data)
     prompt_data["_prompt_agent_num"] = agent_id
+    from conference_presentation_prompt import presentation_prompt_context, without_presentation_documents
+    presentation = presentation_prompt_context(prompt_data.get('earnings_call'), agent_id)
+    if presentation:
+        prompt_data['conference_presentation'] = presentation
+    else:
+        prompt_data.pop('conference_presentation', None)
+    earnings = prompt_data.get('earnings_call')
+    if isinstance(earnings, dict):
+        # Presentation text never belongs in Agent 20's transcript evidence.
+        prompt_data['earnings_call'] = without_presentation_documents(earnings)
     temporal_memory = prompt_data.get("temporal_memory") if agent_id in {4, 14} else None
     for key, allowed_agents in ROUTED_EXTERNAL_CONTEXT_KEYS.items():
         if agent_id not in allowed_agents:
