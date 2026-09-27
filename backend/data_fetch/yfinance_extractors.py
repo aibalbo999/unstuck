@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta
+import time
+from uuid import uuid4
 
 import pandas as pd
 
@@ -15,6 +17,8 @@ from .market_sources.taiwan import (
     fetch_finmind_financial_statement_fallback,
 )
 from source_audit import audited_fetch
+from provider_correlation import current_correlation
+from .financial_statement_observation import observe_financial_statements
 
 
 def extract_price_history(stock) -> dict:
@@ -39,7 +43,7 @@ def extract_financial_histories(stock, ticker: str, data_source_notes: list, dat
     if str(quote_type).upper() in {"ETF", "MUTUALFUND"}:
         return {**{key: [] for key in ("years", "revenue_history", "net_income_history", "gross_profit_history",
                                       "operating_income_history", "fcf_history", "total_assets_history", "total_equity_history")},
-                "finmind_financial_fallback_audit": None}
+                "finmind_financial_fallback_audit": None, "primary_financial_audit": None}
     revenue_history = []
     net_income_history = []
     gross_profit_history = []
@@ -49,9 +53,15 @@ def extract_financial_histories(stock, ticker: str, data_source_notes: list, dat
     total_equity_history = []
     years = []
     finmind_financial_fallback_audit = None
+    primary_started_at = time.time()
+    primary_metadata = {**current_correlation(), "ticker": ticker, "operation_id": uuid4().hex}
+    primary_metadata.pop("attempt_id", None)
+    primary_tables = {}
+    primary_errors = {}
 
     try:
         financials = stock.financials
+        primary_tables["financials"] = financials
         if financials is not None and not financials.empty:
             for col in financials.columns[:5]:
                 year = col.year if hasattr(col, "year") else str(col)[:4]
@@ -70,10 +80,12 @@ def extract_financial_histories(stock, ticker: str, data_source_notes: list, dat
             gross_profit_history = list(reversed(gross_profit_history))
             operating_income_history = list(reversed(operating_income_history))
     except Exception as e:
+        primary_errors["financials"] = type(e).__name__
         emit_log(f"    ⚠️  財務報表獲取失敗：{e}")
 
     try:
         cashflow = stock.cashflow
+        primary_tables["cashflow"] = cashflow
         if cashflow is not None and not cashflow.empty:
             fcf_by_year = {}
             for col in cashflow.columns:
@@ -85,10 +97,12 @@ def extract_financial_histories(stock, ticker: str, data_source_notes: list, dat
                 fcf_by_year[yr_key] = round(ocf_val + capex_val_f, 2) if ocf_val is not None else None
             fcf_history = [fcf_by_year.get(y, None) for y in years]
     except Exception as e:
+        primary_errors["cashflow"] = type(e).__name__
         emit_log(f"    ⚠️  現金流數據獲取失敗：{e}")
 
     try:
         balance = stock.balance_sheet
+        primary_tables["balance_sheet"] = balance
         if balance is not None and not balance.empty:
             equity_raw = []
             assets_raw = []
@@ -101,7 +115,17 @@ def extract_financial_histories(stock, ticker: str, data_source_notes: list, dat
             total_equity_history = list(reversed(equity_raw))
             total_assets_history = list(reversed(assets_raw))
     except Exception as e:
+        primary_errors["balance_sheet"] = type(e).__name__
         emit_log(f"    ⚠️  資產負債表獲取失敗：{e}")
+
+    primary_financial_audit = observe_financial_statements(
+        tables=primary_tables, errors=primary_errors, metadata=primary_metadata,
+        started_at=primary_started_at, finished_at=time.time(),
+        histories={"years": years, "revenue_history": revenue_history, "net_income_history": net_income_history,
+                   "gross_profit_history": gross_profit_history, "operating_income_history": operating_income_history,
+                   "fcf_history": fcf_history, "total_assets_history": total_assets_history,
+                   "total_equity_history": total_equity_history},
+    )
 
     if data_loader_cls is not None and (ticker.endswith(".TW") or ticker.endswith(".TWO")):
         needs_finmind_fallback = (
@@ -156,6 +180,7 @@ def extract_financial_histories(stock, ticker: str, data_source_notes: list, dat
         "total_assets_history": total_assets_history,
         "total_equity_history": total_equity_history,
         "finmind_financial_fallback_audit": finmind_financial_fallback_audit,
+        "primary_financial_audit": primary_financial_audit,
     }
 
 
