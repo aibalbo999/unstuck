@@ -153,6 +153,8 @@ class EarningsCallProvider(DataProvider):
         data = (context or {}).get("data", {}) if isinstance((context or {}).get("data"), dict) else {}
         ticker = str((context or {}).get("original_ticker") or data.get("ticker") or request.ticker).strip().upper()
         diagnostic = {}
+        from company_conference_content import supports_company, PROVIDER as ISSUER_PROVIDER
+        audit_provider = ISSUER_PROVIDER if supports_company(ticker) else "MOPS / TWSE WebPro investor conference"
         def fetch_context():
             try:
                 return fetch_free_earnings_call_context(ticker, diagnostics=diagnostic)
@@ -162,13 +164,16 @@ class EarningsCallProvider(DataProvider):
 
         result = audited_fetch(
             self.source,
-            "MOPS / TWSE WebPro investor conference",
+            audit_provider,
             fetch_context,
             default={},
             empty_status="degraded_enrichment",
             unavailable_message="免費法說會資料未回傳。",
         )
         apply_earnings_call_audit(result, diagnostic)
+        if supports_company(ticker):
+            from company_conference_content import AGGREGATE_MESSAGE
+            result['audit']['message'] = AGGREGATE_MESSAGE
         return provider_result_from_audited(result, self.source, self.name)
 
 

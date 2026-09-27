@@ -102,10 +102,15 @@ def collect_rag_documents(data: dict[str, Any]) -> list[dict[str, str]]:
     def walk(value: Any, path: str, depth: int = 0):
         if depth > 5 or value is None:
             return
+        if path.endswith('.conference_presentation'):
+            return  # This new context is exposed only through bounded role prompts.
         if isinstance(value, str):
             add_document(path, value)
             return
         if isinstance(value, dict):
+            if path.endswith(('.earnings_call', '.earnings_call_context')):
+                from conference_presentation_prompt import without_presentation_documents
+                value = without_presentation_documents(value)
             record_text = _record_to_text(value)
             if record_text and (_interesting_path(path) or len(record_text) >= RAG_MIN_SOURCE_CHARS):
                 add_document(path, record_text)

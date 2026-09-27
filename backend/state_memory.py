@@ -202,6 +202,7 @@ def state_view_for(role: str | int, state: AgentState) -> dict[str, Any]:
 
 
 def _external_context_for_state(state: AgentState, *, include_short_term=False) -> dict[str, Any]:
+    from conference_presentation_prompt import without_presentation_documents
     data = state.normalized_financials if isinstance(state.normalized_financials, dict) else {}
     contexts = {
         "macro_context": data.get("macro_indicators") or data.get("macro_context") or {},
@@ -210,7 +211,7 @@ def _external_context_for_state(state: AgentState, *, include_short_term=False) 
         "sentiment_context": data.get("sentiment_context") or {},
         "sec_edgar": data.get("sec_edgar") or {},
         "taiwan_open_data": data.get("taiwan_open_data") or {},
-        "earnings_call_context": data.get("earnings_call") or {},
+        "earnings_call_context": without_presentation_documents(data.get("earnings_call") or {}),
     }
     if include_short_term:
         contexts["short_term_market_context"] = build_short_term_market_context(data)
