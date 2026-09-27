@@ -70,6 +70,25 @@ class YahooProvider(DataProvider):
         from .market_sources.http_enrichment import fetch_yfinance_news_catalysts
 
         context = context or {}
+        data = context.get("data") if isinstance(context.get("data"), dict) else {}
+        from .market_sources.yahoo_taiwan_news import (
+            TRANSPORT, PARSER_VERSION, regional_ticker, source_url,
+            fetch_yahoo_taiwan_news, annotate_regional_result,
+        )
+        resolved = regional_ticker(request.ticker, data)
+        if resolved:
+            diagnostic = {"transport": TRANSPORT, "actual_provider": "Yahoo Taiwan",
+                          "source_url": source_url(resolved), "parser_version": PARSER_VERSION,
+                          "http_request_sent": False}
+            result = audited_fetch(
+                self.source, "Yahoo Finance news", fetch_yahoo_taiwan_news, (resolved,),
+                {"diagnostics": diagnostic}, default=[], empty_status="degraded_enrichment",
+                unavailable_message="Yahoo 台灣個股頁未回傳新聞；不代表沒有事件。",
+            )
+            return annotate_regional_result(
+                provider_result_from_audited(result, self.source, self.name),
+                {**data, "ticker": resolved}, diagnostic,
+            )
         stock = context.get("stock") or (context.get("market_snapshot") or {}).get("stock")
         if stock is None:
             import yfinance as yf

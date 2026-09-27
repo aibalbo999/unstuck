@@ -20,6 +20,8 @@ Yahoo 年度財報的提取觀測在 `data_fetch/financial_statement_observation
 
 FinMind 財報傳輸在 `data_fetch/market_sources/finmind_financial_transport.py`，由 `taiwan.py` 的財報專用稽核介面供原提取器與 provider 共用。原來源保護先於子程序；整组三表最多三次請求、共用二十秒期限，由父程序停止逾時子程序。部分值可保留，但來源錯誤不能轉成成功；這項傳輸修正不改變原年度計算或逐格補值規則。隔離 runner 的網路禁用旗標會傳到子程序，避免測試意外呼叫正式來源。
 
+Yahoo 台灣個股新聞在 `data_fetch/market_sources/yahoo_taiwan_news.py`，只接入 `enrichment_providers.YahooProvider` 的已確認台股普通股路徑。解析公開頁指定新聞串，核對股票與市場，維持十篇候選及共用公司／日期檢查；實際地區來源、排除原件與部分取得狀態沿原稽核保存。同步核心 SDK 及其他市場不因此改道，來源取得與內容合格也不合併為同一個成功判定。
+
 `data_fetch/yfinance_extractors.py` 的年度歷史以損益表選定財期為基準，用完整日期對齊現金流、資產與權益，避免不同表格多出一欄時將 ROE 配到鄰年。合法零值保留，缺少 CapEx 時不由 Yahoo 現金流推算 FCF；`yfinance_derived.py` 的歷史利潤率與 ROE 也保留零分子。備援替換年度時，既有欄位須重新對齊，缺年保留未知。原始三表的多餘年度、缺值與完整性觀測仍保留，不能因輸出對齊就宣稱來源完整；FinMind 財報備援也要求營運現金流與 CapEx 皆已知才推算 FCF，避免備援再次將缺值當零；已知值沿用原公式。
 
 `official_financials_webpro_conference.py` 逐筆檢查法說索引的活動連結；單筆連結未通過 HTTPS 規則時，保留其排除原件並讓同頁合格場次繼續使用，結果標示部分取得，避免公司特定的舊連結觸發全來源冷卻。跨分類、快取與官方資料整合仍保留排除原因、原取得時間及部分狀態；全數連結不合格不能當成有效空結果或成功。HTTP、逾時及資料格式錯誤的原防護仍保留。索引日期不改寫，活動連結不自動升級或下載，索引不能當作已讀逐字稿；排除原件不進入可用提示證據。
