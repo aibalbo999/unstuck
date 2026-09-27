@@ -18,6 +18,7 @@ PROVIDER = 'TWSE WebPro conference metadata'
 INDEX_URL = 'https://webpro.twse.com.tw/WebPortal/vod/101/?categoryId=170'
 LIST_URL = 'https://webpro.twse.com.tw/WebPortal/service/vodChannel/categoryMaterialList'
 PARSER_VERSION = 'webpro-conference-metadata-v3'
+SELECTION_POLICY = 'latest_eligible_category_v2'
 COVERAGE_NOTE = '僅取得 WebPro 法說會索引的日期與連結；未取得簡報、影音內容或逐字稿，來源涵蓋不完整。'
 COOLDOWN_KEY = scope_key(PROVIDER, endpoint='conference_index')
 
@@ -33,7 +34,7 @@ def fetch_webpro_conference_context(ticker: str, *, diagnostics: dict | None = N
     if not symbol:
         return {}
     from cache_store import get_cache_json, set_cache_json
-    context_key = f'webpro-conference-context:v1:{symbol}'
+    context_key = f'webpro-conference-context:v2:{symbol}'
     try:
         cached = get_cache_json(context_key)
     except Exception:
@@ -48,33 +49,56 @@ def fetch_webpro_conference_context(ticker: str, *, diagnostics: dict | None = N
         if diagnostics is not None:
             diagnostics.update(details)
         return deepcopy(cached['context'])
-    categories = []
+    categories, selected = [], None
+    incomplete_categories = []
     for category_id in (170, 148):
         try:
-            result, details = _fetch_category(symbol, category_id)
+            result, category_details = _fetch_category(symbol, category_id)
         except SourceResponseError as exc:
-            exc.diagnostic['category_observations'] = [*categories, {'category_id': category_id, **exc.diagnostic}]
-            raise
-        categories.append({'category_id': category_id, **details})
-        if result['events']:
+            failure = {'category_id': category_id, **deepcopy(exc.diagnostic)}
+            categories.append(failure)
+            if selected is None:
+                exc.diagnostic.update(category_observations=categories,
+                                      selection_policy=SELECTION_POLICY,
+                                      recency_comparison_complete=False,
+                                      incomplete_categories=[category_id])
+                raise
+            # A second-category failure does not erase known eligible metadata.
+            # It also cannot establish which category has the latest event.
+            incomplete_categories.append(category_id)
             break
-    details = {**details, 'category_observations': categories,
-               'cache_hit': all(row.get('cache_hit') for row in categories)}
-    if any(row.get('rejected_count', 0) for row in categories):
-        archive = [deepcopy(item) for row in categories for item in row.get('source_record_archive', [])]
-        details.update(
-            outcome='partial', coverage_status='partial', quality_status='partial_row_rejection',
-            raw_count=sum(row.get('raw_count', 0) for row in categories),
-            usable_count=sum(row.get('usable_count', 0) for row in categories),
-            rejected_count=len(archive), source_record_archive=archive,
-            rejected_reason_counts=dict(Counter(item['reason'] for item in archive)),
-        )
+        categories.append({'category_id': category_id, **category_details})
+        if result['events']:
+            event = result['events'][0]
+            if selected is None or event['date'] > selected[0]['date']:
+                selected = (event, category_id, category_details)
+    # Stable iteration keeps category 170 first when eligible dates are equal.
+    details = deepcopy(selected[2] if selected else categories[-1])
+    details.update(
+        selection_policy=SELECTION_POLICY, category_observations=categories,
+        recency_comparison_complete=not incomplete_categories,
+        incomplete_categories=incomplete_categories,
+        cache_hit=all(row.get('cache_hit') for row in categories),
+        http_request_sent=any(row.get('http_request_sent') for row in categories),
+        outcome='results' if selected else 'valid_empty',
+        raw_count=sum(row.get('raw_count', 0) for row in categories),
+        usable_count=sum(row.get('usable_count', 0) for row in categories),
+    )
+    details['event_kind'] = ('http_attempt' if details['http_request_sent']
+                             else 'cache_hit' if details['cache_hit'] else 'local_block')
+    archive = [deepcopy(item) for row in categories for item in row.get('source_record_archive', [])]
+    details.update(rejected_count=len(archive),
+                   rejected_reason_counts=dict(Counter(item['reason'] for item in archive)))
+    if archive:
+        details.update(outcome='partial', coverage_status='partial',
+                       quality_status='partial_row_rejection', source_record_archive=archive)
+    if incomplete_categories:
+        details.update(outcome='partial', coverage_status='partial', quality_status='incomplete_category')
     if diagnostics is not None:
         diagnostics.update(details)
-    events = result['events']
-    if not events:
+    if selected is None:
         return {}
-    event = events[0]
+    event, category_id, selected_details = selected
     context = {
         'ticker': symbol, 'date': event['date'], 'period': event['date'],
         'title': f"{event['company_name'] or symbol} 法人說明會（索引）",
@@ -83,21 +107,33 @@ def fetch_webpro_conference_context(ticker: str, *, diagnostics: dict | None = N
         'source_url': INDEX_URL.replace('categoryId=170', f'categoryId={category_id}'),
         'category_id': category_id, 'event_url': event['url'], 'event_id': event['event_id'],
         'coverage_status': 'metadata_only', 'coverage_notes': [COVERAGE_NOTE],
-        'fetched_at_epoch': details['fetched_at_epoch'], 'event_date_raw': event['event_date_raw'],
+        'fetched_at_epoch': selected_details['fetched_at_epoch'], 'event_date_raw': event['event_date_raw'],
         'upstream_source': 'MOPS-derived WebPro public index',
+        'selection_policy': SELECTION_POLICY,
+        'recency_comparison_complete': not incomplete_categories,
+        'incomplete_categories': incomplete_categories,
+        'category_observations': deepcopy(categories),
     }
-    if details.get('rejected_count', 0):
-        context.update(selection_status='partial', quality_status='partial_row_rejection')
-        for key in ('raw_count', 'usable_count', 'rejected_count', 'rejected_reason_counts', 'source_record_archive'):
+    if details['outcome'] == 'partial':
+        context.update(selection_status='partial', quality_status=details['quality_status'])
+        for key in ('raw_count', 'usable_count', 'rejected_count', 'rejected_reason_counts'):
             context[key] = deepcopy(details[key])
+    if archive:
+        context['source_record_archive'] = deepcopy(archive)
         context['coverage_notes'].append('本次索引含無法使用的活動連結；僅保留通過連結檢查的場次，未取得完整內容。')
-    # The selected positive observation has the same 24-hour lifetime as its
-    # category cache. Its original acquisition time is never renewed by reuse.
-    remaining = max(0, details['fetched_at_epoch'] + 86400 - time.time())
+    if incomplete_categories:
+        context['coverage_notes'].append('部分官方分類未能取得；保留已驗證的索引，尚未完成跨分類最新場次比較。')
+    # Keep original observation times, including an older category used in the
+    # comparison. A newer selected event must not renew that earlier evidence.
+    fresh_until = min(row['fetched_at_epoch'] + 86400 for row in categories
+                      if row.get('fetched_at_epoch') is not None and not row.get('error_kind'))
+    if incomplete_categories:
+        fresh_until = min(fresh_until, time.time() + 300)
+    remaining = max(0, fresh_until - time.time())
     if remaining > 0:
         try:
             set_cache_json(context_key, {'context': context, 'diagnostic': details,
-                                         'fresh_until_epoch': details['fetched_at_epoch'] + 86400},
+                                         'fresh_until_epoch': fresh_until},
                            ttl_seconds=max(1, int(remaining)))
         except Exception:
             pass

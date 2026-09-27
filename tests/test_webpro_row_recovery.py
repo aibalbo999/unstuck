@@ -59,9 +59,9 @@ def test_real_mixed_page_recovers_old_metadata_with_partial_counts_and_archive(u
     prompt = prompt_evidence_copy(context)
     assert 'source_record_archive' not in prompt
     assert 'http://www.zucast.com' not in json.dumps(prompt)
-    assert len(upstream[2]) == 1
+    assert len(upstream[2]) == 2
     assert webpro.COOLDOWN_KEY not in upstream[1]
-    assert [(r['status'],r['outcome'],r['record_count']) for r in upstream[3]] == [('degraded_enrichment','partial',1)]
+    assert [(r['status'],r['outcome'],r['record_count']) for r in upstream[3]] == [('degraded_enrichment','partial',1), ('degraded_enrichment','valid_empty',0)]
 
 
 def test_all_bad_links_are_partial_zero_not_empty_or_global_failure(upstream):
@@ -90,7 +90,7 @@ def test_partial_cache_preserves_original_time_counts_and_rejections(upstream, m
     audit = {}
     second = webpro.fetch_webpro_conference_context('2892.TW',diagnostics=audit)
     assert second == first
-    assert len(upstream[2]) == 1 and len(upstream[3]) == 1
+    assert len(upstream[2]) == 2 and len(upstream[3]) == 2
     assert audit['outcome'] == 'partial' and audit['rejected_count'] == 2
     assert audit['cache_hit'] is True and audit['http_request_sent'] is False
     assert audit['fetched_at_epoch'] == first_audit['fetched_at_epoch']
@@ -149,7 +149,7 @@ def test_partial_page_does_not_cool_down_another_company(upstream):
     valid.update(agentUserName='2330',agentSimpleName='台積電')
     upstream[0][170]['result']['materials']['material'] = [valid]
     assert webpro.fetch_webpro_conference_context('2330.TW')['ticker'] == '2330'
-    assert [r[2] for r in upstream[2]] == ['2892','2330']
+    assert [r[2] for r in upstream[2]] == ['2892','2892','2330','2330']
 
 
 def test_partial_observation_is_degraded_with_explicit_outcome(upstream):

@@ -65,13 +65,13 @@ def test_both_valid_empty_categories_are_cached_separately_for_five_minutes(inde
     assert all(299 <= row['fresh_until_epoch'] - row['fetched_at_epoch'] < 301 for row in entries)
 
 
-def test_usable_first_category_stops_after_one_page(index):
+def test_equal_date_categories_keep_first_category_after_both_pages(index):
     import official_financials_webpro_conference as webpro
     first = deepcopy(index[0][148])
     for row in first['result']['materials']['material']: row['categoryId'] = 170
     index[0][170] = first
     assert webpro.fetch_webpro_conference_context('2367.TW')['category_id'] == 170
-    assert [int(call['categoryId']) for call in index[1]] == [170]
+    assert [int(call['categoryId']) for call in index[1]] == [170, 148]
 
 
 @pytest.mark.parametrize('change', [{'agentUserName': '2330'}, {'eventDate': '2099-12-01 00:00:00.0'}, {'isValid': False}])
