@@ -54,12 +54,16 @@ async def enrich_optional_http_async(ticker: str, data: dict) -> dict:
             cache_hit=cache_hit,
             unavailable_message="FMP news 未回傳近期新聞。",
         )
+    peer_diagnostics = {}
     if refresh_peer_discovery:
+        from peer_relationship_evidence import peer_selection_diagnostics
+        peer_diagnostics = peer_selection_diagnostics(resolved_ticker)
         tasks["search_peer_discovery"] = audited_fetch_async(
             "peer_discovery",
             "Alternative Search",
             fetch_alternative_peer_discovery_async,
             (resolved_ticker, company_name, sector, industry),
+            kwargs={"company_context": data, "diagnostics": peer_diagnostics},
             default=[],
             cache_hit=cache_hit,
             unavailable_message="Alternative Search 未回傳同業搜尋結果。",
@@ -69,6 +73,10 @@ async def enrich_optional_http_async(ticker: str, data: dict) -> dict:
     if tasks:
         gathered = await asyncio.gather(*tasks.values(), return_exceptions=True)
         results = dict(zip(tasks.keys(), gathered))
+
+    peer_result = results.get("search_peer_discovery")
+    if isinstance(peer_result, dict):
+        peer_result["audit"].update(peer_diagnostics)
 
     async_audit_entries = [
         result.get("audit") for result in results.values()

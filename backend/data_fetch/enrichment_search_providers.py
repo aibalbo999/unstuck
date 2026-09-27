@@ -52,14 +52,18 @@ class AlternativePeerDiscoveryProvider(DataProvider):
         sector = str(data.get("sector") or "")
         industry = str(data.get("industry") or "")
         cache_hit = safe_bool(data.get("_cache_hit"))
+        from peer_relationship_evidence import peer_selection_diagnostics
+        diagnostics = peer_selection_diagnostics(ticker)
         result = await audited_fetch_async(
             self.source,
             self.name,
             fetch_alternative_peer_discovery_async,
             (ticker, company_name, sector, industry),
+            kwargs={"company_context": data, "diagnostics": diagnostics},
             default=[],
             cache_hit=cache_hit,
             empty_status="degraded_enrichment",
             unavailable_message="Alternative Search 未回傳同業搜尋結果。",
         )
+        result["audit"].update(diagnostics)
         return provider_result_from_audited(result, self.source, self.name)

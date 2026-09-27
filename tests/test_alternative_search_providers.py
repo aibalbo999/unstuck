@@ -128,39 +128,18 @@ def test_external_search_provider_clients_fetch_brave_payload(monkeypatch):
     assert calls[0]["headers"] == {"Accept": "application/json", "X-Subscription-Token": "brave-key"}
 
 
-def test_alternative_peer_discovery_uses_search_results(monkeypatch):
+def test_taiwan_peer_discovery_without_verified_identity_fails_closed(monkeypatch):
     import external_search_providers as search
 
-    async def fake_search(query, *, max_results=8, lookback_days=30, require_recent=False, **kwargs):
-        assert query == "台達電 competitors"
-        assert max_results == 8
-        return [
-            search.SearchResult(
-                title="Power peers include Eaton and Schneider",
-                snippet="Delta Electronics competes with global power management peers.",
-                link="https://news.example/peers",
-                source="Brave Search",
-                published_at="",
-                provider="brave",
-            )
-        ]
+    async def unexpected_search(*args, **kwargs):
+        raise AssertionError("Missing issuer identity must not trigger search")
 
-    monkeypatch.setattr(search, "fetch_web_search_results_async", fake_search)
-
-    records = asyncio.run(
-        search.fetch_alternative_peer_discovery_async("2308.TW", "台達電", "Technology", "Power supply")
-    )
-
-    assert records == [
-        {
-            "title": "Power peers include Eaton and Schneider",
-            "snippet": "Delta Electronics competes with global power management peers.",
-            "source": "Brave Search",
-            "link": "https://news.example/peers",
-            "source_type": "alternative_peer_discovery",
-            "provider": "brave",
-        }
-    ]
+    monkeypatch.setattr(search, "fetch_web_search_results_async", unexpected_search)
+    diagnostics = {}
+    records = asyncio.run(search.fetch_alternative_peer_discovery_async(
+        "2308.TW", "台達電", "Technology", "Power supply", diagnostics=diagnostics))
+    assert records == []
+    assert diagnostics["identity_status"] == "issuer_identity_unverified"
 
 
 def test_google_news_rss_is_available_as_free_fallback(monkeypatch):
@@ -438,7 +417,7 @@ def test_alternative_search_provider_fetches_catalysts(monkeypatch):
 def test_alternative_peer_provider_fetches_peer_discovery(monkeypatch):
     from data_fetch.enrichment_providers import AlternativePeerDiscoveryProvider
 
-    async def fake_fetch(ticker, company_name, sector, industry):
+    async def fake_fetch(ticker, company_name, sector, industry, **kwargs):
         assert ticker == "2308.TW"
         assert company_name == "台達電"
         assert sector == "Technology"
@@ -496,7 +475,9 @@ def test_legacy_optional_enrichment_merges_alternative_search(monkeypatch):
     result = asyncio.run(optional_enrichment.enrich_optional_http_async("2330", data))
 
     assert result["recent_catalysts"][0]["title"] == "台積電 Alternative catalyst"
-    assert result["peer_discovery_results"][0]["title"] == "Alternative peer"
+    assert result["peer_discovery_results"] == []
+    assert any(entry["record"].get("title") == "Alternative peer" for entry in result["source_record_archive"])
+    assert next(entry for entry in reversed(result["source_audit"]) if entry["source"] == "peer_discovery")["status"] != "success"
     assert {"Alternative Search", "Recent catalysts providers", "Peer discovery providers"} <= {
         entry["provider"] for entry in result["source_audit"]
     }
