@@ -117,6 +117,8 @@ wait_for_project_workers_to_stop() {
 }
 
 cleanup() {
+    # Once shutdown starts, finish owned Worker/Redis cleanup even if stopped again.
+    trap '' INT TERM
     if [ -n "${SERVER_PID:-}" ]; then
         kill "$SERVER_PID" 2>/dev/null || true
         wait "$SERVER_PID" 2>/dev/null || true
@@ -132,7 +134,9 @@ cleanup() {
         wait "$REDIS_PID" 2>/dev/null || true
     fi
 }
-trap cleanup INT TERM EXIT
+trap cleanup EXIT
+trap 'exit 130' INT
+trap 'exit 143' TERM
 
 if [ -n "${PYTHON_BIN:-}" ]; then
     BASE_PYTHON="$PYTHON_BIN"
@@ -370,7 +374,7 @@ stop_project_pid() {
 }
 
 stop_existing_project_api() {
-    local pids pid parent launchers="" attempt
+    local pids pid parent launchers="" elapsed cleanup_wait_seconds=180
     pids="$(lsof -nP -tiTCP:8080 -sTCP:LISTEN 2>/dev/null || true)"
     # Validate every listener before stopping any, including dual-stack owners.
     for pid in $pids; do
@@ -384,15 +388,20 @@ stop_existing_project_api() {
     for pid in $pids; do stop_project_pid "$pid" api || return 1; done
     # The old launcher owns its Redis. Wait for its EXIT cleanup before deciding
     # whether Redis can be reused; never terminate an unverified parent shell.
+    # Scheduler threads may still be finishing bounded data requests after TERM.
     for parent in $launchers; do
-        for attempt in 1 2 3 4 5 6 7 8 9 10; do
-            if ! kill -0 "$parent" 2>/dev/null; then break; fi
-            sleep 0.5
+        elapsed=0
+        while kill -0 "$parent" 2>/dev/null; do
+            if [ "$elapsed" -ge "$cleanup_wait_seconds" ]; then
+                echo "等待 $cleanup_wait_seconds 秒後，先前啟動器 PID $parent 仍未完成清理；拒絕啟動，請確認後重試。" >&2
+                return 1
+            fi
+            if [ $((elapsed % 15)) -eq 0 ]; then
+                echo "等待先前啟動器 PID $parent 完成 Worker 與 Redis 清理（已等待 $elapsed 秒，上限 $cleanup_wait_seconds 秒）…"
+            fi
+            sleep 1
+            elapsed=$((elapsed + 1))
         done
-        if kill -0 "$parent" 2>/dev/null; then
-            echo "先前啟動器 PID $parent 尚未完成清理；拒絕啟動，請確認後重試。" >&2
-            return 1
-        fi
     done
     return 0
 }
