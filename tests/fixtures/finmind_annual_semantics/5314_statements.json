@@ -1,0 +1,1074 @@
+{
+  "schema": "captured.finmind-statement-subset.v1",
+  "ticker": "5314.TWO",
+  "provenance": "Unmodified selected raw table rows from one bounded operation. Not HTTP body; source table hashes below. Financials includes every quarter of 2021–2025; BS/CF uses actual year-end rows only.",
+  "source_table_sha256": {
+    "financials": "066e67dcfec9dd2a7fb796282765192c1e84df93b943c3a9419c8586a5ea2670",
+    "balance": "a6584b427734490acb61b1e3831a3c523604fe6c6623c1a74aa037e19e8adebb",
+    "cashflow": "7394bbb1b475b244e93e5d9a47326369beb0725c9656c95bd85df35c54d14bb8"
+  },
+  "tables": {
+    "financials": [
+      {
+        "date": "2021-03-31",
+        "stock_id": "5314",
+        "type": "IncomeAfterTaxes",
+        "value": -7615000.0,
+        "origin_name": "本期淨利（淨損）"
+      },
+      {
+        "date": "2021-03-31",
+        "stock_id": "5314",
+        "type": "EquityAttributableToOwnersOfParent",
+        "value": -7615000.0,
+        "origin_name": "淨利（淨損）歸屬於母公司業主"
+      },
+      {
+        "date": "2021-03-31",
+        "stock_id": "5314",
+        "type": "OperatingIncome",
+        "value": -8033000.0,
+        "origin_name": "營業利益（損失）"
+      },
+      {
+        "date": "2021-03-31",
+        "stock_id": "5314",
+        "type": "Revenue",
+        "value": 7440000.0,
+        "origin_name": "營業收入"
+      },
+      {
+        "date": "2021-03-31",
+        "stock_id": "5314",
+        "type": "GrossProfit",
+        "value": 120000.0,
+        "origin_name": "營業毛利（毛損）"
+      },
+      {
+        "date": "2021-06-30",
+        "stock_id": "5314",
+        "type": "IncomeAfterTaxes",
+        "value": -8746000.0,
+        "origin_name": "本期淨利（淨損）"
+      },
+      {
+        "date": "2021-06-30",
+        "stock_id": "5314",
+        "type": "EquityAttributableToOwnersOfParent",
+        "value": -8746000.0,
+        "origin_name": "淨利（淨損）歸屬於母公司業主"
+      },
+      {
+        "date": "2021-06-30",
+        "stock_id": "5314",
+        "type": "OperatingIncome",
+        "value": -6708000.0,
+        "origin_name": "營業利益（損失）"
+      },
+      {
+        "date": "2021-06-30",
+        "stock_id": "5314",
+        "type": "Revenue",
+        "value": 3574000.0,
+        "origin_name": "營業收入"
+      },
+      {
+        "date": "2021-06-30",
+        "stock_id": "5314",
+        "type": "GrossProfit",
+        "value": 2442000.0,
+        "origin_name": "營業毛利（毛損）"
+      },
+      {
+        "date": "2021-09-30",
+        "stock_id": "5314",
+        "type": "IncomeAfterTaxes",
+        "value": -5783000.0,
+        "origin_name": "本期淨利（淨損）"
+      },
+      {
+        "date": "2021-09-30",
+        "stock_id": "5314",
+        "type": "EquityAttributableToOwnersOfParent",
+        "value": -5783000.0,
+        "origin_name": "淨利（淨損）歸屬於母公司業主"
+      },
+      {
+        "date": "2021-09-30",
+        "stock_id": "5314",
+        "type": "OperatingIncome",
+        "value": -6068000.0,
+        "origin_name": "營業利益（損失）"
+      },
+      {
+        "date": "2021-09-30",
+        "stock_id": "5314",
+        "type": "Revenue",
+        "value": 1444000.0,
+        "origin_name": "營業收入"
+      },
+      {
+        "date": "2021-09-30",
+        "stock_id": "5314",
+        "type": "GrossProfit",
+        "value": 1507000.0,
+        "origin_name": "營業毛利（毛損）"
+      },
+      {
+        "date": "2021-12-31",
+        "stock_id": "5314",
+        "type": "IncomeAfterTaxes",
+        "value": -7864000.0,
+        "origin_name": "本期淨利（淨損）"
+      },
+      {
+        "date": "2021-12-31",
+        "stock_id": "5314",
+        "type": "EquityAttributableToOwnersOfParent",
+        "value": -7864000.0,
+        "origin_name": "淨利（淨損）歸屬於母公司業主"
+      },
+      {
+        "date": "2021-12-31",
+        "stock_id": "5314",
+        "type": "OperatingIncome",
+        "value": -8003000.0,
+        "origin_name": "營業利益（損失）"
+      },
+      {
+        "date": "2021-12-31",
+        "stock_id": "5314",
+        "type": "Revenue",
+        "value": 1531000.0,
+        "origin_name": "營業收入"
+      },
+      {
+        "date": "2021-12-31",
+        "stock_id": "5314",
+        "type": "GrossProfit",
+        "value": 1266000.0,
+        "origin_name": "營業毛利（毛損）"
+      },
+      {
+        "date": "2022-03-31",
+        "stock_id": "5314",
+        "type": "IncomeAfterTaxes",
+        "value": -5614000.0,
+        "origin_name": "本期淨利（淨損）"
+      },
+      {
+        "date": "2022-03-31",
+        "stock_id": "5314",
+        "type": "EquityAttributableToOwnersOfParent",
+        "value": -5614000.0,
+        "origin_name": "淨利（淨損）歸屬於母公司業主"
+      },
+      {
+        "date": "2022-03-31",
+        "stock_id": "5314",
+        "type": "OperatingIncome",
+        "value": -5843000.0,
+        "origin_name": "營業利益（損失）"
+      },
+      {
+        "date": "2022-03-31",
+        "stock_id": "5314",
+        "type": "Revenue",
+        "value": 1274000.0,
+        "origin_name": "營業收入"
+      },
+      {
+        "date": "2022-03-31",
+        "stock_id": "5314",
+        "type": "GrossProfit",
+        "value": 905000.0,
+        "origin_name": "營業毛利（毛損）"
+      },
+      {
+        "date": "2022-06-30",
+        "stock_id": "5314",
+        "type": "IncomeAfterTaxes",
+        "value": -5719000.0,
+        "origin_name": "本期淨利（淨損）"
+      },
+      {
+        "date": "2022-06-30",
+        "stock_id": "5314",
+        "type": "EquityAttributableToOwnersOfParent",
+        "value": -5719000.0,
+        "origin_name": "淨利（淨損）歸屬於母公司業主"
+      },
+      {
+        "date": "2022-06-30",
+        "stock_id": "5314",
+        "type": "OperatingIncome",
+        "value": -7193000.0,
+        "origin_name": "營業利益（損失）"
+      },
+      {
+        "date": "2022-06-30",
+        "stock_id": "5314",
+        "type": "Revenue",
+        "value": 2444000.0,
+        "origin_name": "營業收入"
+      },
+      {
+        "date": "2022-06-30",
+        "stock_id": "5314",
+        "type": "GrossProfit",
+        "value": 825000.0,
+        "origin_name": "營業毛利（毛損）"
+      },
+      {
+        "date": "2022-09-30",
+        "stock_id": "5314",
+        "type": "IncomeAfterTaxes",
+        "value": -1091000.0,
+        "origin_name": "本期淨利（淨損）"
+      },
+      {
+        "date": "2022-09-30",
+        "stock_id": "5314",
+        "type": "EquityAttributableToOwnersOfParent",
+        "value": -1091000.0,
+        "origin_name": "淨利（淨損）歸屬於母公司業主"
+      },
+      {
+        "date": "2022-09-30",
+        "stock_id": "5314",
+        "type": "OperatingIncome",
+        "value": -4849000.0,
+        "origin_name": "營業利益（損失）"
+      },
+      {
+        "date": "2022-09-30",
+        "stock_id": "5314",
+        "type": "Revenue",
+        "value": 2538000.0,
+        "origin_name": "營業收入"
+      },
+      {
+        "date": "2022-09-30",
+        "stock_id": "5314",
+        "type": "GrossProfit",
+        "value": 2345000.0,
+        "origin_name": "營業毛利（毛損）"
+      },
+      {
+        "date": "2022-12-31",
+        "stock_id": "5314",
+        "type": "IncomeAfterTaxes",
+        "value": 9753000.0,
+        "origin_name": "本期淨利（淨損）"
+      },
+      {
+        "date": "2022-12-31",
+        "stock_id": "5314",
+        "type": "EquityAttributableToOwnersOfParent",
+        "value": 9753000.0,
+        "origin_name": "淨利（淨損）歸屬於母公司業主"
+      },
+      {
+        "date": "2022-12-31",
+        "stock_id": "5314",
+        "type": "OperatingIncome",
+        "value": 4604000.0,
+        "origin_name": "營業利益（損失）"
+      },
+      {
+        "date": "2022-12-31",
+        "stock_id": "5314",
+        "type": "Revenue",
+        "value": 12176000.0,
+        "origin_name": "營業收入"
+      },
+      {
+        "date": "2022-12-31",
+        "stock_id": "5314",
+        "type": "GrossProfit",
+        "value": 12716000.0,
+        "origin_name": "營業毛利（毛損）"
+      },
+      {
+        "date": "2023-03-31",
+        "stock_id": "5314",
+        "type": "IncomeAfterTaxes",
+        "value": -4853000.0,
+        "origin_name": "本期淨利（淨損）"
+      },
+      {
+        "date": "2023-03-31",
+        "stock_id": "5314",
+        "type": "EquityAttributableToOwnersOfParent",
+        "value": -4853000.0,
+        "origin_name": "淨利（淨損）歸屬於母公司業主"
+      },
+      {
+        "date": "2023-03-31",
+        "stock_id": "5314",
+        "type": "OperatingIncome",
+        "value": -6305000.0,
+        "origin_name": "營業利益（損失）"
+      },
+      {
+        "date": "2023-03-31",
+        "stock_id": "5314",
+        "type": "Revenue",
+        "value": 4217000.0,
+        "origin_name": "營業收入"
+      },
+      {
+        "date": "2023-03-31",
+        "stock_id": "5314",
+        "type": "GrossProfit",
+        "value": 14000.0,
+        "origin_name": "營業毛利（毛損）"
+      },
+      {
+        "date": "2023-06-30",
+        "stock_id": "5314",
+        "type": "IncomeAfterTaxes",
+        "value": -4162000.0,
+        "origin_name": "本期淨利（淨損）"
+      },
+      {
+        "date": "2023-06-30",
+        "stock_id": "5314",
+        "type": "EquityAttributableToOwnersOfParent",
+        "value": -4143000.0,
+        "origin_name": "淨利（淨損）歸屬於母公司業主"
+      },
+      {
+        "date": "2023-06-30",
+        "stock_id": "5314",
+        "type": "OperatingIncome",
+        "value": -5917000.0,
+        "origin_name": "營業利益（損失）"
+      },
+      {
+        "date": "2023-06-30",
+        "stock_id": "5314",
+        "type": "Revenue",
+        "value": 2693000.0,
+        "origin_name": "營業收入"
+      },
+      {
+        "date": "2023-06-30",
+        "stock_id": "5314",
+        "type": "GrossProfit",
+        "value": 25000.0,
+        "origin_name": "營業毛利（毛損）"
+      },
+      {
+        "date": "2023-09-30",
+        "stock_id": "5314",
+        "type": "IncomeAfterTaxes",
+        "value": 29160000.0,
+        "origin_name": "本期淨利（淨損）"
+      },
+      {
+        "date": "2023-09-30",
+        "stock_id": "5314",
+        "type": "EquityAttributableToOwnersOfParent",
+        "value": 29206000.0,
+        "origin_name": "淨利（淨損）歸屬於母公司業主"
+      },
+      {
+        "date": "2023-09-30",
+        "stock_id": "5314",
+        "type": "OperatingIncome",
+        "value": -5589000.0,
+        "origin_name": "營業利益（損失）"
+      },
+      {
+        "date": "2023-09-30",
+        "stock_id": "5314",
+        "type": "Revenue",
+        "value": 5068000.0,
+        "origin_name": "營業收入"
+      },
+      {
+        "date": "2023-09-30",
+        "stock_id": "5314",
+        "type": "GrossProfit",
+        "value": 2205000.0,
+        "origin_name": "營業毛利（毛損）"
+      },
+      {
+        "date": "2023-12-31",
+        "stock_id": "5314",
+        "type": "IncomeAfterTaxes",
+        "value": 10745000.0,
+        "origin_name": "本期淨利（淨損）"
+      },
+      {
+        "date": "2023-12-31",
+        "stock_id": "5314",
+        "type": "EquityAttributableToOwnersOfParent",
+        "value": 10840000.0,
+        "origin_name": "淨利（淨損）歸屬於母公司業主"
+      },
+      {
+        "date": "2023-12-31",
+        "stock_id": "5314",
+        "type": "OperatingIncome",
+        "value": 10749000.0,
+        "origin_name": "營業利益（損失）"
+      },
+      {
+        "date": "2023-12-31",
+        "stock_id": "5314",
+        "type": "Revenue",
+        "value": 73375000.0,
+        "origin_name": "營業收入"
+      },
+      {
+        "date": "2023-12-31",
+        "stock_id": "5314",
+        "type": "GrossProfit",
+        "value": 14197000.0,
+        "origin_name": "營業毛利（毛損）"
+      },
+      {
+        "date": "2024-03-31",
+        "stock_id": "5314",
+        "type": "IncomeAfterTaxes",
+        "value": 79119000.0,
+        "origin_name": "本期淨利（淨損）"
+      },
+      {
+        "date": "2024-03-31",
+        "stock_id": "5314",
+        "type": "EquityAttributableToOwnersOfParent",
+        "value": 79080000.0,
+        "origin_name": "淨利（淨損）歸屬於母公司業主"
+      },
+      {
+        "date": "2024-03-31",
+        "stock_id": "5314",
+        "type": "OperatingIncome",
+        "value": 77713000.0,
+        "origin_name": "營業利益（損失）"
+      },
+      {
+        "date": "2024-03-31",
+        "stock_id": "5314",
+        "type": "Revenue",
+        "value": 161519000.0,
+        "origin_name": "營業收入"
+      },
+      {
+        "date": "2024-03-31",
+        "stock_id": "5314",
+        "type": "GrossProfit",
+        "value": 87569000.0,
+        "origin_name": "營業毛利（毛損）"
+      },
+      {
+        "date": "2024-06-30",
+        "stock_id": "5314",
+        "type": "IncomeAfterTaxes",
+        "value": 48686000.0,
+        "origin_name": "本期淨利（淨損）"
+      },
+      {
+        "date": "2024-06-30",
+        "stock_id": "5314",
+        "type": "EquityAttributableToOwnersOfParent",
+        "value": 48647000.0,
+        "origin_name": "淨利（淨損）歸屬於母公司業主"
+      },
+      {
+        "date": "2024-06-30",
+        "stock_id": "5314",
+        "type": "OperatingIncome",
+        "value": 48009000.0,
+        "origin_name": "營業利益（損失）"
+      },
+      {
+        "date": "2024-06-30",
+        "stock_id": "5314",
+        "type": "Revenue",
+        "value": 120751000.0,
+        "origin_name": "營業收入"
+      },
+      {
+        "date": "2024-06-30",
+        "stock_id": "5314",
+        "type": "GrossProfit",
+        "value": 72428000.0,
+        "origin_name": "營業毛利（毛損）"
+      },
+      {
+        "date": "2024-09-30",
+        "stock_id": "5314",
+        "type": "IncomeAfterTaxes",
+        "value": 12853000.0,
+        "origin_name": "本期淨利（淨損）"
+      },
+      {
+        "date": "2024-09-30",
+        "stock_id": "5314",
+        "type": "EquityAttributableToOwnersOfParent",
+        "value": 12774000.0,
+        "origin_name": "淨利（淨損）歸屬於母公司業主"
+      },
+      {
+        "date": "2024-09-30",
+        "stock_id": "5314",
+        "type": "OperatingIncome",
+        "value": 15902000.0,
+        "origin_name": "營業利益（損失）"
+      },
+      {
+        "date": "2024-09-30",
+        "stock_id": "5314",
+        "type": "Revenue",
+        "value": 77957000.0,
+        "origin_name": "營業收入"
+      },
+      {
+        "date": "2024-09-30",
+        "stock_id": "5314",
+        "type": "GrossProfit",
+        "value": 38350000.0,
+        "origin_name": "營業毛利（毛損）"
+      },
+      {
+        "date": "2024-12-31",
+        "stock_id": "5314",
+        "type": "IncomeAfterTaxes",
+        "value": 127641000.0,
+        "origin_name": "本期淨利（淨損）"
+      },
+      {
+        "date": "2024-12-31",
+        "stock_id": "5314",
+        "type": "EquityAttributableToOwnersOfParent",
+        "value": 127790000.0,
+        "origin_name": "淨利（淨損）歸屬於母公司業主"
+      },
+      {
+        "date": "2024-12-31",
+        "stock_id": "5314",
+        "type": "OperatingIncome",
+        "value": 125424000.0,
+        "origin_name": "營業利益（損失）"
+      },
+      {
+        "date": "2024-12-31",
+        "stock_id": "5314",
+        "type": "Revenue",
+        "value": 268003000.0,
+        "origin_name": "營業收入"
+      },
+      {
+        "date": "2024-12-31",
+        "stock_id": "5314",
+        "type": "GrossProfit",
+        "value": 183948000.0,
+        "origin_name": "營業毛利（毛損）"
+      },
+      {
+        "date": "2025-03-31",
+        "stock_id": "5314",
+        "type": "IncomeAfterTaxes",
+        "value": 234631000.0,
+        "origin_name": "本期淨利（淨損）"
+      },
+      {
+        "date": "2025-03-31",
+        "stock_id": "5314",
+        "type": "EquityAttributableToOwnersOfParent",
+        "value": 230564000.0,
+        "origin_name": "淨利（淨損）歸屬於母公司業主"
+      },
+      {
+        "date": "2025-03-31",
+        "stock_id": "5314",
+        "type": "OperatingIncome",
+        "value": 197519000.0,
+        "origin_name": "營業利益（損失）"
+      },
+      {
+        "date": "2025-03-31",
+        "stock_id": "5314",
+        "type": "Revenue",
+        "value": 458551000.0,
+        "origin_name": "營業收入"
+      },
+      {
+        "date": "2025-03-31",
+        "stock_id": "5314",
+        "type": "GrossProfit",
+        "value": 380740000.0,
+        "origin_name": "營業毛利（毛損）"
+      },
+      {
+        "date": "2025-06-30",
+        "stock_id": "5314",
+        "type": "IncomeAfterTaxes",
+        "value": 236351000.0,
+        "origin_name": "本期淨利（淨損）"
+      },
+      {
+        "date": "2025-06-30",
+        "stock_id": "5314",
+        "type": "EquityAttributableToOwnersOfParent",
+        "value": 232972000.0,
+        "origin_name": "淨利（淨損）歸屬於母公司業主"
+      },
+      {
+        "date": "2025-06-30",
+        "stock_id": "5314",
+        "type": "OperatingIncome",
+        "value": 298159000.0,
+        "origin_name": "營業利益（損失）"
+      },
+      {
+        "date": "2025-06-30",
+        "stock_id": "5314",
+        "type": "Revenue",
+        "value": 622750000.0,
+        "origin_name": "營業收入"
+      },
+      {
+        "date": "2025-06-30",
+        "stock_id": "5314",
+        "type": "GrossProfit",
+        "value": 282960000.0,
+        "origin_name": "營業毛利（毛損）"
+      },
+      {
+        "date": "2025-09-30",
+        "stock_id": "5314",
+        "type": "IncomeAfterTaxes",
+        "value": 352012000.0,
+        "origin_name": "本期淨利（淨損）"
+      },
+      {
+        "date": "2025-09-30",
+        "stock_id": "5314",
+        "type": "EquityAttributableToOwnersOfParent",
+        "value": 317238000.0,
+        "origin_name": "淨利（淨損）歸屬於母公司業主"
+      },
+      {
+        "date": "2025-09-30",
+        "stock_id": "5314",
+        "type": "OperatingIncome",
+        "value": 346901000.0,
+        "origin_name": "營業利益（損失）"
+      },
+      {
+        "date": "2025-09-30",
+        "stock_id": "5314",
+        "type": "Revenue",
+        "value": 773082000.0,
+        "origin_name": "營業收入"
+      },
+      {
+        "date": "2025-09-30",
+        "stock_id": "5314",
+        "type": "GrossProfit",
+        "value": 495506000.0,
+        "origin_name": "營業毛利（毛損）"
+      },
+      {
+        "date": "2025-12-31",
+        "stock_id": "5314",
+        "type": "IncomeAfterTaxes",
+        "value": 856617000.0,
+        "origin_name": "本期淨利（淨損）"
+      },
+      {
+        "date": "2025-12-31",
+        "stock_id": "5314",
+        "type": "EquityAttributableToOwnersOfParent",
+        "value": 844849000.0,
+        "origin_name": "淨利（淨損）歸屬於母公司業主"
+      },
+      {
+        "date": "2025-12-31",
+        "stock_id": "5314",
+        "type": "OperatingIncome",
+        "value": 220685000.0,
+        "origin_name": "營業利益（損失）"
+      },
+      {
+        "date": "2025-12-31",
+        "stock_id": "5314",
+        "type": "Revenue",
+        "value": 1119164000.0,
+        "origin_name": "營業收入"
+      },
+      {
+        "date": "2025-12-31",
+        "stock_id": "5314",
+        "type": "GrossProfit",
+        "value": 544033000.0,
+        "origin_name": "營業毛利（毛損）"
+      }
+    ],
+    "balance": [
+      {
+        "date": "2021-12-31",
+        "stock_id": "5314",
+        "type": "TotalAssets",
+        "value": 186420000.0,
+        "origin_name": "資產總額"
+      },
+      {
+        "date": "2021-12-31",
+        "stock_id": "5314",
+        "type": "EquityAttributableToOwnersOfParent",
+        "value": 164276000.0,
+        "origin_name": "歸屬於母公司業主之權益合計"
+      },
+      {
+        "date": "2021-12-31",
+        "stock_id": "5314",
+        "type": "Equity",
+        "value": 164276000.0,
+        "origin_name": "權益總額"
+      },
+      {
+        "date": "2022-12-31",
+        "stock_id": "5314",
+        "type": "TotalAssets",
+        "value": 184225000.0,
+        "origin_name": "資產總額"
+      },
+      {
+        "date": "2022-12-31",
+        "stock_id": "5314",
+        "type": "EquityAttributableToOwnersOfParent",
+        "value": 122461000.0,
+        "origin_name": "歸屬於母公司業主之權益合計"
+      },
+      {
+        "date": "2022-12-31",
+        "stock_id": "5314",
+        "type": "Equity",
+        "value": 122461000.0,
+        "origin_name": "權益總額"
+      },
+      {
+        "date": "2023-12-31",
+        "stock_id": "5314",
+        "type": "TotalAssets",
+        "value": 245186000.0,
+        "origin_name": "資產總額"
+      },
+      {
+        "date": "2023-12-31",
+        "stock_id": "5314",
+        "type": "EquityAttributableToOwnersOfParent",
+        "value": 180097000.0,
+        "origin_name": "歸屬於母公司業主之權益合計"
+      },
+      {
+        "date": "2023-12-31",
+        "stock_id": "5314",
+        "type": "Equity",
+        "value": 182971000.0,
+        "origin_name": "權益總額"
+      },
+      {
+        "date": "2024-12-31",
+        "stock_id": "5314",
+        "type": "TotalAssets",
+        "value": 612819000.0,
+        "origin_name": "資產總額"
+      },
+      {
+        "date": "2024-12-31",
+        "stock_id": "5314",
+        "type": "EquityAttributableToOwnersOfParent",
+        "value": 446399000.0,
+        "origin_name": "歸屬於母公司業主之權益合計"
+      },
+      {
+        "date": "2024-12-31",
+        "stock_id": "5314",
+        "type": "Equity",
+        "value": 450942000.0,
+        "origin_name": "權益總額"
+      },
+      {
+        "date": "2025-12-31",
+        "stock_id": "5314",
+        "type": "TotalAssets",
+        "value": 5111337000.0,
+        "origin_name": "資產總額"
+      },
+      {
+        "date": "2025-12-31",
+        "stock_id": "5314",
+        "type": "EquityAttributableToOwnersOfParent",
+        "value": 1845130000.0,
+        "origin_name": "歸屬於母公司業主之權益合計"
+      },
+      {
+        "date": "2025-12-31",
+        "stock_id": "5314",
+        "type": "Equity",
+        "value": 2858857000.0,
+        "origin_name": "權益總額"
+      }
+    ],
+    "cashflow": [
+      {
+        "date": "2021-12-31",
+        "stock_id": "5314",
+        "type": "PropertyAndPlantAndEquipment",
+        "value": -138000.0,
+        "origin_name": "取得不動產、廠房及設備"
+      },
+      {
+        "date": "2021-12-31",
+        "stock_id": "5314",
+        "type": "CashFlowsFromOperatingActivities",
+        "value": -16037000.0,
+        "origin_name": "營業活動之淨現金流入（流出）"
+      },
+      {
+        "date": "2022-12-31",
+        "stock_id": "5314",
+        "type": "PropertyAndPlantAndEquipment",
+        "value": 0.0,
+        "origin_name": "取得不動產、廠房及設備"
+      },
+      {
+        "date": "2022-12-31",
+        "stock_id": "5314",
+        "type": "CashFlowsFromOperatingActivities",
+        "value": -10890000.0,
+        "origin_name": "營業活動之淨現金流入（流出）"
+      },
+      {
+        "date": "2022-12-31",
+        "stock_id": "5314",
+        "type": "NetCashInflowFromOperatingActivities",
+        "value": -10890000.0,
+        "origin_name": "營業活動之淨現金流入"
+      },
+      {
+        "date": "2023-12-31",
+        "stock_id": "5314",
+        "type": "NetCashInflowFromOperatingActivities",
+        "value": -33634000.0,
+        "origin_name": "營業活動之淨現金流入"
+      },
+      {
+        "date": "2023-12-31",
+        "stock_id": "5314",
+        "type": "PropertyAndPlantAndEquipment",
+        "value": -6468000.0,
+        "origin_name": "取得不動產、廠房及設備"
+      },
+      {
+        "date": "2023-12-31",
+        "stock_id": "5314",
+        "type": "CashFlowsFromOperatingActivities",
+        "value": -33634000.0,
+        "origin_name": "營業活動之淨現金流入（流出）"
+      },
+      {
+        "date": "2024-12-31",
+        "stock_id": "5314",
+        "type": "PropertyAndPlantAndEquipment",
+        "value": -9409000.0,
+        "origin_name": "取得不動產、廠房及設備"
+      },
+      {
+        "date": "2024-12-31",
+        "stock_id": "5314",
+        "type": "NetCashInflowFromOperatingActivities",
+        "value": 339775000.0,
+        "origin_name": "營業活動之淨現金流入"
+      },
+      {
+        "date": "2024-12-31",
+        "stock_id": "5314",
+        "type": "CashFlowsFromOperatingActivities",
+        "value": 339775000.0,
+        "origin_name": "營業活動之淨現金流入（流出）"
+      },
+      {
+        "date": "2025-12-31",
+        "stock_id": "5314",
+        "type": "PropertyAndPlantAndEquipment",
+        "value": -13891000.0,
+        "origin_name": "取得不動產、廠房及設備"
+      },
+      {
+        "date": "2025-12-31",
+        "stock_id": "5314",
+        "type": "NetCashInflowFromOperatingActivities",
+        "value": 1008688000.0,
+        "origin_name": "營業活動之淨現金流入"
+      },
+      {
+        "date": "2025-12-31",
+        "stock_id": "5314",
+        "type": "CashFlowsFromOperatingActivities",
+        "value": 1008688000.0,
+        "origin_name": "營業活動之淨現金流入（流出）"
+      }
+    ]
+  },
+  "official_parsed_evidence_sha256": "1e4b39d9f2d302a442a6d80061427cce9e21938387e2a6cb43854d3b26787140",
+  "official_annual_is_TWD": {
+    "2022": {
+      "revenue": {
+        "value": 18432000,
+        "source_sha256": "183c437363224af6dd6aeb961763664de4c6991ffb9c76c56ffbc69543d3fe92",
+        "source_url": "https://www.myson.com.tw/public/uploads/pdf/20241222_204830_bvRNx.pdf",
+        "pdf_page_1based": 21,
+        "source_label": "4000 營業收入"
+      },
+      "gross_profit": {
+        "value": 16791000,
+        "source_sha256": "183c437363224af6dd6aeb961763664de4c6991ffb9c76c56ffbc69543d3fe92",
+        "source_url": "https://www.myson.com.tw/public/uploads/pdf/20241222_204830_bvRNx.pdf",
+        "pdf_page_1based": 21,
+        "source_label": "5900 營業毛利"
+      },
+      "operating_income": {
+        "value": -13281000,
+        "source_sha256": "183c437363224af6dd6aeb961763664de4c6991ffb9c76c56ffbc69543d3fe92",
+        "source_url": "https://www.myson.com.tw/public/uploads/pdf/20241222_204830_bvRNx.pdf",
+        "pdf_page_1based": 21,
+        "source_label": "6900 營業損失"
+      },
+      "net_income_parent": {
+        "value": -2671000,
+        "source_sha256": "183c437363224af6dd6aeb961763664de4c6991ffb9c76c56ffbc69543d3fe92",
+        "source_url": "https://www.myson.com.tw/public/uploads/pdf/20241222_204830_bvRNx.pdf",
+        "pdf_page_1based": 21,
+        "source_label": "8610 母公司業主"
+      }
+    },
+    "2021": {
+      "revenue": {
+        "value": 13989000,
+        "source_sha256": "183c437363224af6dd6aeb961763664de4c6991ffb9c76c56ffbc69543d3fe92",
+        "source_url": "https://www.myson.com.tw/public/uploads/pdf/20241222_204830_bvRNx.pdf",
+        "pdf_page_1based": 21,
+        "source_label": "4000 營業收入"
+      },
+      "gross_profit": {
+        "value": 5335000,
+        "source_sha256": "183c437363224af6dd6aeb961763664de4c6991ffb9c76c56ffbc69543d3fe92",
+        "source_url": "https://www.myson.com.tw/public/uploads/pdf/20241222_204830_bvRNx.pdf",
+        "pdf_page_1based": 21,
+        "source_label": "5900 營業毛利"
+      },
+      "operating_income": {
+        "value": -28812000,
+        "source_sha256": "183c437363224af6dd6aeb961763664de4c6991ffb9c76c56ffbc69543d3fe92",
+        "source_url": "https://www.myson.com.tw/public/uploads/pdf/20241222_204830_bvRNx.pdf",
+        "pdf_page_1based": 21,
+        "source_label": "6900 營業損失"
+      },
+      "net_income_parent": {
+        "value": -30008000,
+        "source_sha256": "183c437363224af6dd6aeb961763664de4c6991ffb9c76c56ffbc69543d3fe92",
+        "source_url": "https://www.myson.com.tw/public/uploads/pdf/20241222_204830_bvRNx.pdf",
+        "pdf_page_1based": 21,
+        "source_label": "8610 母公司業主"
+      }
+    },
+    "2024": {
+      "revenue": {
+        "value": 628230000,
+        "source_sha256": "5cea175256bdc23bbd6676d4218e7df430beec7f494bd04e9467dcc69394ce05",
+        "source_url": "https://www.myson.com.tw/public/uploads/pdf/20250512_112129_EOPQm.pdf",
+        "pdf_page_1based": 16,
+        "source_label": "4000 營業收入"
+      },
+      "gross_profit": {
+        "value": 382295000,
+        "source_sha256": "5cea175256bdc23bbd6676d4218e7df430beec7f494bd04e9467dcc69394ce05",
+        "source_url": "https://www.myson.com.tw/public/uploads/pdf/20250512_112129_EOPQm.pdf",
+        "pdf_page_1based": 16,
+        "source_label": "5900 營業毛利"
+      },
+      "operating_income": {
+        "value": 267048000,
+        "source_sha256": "5cea175256bdc23bbd6676d4218e7df430beec7f494bd04e9467dcc69394ce05",
+        "source_url": "https://www.myson.com.tw/public/uploads/pdf/20250512_112129_EOPQm.pdf",
+        "pdf_page_1based": 16,
+        "source_label": "6900 營業利益"
+      },
+      "net_income_parent": {
+        "value": 268291000,
+        "source_sha256": "5cea175256bdc23bbd6676d4218e7df430beec7f494bd04e9467dcc69394ce05",
+        "source_url": "https://www.myson.com.tw/public/uploads/pdf/20250512_112129_EOPQm.pdf",
+        "pdf_page_1based": 16,
+        "source_label": "8610 母公司業主"
+      }
+    },
+    "2023": {
+      "revenue": {
+        "value": 85353000,
+        "source_sha256": "5cea175256bdc23bbd6676d4218e7df430beec7f494bd04e9467dcc69394ce05",
+        "source_url": "https://www.myson.com.tw/public/uploads/pdf/20250512_112129_EOPQm.pdf",
+        "pdf_page_1based": 16,
+        "source_label": "4000 營業收入"
+      },
+      "gross_profit": {
+        "value": 16441000,
+        "source_sha256": "5cea175256bdc23bbd6676d4218e7df430beec7f494bd04e9467dcc69394ce05",
+        "source_url": "https://www.myson.com.tw/public/uploads/pdf/20250512_112129_EOPQm.pdf",
+        "pdf_page_1based": 16,
+        "source_label": "5900 營業毛利"
+      },
+      "operating_income": {
+        "value": -7062000,
+        "source_sha256": "5cea175256bdc23bbd6676d4218e7df430beec7f494bd04e9467dcc69394ce05",
+        "source_url": "https://www.myson.com.tw/public/uploads/pdf/20250512_112129_EOPQm.pdf",
+        "pdf_page_1based": 16,
+        "source_label": "6900 營業利益"
+      },
+      "net_income_parent": {
+        "value": 31050000,
+        "source_sha256": "5cea175256bdc23bbd6676d4218e7df430beec7f494bd04e9467dcc69394ce05",
+        "source_url": "https://www.myson.com.tw/public/uploads/pdf/20250512_112129_EOPQm.pdf",
+        "pdf_page_1based": 16,
+        "source_label": "8610 母公司業主"
+      }
+    },
+    "2025": {
+      "revenue": {
+        "value": 2973547000,
+        "source_sha256": "0ccd7ab18f6c05216c837d2fe259a1f877a066d3ae678feb77fc7906c9234d88",
+        "source_url": "https://www.myson.com.tw/public/uploads/pdf/20260408_142001_yqHso.pdf",
+        "pdf_page_1based": 9,
+        "source_label": "4000 營業收入"
+      },
+      "gross_profit": {
+        "value": 1703239000,
+        "source_sha256": "0ccd7ab18f6c05216c837d2fe259a1f877a066d3ae678feb77fc7906c9234d88",
+        "source_url": "https://www.myson.com.tw/public/uploads/pdf/20260408_142001_yqHso.pdf",
+        "pdf_page_1based": 9,
+        "source_label": "5900 營業毛利"
+      },
+      "operating_income": {
+        "value": 1063264000,
+        "source_sha256": "0ccd7ab18f6c05216c837d2fe259a1f877a066d3ae678feb77fc7906c9234d88",
+        "source_url": "https://www.myson.com.tw/public/uploads/pdf/20260408_142001_yqHso.pdf",
+        "pdf_page_1based": 9,
+        "source_label": "6900 營業利益"
+      },
+      "net_income_parent": {
+        "value": 1625623000,
+        "source_sha256": "0ccd7ab18f6c05216c837d2fe259a1f877a066d3ae678feb77fc7906c9234d88",
+        "source_url": "https://www.myson.com.tw/public/uploads/pdf/20260408_142001_yqHso.pdf",
+        "pdf_page_1based": 9,
+        "source_label": "8610 母公司業主"
+      }
+    }
+  }
+}
