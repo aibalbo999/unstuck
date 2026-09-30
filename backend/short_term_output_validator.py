@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+from datetime import date
 import math
 import re
 
 from financial_claim_context import is_actual_claim
 from output_sanitizer import strip_generated_audit_sections
 from institutional_evidence import institutional_evidence_issues
+from twse_credit_source import SOURCE as TWSE_DATED_MARGIN_SOURCE, URL as TWSE_DATED_MARGIN_URL
 
 _COUNT = r"(?P<number>\d[\d,]*(?:\.\d+)?)(?P<scale>萬|千)?"
 _VOLUME = re.compile(_COUNT + r"(?P<unit>張|股)")
@@ -49,6 +51,26 @@ def _count(match):
 def _close(first, second):
     # Permit normal rounding of source counts, never a 1000-fold unit change.
     return abs(first - second) <= max(0.51, abs(second) * 0.0001)
+
+
+def _confirmed_credit_unit(credit):
+    source = credit.get("source")
+    if source == "TWSE OpenAPI MI_MARGN":
+        return True
+    if source == "TPEx OpenAPI tpex_mainboard_margin_balance":
+        return credit.get("margin_unit") == "thousand_shares"
+    if source != TWSE_DATED_MARGIN_SOURCE:
+        return False
+    observed_at = credit.get("as_of_date")
+    try:
+        valid_date = isinstance(observed_at, str) and date.fromisoformat(observed_at).isoformat() == observed_at
+    except ValueError:
+        valid_date = False
+    return (credit.get("source_url") == TWSE_DATED_MARGIN_URL
+            and credit.get("status") in {"success", "partial"}
+            and credit.get("margin_unit") == "lots"
+            and credit.get("margin_date_status") == "reported"
+            and valid_date)
 
 
 def _volume_issues(text, data):
@@ -106,8 +128,7 @@ def _credit_issues(text, data):
         expected = _number(credit.get(field))
         if expected is None:
             issues.append(f"融資券欄位紅線：{match['label']} 對應 twse_margin_short_sales.{field} 為 null 或缺值，必須標示資料不足，不得借用其他融資／融券欄位或視為 0。")
-        elif match["unit"] and not (credit.get("source") == "TWSE OpenAPI MI_MARGN" or
-                                      credit.get("source") == "TPEx OpenAPI tpex_mainboard_margin_balance" and credit.get("margin_unit") == "thousand_shares"):
+        elif match["unit"] and not _confirmed_credit_unit(credit):
             issues.append(f"融資券單位紅線：{match['label']} 來源未確認為 TWSE MI_MARGN 或已驗證的 TPEx 融資券單位，單位未確認，不得自行假定張數或換算股數。")
         elif not _close(_count(match), expected * (1000 if match["unit"] == "股" else 1)):
             issues.append(f"融資券欄位紅線：{match['label']} 必須使用 twse_margin_short_sales.{field}={expected:g}，不可混用融資與融券數值。")
