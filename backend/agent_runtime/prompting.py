@@ -238,7 +238,9 @@ def build_prompt(agent_num: int, data: StockData, context: AnalysisContext) -> s
 
     gemma_references = (GEMMA_STATE_REFERENCE_COMPACTION_ENABLED and gemma_prompt
                        and not repair_prompt and not context.get('_model_sequence_override'))
-    if analysis_prompt.count(fin_data) == 1 and (agent_num == 7 or gemma_references):
+    trade_references = (agent_num == 24 and not gemma_prompt and not repair_prompt
+                        and not context.get('_model_sequence_override'))
+    if analysis_prompt.count(fin_data) == 1 and (agent_num == 7 or gemma_references or trade_references):
         compactor = compact_research_state_reference_section if agent_num == 7 else compact_state_reference_section
         state_view_section = compactor(fin_data, state_view_section)
 
