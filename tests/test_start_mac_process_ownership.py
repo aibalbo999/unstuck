@@ -24,14 +24,15 @@ def _guards():
 
 
 def _run_guard(tmp_path, *, role="api", owner="same", mixed=False, parent="none", cleanup_seconds=0,
-               cancel_signal=""):
+               cancel_signal="", launcher_command=""):
     project = tmp_path / "external drive with spaces"
     project.mkdir()
     pidfile = project / "worker.pid"
     pidfile.write_text("555\n")
     env = {**os.environ, "DIR": str(project), "WORKER_PID_FILE": str(pidfile),
            "OWNER": owner, "ROLE": role, "MIXED": "1" if mixed else "0", "PARENT_STATE": parent,
-           "CLEANUP_TICKS": str(cleanup_seconds * 2), "CANCEL_SIGNAL": cancel_signal}
+           "CLEANUP_TICKS": str(cleanup_seconds * 2), "CANCEL_SIGNAL": cancel_signal,
+           "LAUNCHER_COMMAND": launcher_command}
     traps = "\n".join(re.findall(r"(?m)^trap .+$", (ROOT / "start_mac.command").read_text()))
     fake_os = r'''
 RUNNING=1
@@ -39,7 +40,11 @@ PARENT_RUNNING=1
 ELAPSED_TICKS=0
 ps() {
     case "$*" in *ppid=*) [ "$PARENT_STATE" = none ] || printf '777\n'; return 0;; esac
-    if [ "$2" = "777" ]; then printf '/bin/bash %s/start_mac.command\n' "$DIR"; return 0; fi
+    if [ "$2" = "777" ]; then
+        if [ -n "$LAUNCHER_COMMAND" ]; then printf '%s\n' "$LAUNCHER_COMMAND";
+        else printf '/bin/bash %s/start_mac.command\n' "$DIR"; fi
+        return 0
+    fi
     if [ "$OWNER" = "unknown" ] || [ "$2" = "666" ]; then
         printf '%s\n' 'python -m http.server 8080'
     elif [ "$ROLE" = "api" ]; then
@@ -113,6 +118,22 @@ def test_launcher_waits_for_previous_launcher_cleanup_before_reusing_redis(tmp_p
     # No signal to the parent; observe its normal cleanup after stopping its API.
     assert result.stdout.count("CHECK_PARENT") >= 2
     assert "SIGNAL -TERM 777" not in result.stdout
+
+
+def test_relative_launcher_invocation_waits_for_owned_cleanup(tmp_path):
+    result, _ = _run_guard(tmp_path, parent="slow", cleanup_seconds=12,
+                           launcher_command="/bin/bash ./start_mac.command")
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "RESTART_ALLOWED_AT_TICK_24" in result.stdout
+    assert result.stdout.count("CHECK_PARENT") >= 12
+    assert "SIGNAL -TERM 777" not in result.stdout
+
+
+def test_similar_relative_script_is_not_treated_as_project_launcher(tmp_path):
+    result, _ = _run_guard(tmp_path, parent="slow", cleanup_seconds=12,
+                           launcher_command="/bin/bash ./start_mac.command.backup")
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert "CHECK_PARENT" not in result.stdout
 
 
 def test_launcher_refuses_to_start_when_old_launcher_cleanup_does_not_finish(tmp_path):

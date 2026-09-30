@@ -353,7 +353,8 @@ project_process_matches() {
     case "$role:$command" in
         api:*" -m uvicorn api:app "*|api:*"/uvicorn api:app "*) return 0;;
         worker:*" worker_main.py --role all"*|worker:*" worker_main.py --role queue"*|worker:*" worker_main.py --role schedulers"*|worker:*" worker_main.py --role maintenance"*) return 0;;
-        launcher:*"bash $DIR/start_mac.command"|launcher:*"bash $DIR/start_mac_lan.command") return 0;;
+        launcher:*"bash $DIR/start_mac.command"|launcher:*"bash $DIR/start_mac_lan.command"|\
+        launcher:*"bash ./start_mac.command"|launcher:*"bash ./start_mac_lan.command") return 0;;
     esac
     return 1
 }
