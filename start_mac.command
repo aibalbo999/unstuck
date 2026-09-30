@@ -313,7 +313,7 @@ start_redis_if_needed() {
 
     mkdir -p "$DIR/backend/cache/redis"
     echo "啟動 Redis：$REDIS_URL"
-    (trap '' INT; exec "$REDIS_SERVER_BIN" --bind 127.0.0.1 --port "$REDIS_PORT" --dir "$DIR/backend/cache/redis" --save "" --appendonly no > "$DIR/backend/cache/redis-start_mac.log" 2>&1) &
+    (trap '' INT; exec "$REDIS_SERVER_BIN" --bind 127.0.0.1 --port "$REDIS_PORT" --dir "$DIR/backend/cache/redis" --save "60 1" --appendonly no > "$DIR/backend/cache/redis-start_mac.log" 2>&1) &
     REDIS_PID=$!
     if ! wait_for_redis; then
         echo "Redis 啟動逾時，請檢查：$DIR/backend/cache/redis-start_mac.log"

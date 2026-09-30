@@ -17,7 +17,7 @@ from reporting.lint import ReportLintError
 from config import API_KEY_SETUP_MESSAGE, OUTPUT_DIR, has_api_keys
 from data_trust import sanitize_for_snapshot
 from data_fetch import StockDataService
-from job_store import append_event, is_job_cancel_requested, update_job
+from job_store import append_event, is_job_cancel_requested, terminal_job_result, update_job
 from mapping_fields import safe_int, safe_mapping_dict, safe_text
 import report_rerun_service
 from reporting import ReportRenderer
@@ -136,6 +136,9 @@ async def run_report_rerun_job_async(
     storage: ReportStorage | None = None,
 ) -> str:
     """Run a partial report rerun and persist job events for SSE clients."""
+    previous_result = terminal_job_result(job_id)
+    if previous_result is not None:
+        return previous_result
     event_source_filename = _source_filename(filename)
     normalized_scope = _scope_value(scope)
     scope_label = _scope_label(normalized_scope)

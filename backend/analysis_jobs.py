@@ -16,7 +16,7 @@ from analysis_job_telemetry import make_analysis_job_telemetry_callback
 from analysis_job_retry import build_analysis_retry_event, prepare_analysis_retry
 from analysis_job_provenance import attach_model_executions, freeze_and_record_analysis_inputs
 from data_fetch import FetchRequest, StockDataService
-from job_store import append_event, get_events_since, is_job_cancel_requested, update_job
+from job_store import append_event, get_events_since, is_job_cancel_requested, terminal_job_result, update_job
 from pipeline_modes import (
     get_pipeline_definition,
     get_pipeline_run_agent_total,
@@ -55,6 +55,9 @@ async def run_stock_analysis_job_async(
     force_refresh: bool = False,
 ) -> str:
     """Run the full stock analysis and persist progress events for SSE clients."""
+    previous_result = terminal_job_result(job_id)
+    if previous_result is not None:
+        return previous_result
     ticker_upper = ticker.strip().upper()
     run_id = normalize_pipeline_run_id(pipeline_id)
     pipeline_sequence = get_pipeline_run_sequence(run_id)
