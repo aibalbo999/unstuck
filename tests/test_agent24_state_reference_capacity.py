@@ -1,6 +1,7 @@
 """Agent 24 can share exact State evidence with its visible financial source."""
 
 import copy
+import pytest
 
 from agent_runtime import prompting
 from agent_runtime.generation_config import estimate_agent_input_tokens
@@ -42,8 +43,21 @@ def test_agent24_flash_shares_only_exact_visible_state_evidence(monkeypatch):
     assert data == original
 
 
-def test_agent24_repair_keeps_its_existing_prompt_form():
+@pytest.mark.parametrize("flag", [
+    "_audit_retry_instruction", "_audit_reflection_instruction", "_identity_retry_instruction",
+])
+def test_agent24_repair_keeps_full_guidance_and_exact_state(flag, monkeypatch):
     data, context = _context()
-    context["_audit_retry_instruction"] = "核對完整來源與反證。"
-    prompt = prompting.build_prompt(24, data, context)
-    assert "$prompt_ref" not in prompt
+    context[flag] = "核對完整來源與反證。"
+    context["_model_sequence_override"] = {24: [MODEL]}
+    with monkeypatch.context() as patch:
+        patch.setattr(prompting, "compact_state_reference_section", lambda financial, state: state)
+        before = prompting.build_prompt(24, data, context)
+    after = prompting.build_prompt(24, data, context)
+
+    assert "$prompt_ref" in after
+    assert financial_payload(after) == financial_payload(before)
+    assert expand_references(state_payload(after), financial_payload(after)) == state_payload(before)
+    assert before.split("【trade-source:", 1)[1] == after.split("【trade-source:", 1)[1]
+    assert "核對完整來源與反證。" in after
+    assert estimate_agent_input_tokens(24, MODEL, after) < estimate_agent_input_tokens(24, MODEL, before) - 1000
