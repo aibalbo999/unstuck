@@ -146,6 +146,15 @@ def get_job(job_id: str) -> dict:
     return dict(row) if row else {}
 
 
+def terminal_job_result(job_id: str) -> str | None:
+    """Return a stored terminal result before a stale queue task can do work."""
+    job = get_job(job_id)
+    status = job.get("status")
+    if status not in TERMINAL_JOB_STATUSES:
+        return None
+    return str(job.get("filename") or "") if status == "done" else ""
+
+
 def find_active_job(ticker: str, pipeline_id: str = "v1") -> dict:
     with _connect() as conn:
         row = job_store_lifecycle.find_active_job_in_conn(

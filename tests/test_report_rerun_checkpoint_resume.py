@@ -29,7 +29,8 @@ def rerun_harness(monkeypatch, tmp_path):
     settings = RuntimeSettings.for_tests(tmp_path)
     monkeypatch.setattr(report_rerun_checkpoint, "runtime_settings_for_output_dir", lambda _: settings)
     monkeypatch.setattr(report_rerun_jobs, "has_api_keys", lambda: True)
-    monkeypatch.setattr(rq, "get_current_job", lambda: None)
+    current_rq_job = [None]
+    monkeypatch.setattr(rq, "get_current_job", lambda: current_rq_job[0])
 
     def services(**kwargs):
         async def noop(state):
@@ -77,7 +78,12 @@ def rerun_harness(monkeypatch, tmp_path):
     })
 
     def new_job(scope="full_report"):
-        return job_store.create_job(filename, f"rerun:{scope}")
+        job_id = job_store.create_job(filename, f"rerun:{scope}")
+        current_rq_job[0] = SimpleNamespace(
+            id=f"report-rerun:{job_id}", retries_left=3,
+            retry_intervals=[60, 300, 900], meta={}, save=lambda: None,
+        )
+        return job_id
 
     def run(job, scope="full_report"):
         return asyncio.run(report_rerun_jobs.run_report_rerun_job_async(
@@ -113,8 +119,10 @@ def test_rerun_cold_resume_reuses_completed_agents_and_frozen_data(rerun_harness
 
 def test_new_job_refreshes_and_does_not_reuse_another_jobs_checkpoint(rerun_harness):
     h = rerun_harness
+    previous_job = h.new_job()
     with pytest.raises(AgentDeferredError):
-        h.run(h.new_job())
+        h.run(previous_job)
+    job_store.update_job(previous_job, "error", error="operator started a new job")
     h.control.update(available=True, price=200)
     h.run(h.new_job())
     assert h.counts[22] == 2

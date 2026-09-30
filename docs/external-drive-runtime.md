@@ -21,7 +21,7 @@
 - 報告索引：`backend/cache/stock_agent_cache.sqlite3`。
 - 追蹤與任務狀態：`backend/cache/operational.sqlite3`。
 - 報告檔案：`backend/output`，仍由 artifact locator 解析月份與股票子目錄。
-- 啟動器建立的 Redis 使用 `backend/cache/redis`，沿用原本不做週期性持久化的設定。
+- 啟動器建立的 Redis 使用 `backend/cache/redis`，有變更時每 60 秒保存 RDB。意外中止後可能回到最近快照；Worker 會略過資料庫中已完成或已終止工作的過期佇列重播。
 - `TASK_QUEUE_BACKEND`、`REDIS_URL`、`TASK_QUEUE_NAME` 優先保留啟動環境的設定，
   未指定時讀取 `backend/.env`，最後才採用本機預設值；啟動器不改寫既有 `.env`。
 - 8080 若由無法確認為同專案的程序占用，啟動器會拒絕啟動並保留該程序。
