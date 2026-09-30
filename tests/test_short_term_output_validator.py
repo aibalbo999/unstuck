@@ -121,6 +121,37 @@ def test_unidentified_credit_provider_does_not_assume_twse_lots():
     assert any("單位未確認" in issue for issue in validate_analysis_output(23, "融資賣出5張。", data))
 
 
+def test_dated_twse_margin_report_validates_its_reported_lot_unit_and_value():
+    data = source_data()
+    credit = data["chip_data"]["twse_margin_short_sales"]
+    credit.update(source="TWSE MI_MARGN dated report",
+                  source_url="https://www.twse.com.tw/rwd/zh/marginTrading/MI_MARGN?response=json&selectType=ALL",
+                  status="success",
+                  margin_unit="lots", margin_date_status="reported",
+                  as_of_date="2026-09-29")
+    assert not validate_analysis_output(23, "今日融資餘額為344張。", data)
+    assert any("margin_balance=344" in issue for issue in
+               validate_analysis_output(23, "今日融資餘額為345張。", data))
+
+
+@pytest.mark.parametrize("field,value", [
+    ("status", "unavailable"), ("margin_unit", "shares"),
+    ("margin_date_status", "unknown"), ("as_of_date", None),
+    ("source_url", "https://example.com/margin"),
+])
+def test_dated_twse_margin_report_requires_verified_unit_provenance(field, value):
+    data = source_data()
+    credit = data["chip_data"]["twse_margin_short_sales"]
+    credit.update(source="TWSE MI_MARGN dated report",
+                  source_url="https://www.twse.com.tw/rwd/zh/marginTrading/MI_MARGN?response=json&selectType=ALL",
+                  status="success",
+                  margin_unit="lots", margin_date_status="reported",
+                  as_of_date="2026-09-29")
+    credit[field] = value
+    assert any("單位未確認" in issue for issue in
+               validate_analysis_output(23, "今日融資餘額為344張。", data))
+
+
 def test_previous_and_current_credit_balances_keep_their_own_source_fields():
     data = source_data()
     credit = data["chip_data"]["twse_margin_short_sales"]
