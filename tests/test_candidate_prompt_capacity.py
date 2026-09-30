@@ -18,6 +18,7 @@ from fixtures.data_payloads import fresh_audited_payload
 from llm_input_capacity import InputCapacityExceededError
 from state_memory import initialize_agent_state
 from test_agent19_lossless_prompt_json import assert_lossless, financial_json, STRING_TOKEN
+from test_gemma_state_references import expand_references, financial_payload, state_payload
 
 
 LITE = "gemini-3.5-flash-lite"
@@ -52,11 +53,14 @@ def test_every_candidate_uses_lossless_financial_and_state_json(monkeypatch, age
     assert options.get("compact_json") is True
     assert_lossless(formatter(payload), result)
     pretty_state = prompting.build_state_view_section(agent, context, compact_json=False)
-    assert state_json(actual) == state_json(pretty_state)
-    encoded = json.dumps(state_json(pretty_state), ensure_ascii=False, separators=(",", ":"), allow_nan=False)
-    assert encoded in actual
-    assert STRING_TOKEN.findall(encoded) == STRING_TOKEN.findall(
-        json.dumps(state_json(pretty_state), ensure_ascii=False, indent=2, allow_nan=False))
+    if agent == 24 and not repair:
+        assert expand_references(state_payload(actual), financial_payload(actual)) == state_json(pretty_state)
+    else:
+        assert state_json(actual) == state_json(pretty_state)
+        encoded = json.dumps(state_json(pretty_state), ensure_ascii=False, separators=(",", ":"), allow_nan=False)
+        assert encoded in actual
+        assert STRING_TOKEN.findall(encoded) == STRING_TOKEN.findall(
+            json.dumps(state_json(pretty_state), ensure_ascii=False, indent=2, allow_nan=False))
     assert actual.endswith(prompting.OUTPUT_CLEANLINESS_RULE)
     if repair:
         assert "REPAIR_RULE_KEEP_ALL_SOURCE_RECORDS" in actual
