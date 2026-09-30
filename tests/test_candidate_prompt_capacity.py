@@ -53,7 +53,7 @@ def test_every_candidate_uses_lossless_financial_and_state_json(monkeypatch, age
     assert options.get("compact_json") is True
     assert_lossless(formatter(payload), result)
     pretty_state = prompting.build_state_view_section(agent, context, compact_json=False)
-    if agent == 24 and not repair:
+    if agent == 24:
         assert expand_references(state_payload(actual), financial_payload(actual)) == state_json(pretty_state)
     else:
         assert state_json(actual) == state_json(pretty_state)
