@@ -48,3 +48,25 @@ def test_report_index_pipeline_filter_and_latest_grouping_resolve_placeholder_ro
     assert {row["filename"] for row in all_versions} == {older, newer}
     assert latest_total == 1
     assert latest[0]["filename"] == newer
+
+
+def test_unchanged_indexed_report_is_not_rebuilt_on_each_listing(tmp_path, monkeypatch):
+    import json
+    import report_index
+
+    monkeypatch.setattr(report_index, "CACHE_DB_PATH", str(tmp_path / "cache.sqlite3"))
+    filename = "2330_TW_v4_report_20260621_090000.html"
+    (tmp_path / filename).write_text("<html></html>", encoding="utf-8")
+    assert report_index.upsert_report_metadata(filename, output_dir=str(tmp_path))
+    with report_index._connect() as conn:
+        conn.execute(
+            "UPDATE reports SET recommendation_json = ?, normalized_recommendation = ? WHERE output_dir = ? AND filename = ?",
+            (json.dumps({"recommendation": "買入", "current_price": "100"}), "買入", str(tmp_path), filename),
+        )
+
+    rebuilt = []
+    monkeypatch.setattr(report_index, "upsert_report_metadata", lambda *args, **kwargs: rebuilt.append(args[0]))
+    report_index.sync_report_metadata(str(tmp_path))
+    report_index.sync_report_metadata(str(tmp_path))
+
+    assert rebuilt == []

@@ -6,6 +6,7 @@
     function create(options) {
         const apiClient = options.apiClient, notify = options.notify || { error: () => {} }, escapeHtml = options.ui?.escapeHtml || (value => String(value ?? ''));
         const dashboardActions = window.StockAgentOperatorDashboardActions;
+        let loadVersion = 0;
         const candidateCallbacks = { 'candidate-snapshot': options.onCandidateSnapshot, 'candidate-watchlist': options.onCandidateWatchlist, 'candidate-prepare-analysis': options.onCandidatePrepareAnalysis };
         const elements = { shift: document.querySelectorAll('[data-operator-shift-summary]'), activeJobs: byId('operator-active-jobs'), dataTrust: byId('operator-data-trust'), apiQuota: byId('operator-api-quota'), rerun: byId('operator-rerun'), actionList: byId('operator-action-list') };
         function renderCandidate(item) {
@@ -23,26 +24,30 @@
         function parseFilenames(button) { try { const parsed = JSON.parse(button.dataset.filenames || '[]'); return Array.isArray(parsed) ? parsed.filter(Boolean) : []; } catch (err) { return []; } }
         async function rerunReport(filename) { return apiClient.requestJson(`/api/report/${encodeURIComponent(filename)}/rerun?scope=full_report`, { method: 'POST' }); }
         async function load() {
-            const [jobs, quotas, reports, watchlist, dailyDashboard] = await Promise.allSettled([apiClient.fetchActiveJobs({ limit: 3, eventLimit: 20 }), apiClient.fetchApiQuotas(), apiClient.fetchReports({ page: 1, limit: 20, includeVersions: false }), apiClient.fetchWatchlist(), apiClient.fetchDailyDecisionDashboard()]);
-            const jobsValue = jobs.status === 'fulfilled' ? jobs.value : null;
-            const quotasValue = quotas.status === 'fulfilled' ? quotas.value : null;
-            const reportsValue = reports.status === 'fulfilled' ? reports.value : null;
-            const watchlistValue = watchlist.status === 'fulfilled' ? watchlist.value : null;
-            const jobsText = jobsValue ? helpers.activeJobText(jobsValue) : { tone: 'warning', value: '讀取失敗', detail: '' };
-            const quotasText = quotasValue ? helpers.quotaText(quotasValue) : { tone: 'warning', value: '讀取失敗', detail: '' };
-            const dashboardSummary = dailyDashboard.status === 'fulfilled' ? dashboardActions.dashboardText(dailyDashboard.value) : null;
-            const trust = reportsValue ? helpers.trustText(reportsValue) : { tone: 'warning', value: '讀取失敗', detail: '' };
-            const rerun = reportsValue ? helpers.rerunText(reportsValue) : { tone: 'warning', value: '讀取失敗', detail: '' };
-            setItem(elements.activeJobs, jobsText.tone, jobsText.value, jobsText.detail);
-            setItem(elements.dataTrust, trust.tone, trust.value, trust.detail);
-            setItem(elements.apiQuota, quotasText.tone, quotasText.value, quotasText.detail);
-            setItem(elements.rerun, rerun.tone, rerun.value, rerun.detail);
-            const dashboardActionItems = dailyDashboard.status === 'fulfilled' ? dashboardActions.dashboardActionItems(dailyDashboard.value) : [];
-            const actions = dashboardActionItems.length ? dashboardActionItems : helpers.operatorActionItems(jobsValue, quotasValue, reportsValue, watchlistValue);
+            const requestVersion = ++loadVersion;
+            const readCard = (request, targets) => Promise.resolve(request).then(
+                value => { if (requestVersion === loadVersion) targets.forEach(([el, format]) => { const item = value ? format(value) : { tone: 'warning', value: '讀取失敗', detail: '' }; setItem(el, item.tone, item.value, item.detail); }); return value; },
+                () => { if (requestVersion === loadVersion) targets.forEach(([el]) => setItem(el, 'warning', '讀取失敗', '')); return null; }
+            );
+            const jobsRequest = readCard(apiClient.fetchActiveJobs({ limit: 3, eventLimit: 20 }), [[elements.activeJobs, helpers.activeJobText]]);
+            const quotasRequest = readCard(apiClient.fetchApiQuotas(), [[elements.apiQuota, helpers.quotaText]]);
+            const reportsRequest = readCard(apiClient.fetchReports({ page: 1, limit: 20, includeVersions: false }), [[elements.dataTrust, helpers.trustText], [elements.rerun, helpers.rerunText]]);
+            const watchlistRequest = Promise.resolve(apiClient.fetchWatchlist()).catch(() => null);
+            const dailyDashboardRequest = Promise.allSettled([apiClient.fetchDailyDecisionDashboard()]).then(results => results[0]);
+            const [jobsValue, quotasValue, reportsValue, watchlistValue] = await Promise.all([jobsRequest, quotasRequest, reportsRequest, watchlistRequest]);
+            if (requestVersion !== loadVersion) return;
+            const [jobsText, quotasText, trust, rerun] = [[jobsValue, helpers.activeJobText], [quotasValue, helpers.quotaText], [reportsValue, helpers.trustText], [reportsValue, helpers.rerunText]]
+                .map(([value, format]) => value ? format(value) : { tone: 'warning', value: '讀取失敗', detail: '' });
+            const fallbackActions = helpers.operatorActionItems(jobsValue, quotasValue, reportsValue, watchlistValue);
+            renderActions(fallbackActions, null); setShift(elements.shift, 'warning', '今日工作台彙整中', '報告與基本狀態已更新，待辦總覽仍在讀取');
+            const dailyDashboard = await dailyDashboardRequest;
+            if (requestVersion !== loadVersion) return;
+            const dashboardValue = dailyDashboard.status === 'fulfilled' ? dailyDashboard.value : null;
+            const dashboardSummary = dashboardValue ? dashboardActions.dashboardText(dashboardValue) : null, dashboardActionItems = dashboardValue ? dashboardActions.dashboardActionItems(dashboardValue) : [];
+            const actions = dashboardActionItems.length ? dashboardActionItems : fallbackActions;
             const warningCount = [jobsText, quotasText, trust, rerun, dashboardSummary].filter(Boolean).filter(item => item.tone === 'warning').length, next = actions[0] || {}, updated = new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' });
             setShift(elements.shift, warningCount ? 'warning' : 'ok', warningCount ? `${warningCount} 類訊號需注意` : '可正常操作', `${updated} · 下一步：${next.label || '查看狀態'} — ${next.title || '目前沒有急件'}`);
-            const queueSummary = dailyDashboard.status === 'fulfilled' ? dailyDashboard.value?.decision_queue?.summary : null;
-            renderActions(actions, queueSummary);
+            renderActions(actions, dashboardValue?.decision_queue?.summary);
         }
         async function handleCandidateAction(event) {
             const button = event.target.closest('[data-candidate-action]');

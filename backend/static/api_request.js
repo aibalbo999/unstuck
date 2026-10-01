@@ -1,5 +1,6 @@
 (function () {
     let clientConfigPromise = null;
+    const inFlightReads = new Map();
 
     async function fetchClientConfig() {
         if (!clientConfigPromise) {
@@ -41,5 +42,13 @@
         return payload;
     }
 
-    window.StockAgentApiRequest = { requestJson };
+    function requestJsonCoalesced(url) {
+        if (inFlightReads.has(url)) return inFlightReads.get(url);
+        const pending = requestJson(url);
+        inFlightReads.set(url, pending);
+        pending.then(() => inFlightReads.delete(url), () => inFlightReads.delete(url));
+        return pending;
+    }
+
+    window.StockAgentApiRequest = { requestJson, requestJsonCoalesced };
 })();

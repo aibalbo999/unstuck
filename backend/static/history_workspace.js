@@ -45,7 +45,7 @@
                 const values = historyFilters.values();
                 const scopeKey = historyScopeKey(values); if (scopeKey !== lastHistoryScopeKey) { lastHistoryScopeKey = scopeKey; historyPage = 1; hideReportPreview(); }
                 qualityAudit.load(values);
-                const trackingPayload = await decisionTrackingPanel.load();
+                const trackingRequest = Promise.resolve(decisionTrackingPanel.load()).catch(err => { console.error('Failed to load decision tracking', err); return null; });
                 const { query, pipelineFilter, recommendationFilter, dataTrustFilter, includeVersions } = values;
                 const data = await apiClient.fetchReports({
                     page: historyPage,
@@ -60,10 +60,11 @@
                 const pagination = data.pagination || { page: 1, total_pages: 1, total: 0, has_prev: false, has_next: false };
                 const reports = data.reports || [];
                 historyReports = new Map(reports.map(report => [report.filename, report]));
-                mergeTrackingReports(trackingPayload);
                 historyPanel.renderReports(reports, previewReport && previewReport.filename);
                 if (!reports.length || (previewReport && !historyReports.has(previewReport.filename))) hideReportPreview();
                 historyPage = historyPanel.renderPagination(pagination);
+                const trackingPayload = await trackingRequest;
+                if (requestVersion === loadVersion && trackingPayload) { mergeTrackingReports(trackingPayload); historyPanel.renderReports(reports, previewReport && previewReport.filename); }
             } catch (err) {
                 console.error('Failed to load history', err);
             }

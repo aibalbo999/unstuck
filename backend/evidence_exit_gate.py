@@ -39,10 +39,13 @@ def evaluate_report_evidence(
     seed: int = 17,
 ) -> dict[str, Any]:
     """Sample report numeric claims and verify them against snapshot values."""
-    snapshot_values = [
-        item for item in flatten_snapshot_numbers(snapshot)
-        if _is_eligible_snapshot_value(item)
-    ]
+    snapshot_values = []
+    normalized_snapshot_paths = []
+    for item in flatten_snapshot_numbers(snapshot):
+        normalized_path = _normalize_match_text(item.get("path"))
+        if _is_eligible_snapshot_value(item, normalized_path=normalized_path):
+            snapshot_values.append(item)
+            normalized_snapshot_paths.append(normalized_path)
     price_history_months = tuple(sorted({match.group(1) for item in snapshot_values if (match := re.search(r"price_history\[(20\d{2}-\d{2})-\d{2}\]", str(item.get("path") or "")))}))
     claims = [{**claim, "_price_history_months": price_history_months, "_legacy_conclusion_context_missing": isinstance(snapshot.get("rerun_context"), dict) and not snapshot["rerun_context"].get("parsed") and not snapshot["rerun_context"].get("structured_outputs") and (any(_normalize_match_text(marker) in _normalize_match_text(claim.get("label")) for marker in ("短期目標", "中期目標", "長期目標", "個月目標", "長期潛力")) or re.search(r"(?:(?:買入|持有|避免|放空|觀望)?(?:3|6|12)個月|(?:nt|twd|元)\d+(?:3|6|12)個月)", _normalize_match_text(claim.get("label"))) and "最終投資建議" in _normalize_match_text(claim.get("raw_text")))} for claim in extract_numeric_claims(markdown)]
     data = snapshot.get("data")
@@ -61,7 +64,11 @@ def evaluate_report_evidence(
     metadata_claims = [public_metadata_claim(claim) for claim in claims if claim.get("claim_type") == "analysis_score"]
     claims = [claim for claim in claims if claim.get("claim_type") != "analysis_score"]
     sample = sample_numeric_claims(claims, sample_ratio=sample_ratio, min_sample=min_sample, max_sample=max_sample, seed=seed)
-    checked = [_check_claim(claim, snapshot_values, tolerance_pct=tolerance_pct) for claim in sample]
+    checked = [
+        _check_claim(claim, snapshot_values, tolerance_pct=tolerance_pct,
+                     normalized_paths=normalized_snapshot_paths)
+        for claim in sample
+    ]
     failed_count = sum(1 for item in checked if item["status"] == "mismatch")
     verified_count = sum(1 for item in checked if item["status"] == "verified"); unverifiable_count = sum(1 for item in checked if item["status"] == "unverifiable"); unverifiable_reason_counts = {reason: sum(1 for item in checked if item["status"] == "unverifiable" and item["verification_reason_code"] == reason) for reason in {item["verification_reason_code"] for item in checked if item["status"] == "unverifiable"}}
     if not checked:
@@ -201,7 +208,8 @@ def flatten_snapshot_numbers(snapshot: Any) -> list[dict[str, Any]]:
                 walk(item, f"{path}[{item.get('date')}]" if path.endswith("daily_total_net_buy_last_10") and isinstance(item, dict) and item.get("date") else f"{path}[{index}]")
     walk(snapshot, "")
     return values
-def _check_claim(claim: dict[str, Any], snapshot_values: list[dict[str, Any]], *, tolerance_pct: float) -> dict[str, Any]:
+def _check_claim(claim: dict[str, Any], snapshot_values: list[dict[str, Any]], *,
+                 tolerance_pct: float, normalized_paths: list[str] | None = None) -> dict[str, Any]:
     reported = float(claim.get("reported_value") or 0)
     path_markers = _path_markers_for_claim(claim)
     raw_claim_text = str(claim.get("raw_text") or "")
@@ -211,7 +219,7 @@ def _check_claim(claim: dict[str, Any], snapshot_values: list[dict[str, Any]], *
     unavailable_boundary = "short_balance" in path_markers and bool(re.search(r"\b(?:null|n/?a|not\s+provided|unavailable)\b|未提供|無資料|不可用", raw_claim_text, re.IGNORECASE))
     legacy_conclusion_boundary = bool(claim.get("_legacy_conclusion_context_missing"))
     scenario_projection_boundary = bool(re.search(r"\|\s*[*_`]*\s*(?:保守|悲觀|中性|基準|樂觀)\s*[*_`]*\s*\|", raw_claim_text) and (claim.get("unit") == "億" or re.search(r"(?:情境預測|年營收|CAGR)", f"{claim.get('context_text') or ''}\n{raw_claim_text}", re.IGNORECASE)))
-    candidate_values = _relevant_snapshot_values(claim, snapshot_values)
+    candidate_values = _relevant_snapshot_values(claim, snapshot_values, normalized_paths=normalized_paths)
     if path_markers and path_markers[0].startswith("rerun_context.parsed.recommendation.") and not candidate_values:
         path_markers = ()
     best = _best_match(reported, candidate_values)
@@ -267,16 +275,20 @@ def _convert_snapshot_value_for_claim(claim: dict[str, Any], item: dict[str, Any
     return item
 
 
-def _relevant_snapshot_values(claim: dict[str, Any], snapshot_values: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _relevant_snapshot_values(claim: dict[str, Any], snapshot_values: list[dict[str, Any]], *,
+                              normalized_paths: list[str] | None = None) -> list[dict[str, Any]]:
     path_markers = _path_markers_for_claim(claim)
     if not path_markers: return []
     if path_markers[0] == COVER_STOP_PATH or path_markers[0].startswith(("data.daily_market_data.bars[", "data.technical_indicators.", "rerun_context.parsed.recommendation.")):
         return [item for item in snapshot_values if item.get("path") == path_markers[0]]
+    normalized_markers = tuple(_normalize_match_text(marker) for marker in path_markers)
+    if normalized_paths is None:
+        normalized_paths = [_normalize_match_text(item.get("path")) for item in snapshot_values]
     return [
         _convert_snapshot_value_for_claim(claim, item, path_markers)
-        for item in snapshot_values
-        if any(_normalize_match_text(marker) in _normalize_match_text(item.get("path")) for marker in path_markers)
+        for item, normalized_path in zip(snapshot_values, normalized_paths)
+        if any(marker in normalized_path for marker in normalized_markers)
     ]
-def _is_eligible_snapshot_value(item: dict[str, Any]) -> bool:
-    path = _normalize_match_text(item.get("path"))
+def _is_eligible_snapshot_value(item: dict[str, Any], *, normalized_path: str | None = None) -> bool:
+    path = normalized_path if normalized_path is not None else _normalize_match_text(item.get("path"))
     return not any(marker in path for marker in _NORMALIZED_SNAPSHOT_METADATA_PATH_MARKERS) and not any(marker in path for marker in _NORMALIZED_CONFIDENCE_METADATA_PATH_MARKERS)

@@ -1,5 +1,6 @@
 (function () {
     const requestJson = window.StockAgentApiRequest.requestJson;
+    const requestJsonCoalesced = window.StockAgentApiRequest.requestJsonCoalesced;
 
     async function fetchProviderSla({ windowValue = 'all', limit = 12 } = {}) {
         const params = new URLSearchParams({ limit: String(limit) });
@@ -59,7 +60,7 @@
         if (recommendation && recommendation !== 'all') params.set('recommendation', recommendation);
         if (dataTrust && dataTrust !== 'all') params.set('data_trust', dataTrust);
         if (includeVersions) params.set('include_versions', '1');
-        return requestJson(`/api/reports?${params.toString()}`);
+        return requestJsonCoalesced(`/api/reports?${params.toString()}`);
     }
     async function refreshReportDataSnapshot(filename) {
         return requestJson(`/api/report/${encodeURIComponent(filename)}/refresh/data`, { method: 'POST' });
