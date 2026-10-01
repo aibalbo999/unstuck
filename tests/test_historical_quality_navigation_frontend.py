@@ -388,6 +388,105 @@ const apiClient = {
     assert "今日待處理" in payload["actionList"]
 
 
+def test_operator_summary_shows_fast_cards_and_actions_while_daily_dashboard_is_pending():
+    module_path = STATIC_DIR / "operator_summary_panel.js"
+    script = """
+global.window = {
+  StockAgentOperatorDashboardActions: { actionableActionCount: items => items.length, candidateActionModel: item => item, dashboardActionItems: () => [], dashboardText: () => ({ tone: 'ok', value: '完成', detail: '' }) },
+  StockAgentOperatorSummaryHelpers: {
+    activeJobText: () => ({ tone: 'ok', value: '無進行中任務', detail: '' }),
+    quotaText: () => ({ tone: 'ok', value: '額度正常', detail: '' }),
+    trustText: () => ({ tone: 'ok', value: '資料信任正常', detail: '' }),
+    rerunText: () => ({ tone: 'ok', value: '無立即重跑', detail: '' }),
+    operatorActionItems: () => [{ action: 'open-ops', label: '查看狀態', title: '一般工作', detail: '' }]
+  }
+};
+const elements = {};
+const makeElement = () => { const strong = { textContent: '載入中' }, em = { textContent: '' }; return { className: '', innerHTML: '載入中', strong, em, querySelector: selector => selector === 'strong' ? strong : em, addEventListener: () => {} }; };
+for (const id of ['operator-active-jobs', 'operator-data-trust', 'operator-api-quota', 'operator-rerun', 'operator-action-list']) elements[id] = makeElement();
+global.document = { getElementById: id => elements[id] || null, querySelectorAll: () => [] };
+require(__MODULE_PATH__);
+let resolveDashboard;
+const apiClient = {
+  fetchActiveJobs: async () => ({}), fetchApiQuotas: async () => ({}), fetchReports: async () => ({}), fetchWatchlist: async () => ({}),
+  fetchDailyDecisionDashboard: () => new Promise(resolve => { resolveDashboard = resolve; })
+};
+(async () => {
+  const pending = window.StockAgentOperatorSummaryPanel.create({ apiClient, ui: { escapeHtml: value => String(value ?? '') } }).load();
+  await new Promise(resolve => setImmediate(resolve));
+  const early = { jobs: elements['operator-active-jobs'].strong.textContent, trust: elements['operator-data-trust'].strong.textContent, actions: elements['operator-action-list'].innerHTML };
+  resolveDashboard({ decision_queue: { summary: { total_actionable: 0 }, items: [] } });
+  await pending;
+  process.stdout.write(JSON.stringify(early));
+})();
+""".replace("__MODULE_PATH__", json.dumps(str(module_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+    early = json.loads(result.stdout)
+
+    assert early["jobs"] == "無進行中任務"
+    assert early["trust"] == "資料信任正常"
+    assert "一般工作" in early["actions"]
+
+
+def test_history_reports_render_before_slow_tracking_request_finishes():
+    module_path = STATIC_DIR / "history_workspace.js"
+    script = """
+global.window = {
+  StockAgentHistoricalQualityAudit: { create: () => ({ load: () => {}, bindEvents: () => {} }) },
+  StockAgentHistoryWorkspacePanels: { create: () => ({
+    historyFilters: { values: () => ({ query: '', pipelineFilter: 'all', recommendationFilter: 'all', dataTrustFilter: 'all', includeVersions: false }), bind: () => {} },
+    historyPanel: { renderReports: reports => { global.rendered = reports.map(item => item.filename); }, renderPagination: () => 1, setTrackingCompact: () => {}, clearSelection: () => {}, bindEvents: () => {} },
+    reportPreviewPanel: { hide: () => {}, show: () => false }, reportComparePanel: { bindEvents: () => {} },
+    trackingSnapshotPanel: { bindEvents: () => {}, load: async () => {} },
+    decisionTrackingPanel: { load: () => new Promise(resolve => { global.resolveTracking = resolve; }) }
+  }) }, StockAgentHistoryWorkspaceActions: { create: () => ({}) }
+};
+require(__MODULE_PATH__);
+(async () => {
+  const workspace = window.StockAgentHistoryWorkspace.create({ apiClient: { fetchReports: async () => ({ reports: [{ filename: 'ready.html' }], pagination: { page: 1, total_pages: 1, total: 1 } }) }, ui: {}, elements: { historyIncludeVersions: { checked: false } }, openReport: () => {} });
+  const pending = workspace.loadHistory();
+  await new Promise(resolve => setImmediate(resolve));
+  const early = global.rendered || [];
+  global.resolveTracking({ items: [] });
+  await pending;
+  process.stdout.write(JSON.stringify(early));
+})();
+""".replace("__MODULE_PATH__", json.dumps(str(module_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+
+    assert json.loads(result.stdout) == ["ready.html"]
+
+
+def test_concurrent_identical_report_lists_share_one_request_and_refresh_after_completion():
+    module_path = STATIC_DIR / "api_client.js"
+    request_path = STATIC_DIR / "api_request.js"
+    script = """
+global.window = {};
+global.urls = []; global.resolveRequests = [];
+global.fetch = url => new Promise(resolve => { global.urls.push(url); global.resolveRequests.push(resolve); });
+require(__REQUEST_PATH__);
+require(__MODULE_PATH__);
+(async () => {
+  const params = { page: 1, limit: 20, includeVersions: false };
+  const first = window.StockAgentApiClient.fetchReports(params);
+  const second = window.StockAgentApiClient.fetchReports(params);
+  await new Promise(resolve => setImmediate(resolve));
+  const during = global.urls.length;
+  global.resolveRequests[0]({ ok: true, text: async () => JSON.stringify({ reports: [] }) });
+  await Promise.all([first, second]);
+  const third = window.StockAgentApiClient.fetchReports(params);
+  await new Promise(resolve => setImmediate(resolve));
+  const after = global.urls.length;
+  global.resolveRequests[1]({ ok: true, text: async () => JSON.stringify({ reports: [] }) });
+  await third;
+  process.stdout.write(JSON.stringify({ during, after }));
+})();
+""".replace("__MODULE_PATH__", json.dumps(str(module_path))).replace("__REQUEST_PATH__", json.dumps(str(request_path)))
+    result = subprocess.run(["node", "-e", script], check=True, capture_output=True, text=True)
+
+    assert json.loads(result.stdout) == {"during": 1, "after": 2}
+
+
 def test_operator_summary_shows_total_queue_count_when_items_are_truncated():
     module_path = STATIC_DIR / "operator_summary_panel.js"
     script = """
@@ -872,8 +971,8 @@ def test_historical_audit_navigation_wiring_uses_cache_busters_and_existing_scop
     assert "/static/watchlist_panel_helpers.js?v=20260902-distribution-scope" in index_html
     assert "/static/watchlist_panel.js?v=20260816-scoped-quality-review-navigation" in index_html
     assert "/static/history_filters.js?v=20260816-history-scope-persistence" in index_html
-    assert "/static/history_workspace.js?v=20260816-scope-transient-state-guard" in index_html
+    assert "/static/history_workspace.js?v=20261001-read-performance" in index_html
     assert "/static/operator_dashboard_actions.js?v=20260902-repair-queue-scope" in index_html
-    assert "/static/operator_summary_panel.js?v=20260902-report-sample-scope" in index_html
+    assert "/static/operator_summary_panel.js?v=20261001-read-performance" in index_html
     assert "/static/app.js?v=20260821-quality-audit-action" in index_html
     assert "/static/styles/watchlist.css?v=20260816-daily-quality-target-context" in style_css

@@ -6147,7 +6147,7 @@ def test_candidate_next_actions_assets_use_shared_cache_buster():
     assert "/static/maintenance_panel_helpers.js?v=20260816-maintenance-confirmation" in index_html
     assert "/static/maintenance_panel.js?v=20260816-maintenance-confirmation" in index_html
     assert "/static/operator_dashboard_actions.js?v=20260902-repair-queue-scope" in index_html
-    assert "/static/operator_summary_panel.js?v=20260902-report-sample-scope" in index_html
+    assert "/static/operator_summary_panel.js?v=20261001-read-performance" in index_html
     assert "/static/app_panels.js?v=20260816-historical-quality-audit" in index_html
     assert "/static/styles/operator_summary.css?v=20260711-candidate-next-actions-v3" in style_css
 
@@ -7216,7 +7216,7 @@ def test_decision_tracking_controls_and_target_statuses_are_wired():
     assert "/static/history_workspace_actions.js" in index_html
     assert index_html.index("/static/history_workspace_panels.js") < index_html.index("/static/history_workspace_actions.js")
     assert index_html.index("/static/history_workspace_actions.js") < index_html.index("/static/history_workspace.js")
-    assert "/static/history_workspace.js?v=20260816-scope-transient-state-guard" in index_html
+    assert "/static/history_workspace.js?v=20261001-read-performance" in index_html
     assert "mergeTrackingReports" in history_workspace_js
     assert "trackingPayload" in history_workspace_js
     assert "item.latest_reports" in history_workspace_js

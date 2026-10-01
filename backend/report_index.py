@@ -174,7 +174,7 @@ def sync_report_metadata(output_dir: Optional[str] = None) -> None:
 
     with _connect() as conn:
         existing_rows = conn.execute(
-            "SELECT filename, file_mtime, recommendation_json FROM reports WHERE output_dir = ?",
+            "SELECT filename, file_mtime, recommendation_json, normalized_recommendation FROM reports WHERE output_dir = ?",
             (out_dir,),
         ).fetchall()
     existing = {row["filename"]: row for row in existing_rows}
