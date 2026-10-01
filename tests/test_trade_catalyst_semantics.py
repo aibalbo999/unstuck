@@ -87,6 +87,35 @@ def test_new_fields_cannot_bypass_claim_checks(field, value):
     assert bind_trade_payload(payload, context)[1]["status"] == "degraded"
 
 
+@pytest.mark.parametrize("condition", [
+    "等待成交量有效放大超越20日均量，且股價穩守20日均線後再重新評估",
+    "等待成交量有效放大，或股價帶量突破近期高點後再重新評估",
+    "等待短線乖離收斂、5日均線未遭有效跌破，且外資轉為買超後再重新評估",
+])
+def test_coordinated_future_recheck_is_not_mistaken_for_observed_claim(condition):
+    payload, context = separated_case()
+    payload["core_catalyst"] = condition
+    payload["recheck_condition"] = condition
+    _, assessment = bind_trade_payload(payload, context)
+    assert assessment["status"] == "observation"
+    assert "recheck_contains_actual_or_ambiguous_claim" not in assessment["reason_codes"]
+    assert "core_catalyst_semantic_mismatch" not in assessment["reason_codes"]
+
+
+@pytest.mark.parametrize("condition", [
+    "等待成交量放大，外資買超9999千股後再重新評估",
+    "等待成交量放大，且外資已買超9999千股後再重新評估",
+    "等待成交量放大；外資買超9999千股後再重新評估",
+])
+def test_recheck_with_unmarked_or_asserted_fact_still_requires_proof(condition):
+    payload, context = separated_case()
+    payload["core_catalyst"] = condition
+    payload["recheck_condition"] = condition
+    _, assessment = bind_trade_payload(payload, context)
+    assert assessment["status"] == "degraded"
+    assert "recheck_contains_actual_or_ambiguous_claim" in assessment["reason_codes"]
+
+
 def test_observation_cannot_borrow_legacy_refs_or_move_facts_into_recheck():
     payload, context = separated_case()
     payload["observed_source_refs"] = []

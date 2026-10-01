@@ -6,6 +6,17 @@ _RECHECK_START = re.compile(r"(?:^|[，,；;。\n])\s*(?:須|需|必須)?等待|
 _RECHECK_END = re.compile(r"(?:重新(?:評估|檢查)|再(?:評估|觀察))(?:條件)?[。.!！\s]*$")
 _ASSERTED_OR_AMBIGUOUS = re.compile(r"但是|然而|但|其實|目前|已|截至|最近|過去|近\s*\d|(?:資料|數據)顯示|顯示")
 _CLAUSE_BREAK = re.compile(r"，|(?<!\d),|,(?!\d)")
+_FUTURE_JOIN = re.compile(r"\s*(?:且|或|並|以及|同時)\S")
+
+
+def _coordinated_future_clauses(body):
+    """Allow joined future conditions, but not a free-standing factual clause."""
+    breaks = list(_CLAUSE_BREAK.finditer(body))
+    for index, match in enumerate(breaks):
+        end = breaks[index + 1].start() if index + 1 < len(breaks) else len(body)
+        if not _FUTURE_JOIN.match(body[match.end():end]):
+            return False
+    return True
 
 
 def split_exact_policy_suffix(text):
@@ -35,6 +46,6 @@ def catalyst_observation_text(text, *, allow_policy_suffix=False):
         suffix = text[match.end():]
         body = suffix.rstrip('。.!！?？\n ')
         if (_RECHECK_END.search(suffix) and not _ASSERTED_OR_AMBIGUOUS.search(suffix)
-                and not SENTENCE_BREAK.search(body) and not _CLAUSE_BREAK.search(body)):
+                and not SENTENCE_BREAK.search(body) and _coordinated_future_clauses(body)):
             return text[:match.start()].rstrip()
     return text
