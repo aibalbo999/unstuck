@@ -37,6 +37,11 @@ def _reader_snapshot(storage: LocalFileStorage, filename: str):
             snapshot['_reader_cash_flow_review'] = review.get('cash_flow_period_review')
             snapshot['_reader_annual_cash_flow_review'] = review.get('annual_cash_flow_review')
             snapshot['_reader_review_reference'] = reference
+        markdown_key = locator.existing_key(filename, kind='md')
+        if markdown_key is not None:
+            markdown = storage.get_report(markdown_key).content
+            snapshot['_reader_original_markdown'] = markdown.decode('utf-8')
+            snapshot['_reader_markdown_reference'] = {'key': markdown_key, 'sha256': sha256(markdown)}
     return snapshot, data_key, content_hash
 
 
@@ -77,6 +82,11 @@ def migrate_report(
                 _, review_path = storage._target(review['key'])
                 if sha256(review_path.read_bytes()) != review['sha256']:
                     raise ValueError('Supplemental evidence review changed during preparation')
+            markdown = snapshot.get('_reader_markdown_reference') if isinstance(snapshot, dict) else None
+            if markdown:
+                _, markdown_path = storage._target(markdown['key'])
+                if sha256(markdown_path.read_bytes()) != markdown['sha256']:
+                    raise ValueError('Original report Markdown changed during preparation')
             row = conn.execute(
                 "SELECT * FROM reports WHERE output_dir=? AND filename=?",
                 (str(storage._root), filename),

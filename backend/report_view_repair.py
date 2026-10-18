@@ -101,7 +101,8 @@ def repair_report_reading_notice(html: str, context: dict | None = None) -> str:
 
 def repair_report_html_for_view(html: str, reading_notice_context: dict | None = None) -> str:
     from reporting.legacy_valuation_display import repair_legacy_valuation_display
-    repaired = normalize_ticker_autolinks(repair_legacy_valuation_display(html))
+    from reporting.chart_script_policy import upgrade_legacy_chart_runtime
+    repaired = normalize_ticker_autolinks(repair_legacy_valuation_display(upgrade_legacy_chart_runtime(html)))
     repaired = repair_report_reading_notice(repaired, reading_notice_context)
     repaired = repair_report_execution_summary_quality(repaired, reading_notice_context)
     if reading_notice_context and reading_notice_context.get('_current_quality_projection') is True:

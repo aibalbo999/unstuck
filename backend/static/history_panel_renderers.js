@@ -23,6 +23,10 @@
         function previewPrimaryTone(report) {
             return report.preview?.primary?.tone || recommendationTone(previewPrimaryValue(report));
         }
+        function previewPrimaryLabel(report) {
+            const value = previewPrimaryValue(report);
+            return report.preview?.kind === 'position_plan' ? value : normalizeRecommendation(value);
+        }
         function previewListValues(report) {
             const metrics = Array.isArray(report.preview?.list_metrics) ? report.preview.list_metrics : [];
             if (metrics.length) return metrics.slice(0, 2).map(item => item?.value || 'N/A');
@@ -75,7 +79,7 @@
                         ${helpers.trackingActionNote(report, escapeHtml)}
                     </div>
                     <div class="tracking-report-line tracking-report-metrics">
-                        <span class="tracking-recommendation ${primaryTone}">${escapeHtml(swingTrade ? primaryValue : normalizeRecommendation(primaryValue))}</span>
+                        <span class="tracking-recommendation ${primaryTone}">${escapeHtml(swingTrade ? primaryValue : previewPrimaryLabel(report))}</span>
                         <strong class="tracking-latest-price">${escapeHtml(helpers.formatNumber(tracking.latest_price))}</strong>
                         <span class="${swingTrade ? 'tracking-compact-note is-swing' : trackingStatusClass}">${escapeHtml(statusText)}</span>
                     </div>
@@ -127,7 +131,7 @@
                             ${helpers.reportActionBadge(r, escapeHtml)}
                         </div>
                         <div class="history-decision">
-                            <span class="history-rec ${recommendationTone(previewPrimaryValue(r))}">${escapeHtml(normalizeRecommendation(previewPrimaryValue(r)))}</span>
+                            <span class="history-rec ${previewPrimaryTone(r)}">${escapeHtml(previewPrimaryLabel(r))}</span>
                             ${previewListValues(r).map(value => `<span>${escapeHtml(value)}</span>`).join('')}
                             ${helpers.renderTrackingBadge(r.decision_tracking, escapeHtml)}
                         </div>

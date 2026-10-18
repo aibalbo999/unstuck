@@ -42,7 +42,7 @@
         <div class="section-num">Q</div>
         <div class="section-title">管理層語氣與法說會亮點</div>
     </div>
-    <p class="section-lead">Guidance 語氣：<strong>{{ management_sentiment.tone }}</strong>{% if management_sentiment.confidence is not none %}，信心 {{ '%.0f'|format(management_sentiment.confidence * 100) }}%{% endif %}</p>
+    <p class="section-lead">{% if management_sentiment.missing_category %}尚未確認（{{ management_sentiment.reason }}）{% else %}管理層展望語氣：<strong>{{ management_sentiment.tone }}</strong>{% if management_sentiment.confidence is not none %}，信心 {{ '%.0f'|format(management_sentiment.confidence * 100) }}%{% endif %}{% endif %}</p>
     <div class="highlight-list">
         {% for item in management_sentiment.highlights %}
         <div class="highlight-item"><strong>{{ item.get('keyword', '亮點') }}</strong><span>{{ item.get('quote', '') }}</span></div>

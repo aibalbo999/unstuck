@@ -194,6 +194,46 @@ def _extract_heading_body(markdown_text: str, heading_fragment: str) -> str:
     return clean_report_text(match.group("body"), limit=96) if match else "N/A"
 
 
+def _parsed_setup(snapshot: dict, key: str) -> dict:
+    for parent in (snapshot.get("rerun_context"), snapshot.get("data"), snapshot):
+        parsed = parent.get("parsed") if isinstance(parent, dict) else None
+        setup = parsed.get(key) if isinstance(parsed, dict) else None
+        if isinstance(setup, dict) and setup:
+            return setup
+    return {}
+
+
+def _short_markdown_field(markdown_text: str, label: str, other: str) -> str:
+    inline = re.search(rf"^[ \t]*[-*]?[ \t]*(?:\*\*)?{re.escape(label)}(?:\*\*)?[ \t]*[:：](?:\*\*)?[ \t]*(.+)$", markdown_text, re.M)
+    if inline:
+        return clean_report_text(re.sub(r'[*`]', '', inline[1]), limit=192).strip() or "N/A"
+    heading = re.search(rf"^#{{2,4}}[^\n]*{re.escape(label)}[^\n]*\n(?P<body>.*?)(?=^#{{2,4}}\s+|\Z)", markdown_text, re.M | re.S)
+    if heading and other not in heading[0].splitlines()[0]:
+        return clean_report_text(heading['body'], limit=192)
+    return "N/A"
+
+
+def _position_preview(ticker: str, recommendation: dict, markdown_text: str, snapshot: dict) -> dict:
+    plan = _parsed_setup(snapshot, "position_plan")
+    if not plan:
+        return _investment_preview(ticker, recommendation, markdown_text, snapshot, "v2")
+    action = clean_report_text(plan.get("action"), limit=80)
+    reason = "本次等待，暫不設定新交易條件" if action == "等待" else ""
+    return {
+        "kind": "position_plan", "title": f"{ticker} 部位計畫",
+        "primary": _metric("本次部位動作", action, "is-neutral" if action == "等待" else _recommendation_tone(action)),
+        "metrics": [_metric("當日股價", recommendation.get("current_price")),
+                    _metric("研究評級", _projected_recommendation("v2", recommendation, markdown_text, snapshot)),
+                    _metric("部位大小", plan.get("position_size"))],
+        "targets": [_metric("進場區間", plan.get("entry_zone"), not_applicable=reason),
+                    _metric("停損條件", plan.get("stop_loss"), not_applicable=reason),
+                    _metric("重新評估條件", plan.get("invalidation_condition"))],
+        "summary": _base_summary(recommendation, markdown_text),
+        "list_metrics": [_metric("部位大小", plan.get("position_size")),
+                         _metric("停損條件", plan.get("stop_loss"), not_applicable=reason)],
+    }
+
+
 def _base_summary(recommendation: dict, markdown_text: str) -> str:
     summary = clean_report_text(recommendation.get("summary", ""), limit=420)
     if summary:
@@ -243,8 +283,15 @@ def _investment_preview(ticker: str, recommendation: dict, markdown_text: str, s
 
 def _bubble_sniper_preview(ticker: str, recommendation: dict, markdown_text: str, snapshot: dict) -> dict:
     rec = _projected_recommendation("v3", recommendation, markdown_text, snapshot)
-    crash = _extract_heading_body(markdown_text, "做空觸發條件")
-    stop = _extract_heading_body(markdown_text, "防軋空停損點")
+    from trade_execution_contract import short_observation_is_explicit
+    setup = _parsed_setup(snapshot, "short_setup")
+    crash = setup.get("entry_trigger") if setup else _short_markdown_field(markdown_text, "做空觸發條件", "防軋空停損點")
+    stop = setup.get("cover_stop") if setup else _short_markdown_field(markdown_text, "防軋空停損點", "做空觸發條件")
+    reason = "原計畫明示不建立空方部位" if (
+        setup and short_observation_is_explicit(setup)
+        and re.match(r"^(?:目前|本次|暫時)?不建立空方部位(?:[，。；、\s]|$)", str(crash or ""))) else ""
+    target = setup.get("downside_target") if setup else recommendation.get("target_3m")
+    target_label = "下行目標" if setup else "3個月壓力"
     return {
         "kind": "bubble_sniper",
         "title": f"{ticker} 泡沫狙擊預覽",
@@ -255,12 +302,12 @@ def _bubble_sniper_preview(ticker: str, recommendation: dict, markdown_text: str
         ],
         "targets": [
             _metric("做空觸發", crash),
-            _metric("防軋空停損", stop),
-            _metric("3個月壓力", recommendation.get("target_3m")),
+            _metric("防軋空停損", stop, not_applicable=reason),
+            _metric(target_label, target, not_applicable=reason),
         ],
         "summary": _base_summary(recommendation, markdown_text),
         "list_metrics": [
-            _metric("3個月壓力", recommendation.get("target_3m")),
+            _metric(target_label, target, not_applicable=reason),
             _metric("信心", recommendation.get("confidence")),
         ],
     }
@@ -303,8 +350,18 @@ def build_report_preview(
     """Return a compact preview model that matches the report mode semantics."""
     recommendation = recommendation if isinstance(recommendation, dict) else {}
     snapshot = snapshot if isinstance(snapshot, dict) else _read_snapshot(snapshot_path)
+    from report_financial_errata import correct_financial_summary
+    original_summary = recommendation.get("summary", "")
+    corrected_summary = correct_financial_summary(original_summary, snapshot)
+    recommendation = {**recommendation, "summary": corrected_summary}
     if pipeline_id == "v4":
-        return _swing_trade_preview(ticker, recommendation, markdown_text, snapshot)
-    if pipeline_id == "v3":
-        return _bubble_sniper_preview(ticker, recommendation, markdown_text, snapshot)
-    return _investment_preview(ticker, recommendation, markdown_text, snapshot, pipeline_id)
+        preview = _swing_trade_preview(ticker, recommendation, markdown_text, snapshot)
+    elif pipeline_id == "v3":
+        preview = _bubble_sniper_preview(ticker, recommendation, markdown_text, snapshot)
+    elif pipeline_id == "v2":
+        preview = _position_preview(ticker, recommendation, markdown_text, snapshot)
+    else:
+        preview = _investment_preview(ticker, recommendation, markdown_text, snapshot, pipeline_id)
+    if corrected_summary != original_summary and corrected_summary:
+        preview['summary'] += " 金額已依原分析輸入勘誤，原判斷尚未重新評估。"
+    return preview

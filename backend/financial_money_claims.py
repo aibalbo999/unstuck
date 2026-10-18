@@ -240,4 +240,14 @@ def financial_money_claim_issues(text: str, data: dict | None) -> list[str]:
             f'財務金額單位紅線：{period} {match["metric"]} 原文「{claim}」與{comparison}；'
             f'來源 {path} 原值={original:g} {unit}，正確換算為{expected / 1e8:g}億新台幣。'
             '請核對原值、單位與期間後重新生成，不得將其他年度、TTM或推估數字混用。')
+    # Reuse the period-aware evidence adapter for annual FCF and named TTM
+    # amounts, which the original annual-revenue checker does not admit.
+    from report_financial_errata import money_unit_mismatches
+    for claim in money_unit_mismatches(text, {'data': data}):
+        if _source(data, claim['financial_metric'], claim['financial_period_text']) is not None:
+            continue
+        issues.append(
+            f'財務金額單位紅線：{claim["financial_period"]} {claim["financial_metric"]} '
+            f'原值={claim["source_value"]:g} {claim["source_unit"]}，來源 {claim["matched_path"]}；'
+            f'正確換算為{claim["expected_value_raw_twd"] / 1e8:g}億新台幣。請保留期間與科目後重新生成。')
     return list(dict.fromkeys(issues))

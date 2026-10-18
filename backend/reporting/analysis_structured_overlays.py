@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from typing import Any
 
 from mapping_fields import safe_dict_list, safe_mapping_dict, safe_text
@@ -12,9 +13,16 @@ from .text_tokens import is_missing_text_token
 
 def build_management_sentiment(context: dict) -> dict:
     output = _structured_output(context, 20)
+    tone = _text(output.get("guidance_tone"), "資料不足")
+    unassessed = tone in {"資料不足", "未評估", "尚未評估", "未確認", "尚未確認", "N/A"}
+    transcript_missing = bool(re.search(r"逐字稿(?:缺漏|缺少|缺失)|未(?:取得|提供)[^。\n]{0,12}逐字稿", safe_text(output.get("analysis_markdown"))))
+    reason = ("原分析未取得可追溯法說會逐字稿，尚未評估管理層語氣；缺值不等於零分"
+              if transcript_missing else "原分析未完成管理層語氣評估，未記錄更詳細原因；缺值不等於零分") if unassessed else ""
     return {
-        "tone": _text(output.get("guidance_tone"), "資料不足"),
-        "confidence": _number(output.get("confidence")),
+        "tone": tone,
+        "confidence": None if unassessed else _number(output.get("confidence")),
+        "missing_category": "unconfirmed" if unassessed else "",
+        "reason": reason,
         "highlights": _highlight_rows(output.get("highlights", [])),
         "available": bool(output),
     }

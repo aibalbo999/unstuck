@@ -6,10 +6,10 @@ No replacement value is written into historical/model prose.
 import re
 import math
 
-_NUMBER = r'(-?\d+(?:\.\d+)?)'
-_CALC = re.compile(r'(?:EPS|每股盈餘)[^\d\n]{0,16}' + _NUMBER +
-    r'(?:(?!EPS|每股盈餘)[^\n]){0,70}?(?:股價|現價)[^\d\n]{0,12}' + _NUMBER +
-    r'[^\n]{0,60}?(?P<ttm>TTM\s*)?(?:P/E|本益比)[^\d\n]{0,16}' + _NUMBER, re.I)
+_NUMBER = r'(?<![\d.,])([+-]?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?)(?!\d|[.,]\d)'
+_CALC = re.compile(r'(?:EPS|每股盈餘)[^\d\n+\-]{0,16}' + _NUMBER +
+    r'(?:(?!EPS|每股盈餘)[^\n]){0,70}?(?:股價|現價)[^\d\n+\-]{0,12}' + _NUMBER +
+    r'[^\n]{0,60}?(?P<ttm>TTM\s*)?(?:P/E|本益比)[^\d\n+\-]{0,16}' + _NUMBER, re.I)
 
 def derived_pe_claims(markdown, snapshot):
     data = snapshot.get('data') or {}
@@ -21,7 +21,7 @@ def derived_pe_claims(markdown, snapshot):
             # Only a stated relation, not a list of independent observations.
             if not re.search(r'計算|對應|除以|÷|/\s*EPS', match.group(), re.I):
                 continue
-            eps, price, pe = map(float, (match.group(1), match.group(2), match.group(4)))
+            eps, price, pe = (float(match.group(index).replace(',', '')) for index in (1, 2, 4))
             expected = price / eps if eps != 0 else None
             annual = re.search(r'(20\d{2})\s*年\s*$', line[:match.start()], re.I)
             reasons = []

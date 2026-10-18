@@ -20,6 +20,47 @@
         const saved = JSON.parse(document.getElementById('report-reader-observations')?.textContent || '{}');
         if (saved && typeof saved === 'object' && !Array.isArray(saved)) observations = saved;
     } catch (_) { /* A damaged display receipt must not invent confirmed data. */ }
+    const errata = Array.isArray(observations.financial_errata) ? observations.financial_errata : [];
+    const compact = value => value.replace(/\s+/g, '');
+    const correctFinancialBlocks = root => {
+        const corrections = new Map();
+        for (const row of errata) {
+            if (!row || typeof row.context !== 'string' || typeof row.corrected_context !== 'string') continue;
+            const key = compact(row.context);
+            if (!corrections.has(key)) corrections.set(key, []);
+            corrections.get(key).push(row);
+        }
+        for (const block of all('p,li,td', root)) {
+            if (block.closest('.reader-original,.reader-audit') || block.querySelector('p,li,td')) continue;
+            const matches = corrections.get(compact(block.textContent));
+            if (!matches) continue;
+            preserveCopy(block, '金額勘誤前的原始文字');
+            // Bind the entire paragraph, then replace only the source-bound
+            // amount range. Inline formatting and citations remain intact.
+            const content = block.textContent;
+            const operations = new Map();
+            for (const row of matches) {
+                let offset = -1;
+                for (let i = 0; i <= (row.token_index || 0); i++) offset = content.indexOf(row.original_token, offset + 1);
+                if (offset >= 0) operations.set(offset, row);
+            }
+            for (const [offset, row] of [...operations].sort((a, b) => b[0] - a[0])) {
+                const walker = document.createTreeWalker(block, NodeFilter.SHOW_TEXT);
+                let node, position = 0, start = null, end = null;
+                while ((node = walker.nextNode())) {
+                    const next = position + node.textContent.length;
+                    if (!start && offset >= position && offset < next) start = [node, offset - position];
+                    if (offset + row.original_token.length > position && offset + row.original_token.length <= next) end = [node, offset + row.original_token.length - position];
+                    position = next;
+                }
+                if (!start || !end) continue;
+                const range = document.createRange();
+                range.setStart(...start); range.setEnd(...end);
+                range.deleteContents(); range.insertNode(document.createTextNode(row.corrected_token));
+                block.dataset.financialErratum = 'applied';
+            }
+        }
+    };
     const auditRows = all('.source-audit-table tbody tr').filter(row => query('.audit-status', row));
     const sourceObservations = Array.isArray(observations.source_audit) ? observations.source_audit.filter(row => row && typeof row === 'object').map((row, index) => row.label || observations.original_order !== true ? row : { ...row, label: text(query('td', auditRows[index] || document.createElement('tr'))) }) : [];
     const calendarReason = () => {
@@ -298,9 +339,28 @@
         listedLimits.add(identity);
         const li = element('li');
         li.append(element('strong', '', `${label}：`), document.createTextNode(value));
+        if (/觀望原因|結論是否跟上|報告完整性|報告檢查|尚未重跑|分析新鮮度|輸出契約|資料快照完整性/.test(label + plain(label))) li.dataset.critical = 'true';
         readable(li);
         limitList.append(li);
     };
+    if (observations.analysis_not_rerun === true) addLimit('原分析尚未重跑', '資料已更新，但原判斷尚未重新分析；不能當作最新投資結論，原品質限制保留。');
+    if (errata.length) {
+        const correction = element('section', 'reader-financial-errata');
+        correction.append(element('h2', '', '原報告金額勘誤'));
+        correction.append(element('p', '', '以下依原分析保存輸入核對單位；已能精確對應的段落同步更正，原文與品質警示保留。這不是重新分析，涉及金額的判斷仍須重評，不代表官方獨立驗證。'));
+        const list = element('ul'); const seen = new Set();
+        for (const row of errata) {
+            const key = JSON.stringify([row.metric, row.period, row.original_token, row.corrected_token, row.source_path]);
+            if (seen.has(key)) continue;
+            seen.add(key);
+            const unitLabel = { billion_twd: '十億新臺幣', twd: '新臺幣元' }[row.source_unit] || row.source_unit;
+            const item = element('li', '', `${row.period} ${row.metric}：原文 ${row.original_token} → 正確換算 ${row.corrected_token}。保存原值 ${row.source_value}（${unitLabel}）；原分析輸入日期 ${plain(row.analysis_input_cutoff || '未記錄')}。`);
+            item.append(reference(row.source_path));
+            list.append(item);
+        }
+        correction.append(list);
+        brief.append(correction);
+    }
     if (mode === 'event-swing') {
         brief.append(element('p', 'reader-decision-note', '短線方向判斷未來 1–2 週是否形成交易機會；觀望不等於「持有」，也不直接等於買入或避免。既有持股須另看原研究評級與風險。'));
         if (shortObservation()) {
@@ -442,6 +502,11 @@
             query('.verdict-main', verdict).textContent = rows.get('部位動作');
             verdict.append(element('p', 'reader-rating', `原研究評級：${rating}。部位動作與研究評級分開判讀，不代表使用者實際持倉。`));
         }
+        if (mode === 'trading' && rows.get('部位動作') === '等待' || mode === 'event-swing' && shortObservation()) {
+            verdict.dataset.readerDecision = 'observe';
+            const icon = query('.verdict-icon', verdict);
+            if (icon) icon.textContent = '→';
+        }
         const subtitle = query('.verdict-sub', verdict);
         if (subtitle) subtitle.textContent = mode === 'event-swing' ? '觀察期間：1–2 週。價位是分析參考，仍須核對條件與風險。' : mode === 'research' ? '觀察期間：3–12 個月及更長期。估值屬情境推估，不是保證報酬。' : mode === 'contrarian' ? '避免買進不等於建議放空；須另核對做空條件與軋空風險。' : '未取得資金與持倉時，不把研究比例視為個人部位建議。';
         readable(verdict);
@@ -480,6 +545,7 @@
         const controls = query('.data-trust-controls', trust);
         if (controls) moveToAudit(controls, '資料檢查分數與版本資訊');
         readable(trust);
+        for (const warning of all('.data-trust-quant-warning', trust)) limits.append(warning);
         limits.append(trust);
     }
     limits.append(element('p', 'reader-score-note', '資料新鮮不代表內容已完整核實；資料檢查分數與分析信心也不是上漲機率。'));
@@ -488,6 +554,7 @@
     for (const node of all('.section-model')) moveToAudit(node, '分析模組與模型');
     for (const node of all('.tear-sheet, .editor-synthesis')) {
         preserveCopy(node, '原整合摘要');
+        correctFinancialBlocks(node);
         readable(node, true);
         const disclosure = element('details', 'reader-original reader-expanded-summary');
         const heading = node.matches('.tear-sheet') ? '完整研究摘要' : text(query('.editor-synthesis-title', node)) || '投資假設與追蹤條件';
@@ -500,15 +567,32 @@
         const copy = node.cloneNode(true);
         copy.className = 'reader-analysis';
         all('[id]', copy).forEach(item => item.removeAttribute('id'));
+        correctFinancialBlocks(copy);
         readable(copy, true);
         while (node.firstChild) original.append(node.firstChild);
         node.append(copy, original);
     }
+    const management = observations.management_assessment || {};
+    const managementLead = document.querySelector('#management-sentiment .section-lead');
+    const legacyUnassessed = managementLead && /(?:Guidance|管理層展望)\s*語氣：\s*(?:資料不足|未評估|尚未評估|未確認|尚未確認|N\/A)/.test(text(managementLead));
+    if (managementLead && (legacyUnassessed || management.available === true && management.missing_category === 'unconfirmed')) {
+        preserveCopy(managementLead, '原管理層語氣評分');
+        managementLead.textContent = `尚未確認（${management.reason || '原報告尚未完成管理層語氣評估，未記錄更詳細原因；缺值不等於零分'}）`;
+    }
     for (const node of all('.executive-thesis, .section-lead, .downside-list, .highlight-list, .data-table, .price-targets-grid, .final-verdict')) {
         if (node.closest('.reader-original,.reader-audit')) continue;
         preserveCopy(node);
+        correctFinancialBlocks(node);
         readable(node, true);
     }
+    const secondary = element('details', 'reader-limit-details');
+    const secondaryList = element('ul', 'reader-limit-list');
+    for (const [index, item] of Array.from(limitList.children).entries()) {
+        if (item.dataset.critical !== 'true' && index >= 3) secondaryList.append(item);
+    }
+    secondary.append(element('summary', '', `完整資料核對與來源限制（${secondaryList.children.length} 項）`), secondaryList);
+    if (trust) secondary.append(trust);
+    if (secondaryList.children.length || trust) limits.append(secondary);
     for (const node of all('.mode-focus-kicker,.hero-badge')) {
         if (!node.closest('.reader-audit')) node.textContent = profile[0];
     }
@@ -531,6 +615,11 @@
     for (const canvas of all('canvas')) {
         const card = canvas.closest('.chart-card');
         if (card && chartNotes[canvas.id]) card.append(element('p', 'reader-chart-note', chartNotes[canvas.id]));
+        if (!canvas.dataset.chartState && !window.Chart?.getChart?.(canvas)) {
+            canvas.hidden = true;
+            canvas.dataset.chartState = 'unavailable';
+            canvas.after(element('p', 'chart-empty-state reader-chart-unavailable', '圖表尚未確認：此版本的圖表程式未通過安全相容檢查，或圖表資源未載入；原始資料保留，不能把空白當作零值。'));
+        }
     }
     // Repaint the saved charts for a light surface without changing series or axes.
     const chartPalette = {

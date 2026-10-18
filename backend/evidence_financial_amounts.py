@@ -185,7 +185,12 @@ def _financial_source(data,metric,prefix,heading='',owner_text=None):
     if str(data.get('financial_currency') or '').upper() not in {'TWD','NTD'} or _PARTIAL_YEAR.search(prefix):
         return None
     periods=list(_PERIOD.finditer(prefix))
-    if len(periods)!=1:
+    repeated_annual_fcf = (metric in {'FCF', '自由現金流'} and len(periods) > 1
+        and all(re.fullmatch(r'20\d{2}年?', re.sub(r'\s+', '', p.group())) for p in periods)
+        and len({re.sub(r'\s+|年', '', p.group()) for p in periods}) == 1
+        and not any(re.fullmatch(r'\s*[年至到~～–—-]+\s*', prefix[a.end():b.start()])
+                    for a, b in zip(periods, periods[1:])))
+    if len(periods)!=1 and not repeated_annual_fcf:
         return None
     period=re.sub(r'\s+','',periods[0].group()).upper()
     if metric in {'FCF','自由現金流'} and re.fullmatch(r'20\d{2}年?',period):

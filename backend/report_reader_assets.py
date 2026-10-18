@@ -16,6 +16,8 @@ def reader_observations(snapshot: dict | None = None) -> dict:
     """Expose only bounded display facts, never private receipts or new verdicts."""
     from data_trust import source_label
     from report_evidence_gap_details import evidence_gap_details
+    from report_financial_errata import financial_errata
+    from reporting.analysis_structured_overlays import build_management_sentiment
 
     snapshot = snapshot if isinstance(snapshot, dict) else {}
     data = snapshot.get('data') if isinstance(snapshot.get('data'), dict) else {}
@@ -40,7 +42,11 @@ def reader_observations(snapshot: dict | None = None) -> dict:
     calendar['events'] = [{key: event.get(key) if isinstance(event.get(key), str) else ''
                            for key in ('type', 'label', 'date', 'end_date', 'source')}
                           for event in events if isinstance(event, dict)][:30] if isinstance(events, list) else []
+    context = snapshot.get('rerun_context') if isinstance(snapshot.get('rerun_context'), dict) else snapshot
+    management = build_management_sentiment(context)
     return {'source_audit': rows, 'event_calendar': calendar,
+            'financial_errata': financial_errata(snapshot),
+            'management_assessment': {key: management[key] for key in ('available', 'missing_category', 'reason')},
             'evidence_gaps': evidence_gap_details(data, snapshot.get('_reader_institutional_reports', ()), snapshot.get('_reader_volume_observation'), snapshot.get('_reader_cash_flow_review'), snapshot.get('_reader_annual_cash_flow_review')) if data else {},
             'analysis_not_rerun': snapshot.get('refreshed_without_analysis_rerun') is True,
             'refreshed_at': snapshot.get('snapshot_refreshed_at') if isinstance(snapshot.get('snapshot_refreshed_at'), str) else ''}
