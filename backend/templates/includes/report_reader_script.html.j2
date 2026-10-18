@@ -1,0 +1,429 @@
+(() => {
+    'use strict';
+    const main = document.querySelector('main.main');
+    if (!main || document.body.dataset.readerVersion === '1') return;
+    const query = (selector, root = main) => root.querySelector(selector);
+    const all = (selector, root = main) => Array.from(root.querySelectorAll(selector));
+    const text = element => (element?.textContent || '').trim();
+    const element = (tag, className, value) => {
+        const node = document.createElement(tag);
+        if (className) node.className = className;
+        if (value !== undefined) node.textContent = value;
+        return node;
+    };
+    const mode = main.dataset.reportLayout || ({
+        mode_a_research: 'research', mode_b_trading: 'trading',
+        mode_c_contrarian: 'contrarian', mode_d_event_swing: 'event-swing',
+    })[main.dataset.reportTemplate] || 'research';
+    const profiles = {
+        research: ['A｜長線投資研究', '公司價值與長線判斷', '研究結論', ['最終建議', '基本情境估值', '整體護城河', '資料可信度']],
+        trading: ['B｜交易與部位管理', '本次部位計畫', '本次部位動作', ['部位動作', '進場區間', '部位大小', '停損條件', '失效條件', '部位基準', '比例意義']],
+        contrarian: ['C｜高估與下跌風險', '下跌風險與反向條件', '風險研究結論', ['空方結論', '做空觸發', '下行目標', '防軋空停損', '軋空風險', '論點失效']],
+        'event-swing': ['D｜1–2 週短線觀察', '短線條件與關鍵價位', '短線研究方向', ['交易方向', '進場區間', '1-2 週目標', '嚴格停損', '支撐位', '壓力位', '事件催化', '重新評估條件', '波動風險']],
+    };
+    const profile = profiles[mode] || profiles.research;
+    let decisionRows = new Map();
+    const missing = value => /^(?:N\/?A|資料不足|未提供|未評估|尚未評估|未驗證|未估計|未確認|事件日期未確認|--)(?:\/10)?$/i.test(value.trim());
+    const fieldLabel = node => {
+        const parent = node.parentElement;
+        const value = parent?.closest('dd,td,.vm-value,.metric-value,.trade-catalyst p');
+        if (value?.matches('dd')) return text(value.previousElementSibling);
+        if (value?.matches('.vm-value')) return text(value.previousElementSibling);
+        if (value?.matches('td')) {
+            const row = value.closest('tr');
+            if (value.cellIndex > 0 && row?.cells.length === 2) return text(row.cells[0]);
+            return text(value.closest('table')?.querySelectorAll('thead th')[value.cellIndex]);
+        }
+        if (value?.matches('.metric-value')) return text(query('.metric-label', value.parentElement));
+        if (value?.matches('.trade-catalyst p')) return text(query('.trade-catalyst-label', value.parentElement));
+        if (parent?.closest('.verdict-main')) return mode === 'event-swing' ? '交易方向' : '研究評級';
+        return text(parent?.closest('p,li')?.querySelector('strong'));
+    };
+    const shortObservation = () => /^(?:Neutral|中性(?:\s+Neutral)?|觀望（暫不建立新交易）)$/i.test(decisionRows.get('交易方向') || '');
+    const fieldValue = (value, label = '') => {
+        const key = label.replace(/[\s:：🛑]/g, '');
+        const direction = /^(?:交易方向|短線研究方向)$/.test(key);
+        if (mode === 'event-swing' && direction && /^(?:Neutral|中性(?:\s+Neutral)?)$/i.test(value.trim())) return '觀望（暫不建立新交易）';
+        if (/^(?:研究評級|最終建議|空方結論|建議|研究結論)$/.test(key) && /^(?:Neutral|中性(?:\s+Neutral)?)$/i.test(value.trim())) return '觀望（研究尚未形成明確買賣傾向）';
+        if (/^資料不足[，：；]/.test(value.trim())) return value.replace('資料不足', '尚未確認');
+        if (/^未提供[，：；]/.test(value.trim())) return value.replace('未提供', '尚未提供');
+        if (/^(?:未評估|未驗證|未確認|未估計)[，：；]/.test(value.trim())) return value.replace(/未評估|未驗證|未確認|未估計/, '尚未確認');
+        if (!missing(value)) return value;
+        const price = /^(?:進場區間|進場價|1[-–]2週目標(?:價)?|目標價|嚴格停損|停損點|停損價|停損條件|每股來回成本|風險報酬)$/.test(key);
+        if (mode === 'event-swing' && shortObservation() && /成本/.test(key)) return '不適用（觀望中，暫不估算新交易的執行成本）';
+        if (mode === 'event-swing' && shortObservation() && price) return '不適用（觀望中，暫不設定交易價位）';
+        if (mode === 'trading' && price && decisionRows.get('部位動作') === '等待') return '不適用（本次等待，暫不設定新交易條件）';
+        if (mode === 'contrarian' && /^(?:下行目標|防軋空停損)$/.test(key) && /^(?:目前|本次|暫時)?(?:先)?(?:不建立空方部位|不進行放空|不做空)(?:[，。；、\s]|$)/.test(decisionRows.get('做空觸發') || '')) return '不適用（原計畫明示不建立空方部位）';
+        if (/整體護城河|護城河評分/.test(key)) return '尚未確認（原報告未提供可核實的護城河評分；缺值不等於零分）';
+        if (/估值|基本情境|目標|支撐|壓力|停損|觸發|信心|風險/.test(key)) return '尚未確認（原報告未提供可核實的判斷或數值，不代填結論）';
+        if (/事件|催化/.test(key)) return '尚未確認（原報告未確認本次觀察期間的事件日期；不代表沒有事件）';
+        if (/成本/.test(key)) return '尚未提供（原報告未列出完整費率或交易成本估計，不以零代替）';
+        if (/未評估|未驗證|未確認|未估計/.test(value)) return '尚未確認（原報告未完成此項核實，不能視為已確認結果）';
+        return '尚未提供（原報告未填此項，未記錄缺漏原因）';
+    };
+    const labels = new Map([
+        ['品質 gate 尚未記錄', '報告檢查紀錄不完整'], ['品質 gate 有警示', '報告有待確認事項'],
+        ['品質 gate 未通過', '報告檢查未通過，暫勿採用結論'], ['品質 gate', '報告檢查'],
+        ['輸出契約', '報告完整性與規則'], ['資料快照完整性', '保存資料完整性'],
+        ['分析新鮮度', '結論是否跟上最新資料'], ['證據抽查', '分析依據核對'],
+        ['資料快照', '報告保存資料'], ['來源審計', '資料來源與核對紀錄'],
+        ['補充來源降級', '補充資料有缺口'], ['核心來源穩定度提醒', '主要資料來源穩定度需留意'],
+        ['補充來源穩定度提醒', '補充資料來源穩定度需留意'],
+        ['free_cash_flow_raw_non_positive', '估值使用的自由現金流小於或等於零，現行方法不適用'],
+        ['no_executable_direction', '目前沒有明確可執行的交易方向'],
+        ['紅軍與空頭反證', '可能推翻結論的風險'], ['法證財務', '財務異常檢查'],
+        ['泡沫狙擊研究報告', '高估與下跌風險研究報告'], ['泡沫狙擊報告', '下跌風險綜合判斷'],
+        ['泡沫狙擊結論', '下跌風險判斷'], ['核心催化劑', '原分析關注條件'],
+        ['論點失效', '何時需要改變看法'], ['失效條件', '重新評估條件'],
+        ['技術動能分析師', '股價走勢與買賣力道'], ['主力籌碼分析師', '法人與大戶動向'],
+        ['波段交易決策者', '短線觀察計畫'], ['DCF 動態情境矩陣', '不同假設下的估值比較'],
+        ['最大下行風險 (Key Downside Risks) / 空頭觀點', '可能下跌的主要原因'],
+        ['Key Catalysts to Watch', '後續重要事件'], ['Add to Radar', '加入追蹤'],
+        ['概覽總覽', '重點摘要'], ['Medium', '中'], ['medium', '中'], ['High', '高'], ['Low', '低'],
+        ['中性 Neutral', '中性'], ['偏多 Long', '偏多'], ['偏空 Short', '偏空'],
+        ['Neutral', '中性'], ['Long', '偏多'], ['Short', '偏空'],
+        ['Technology', '科技業'], ['Electronic Components', '電子零組件'], ['Computer Hardware', '電腦硬體'],
+        ['FinMind TaiwanStockInstitutionalInvestorsBuySell', 'FinMind 法人買賣超資料'],
+        ['yfinance 5y history', 'Yahoo 股價歷史（yfinance，5 年）'],
+        ['volatile', '波動不確定'], ['bullish', '偏多'], ['bearish', '偏空'],
+        ['fresh', '資料仍在有效期間'], ['stale', '資料已過期'],
+        ['MODE D · 1-2 WEEK HORIZON', '短線觀察｜1–2 週'],
+    ]);
+    const glossary = {
+        TTM: '近十二個月', 'P/E': '本益比', 'P/B': '股價淨值比', ROE: '股東權益報酬率',
+        DCF: '現金流折現估值', EPS: '每股盈餘', FCF: '自由現金流',
+        WACC: '平均資金成本', RSI: '相對強弱指標', MACD: '趨勢動能指標',
+        ATR: '平均價格波動幅度', Beta: '相對大盤波動程度', CapEx: '資本支出',
+    };
+    const plain = (value, label = '') => {
+        // Older Markdown often keeps a field and its value in one bold node.
+        const pair = value.match(/^(\s*(?:交易方向|短線研究方向|研究評級|最終建議|空方結論|研究結論|建議|進場區間|1[-–]2\s*週目標(?:價)?|嚴格停損|(?:🛑\s*)?停損點|停損條件|支撐位|壓力位|事件催化|核心催化劑|整體護城河|基本情境估值|風險報酬|信心指數|部位大小|同期間目標|每股來回成本|防軋空停損|下行目標|做空觸發)\s*[：:]\s*)(.+)$/);
+        const separator = label && value.match(/^(\s*[：:]\s*)(.+)$/);
+        let result = pair ? pair[1] + fieldValue(pair[2], pair[1]) : separator ? separator[1] + fieldValue(separator[2], label) : fieldValue(value, label);
+        for (const [from, to] of labels) {
+            if (/^[A-Za-z]+$/.test(from)) result = result.replace(new RegExp('\\b' + from + '\\b', 'g'), to);
+            else result = result.split(from).join(to);
+        }
+        result = result.replace(/\bN\/A\b/g, '尚未提供（原報告未填此項，未記錄缺漏原因）');
+        result = result.replace(/\bTWD\b/g, '新臺幣');
+        result = result.replace(/(?<![\w.,+-])(-?)(\d+(?:,\d{3})*)(?:\.(\d+))?\s+billion_twd\b/g, (_, sign, integer, fraction = '') => {
+            const whole = (integer.replaceAll(',', '') + (fraction[0] || '0')).replace(/^0+(?=\d)/, '');
+            const remainder = fraction.slice(1);
+            return `${sign}${whole}${remainder ? '.' + remainder : ''} 億元新臺幣`;
+        });
+        result = result.replace(/\bbillion_twd\b/g, '十億新臺幣');
+        result = result.replace(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})/g, value => {
+            const date = new Date(value);
+            if (!Number.isFinite(date.getTime())) return value;
+            return new Intl.DateTimeFormat('zh-TW', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(date) + '（台北）';
+        });
+        return result;
+    };
+    const audit = element('details', 'reader-audit');
+    audit.id = 'reader-audit';
+    audit.append(element('summary', '', '完整來源與系統查核紀錄'));
+    const originals = new WeakSet();
+    let referenceNumber = 0;
+    const sourceNames = [
+        [/deterministic_financial_tool/, () => '財務計算結果'],
+        [/sma_(\d+)$/, match => `${match[1]} 日均線`],
+        [/\.close$/, () => '收盤價'], [/\.volume$/, () => '成交量'],
+        [/\.low$/, () => '最低價'], [/\.high$/, () => '最高價'],
+        [/\.open$/, () => '開盤價'], [/\.rsi_14$/, () => '相對強弱指標'],
+        [/\.as_of$/, () => '資料觀測日期'], [/observation_dates$/, () => '資料觀測日期'],
+        [/institutional|chip_data/, () => '法人與持股資料'],
+        [/peer_context/, () => '同業比較資料'], [/cash_flow|fcf/, () => '現金流資料'],
+        [/history|financial|valuation|cross_checks|quant_metrics/, () => '財務與估值資料'],
+        [/market|technical/, () => '市場與技術資料'],
+    ];
+    function reference(raw) {
+        const id = `reader-source-${++referenceNumber}`;
+        const link = element('a', 'reader-reference', `〔${referenceNumber}〕`);
+        link.href = `#${id}`;
+        link.title = '資料引用與原始欄位';
+        link.setAttribute('aria-label', `資料引用 ${referenceNumber}`);
+        const row = element('p', 'reader-technical', `${referenceNumber}. ${raw}`);
+        row.id = id;
+        audit.append(row);
+        const fragment = document.createDocumentFragment();
+        let label = '報告內引用';
+        for (const [pattern, name] of sourceNames) {
+            const match = raw.match(pattern);
+            if (match) { label = name(match); break; }
+        }
+        fragment.append(document.createTextNode(label), link);
+        return fragment;
+    }
+    function readable(root, explain = false) {
+        const seenTerms = new Set();
+        const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+        const nodes = [];
+        while (walker.nextNode()) nodes.push(walker.currentNode);
+        for (const node of nodes) {
+            if (node.parentElement?.closest('script,style,.reader-original,.reader-audit,.reader-reference')) continue;
+            let value = plain(node.nodeValue, fieldLabel(node));
+            if (explain) {
+                for (const [term, description] of Object.entries(glossary)) {
+                    const pattern = new RegExp('\\b' + term.replace('/', '\\/') + '\\b');
+                    if (!seenTerms.has(term) && pattern.test(value)) {
+                        value = value.replace(pattern, `${description}（${term}）`);
+                        seenTerms.add(term);
+                    }
+                }
+            }
+            const sourcePattern = /\b(?:data|history|growth|cash_flow|cross_checks)(?:\.[A-Za-z0-9_]+|\[\d+\])+|\b(?:[a-z][a-z0-9]*_)+[a-z0-9_]+(?:\.[A-Za-z0-9_]+|\[\d+\])*|\bAgent\s+(?:[A-D]\d+|\d+)(?:\s*前序證據)?/g;
+            const matches = Array.from(value.matchAll(sourcePattern));
+            if (!matches.length) { node.nodeValue = value; continue; }
+            const fragment = document.createDocumentFragment();
+            let offset = 0;
+            for (const match of matches) {
+                fragment.append(document.createTextNode(value.slice(offset, match.index)), reference(match[0]));
+                offset = match.index + match[0].length;
+            }
+            fragment.append(document.createTextNode(value.slice(offset)));
+            node.replaceWith(fragment);
+        }
+    }
+    function preserveCopy(node, label = '原始文字與引用') {
+        if (!node || originals.has(node)) return;
+        const copy = node.cloneNode(true);
+        all('[id]', copy).forEach(item => item.removeAttribute('id'));
+        copy.removeAttribute('id');
+        const disclosure = element('details', 'reader-original');
+        disclosure.append(element('summary', '', label), copy);
+        audit.append(disclosure);
+        originals.add(node);
+    }
+    function moveToAudit(node, label) {
+        if (!node || audit.contains(node)) return;
+        const disclosure = element('details', 'reader-original');
+        disclosure.append(element('summary', '', label), node);
+        audit.append(disclosure);
+    }
+    const hero = query('.hero');
+    if (!hero) return;
+    const subtitle = query('.hero-subtitle');
+    if (subtitle) { preserveCopy(subtitle, '原資料日期與產業分類'); readable(subtitle); }
+    const focus = query('.mode-focus');
+    const rows = new Map(all('dl > div, .mode-focus-risk-grid > div', focus || document.createElement('div')).map(row => [text(query('dt, span', row)), text(query('dd, strong', row))]));
+    decisionRows = rows;
+    if (mode === 'event-swing' && !rows.has('交易方向')) {
+        const direction = text(query('.trade-setup-dashboard .trade-direction-neutral dd')) || text(query('.verdict-main'));
+        if (/^(?:Neutral|中性(?:\s+Neutral)?)$/i.test(direction)) rows.set('交易方向', direction);
+    }
+    const brief = element('section', 'reader-brief');
+    brief.id = 'reader-brief';
+    brief.append(element('h2', '', profile[1]));
+    const facts = element('dl', 'reader-facts');
+    const limits = element('section', 'reader-limits');
+    limits.id = 'reader-limits';
+    limits.append(element('h2', '', '資料限制與待確認事項'));
+    const limitList = element('ul', 'reader-limit-list');
+    limits.append(limitList);
+    const listedLimits = new Set();
+    const addLimit = (label, value) => {
+        const identity = JSON.stringify([label, value]);
+        if (!value || listedLimits.has(identity)) return;
+        listedLimits.add(identity);
+        const li = element('li');
+        li.append(element('strong', '', `${label}：`), document.createTextNode(value));
+        readable(li);
+        limitList.append(li);
+    };
+    if (mode === 'event-swing') {
+        brief.append(element('p', 'reader-decision-note', '短線方向判斷未來 1–2 週是否形成交易機會；觀望不等於「持有」，也不直接等於買入或避免。既有持股須另看原研究評級與風險。'));
+        if (shortObservation()) {
+            const condition = rows.get('重新評估條件') || rows.get('核心催化劑');
+            addLimit('觀望原因與再評估條件', condition && !missing(condition) ? condition : '尚未提供（原報告未記錄具體等待條件，不能自行補推進場時機）');
+        }
+    }
+    if (mode === 'trading' && /^(?:未評估，)?未取得資金與持倉輸入$/.test(rows.get('部位基準') || '')) {
+        rows.set('部位基準', '尚未提供（原報告未取得資金與持倉輸入，無法形成個人化部位計畫）');
+    }
+    for (const sourceRow of all('.source-audit-table tbody tr')) {
+        const statusNode = query('.audit-status', sourceRow);
+        if (!statusNode) continue;
+        const status = Array.from(statusNode.classList).find(name => name.startsWith('audit-status-'))?.slice(13) || '';
+        if (!status || ['success', 'skipped_fresh_cache'].includes(status)) continue;
+        const cells = all('td', sourceRow);
+        const source = text(cells[0]) || '資料來源';
+        const reason = text(cells[8]);
+        const failed = /^(?:error|failed|failure|timeout|rate_limited)$/.test(status)
+            || /HTTP\s*(?:429|5\d\d)|逾時|超時|連線失敗|timeout|connection error/i.test(reason);
+        const notApplicable = /^(?:not_applicable|skipped|disabled)$/.test(status);
+        const category = failed ? '來源異常' : notApplicable ? '不適用' : status === 'not_configured' ? '尚未提供' : '尚未確認';
+        addLimit(`${category}｜${source}`, reason || (failed ? '原紀錄顯示取得失敗，但未保存進一步原因。' : notApplicable ? '原紀錄顯示本次未使用此來源，未保存進一步原因。' : status === 'not_configured' ? '原紀錄顯示此來源尚未設定，未保存進一步原因。' : '原紀錄未確認來源完整性，未保存進一步原因。'));
+    }
+    for (const label of profile[3]) {
+        if (!rows.has(label)) continue;
+        const row = element('div');
+        row.append(element('dt', '', label), element('dd', '', fieldValue(rows.get(label), label)));
+        readable(row);
+        facts.append(row);
+    }
+    if (!facts.children.length) {
+        brief.append(element('p', '', '這份舊報告沒有獨立的決策欄位，請依原分析與資料限制判讀。'));
+    } else brief.append(facts);
+    const technicalRows = new Set(['歷史價格基準', '原始OHLC逐項核對', '實際取得時間', '官方核對來源']);
+    for (const [label, value] of rows) {
+        if (profile[3].includes(label)) continue;
+        if (label === '歷史價格基準' && /adjusted OHLC/.test(value)) {
+            addLimit('歷史價格口徑', '歷史價格經還原處理，與交易所原始報價不同；不宜直接當作委託價格。');
+        } else if (!technicalRows.has(label)) addLimit(label, value);
+    }
+    const verdict = query('.verdict-banner');
+    if (verdict) {
+        preserveCopy(verdict, '原研究評級與價位');
+        const rating = text(query('.verdict-main', verdict));
+        const heading = query('.verdict-label', verdict);
+        if (heading) heading.textContent = profile[2];
+        if (mode === 'event-swing' && rows.has('交易方向')) query('.verdict-main', verdict).textContent = fieldValue(rows.get('交易方向'), '交易方向');
+        if (mode === 'trading' && rows.get('部位動作')) {
+            query('.verdict-main', verdict).textContent = rows.get('部位動作');
+            verdict.append(element('p', 'reader-rating', `原研究評級：${rating}。部位動作與研究評級分開判讀，不代表使用者實際持倉。`));
+        }
+        const subtitle = query('.verdict-sub', verdict);
+        if (subtitle) subtitle.textContent = mode === 'event-swing' ? '觀察期間：1–2 週。價位是分析參考，仍須核對條件與風險。' : mode === 'research' ? '觀察期間：3–12 個月及更長期。估值屬情境推估，不是保證報酬。' : mode === 'contrarian' ? '避免買進不等於建議放空；須另核對做空條件與軋空風險。' : '未取得資金與持倉時，不把研究比例視為個人部位建議。';
+        readable(verdict);
+        query('.hero-subtitle')?.after(verdict);
+    }
+    let noticeAnchor = verdict || query('.hero-subtitle');
+    for (const notice of all('.report-reading-notice')) {
+        preserveCopy(notice, '原報告使用限制與品質狀態');
+        for (const check of all('.report-reading-notice-checks li', notice)) {
+            addLimit(text(query('span', check)), text(query('strong', check)));
+        }
+        const checks = query('.report-reading-notice-checks', notice);
+        if (checks) checks.remove();
+        readable(notice);
+        noticeAnchor?.after(notice);
+        noticeAnchor = notice;
+    }
+    for (const note of all('.report-reading-notice-note')) {
+        if (note.closest('.report-reading-notice,.reader-original,.reader-audit')) continue;
+        preserveCopy(note, '原驗證與使用限制說明');
+        readable(note);
+    }
+    noticeAnchor?.after(brief);
+    brief.after(limits);
+    const metrics = query('.metrics-grid');
+    if (metrics) { preserveCopy(metrics, '原主要數據'); readable(metrics, true); limits.after(metrics); }
+    const trace = query('.execution-summary-card');
+    if (trace) {
+        for (const note of all('.execution-summary-note', trace)) addLimit('分析依據核對', text(note));
+        moveToAudit(trace, '模型、執行流程與品質檢查原始紀錄');
+    }
+    for (const warning of all('.reference-official-warning')) addLimit('來源限制', text(warning));
+    const trust = query('.data-trust-card');
+    if (trust) {
+        preserveCopy(trust, '原資料可信度與版本紀錄');
+        const controls = query('.data-trust-controls', trust);
+        if (controls) moveToAudit(controls, '資料檢查分數與版本資訊');
+        readable(trust);
+        limits.append(trust);
+    }
+    limits.append(element('p', 'reader-score-note', '資料新鮮不代表內容已完整核實；資料檢查分數與分析信心也不是上漲機率。'));
+    if (focus) moveToAudit(focus, '原模式決策欄位');
+    for (const node of all('.mode-template-card')) moveToAudit(node, '原模式與閱讀架構');
+    for (const node of all('.section-model')) moveToAudit(node, '分析模組與模型');
+    for (const node of all('.tear-sheet, .editor-synthesis')) {
+        preserveCopy(node, '原整合摘要');
+        readable(node, true);
+        const disclosure = element('details', 'reader-original reader-expanded-summary');
+        const heading = node.matches('.tear-sheet') ? '完整研究摘要' : text(query('.editor-synthesis-title', node)) || '投資假設與追蹤條件';
+        disclosure.append(element('summary', '', heading), node);
+        hero.append(disclosure);
+    }
+    for (const node of all('.analysis-card')) {
+        const original = element('details', 'reader-original');
+        original.append(element('summary', '', '原始分析與欄位引用'));
+        const copy = node.cloneNode(true);
+        copy.className = 'reader-analysis';
+        all('[id]', copy).forEach(item => item.removeAttribute('id'));
+        readable(copy, true);
+        while (node.firstChild) original.append(node.firstChild);
+        node.append(copy, original);
+    }
+    for (const node of all('.executive-thesis, .section-lead, .downside-list, .highlight-list, .data-table, .price-targets-grid, .final-verdict')) {
+        if (node.closest('.reader-original,.reader-audit')) continue;
+        preserveCopy(node);
+        readable(node, true);
+    }
+    for (const node of all('.mode-focus-kicker,.hero-badge')) {
+        if (!node.closest('.reader-audit')) node.textContent = profile[0];
+    }
+    for (const node of all('.section-title,.chart-title,.chart-source,.nav-label,.sidebar-catalysts,.sidebar-footer,.trade-setup,.trade-setup-dashboard', document)) {
+        if (!node.closest('.reader-original,.reader-audit')) { preserveCopy(node); readable(node); }
+    }
+    for (const node of all('.references')) moveToAudit(node, '完整資料來源、供應商與取得紀錄');
+    const chartNotes = {
+        marketPriceChart: '價格與均線反映歷史走勢，不代表突破必然延續；還原價格與委託價格須分開核對。',
+        institutionalDailyChart: '正值為買超、負值為賣超；觀察期間與單位以圖表標示為準。',
+        institutionalCategoryChart: '各類法人可能方向不同，分類、期間及單位須一致才能比較。',
+        revenueChart: '比較營收與獲利的變化；年度資料與近十二個月資料不可直接混為同一期。',
+        marginChart: '利潤率顯示營收轉為獲利的比例，仍須搭配期間及產業特性。',
+        fcfChart: '自由現金流反映現金收支；負值原因需核對投資支出與營運資金，不直接等於公司無價值。',
+        roeChart: '股東權益報酬率須搭配負債與權益規模判讀。',
+        valuationChart: '不同估值假設可能得出不同價格，圖中價位不是保證報酬。',
+        peRiverChart: '歷史本益比區間僅供估值對照，不是未來價格必然回歸的範圍。',
+        moatChart: '分析評分不是客觀機率；缺少證據或未評估項目不等於零分。',
+    };
+    for (const canvas of all('canvas')) {
+        const card = canvas.closest('.chart-card');
+        if (card && chartNotes[canvas.id]) card.append(element('p', 'reader-chart-note', chartNotes[canvas.id]));
+    }
+    // Repaint the saved charts for a light surface without changing series or axes.
+    const chartPalette = {
+        '#38bdf8': '#0369a1', '#f87171': '#a61b2b', '#34d399': '#166534',
+        '#3b82f6': '#1d4ed8', '#10b981': '#166534', '#8b5cf6': '#6d28d9',
+        '#f59e0b': '#854d0e', '#84cc16': '#3f6212', '#22c55e': '#166534',
+        '#f97316': '#9a3412', '#ef4444': '#a61b2b', '#dc2626': '#a61b2b',
+        '#64748b': '#52636e', '#94a3b8': '#52636e',
+    };
+    const chartColor = value => Array.isArray(value) ? value.map(chartColor)
+        : typeof value === 'string' ? chartPalette[value.toLowerCase()] || value : value;
+    if (typeof window.Chart?.getChart === 'function') {
+        for (const canvas of all('canvas')) {
+            const chart = window.Chart.getChart(canvas);
+            if (!chart) continue;
+            chart.options.color = '#52636e';
+            const legend = chart.options.plugins?.legend;
+            if (legend?.labels) legend.labels.color = '#52636e';
+            const title = chart.options.plugins?.title;
+            if (title) title.color = '#243431';
+            for (const scale of Object.values(chart.options.scales || {})) {
+                if (scale.ticks) scale.ticks.color = '#52636e';
+                if (scale.grid) scale.grid.color = '#dce5e3';
+                if (scale.angleLines) scale.angleLines.color = '#dce5e3';
+                if (scale.pointLabels) scale.pointLabels.color = '#52636e';
+            }
+            for (const dataset of chart.data.datasets) {
+                for (const key of ['borderColor', 'backgroundColor', 'pointBackgroundColor', 'pointBorderColor', 'hoverBackgroundColor', 'hoverBorderColor']) {
+                    if (key in dataset) dataset[key] = chartColor(dataset[key]);
+                }
+            }
+            chart.update('none');
+        }
+    }
+    const sidebarRating = document.querySelector('.sidebar-rec');
+    if (sidebarRating && verdict) sidebarRating.textContent = `${profile[2]}：${text(query('.verdict-main', verdict))}`;
+    const navigation = document.querySelector('.sidebar .nav-section');
+    if (navigation) {
+        for (const [id, label] of [['reader-brief', '重點判讀'], ['reader-limits', '資料與風險限制'], ['reader-audit', '完整來源與查核']]) {
+            const link = element('a', 'nav-item', label);
+            link.href = `#${id}`;
+            navigation.append(link);
+        }
+    }
+    main.append(audit);
+    document.addEventListener('click', event => {
+        const link = event.target.closest?.('a[href^="#reader-"]');
+        if (!link) return;
+        const target = document.getElementById(link.getAttribute('href').slice(1));
+        if (!target) return;
+        let parent = target;
+        while (parent) { if (parent.tagName === 'DETAILS') parent.open = true; parent = parent.parentElement; }
+    });
+    document.body.classList.add('reader-ready');
+    document.body.dataset.readerVersion = '1';
+})();

@@ -95,7 +95,13 @@ def test_rendered_report_allows_only_trusted_chart_runtime():
 
 def test_changed_or_unknown_report_scripts_remain_blocked():
     html = sample_report().replace("const chartPayload", "window.reportInjected = true; const chartPayload")
-    for content in (html, '<script src="https://evil.example/payload.js"></script>', "<h1>report</h1>"):
+    parser = ScriptCollector()
+    parser.feed(html)
+    changed_chart = next(script["text"] for script in parser.scripts if not script["attrs"])
+    policy = secure_html_response(html).headers["content-security-policy"]
+    assert script_hash(changed_chart) not in policy
+    assert "https://cdn.jsdelivr.net" not in policy
+    for content in ('<script src="https://evil.example/payload.js"></script>', "<h1>report</h1>"):
         policy = secure_html_response(content).headers["content-security-policy"]
         assert "script-src 'none'" in policy
         assert "sha256-" not in policy
