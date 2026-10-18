@@ -307,6 +307,28 @@
         addLimit(`${category}｜${source}`, reason || (failed ? '原紀錄顯示取得失敗，但未保存進一步原因。' : notApplicable ? '原紀錄顯示本次未使用此來源，未保存進一步原因。' : status === 'not_configured' ? '原紀錄顯示此來源尚未設定，未保存進一步原因。' : '原紀錄未確認來源完整性，未保存進一步原因。'));
     }
     const refreshedAt = Date.parse(observations.refreshed_at);
+    const gapDetails = observations.evidence_gaps || {};
+    const cash = gapDetails.cash_flow || {};
+    const money = value => Number.isFinite(value) ? value.toLocaleString('zh-TW', { maximumFractionDigits: 0 }) : '尚未核實';
+    if (cash.status === 'annual_originals_verified') {
+        addLimit('已補核對｜年度自由現金流', `${cash.period_start} 至 ${cash.period_end}，${cash.scope === 'individual' ? '個別財報（非集團合併）' : '合併財報'}、新臺幣：營業現金流 ${money(cash.operating_cash_flow_twd)} 元，加設備支出 ${money(cash.ppe_purchase_twd)} 元、無形資產支出 ${money(cash.intangible_purchase_twd)} 元，得到年度自由現金流 ${money(cash.free_cash_flow_twd)} 元。支出採負號；由保存官方原件重算，不替換即期數字。原圖表與判斷仍依原分析版本，本次補充不代表已重跑。`);
+    }
+    if (Number.isFinite(cash.raw_scalar)) {
+        addLimit('尚未確認｜即期自由現金流期間', `原即期數值 ${money(cash.raw_scalar)} ${cash.raw_scalar_currency === 'TWD' ? '新臺幣元' : cash.raw_scalar_currency === 'USD' ? '美元' : '（幣別待核對）'}仍保留；未核實所屬期間與完整支出，不能因年度數字已核對就視為同一期。${cash.status !== 'annual_originals_verified' ? cash.reason || '' : ''}`);
+    }
+    const volume = gapDetails.volume || {};
+    if (volume.official_original_verified) {
+        const units = { shares: '股', lots: '張' };
+        const provider = volume.provider_label || '原保存來源';
+        addLimit('成交量差異的實際範圍', `${volume.date || '保存交易日'}：${provider} ${money(volume.provider_volume)} ${units[volume.provider_unit] || '單位未確認'}，官方 ${money(volume.official_volume)} ${units[volume.official_unit] || '單位未確認'}。${Number.isFinite(volume.delta_shares) ? '同單位差額（'+provider+' 減官方）為 '+money(volume.delta_shares)+' 股。' : '單位或日期不同，不直接相減。'}${volume.reason || ''}官方說明：${volume.official_scope_note || '原件未明列完整交易類型'}。${provider}的交易類型未獨立核實，不能把差額直接認定為零股或盤後交易。${volume.same_provider_ratio_policy || ''}跨來源法人占比仍不可混算；原分析與品質檢查未重跑。`);
+    }
+    const institution = gapDetails.institutional || {};
+    if (institution.expected_values > 0) {
+        const missingDays = Array.isArray(institution.missing_dates) ? institution.missing_dates : [];
+        const issues = Array.isArray(institution.issues) ? institution.issues : [];
+        const earlier = Array.isArray(institution.prior_receipt_issues) ? institution.prior_receipt_issues : [];
+        addLimit('歷史法人原件核對', `保存的 ${institution.expected_values / 3} 日、三類法人分項中，${institution.matched_values || 0}／${institution.expected_values} 個值與官方原件一致。${missingDays.length ? '缺原件日期：'+missingDays.slice(0, 5).join('、')+(missingDays.length > 5 ? ' 等 '+missingDays.length+' 日' : '')+'。' : ''}${issues.length ? issues.slice(0, 2).join('；')+'。' : ''}${earlier.length ? '早先取得／核對失敗紀錄仍保留，與本次補充原件分開判讀。' : ''}這是事後核對保存數值，不證明原報告當時已可取得，也不證明未來價格方向；原品質警示保留。`);
+    }
     if (observations.analysis_not_rerun === true && Number.isFinite(refreshedAt)) {
         for (const receipt of sourceObservations) {
             const identity = JSON.stringify([receipt.source, receipt.provider, receipt.fetched_at]);

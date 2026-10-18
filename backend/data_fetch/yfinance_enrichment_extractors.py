@@ -6,6 +6,7 @@ from datetime import date, datetime, timedelta
 
 import pandas as pd
 
+from report_exchange_volume import with_exchange_volume
 from short_term_market_data import daily_market_data_from_frame
 from short_term_technical_indicators import calculate_technical_indicators
 
@@ -24,6 +25,7 @@ def extract_price_history_ranges(stock) -> dict:
     return extract_market_history_bundle(stock)["price_history_ranges"]
 
 
+@with_exchange_volume
 def extract_market_history_bundle(stock, *, as_of=None) -> dict:
     """Use the existing 5y history request for both charts and daily evidence."""
     today = as_of or datetime.now().date()

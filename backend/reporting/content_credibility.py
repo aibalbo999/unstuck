@@ -7,6 +7,7 @@ from typing import Any
 from data_trust_scoring import normalize_data_trust
 from mapping_fields import safe_mapping_dict, safe_text
 from recommendation_labels import normalize_recommendation_label
+from report_exchange_volume import evaluate_volume_units
 from trade_execution_contract import short_observation_action_conflicts
 from .content_credibility_alignment import evaluate_recommendation_target_alignment
 from .content_credibility_confidence_calibration import evaluate_confidence_data_trust_calibration
@@ -81,6 +82,7 @@ def evaluate_content_credibility(context: dict, snapshot: dict | None = None, ma
         )
     results = [
         alignment,
+        evaluate_volume_units(data, pipeline_id),
         evaluate_scenario_target_order(parsed),
         evaluate_recommendation_target_scenario_range(parsed),
         evaluate_horizon_target_sequence(parsed),

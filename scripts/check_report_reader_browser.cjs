@@ -183,6 +183,20 @@ async function main() {
         await page.setContent(changedFixture('research', '其他指標 N/A', '護城河待補推論步驟；其他指標 N/A'));
         assert((await page.locator('.reader-brief').innerText()).includes('須重新分析；不能靠補股價直接填分'));
         results.push({ case: 'incomplete-moat-is-not-a-missing-quote', status: 'passed' });
+        await page.goto('about:blank');
+        await page.setContent(fixture('event-swing', 'warning', { evidence_gaps: {
+            cash_flow: { status: 'annual_originals_verified', period_start: '2025-01-01', period_end: '2025-12-31', operating_cash_flow_twd: 1000, ppe_purchase_twd: -200, intangible_purchase_twd: -50, free_cash_flow_twd: 750, raw_scalar: -900, raw_scalar_currency: 'TWD' },
+            volume: { official_original_verified: true, date: '2026-10-16', provider_label: 'Yahoo', provider_volume: 1000, official_volume: 1200, provider_unit: 'shares', official_unit: 'shares', delta_shares: -200 },
+            institutional: { expected_values: 90, matched_values: 15, missing_dates: ['2026-10-01'], issues: [] },
+        } }));
+        const gapText = await page.locator('.reader-limits').innerText();
+        assert(gapText.includes('年度自由現金流 750 元'));
+        assert(gapText.includes('原即期數值 -900 新臺幣元仍保留'));
+        assert(gapText.includes('差額（Yahoo 減官方）為 -200 股'));
+        assert(gapText.includes('不能把差額直接認定為零股或盤後交易'));
+        assert(gapText.includes('15／90 個值與官方原件一致'));
+        assert(gapText.includes('不證明原報告當時已可取得'));
+        results.push({ case: 'recovered-evidence-keeps-scalar-scope-and-pit-warnings', status: 'passed' });
         if (preview) {
             fs.mkdirSync(output, { recursive: true });
             for (const mode of ['v1', 'v2', 'v3', 'v4']) {

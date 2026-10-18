@@ -96,6 +96,15 @@ def test_new_report_exposes_source_failure_observations_for_readability():
     assert observed['source_audit'][0]['error_kind'] == 'cooldown'
 
 
+def test_reader_exposes_bounded_gap_review_without_raw_archive_paths():
+    from report_reader_assets import reader_observations
+    observed = reader_observations({'data': {'ticker': '2330.TW', 'free_cash_flow_raw': -123,
+                                            'financial_currency': 'TWD'}})
+    assert observed['evidence_gaps']['cash_flow']['raw_scalar'] == -123
+    assert observed['evidence_gaps']['cash_flow']['raw_scalar_period_verified'] is False
+    assert 'raw_response_path' not in str(observed['evidence_gaps'])
+
+
 @pytest.mark.parametrize('events', [None, True, {'private_receipt': 'not-an-event-list'}, 'bad-events'])
 def test_reader_metadata_does_not_break_rendering_on_malformed_event_list(events):
     from reporting.html_renderer import generate_html_report

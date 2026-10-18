@@ -29,6 +29,12 @@ def _reader_snapshot(storage: LocalFileStorage, filename: str):
         snapshot = json.loads(content.decode('utf-8'))
         if not isinstance(snapshot, dict):
             raise ValueError('Saved report snapshot must be a JSON object')
+        from report_evidence_review import load_review
+        review, reference = load_review(storage, filename, content)
+        if reference is not None:
+            snapshot['_reader_institutional_reports'] = review['institutional_reports']
+            snapshot['_reader_volume_observation'] = review.get('volume_observation')
+            snapshot['_reader_review_reference'] = reference
     return snapshot, data_key, content_hash
 
 
@@ -64,6 +70,11 @@ def migrate_report(
                 _, data_path = storage._target(data_key)
                 if sha256(data_path.read_bytes()) != data_hash:
                     raise ValueError('Saved report snapshot changed during preparation')
+            review = snapshot.get('_reader_review_reference') if isinstance(snapshot, dict) else None
+            if review:
+                _, review_path = storage._target(review['key'])
+                if sha256(review_path.read_bytes()) != review['sha256']:
+                    raise ValueError('Supplemental evidence review changed during preparation')
             row = conn.execute(
                 "SELECT * FROM reports WHERE output_dir=? AND filename=?",
                 (str(storage._root), filename),

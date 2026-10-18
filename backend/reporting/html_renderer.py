@@ -75,6 +75,8 @@ def generate_html_report(context: AnalysisContext) -> str:
     mode_template_html = build_mode_template_html(mode_template)
     source_audit_html = build_source_audit_html(data, context)
     audit_entries = safe_dict_list(data.get("source_audit"))
+    from report_reader_assets import reader_observations as build_reader_observations
+    reader_observations = build_reader_observations({**context, 'data': data})
     report_ticker = display_text(data.get("ticker") or ticker, ticker)
     is_taiwan_ticker = report_ticker.split(".")[0].isdigit()
     twse_official_unavailable = is_taiwan_ticker and not any(
