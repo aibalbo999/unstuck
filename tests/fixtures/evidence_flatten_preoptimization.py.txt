@@ -1,0 +1,76 @@
+def flatten_snapshot_numbers(snapshot: Any, *, eligible_only: bool = False, _normalized_paths: dict | None = None, _eligible_paths: dict | None = None) -> list[dict[str, Any]]:
+    """Collect numeric values from a sanitized snapshot."""
+    values: list[dict[str, Any]] = []
+    path_normalizations = _normalized_paths if _normalized_paths is not None else {}
+    path_eligibility = _eligible_paths if _eligible_paths is not None else {}
+    def normalized(path):
+        if path not in path_normalizations:
+            path_normalizations[path] = _normalize_match_text(path)
+        return path_normalizations[path]
+    def walk(value: Any, path: str) -> None:
+        # These excluded metadata prefixes stay excluded for every descendant.
+        # The public default still returns the complete legacy flattened list.
+        if eligible_only and path:
+            eligible = path_eligibility.get(path)
+            if eligible is None:
+                eligible = _is_eligible_snapshot_value({"path": path}, normalized_path=normalized(path))
+                path_eligibility[path] = eligible
+            if not eligible:
+                return
+        if path == COVER_STOP_PATH:
+            number = saved_cover_stop_number(value, snapshot)
+            if number is not None:
+                values.append({"path": path, "value": number})
+            return
+        if isinstance(value, bool) or value is None:
+            return
+        if isinstance(value, (int, float)):
+            if _valid_claim_number(float(value)):
+                values.append({"path": path, "value": float(value)})
+            return
+        if isinstance(value, str):
+            matches = list(_NUMBER_IN_STRING_RE.finditer(value))
+            path_text = normalized(path)
+            if any(marker in path_text for marker in _NORMALIZED_CANONICAL_STRING_PATH_MARKERS):
+                if _normalize_match_text("target_price") in path_text:
+                    value = _HORIZON_PREFIX_RE.sub(" ", value, count=1)
+                    matches = list(_NUMBER_IN_STRING_RE.finditer(value))
+                matches = matches[:1]
+            for match in matches:
+                number = _clean_number(match.group(0))
+                if number is not None and _valid_claim_number(number):
+                    values.append({"path": path, "value": number})
+            return
+        if isinstance(value, dict):
+            if path == "data.technical_indicators":
+                values.extend(technical_snapshot_values(value))
+                for key, item in value.items():
+                    if not re.fullmatch(r"sma_\d+", key) and key not in CANONICAL_TECHNICAL_FIELDS:
+                        walk(item, f"{path}.{key}")
+                return
+            if path.endswith("price_history") and {"dates", "prices"} <= value.keys():
+                points = [(index, str(date)[:10], float(price)) for index, (date, price) in enumerate(zip(value["dates"], value["prices"])) if isinstance(price, (int, float)) and not isinstance(price, bool)]
+                values.extend({"path": f"{path}[{date}].prices[{index}]", "value": price} for index, date, price in points)
+                values.extend({"path": f"{path}[month-end={month}]", "value": next(price for _, date, price in reversed(points) if date[:7] == month)} for month in {date[:7] for _, date, _ in points})
+                values.extend({"path": f"{path}[month={month}].{kind}", "value": (min if kind == "low" else max)(price for _, date, price in points if date[:7] == month)} for month in {date[:7] for _, date, _ in points} for kind in ("low", "high"))
+                return
+            for key, item in value.items():
+                walk(item, f"{path}.{key}" if path else str(key))
+            return
+        if isinstance(value, list):
+            if path == "data.daily_market_data.bars":
+                date_counts = Counter(bar["date"] for bar in value if isinstance(bar, dict) and isinstance(bar.get("date"), str))
+                for bar in value:
+                    if not isinstance(bar, dict) or not isinstance(bar.get("date"), str) or date_counts[bar["date"]] != 1:
+                        continue
+                    for kind in ("high", "low"):
+                        number = bar.get(kind)
+                        if isinstance(number, (int, float)) and not isinstance(number, bool) and math.isfinite(number) and number > 0:
+                            values.append({"path": f"{path}[{bar['date']}].{kind}", "value": float(number)})
+            for index, item in enumerate(value):
+                if path.endswith("global_market_context.items") and isinstance(item, dict) and (symbol := _normalize_match_text(item.get("symbol") or item.get("label"))):
+                    for key, child in item.items(): walk(child, f"{path}[{symbol}].{key}")
+                    continue
+                walk(item, f"{path}[{item.get('date')}]" if path.endswith("daily_total_net_buy_last_10") and isinstance(item, dict) and item.get("date") else f"{path}[{index}]")
+    walk(snapshot, "")
+    return values

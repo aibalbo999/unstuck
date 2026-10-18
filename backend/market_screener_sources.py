@@ -68,28 +68,8 @@ class TwseFreeScreenerDataSource:
         return pd.DataFrame(records)
 
     def fetch_daily_frame(self, scan_date: date) -> pd.DataFrame:
-        day_rows = self._json_get(TWSE_STOCK_DAY_ALL_URL)
-        avg_by_code = {
-            clean_tw_stock_id(row.get("Code") or row.get("證券代號")): safe_float(row.get("MonthlyAveragePrice") or row.get("月平均價"))
-            for row in self._json_get(TWSE_STOCK_DAY_AVG_ALL_URL)
-            if isinstance(row, dict)
-        }
-        records = []
-        for row in day_rows:
-            if not isinstance(row, dict):
-                continue
-            stock_id = clean_tw_stock_id(row.get("Code") or row.get("證券代號"))
-            if not is_common_tw_stock_id(stock_id):
-                continue
-            records.append({
-                "date": twse_date_to_iso(row.get("Date")) or scan_date.isoformat(),
-                "stock_id": stock_id,
-                "company_name": clean_company_name(row.get("Name") or row.get("證券名稱")),
-                "close": safe_float(row.get("ClosingPrice") or row.get("收盤價")),
-                "Trading_Volume": safe_float(row.get("TradeVolume") or row.get("成交股數")),
-                "monthly_average_close": avg_by_code.get(stock_id),
-            })
-        return pd.DataFrame(records)
+        from screener_twse_daily import daily_frame
+        return daily_frame(self, scan_date)
 
     def _json_get(self, url: str) -> list[dict]:
         response = self._get(url)
@@ -124,7 +104,7 @@ class TwseFreeScreenerDataSource:
     def _institutional_records_from_payload(self, payload: dict, investor_name: str, scan_date: date) -> list[dict]:
         if not isinstance(payload, dict):
             return []
-        record_date = twse_date_to_iso(payload.get("date")) or scan_date.isoformat()
+        record_date = twse_date_to_iso(payload.get("date"))
         records = []
         for row in payload.get("data") or []:
             if not isinstance(row, list) or len(row) < 5:
@@ -174,6 +154,7 @@ def first_available_frame(sources: list, operation: str, fetcher, warnings: list
             warnings.append(log_http_warning(provider, operation, exc))
             continue
         frame = value.copy() if isinstance(value, pd.DataFrame) else pd.DataFrame()
+        warnings.extend(frame.attrs.get("source_warnings") or [])
         if not frame.empty:
             return frame, provider
     return pd.DataFrame(), ""

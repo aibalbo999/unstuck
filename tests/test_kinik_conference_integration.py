@@ -1,0 +1,154 @@
+"""Public boundary checks. Original private-data replay cases remain local."""
+from types import SimpleNamespace
+import sys
+
+def test_public_metadata_gap_prefers_verified_kinik_original(monkeypatch):
+    from data_fetch import earnings_call_fetcher as fetcher
+    expected = {'ticker': '1560.TW', 'source': 'KINIK official conference presentation', 'documents': [{'page_count': 36, 'native_text_coverage': 'complete'}]}
+    calls = []
+
+    def fetch(ticker, **options):
+        calls.append((ticker, options))
+        return expected
+    monkeypatch.setitem(sys.modules, 'data_fetch.market_sources.kinik_conference', SimpleNamespace(supports_kinik=lambda t: t == '1560.TW', fetch_kinik_context=fetch))
+    monkeypatch.setattr(fetcher, '_fetch_official_index_context', lambda *a, **kw: {'source': 'MOPS', 'materials': []})
+    assert fetcher.fetch_free_earnings_call_context('1560.TW', force_refresh=True, use_cache=False) == expected
+    assert len(calls) == 1 and calls[0][1]['force_refresh'] is True
+from copy import deepcopy
+import asyncio
+import pytest
+
+def test_kinik_role_view_keeps_period_and_units_limits():
+    from conference_presentation_prompt import presentation_prompt_context
+    context = {'coverage_status': 'partial', 'coverage_notes': ['財務數字未經會計師查核，圖形不完整。'], 'documents': [{'source': 'KINIK official conference presentation', 'document_kind': 'presentation', 'ticker': '1560.TW', 'page_count': 36, 'projection_policy': 'kinik-presentation-role-v1', 'content_sha256': '4490a76682ab9655cbe78c30736ede3749c31577c35eaa95ef187f7af8511d4c', 'event_date': '2026-09-21', 'event_end_date': '2026-09-22', 'content_periods': ['2026Q2', '2026H1', '2025 comparisons'], 'published_at': None, 'language': 'zh-Hant with English tables and appendices', 'event_time': None, 'unit_scope_caution': 'TWD thousand, USD thousand and EPS per share differ', 'financial_scope_caution': 'Page5 table header1Q25/QoQ ambiguous; never silently correct', 'period_scope_caution': 'Pages6/10 360K versus page13 400K capacity claims remain unresolved', 'subsidiary_scope_caution': 'ABU includes subsidiaries; page9 concerns one largest customer only', 'forward_looking_caution': 'Future expectations are not realized results', 'q_and_a_transcript_available': False, 'known_native_text_omissions': [{'page_number': 6, 'issue': 'chart_image'}], 'pages': [{'page_number': n, 'text': '營收 市場 產品 展望 風險 ' * 100} for n in range(1, 37)]}]}
+    before = deepcopy(context)
+    for role in (3, 5, 12):
+        projected = presentation_prompt_context(context, role)
+        assert projected['transcript_available'] is False
+        doc = projected['documents'][0]
+        for field in ('content_periods', 'language', 'event_time', 'event_end_date', 'unit_scope_caution', 'period_scope_caution', 'subsidiary_scope_caution', 'financial_scope_caution', 'forward_looking_caution', 'q_and_a_transcript_available', 'known_native_text_omissions'):
+            assert doc[field] == context['documents'][0][field]
+        assert sum((len(p['text']) for p in doc['pages'])) <= 6000
+        assert projected['coverage_notes'] == context['coverage_notes']
+        assert projected['coverage_status'] == 'partial'
+    assert presentation_prompt_context(context, 1) == {}
+    assert context == before
+
+def test_kinik_roles_omit_only_qualified_image_page_and_obscured_footer():
+    from conference_presentation_prompt import presentation_prompt_context
+    footer = 'Copyright©  KINIK COMPANY , All Rights Reserved.'
+    doc = {'source': 'KINIK official conference presentation', 'document_kind': 'presentation', 'projection_policy': 'kinik-presentation-role-v1', 'content_sha256': '4490a76682ab9655cbe78c30736ede3749c31577c35eaa95ef187f7af8511d4c', 'page_count': 36, 'pages': [{'page_number': 5, 'text': 'Revenue 1Q25 QoQ ' + footer}, {'page_number': 18, 'text': '18\n'}, {'page_number': 36, 'text': '市場 投資 公司說法\n' + footer + '\n36'}]}
+    original = deepcopy(doc)
+    for role in (3, 5, 12):
+        view = presentation_prompt_context({'documents': [doc]}, role)['documents'][0]
+        pages = {p['page_number']: p['text'] for p in view['pages']}
+        assert set(pages) == {5, 36}
+        assert '1Q25' in pages[5] and footer in pages[5]
+        assert footer not in pages[36] and '公司說法' in pages[36]
+        assert view['excluded_native_text_pages'] == [18]
+        assert view['native_footer_omission_pages'] == [36]
+    assert doc == original
+
+@pytest.mark.parametrize('change', ['projection_policy', 'content_sha256'])
+def test_kinik_roles_reject_unknown_revision_or_projection(change):
+    from conference_presentation_prompt import presentation_prompt_context
+    doc = {'source': 'KINIK official conference presentation', 'document_kind': 'presentation', 'projection_policy': 'kinik-presentation-role-v1', 'content_sha256': '4490a76682ab9655cbe78c30736ede3749c31577c35eaa95ef187f7af8511d4c', 'pages': [{'page_number': 9, 'text': 'Revenue net income earnings per share'}]}
+    assert presentation_prompt_context({'documents': [doc]}, 5)['documents']
+    doc[change] = 'unknown'
+    for role in (3, 5, 12):
+        assert not presentation_prompt_context({'documents': [doc]}, role).get('documents')
+
+@pytest.mark.parametrize('kind', ['timeout', 'lease_lost', 'single_flight_busy', 'guard_storage_unavailable'])
+def test_kinik_guard_or_budget_failure_never_starts_metadata_fallback(monkeypatch, kind):
+    from data_fetch import earnings_call_fetcher as fetcher
+    from data_fetch.market_sources import kinik_conference as source
+    from search_provider_runtime import SourceResponseError
+
+    def fail(*a, **kw):
+        raise SourceResponseError(kind)
+    monkeypatch.setattr(source, 'fetch_kinik_context', fail)
+    monkeypatch.setattr(fetcher, '_fetch_official_index_context', lambda *a, **kw: pytest.fail('guard failure reached fallback'))
+    with pytest.raises(SourceResponseError) as caught:
+        fetcher.fetch_free_earnings_call_context('1560.TW')
+    assert caught.value.error_kind == kind
+
+def test_kinik_receipt_never_enters_role_prompt():
+    from prompt_evidence import prompt_evidence_copy
+    value = {'data': {'kinik_conference_receipt': {'internal_path': '/private/raw'}, 'kinik_glyph_evidence': {'internal_digest': 'test'}, 'documents': [{'text': '營收'}]}}
+    before = deepcopy(value)
+    assert prompt_evidence_copy(value) == {'data': {'documents': [{'text': '營收'}]}}
+    assert value == before
+
+@pytest.mark.parametrize('data', [False, [], 'bad', {'ticker': '1560.TW', 'company_name': '中砂', 'quote_type': 'ETF'}])
+def test_kinik_provider_rejects_bad_original_before_acquisition(monkeypatch, data):
+    from data_fetch import enrichment_providers
+    from data_fetch.types import FetchRequest
+
+    def forbidden(*a, **kw):
+        pytest.fail('invalid original reached external acquisition')
+    monkeypatch.setattr(enrichment_providers, 'fetch_free_earnings_call_context', forbidden)
+    result = enrichment_providers.EarningsCallProvider().fetch(FetchRequest.from_ticker('1560.TW'), {'data': data})
+    assert result.status == 'unavailable' and result.audit['event_kind'] == 'local_block'
+    assert result.audit['record_count'] == result.audit['http_request_count'] == 0
+    assert result.audit['http_request_sent'] is False
+
+def test_kinik_source_service_preserves_original_context():
+    from data_fetch.provider_registry import ProviderRegistry
+    from data_fetch.service import StockDataService
+    from data_fetch.enrichment_providers import EarningsCallProvider
+    from data_fetch.types import FetchRequest, ProviderResult
+    seen = []
+
+    class Provider(EarningsCallProvider):
+
+        def fetch(self, request, context=None):
+            seen.append(context)
+            return ProviderResult(self.source, self.name, 'unavailable', value={})
+    service = StockDataService(registry=ProviderRegistry([Provider()]))
+    context = {'data': {'ticker': '1560.TW', 'company_name': '中砂'}, 'original_ticker': '1560.TW'}
+    asyncio.run(service.fetch_source_async(FetchRequest.from_ticker('1560.TW'), 'earnings_call', context=context))
+    assert seen == [context]
+
+def test_kinik_failed_body_provenance_survives_index_fallback_error(monkeypatch):
+    from data_fetch import earnings_call_fetcher as fetcher
+    from data_fetch.market_sources import kinik_conference as source
+    from search_provider_runtime import SourceResponseError
+
+    def body(*a, **kw):
+        error = SourceResponseError('invalid_response')
+        error.diagnostic.update(http_request_count=2, http_request_sent=True, specific_original='bad PDF')
+        raise error
+
+    def index(*a, **kw):
+        raise SourceResponseError('unavailable')
+    monkeypatch.setattr(source, 'fetch_kinik_context', body)
+    monkeypatch.setattr(fetcher, '_fetch_official_index_context', index)
+    with pytest.raises(SourceResponseError) as caught:
+        fetcher.fetch_free_earnings_call_context('1560.TW')
+    original = caught.value.diagnostic['component_statuses']['KINIK_presentation']
+    assert original['specific_original'] == 'bad PDF' and original['http_request_count'] == 2
+
+@pytest.mark.parametrize('caller', ['workflow', 'compatibility'])
+@pytest.mark.parametrize('marker', [{'kinik_conference_receipt': None}, {'projection_policy': 'kinik-presentation-role-v1'}, {'source': 'KINIK official conference presentation'}, {'kinik_glyph_evidence': False}, {'url': 'https://www.kinik.com.tw/upload/Investors/Conference/2026Q2%20KINIK%20%E4%B8%AD%E7%A0%82%E5%85%AC%E5%8F%B8%E6%B3%95%E8%AA%AA%E6%9C%83.pdf'}])
+def test_all_aggregate_cache_callers_respect_no_store_without_mutation(monkeypatch, caller, marker):
+    from data_fetch import cache_helpers
+    from data_fetch.payload_cache import cache_financial_payload
+    from financial_data import _cache_financial_data
+    writes = []
+    monkeypatch.setattr(cache_helpers, 'set_cache_json', lambda *a, **k: writes.append((a, k)))
+    data = {'ticker': '1560.TW', 'earnings_call': {'documents': [{'pages': [{'page_number': 1, 'text': 'private original'}], **marker}]}}
+    before = deepcopy(data)
+    (cache_financial_payload if caller == 'workflow' else _cache_financial_data)(data, '1560.TW')
+    assert writes == [] and data == before
+
+@pytest.mark.parametrize('caller', ['workflow', 'compatibility'])
+def test_other_issuers_keep_existing_payload_cache(monkeypatch, caller):
+    from data_fetch import cache_helpers
+    from data_fetch.payload_cache import cache_financial_payload
+    from financial_data import _cache_financial_data
+    writes = []
+    monkeypatch.setattr(cache_helpers, 'set_cache_json', lambda *a, **k: writes.append((a, k)))
+    data = {'ticker': '2330.TW', 'company_name': '台積電', 'earnings_call': {'documents': [{'source': 'Other issuer', 'pages': []}]}}
+    before = deepcopy(data)
+    (cache_financial_payload if caller == 'workflow' else _cache_financial_data)(data, '2330.TW')
+    assert len(writes) == 1 and writes[0][0][0] == 'financial_data:2330.TW' and (data == before)

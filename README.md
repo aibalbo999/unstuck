@@ -158,7 +158,7 @@ Production profile 請設定 `UNSTUCK_ENV=production` 或 `DEPLOYMENT_MODE=serve
 - `GEMINI_API_KEY_1` 到 `GEMINI_API_KEY_10`
 - `OPENAI_API_KEYS` / `OPENAI_API_KEY` / `OPENAI_API_KEY_1` 到 `OPENAI_API_KEY_10`：可選，用於 `openai:<model>` 路由
 - `ANTHROPIC_API_KEYS` / `ANTHROPIC_API_KEY` / `ANTHROPIC_API_KEY_1` 到 `ANTHROPIC_API_KEY_10`：可選，用於 `anthropic:<model>` 或 `claude:<model>` 路由
-- `WEB_SEARCH_PROVIDER_ORDER`：可選，替代搜尋來源順序，預設 `tavily,serpapi,google_news_rss,gdelt,yahoo_rss,brave`；`google_news_rss`、`gdelt`、`yahoo_rss` 不需 key。
+- `WEB_SEARCH_PROVIDER_ORDER`：可選，替代搜尋來源順序，預設 `google_news_rss,bing_news_rss,duckduckgo_news,gdelt,yahoo_rss`；可用來源及個別 API key 設定見 `backend/settings/providers.py`。
 - `SEARCH_CATALYST_MAX_RESULTS` / `SEARCH_PEER_DISCOVERY_MAX_RESULTS`：可選，近期催化劑與同業搜尋的預設保留筆數，預設皆為 `8`。
 - `SEARCH_MIN_UNIQUE_SOURCES` / `SEARCH_PROVIDER_EXPANSION_MIN_RESULTS`：可選，替代搜尋品質門檻；預設至少 `3` 個不同來源，不足時下一個 provider 至少補抓 `3` 筆候選。
 - `BRAVE_SEARCH_API_KEY`、`TAVILY_API_KEY`、`SERPAPI_API_KEY`：可選，用於近期催化劑與同業搜尋。Bing Search APIs 已於 2025-08-11 退役，不建議新設定使用。
@@ -640,3 +640,10 @@ rg -n "API_KEY|PRIVATE KEY|github[_-]pat" .
 ```
 
 第三個指令不應在可提交檔案中找到任何秘密資訊。完整提交前建議直接跑 `scripts/ci_gate.sh`。
+
+
+### 來源與報告讀取的驗證界線
+
+追蹤查詢先依 metadata 與 snapshot 選出各模式最新可預測報告，再投影目前品質；最新報告被阻擋時不退回較舊報告。入口見 `backend/tracking_latest_reports.py`。
+
+`backend/tracking_read_executor.py` 只合併仍在執行、來源目錄與規則版本相同的讀取，不快取已完成結果。準備與追蹤投影各有 20 秒等待上限，全品質投影有 25 秒上限，外層整體等待上限 30 秒；來源變動、忙碌、逾時或規則需重載會明示不可用。來源補件與分析重新執行分開，補回資料不代表原報告品質已通過。

@@ -1,0 +1,2301 @@
+{
+  "verification_date": "2026-10-18",
+  "base_commit": "c6a1c92c7b0fdc49e8c650ecd4c8aa186c626420",
+  "test_summary": "1791 passed in 115.36s (0:01:55)",
+  "test_targets": [
+    "tests/test_allis_conference_integration.py",
+    "tests/test_bank_financial_taxonomy.py",
+    "tests/test_cal_annual_bridge.py",
+    "tests/test_cal_master_fallback.py",
+    "tests/test_chb_integration.py",
+    "tests/test_chipmos_conference.py",
+    "tests/test_chipmos_conference_integration.py",
+    "tests/test_chroma_integration.py",
+    "tests/test_cht_conference.py",
+    "tests/test_cht_presentation_integration.py",
+    "tests/test_csc_conference.py",
+    "tests/test_csc_independent_review.py",
+    "tests/test_csc_presentation_integration.py",
+    "tests/test_decision_tracking_workflow.py",
+    "tests/test_eikei_conference.py",
+    "tests/test_evidence_financial_amounts.py",
+    "tests/test_evidence_flatten_incremental.py",
+    "tests/test_fubon_conference.py",
+    "tests/test_gce_conference.py",
+    "tests/test_gce_conference_integration.py",
+    "tests/test_getac_integration.py",
+    "tests/test_hiwin_conference.py",
+    "tests/test_hiwin_conference_integration.py",
+    "tests/test_holding_full_originals.py",
+    "tests/test_innocare_conference.py",
+    "tests/test_innocare_integration.py",
+    "tests/test_kinik_conference.py",
+    "tests/test_kinik_conference_integration.py",
+    "tests/test_kinik_presentation_pdf_reader.py",
+    "tests/test_lienhwa_conference.py",
+    "tests/test_lienhwa_integration.py",
+    "tests/test_macronix_conference.py",
+    "tests/test_macronix_presentation_index.py",
+    "tests/test_market_screener.py",
+    "tests/test_mops_body_budget_review.py",
+    "tests/test_mops_cooldown_recovery.py",
+    "tests/test_mops_legacy_fallback.py",
+    "tests/test_mops_material_transport.py",
+    "tests/test_mops_otc_master.py",
+    "tests/test_mops_pptx_mime_review.py",
+    "tests/test_mops_pptx_review.py",
+    "tests/test_mops_presentation.py",
+    "tests/test_mops_presentation_integration.py",
+    "tests/test_mops_presentation_shared_master.py",
+    "tests/test_mops_prior_year_presentation.py",
+    "tests/test_mops_public_annual_financial.py",
+    "tests/test_mops_semantic_role_pages.py",
+    "tests/test_mops_static_material.py",
+    "tests/test_mops_verification_diagnostics.py",
+    "tests/test_myson_monthly_history.py",
+    "tests/test_npc_pcb_conference.py",
+    "tests/test_oct5_source_admission.py",
+    "tests/test_ordinary_announcement_admission.py",
+    "tests/test_ordinary_event_identity.py",
+    "tests/test_ordinary_individual_annual.py",
+    "tests/test_ordinary_individual_consumers.py",
+    "tests/test_otc_security_identity_refresh.py",
+    "tests/test_performance_read_executor.py",
+    "tests/test_phase42_content_branches.py",
+    "tests/test_philjobnet_medtecs.py",
+    "tests/test_public_annual_gap_cache.py",
+    "tests/test_public_holding_annual_source.py",
+    "tests/test_public_short_annual_index_gap_cache.py",
+    "tests/test_renderer_evidence_order.py",
+    "tests/test_report_artifacts.py",
+    "tests/test_report_institutional_source_refresh.py",
+    "tests/test_report_refresh_incremental.py",
+    "tests/test_report_security_identity_source_refresh.py",
+    "tests/test_runtime_paths.py",
+    "tests/test_saved_content_generation_facts.py",
+    "tests/test_settings_env_loading.py",
+    "tests/test_sigurd_conference.py",
+    "tests/test_sigurd_conference_integration.py",
+    "tests/test_sinbon_conference.py",
+    "tests/test_sma_reasoning_regressions.py",
+    "tests/test_social_query_precision.py",
+    "tests/test_source_pdf_header_whitespace.py",
+    "tests/test_sti_conference.py",
+    "tests/test_sti_conference_integration.py",
+    "tests/test_sti_presentation_pdf_reader.py",
+    "tests/test_storage_inventory.py",
+    "tests/test_sym_issuer_news.py",
+    "tests/test_sym_issuer_news_integration.py",
+    "tests/test_syntec_annual_bridge.py",
+    "tests/test_tcfhc_annual_financial.py",
+    "tests/test_tecom_conference.py",
+    "tests/test_tewc_conference.py",
+    "tests/test_tewc_conference_transport.py",
+    "tests/test_tpex_historical_quarterly_summary.py",
+    "tests/test_tracking_latest_selection.py",
+    "tests/test_tracking_read_executor.py",
+    "tests/test_tracking_refresh_workflow.py",
+    "tests/test_twse_dated_daily_fallback.py",
+    "tests/test_twse_official_freshness.py",
+    "tests/test_unitech_conference.py",
+    "tests/test_unitech_tcfhc_review_boundaries.py",
+    "tests/test_unitech_tcfhc_source_integration.py",
+    "tests/test_voltronic_conference.py",
+    "tests/test_wahlee_integration.py",
+    "tests/test_walsin_conference.py",
+    "tests/test_walsin_integration.py",
+    "tests/test_winbond_conference.py",
+    "tests/test_winbond_conference_integration.py",
+    "tests/test_zdt_integration.py"
+  ],
+  "reviewed_test_modules": 197,
+  "review_decisions": {
+    "keep_local: all remaining cases require private evidence, saved reports or credential-bearing capture": 79,
+    "public_boundary_subset": 87,
+    "keep_local: separate concurrent report-reader workstream": 3,
+    "keep_local: independent research workstream": 24,
+    "public_replay_with_safe_fixture": 4
+  },
+  "test_module_review": [
+    {
+      "path": "tests/test_allis_conference.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_allis_conference_integration.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_all_aggregate_cache_callers_respect_no_store_without_mutation",
+        "test_allis_failed_body_provenance_survives_index_fallback_error",
+        "test_allis_provider_rejects_bad_original_before_acquisition",
+        "test_allis_receipt_never_enters_role_prompt",
+        "test_allis_role_view_keeps_period_and_subsidiary_limits",
+        "test_allis_source_service_preserves_original_context",
+        "test_other_issuers_keep_existing_payload_cache",
+        "test_public_metadata_gap_prefers_verified_allis_original"
+      ],
+      "private_test_functions_retained": 2
+    },
+    {
+      "path": "tests/test_allis_conference_transport.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_allis_presentation_pdf_reader.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_annual_filing_reference.py",
+      "decision": "keep_local",
+      "reason": "separate concurrent report-reader workstream"
+    },
+    {
+      "path": "tests/test_annual_shared_issuer_master.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_backtest_retry_and_cost_sensitivity.py",
+      "decision": "keep_local",
+      "reason": "independent research workstream"
+    },
+    {
+      "path": "tests/test_bank_financial_taxonomy.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_bank_basis_and_complete_receipts_survive_prompt_state_and_size_governance",
+        "test_bank_five_year_extraction_avoids_redundant_sdk_and_preserves_net_revenue",
+        "test_bank_format_keeps_identity_currency_completeness_and_unique_taxonomy",
+        "test_bank_partial_comparative_preserves_available_history_without_inventing_fcf",
+        "test_bank_receipt_tampering_cannot_publish_projection",
+        "test_bank_same_period_capital_notes_use_net_revenue_and_actual_bank_basis",
+        "test_bank_schema_retains_origin_when_all_optional_metadata_is_removed",
+        "test_bank_source_keeps_distinct_schema_across_annual_prompt_metrics_and_money_checks",
+        "test_captured_bank_three_required_lines_are_acquired_without_holding_aliases",
+        "test_five_bank_originals_reach_projection_with_actual_tag_basis",
+        "test_legacy_malformed_documents_are_rejected_without_exception",
+        "test_malformed_bank_archive_is_rejected_by_projection_and_prompt",
+        "test_missing_ticker_is_rejected_before_bank_original_replay",
+        "test_unverified_bank_basis_does_not_admit_financial_fcf_as_industrial_dcf",
+        "test_unverified_bank_receipt_cannot_enter_prompt_raw_history"
+      ],
+      "private_test_functions_retained": 1
+    },
+    {
+      "path": "tests/test_cached_institutional_recovery.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_cal_annual_bridge.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_cash_row_rejects_ambiguous_or_conflicting_native_positions",
+        "test_changed_mops_cash_rejects_instead_of_overwriting_with_pdf",
+        "test_complete_native_ir_index_publishes_three_consolidated_pdf_urls",
+        "test_conflicting_context_stops_before_new_http",
+        "test_expired_projection_budget_fails_closed",
+        "test_full_native_books_supply_both_annual_cash_columns",
+        "test_native_shared_deadline_and_existing_host_cooldown_stop_http",
+        "test_native_transport_reports_actual_status_and_never_retries",
+        "test_normal_financial_path_uses_bridge_once_without_annual_sdk",
+        "test_original_replay_cannot_add_point_in_time_or_finality_claims",
+        "test_original_replay_rejects_changed_identity_period_receipt_or_cash_fact",
+        "test_other_issuer_or_individual_statement_index_cannot_supply_missing_cash_fact",
+        "test_prior_formal_failure_now_returns_five_complete_replayable_years",
+        "test_typed_source_refresh_preserves_full_receipts_and_truthful_new_attempt"
+      ],
+      "private_test_functions_retained": 1
+    },
+    {
+      "path": "tests/test_cal_ir_gzip.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_cal_master_fallback.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_alternative_cannot_bypass_original_provenance_replay",
+        "test_json_duplicate_fields_and_wrong_source_fail_closed",
+        "test_json_roster_rejects_identity_date_or_shape_conflicts",
+        "test_legacy_raw_json_receipt_keeps_five_years_and_original_failure_metadata",
+        "test_non_master_original_native_caps_and_shared_deadline_unchanged"
+      ],
+      "private_test_functions_retained": 0
+    },
+    {
+      "path": "tests/test_candidate_report_observations.py",
+      "decision": "keep_local",
+      "reason": "independent research workstream"
+    },
+    {
+      "path": "tests/test_candidate_source_state.py",
+      "decision": "keep_local",
+      "reason": "independent research workstream"
+    },
+    {
+      "path": "tests/test_chb_conference.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_chb_conference_transport.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_chb_integration.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_archived_qa_cannot_become_reusable_financial_payload",
+        "test_invalid_context_is_local_block_for_the_selected_issuer",
+        "test_one_qa_summary_does_not_count_pages_or_questions_as_successes",
+        "test_private_receipt_does_not_enter_prompts",
+        "test_public_routing_uses_chb_qa_without_mops_retry",
+        "test_selected_source_failure_does_not_retry_mops"
+      ],
+      "private_test_functions_retained": 3
+    },
+    {
+      "path": "tests/test_chipmos_conference.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_caller_identity_fail_closed",
+        "test_explicit_identity_display_and_combined_forbidden_alias_are_bound",
+        "test_native_request_budget_no_retry_redirect_proxy_or_cookie"
+      ],
+      "private_test_functions_retained": 28
+    },
+    {
+      "path": "tests/test_chipmos_conference_integration.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_chipmos_failed_body_provenance_survives_index_fallback_error",
+        "test_chipmos_internal_receipt_is_removed_recursively_without_mutation",
+        "test_chipmos_provider_rejects_invalid_original_before_external_fetch",
+        "test_chipmos_transcript_role_keeps_translation_limits_and_bounded_text"
+      ],
+      "private_test_functions_retained": 2
+    },
+    {
+      "path": "tests/test_chroma_conference.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_chroma_conference_transport.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_chroma_integration.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_archived_presentation_cannot_become_reusable_financial_payload",
+        "test_invalid_context_is_local_block_for_the_selected_issuer",
+        "test_one_presentation_does_not_count_pages_as_successes",
+        "test_private_receipt_does_not_enter_prompts",
+        "test_public_routing_uses_chroma_presentation_without_mops_retry",
+        "test_selected_source_failure_does_not_retry_mops"
+      ],
+      "private_test_functions_retained": 3
+    },
+    {
+      "path": "tests/test_cht_conference.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_identity_context_contradictions_rejected",
+        "test_native_request_budget_no_retry_redirect_proxy_or_cookie"
+      ],
+      "private_test_functions_retained": 26
+    },
+    {
+      "path": "tests/test_cht_presentation_integration.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_cht_audit_is_one_native_body_or_zero_new_warm_acquisition",
+        "test_cht_private_receipts_not_role_prompt",
+        "test_cht_qualified_role_view_excludes_editorial_pages_without_rewriting_original",
+        "test_cht_role_keeps_mixed_periods_no_transcript_and_financial_limitations",
+        "test_cht_role_projection_requires_visually_qualified_revision",
+        "test_provider_invalid_context_stops_before_any_HTTP",
+        "test_public_free_context_prefers_cht_original",
+        "test_source_service_passes_original_identity"
+      ],
+      "private_test_functions_retained": 2
+    },
+    {
+      "path": "tests/test_cht_published_link_integration.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_compeq_mops_presentation.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_conference_partial_retention.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_conference_retention_new_profiles.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_conference_shared_issuer_master.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_csc_conference.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_identity_context_contradictions_rejected",
+        "test_native_csc_index_request_gets_targeted_timeout",
+        "test_native_request_budget_no_retry_redirect_proxy_or_cookie"
+      ],
+      "private_test_functions_retained": 24
+    },
+    {
+      "path": "tests/test_csc_independent_review.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_cross_requested_and_resolved_subject_never_reaches_source"
+      ],
+      "private_test_functions_retained": 4
+    },
+    {
+      "path": "tests/test_csc_pdf_reader.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_csc_presentation_integration.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_csc_audit_is_one_native_body_or_zero_new_warm_acquisition",
+        "test_csc_private_receipts_not_role_prompt",
+        "test_csc_role_keeps_mixed_periods_no_transcript_and_financial_limitations",
+        "test_provider_invalid_context_stops_before_any_HTTP",
+        "test_public_free_context_prefers_csc_original",
+        "test_source_service_passes_original_identity"
+      ],
+      "private_test_functions_retained": 2
+    },
+    {
+      "path": "tests/test_csc_shared_master.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_daily_candidate_review.py",
+      "decision": "keep_local",
+      "reason": "independent research workstream"
+    },
+    {
+      "path": "tests/test_eikei_conference.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_context_conflict_local_block_and_single_success_count",
+        "test_private_original_is_never_reusable_financial_cache",
+        "test_public_dispatch_honors_source_policy"
+      ],
+      "private_test_functions_retained": 8
+    },
+    {
+      "path": "tests/test_eikei_conference_transport.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_evidence_flatten_incremental.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_complex_keys_boundaries_dates_and_unicode_do_not_bypass_exclusions",
+        "test_generated_nested_key_paths_match_without_evidence_cache"
+      ],
+      "private_test_functions_retained": 1
+    },
+    {
+      "path": "tests/test_evidence_revision_and_profiles.py",
+      "decision": "keep_local",
+      "reason": "independent research workstream"
+    },
+    {
+      "path": "tests/test_feib_published_presentation.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_fpc_pdf_symbols.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_fubon_conference.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_context_conflict_local_block_and_single_success_count",
+        "test_private_original_is_never_reusable_financial_cache",
+        "test_public_dispatch_honors_source_policy",
+        "test_shared_MOPS_servlet_does_not_mark_other_issuers"
+      ],
+      "private_test_functions_retained": 11
+    },
+    {
+      "path": "tests/test_fubon_conference_transport.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_gce_conference.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_identity_does_not_borrow_good_name_to_hide_contradiction"
+      ],
+      "private_test_functions_retained": 11
+    },
+    {
+      "path": "tests/test_gce_conference_integration.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_all_aggregate_cache_callers_respect_no_store_without_mutation",
+        "test_gce_failed_body_provenance_survives_index_fallback_error",
+        "test_gce_guard_or_budget_failure_never_starts_metadata_fallback",
+        "test_gce_provider_rejects_bad_original_before_acquisition",
+        "test_gce_receipt_never_enters_role_prompt",
+        "test_gce_role_view_keeps_period_and_units_limits",
+        "test_gce_roles_reject_unknown_revision_or_projection",
+        "test_gce_source_service_preserves_original_context",
+        "test_other_issuers_keep_existing_payload_cache",
+        "test_public_metadata_gap_prefers_verified_gce_original"
+      ],
+      "private_test_functions_retained": 2
+    },
+    {
+      "path": "tests/test_gce_conference_transport.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_gce_presentation_pdf_reader.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_getac_conference.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_getac_conference_transport.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_getac_integration.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_archived_presentation_cannot_become_reusable_financial_payload",
+        "test_invalid_context_is_local_block_for_the_selected_issuer",
+        "test_one_presentation_does_not_count_pages_as_successes",
+        "test_private_receipt_does_not_enter_prompts",
+        "test_public_routing_uses_getac_presentation_without_mops_retry",
+        "test_selected_source_failure_does_not_retry_mops"
+      ],
+      "private_test_functions_retained": 4
+    },
+    {
+      "path": "tests/test_google_company_candidate_capacity.py",
+      "decision": "keep_local",
+      "reason": "independent research workstream"
+    },
+    {
+      "path": "tests/test_gppc_mops_presentation.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_hcs_research_contracts.py",
+      "decision": "keep_local",
+      "reason": "independent research workstream"
+    },
+    {
+      "path": "tests/test_hiwin_conference.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_identity_does_not_borrow_good_name_to_hide_contradiction"
+      ],
+      "private_test_functions_retained": 12
+    },
+    {
+      "path": "tests/test_hiwin_conference_integration.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_all_aggregate_cache_callers_respect_no_store_without_mutation",
+        "test_hiwin_failed_body_provenance_survives_index_fallback_error",
+        "test_hiwin_guard_or_budget_failure_never_starts_metadata_fallback",
+        "test_hiwin_provider_rejects_bad_original_before_acquisition",
+        "test_hiwin_receipt_never_enters_role_prompt",
+        "test_hiwin_role_view_keeps_period_and_units_limits",
+        "test_hiwin_roles_reject_unknown_revision_or_projection",
+        "test_hiwin_source_service_preserves_original_context",
+        "test_other_issuers_keep_existing_payload_cache",
+        "test_public_metadata_gap_prefers_verified_hiwin_original"
+      ],
+      "private_test_functions_retained": 3
+    },
+    {
+      "path": "tests/test_hiwin_conference_transport.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_hiwin_presentation_pdf_reader.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_holding_full_originals.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_complete_holding_normal_extraction_avoids_redundant_sdk_and_finmind",
+        "test_holding_archive_failure_stops_without_implicit_network_repeat",
+        "test_holding_full_original_contract_rejects_unbound_or_changed_receipts",
+        "test_missing_all_holding_original_markers_cannot_enter_public_prompt_raw_history",
+        "test_public_holding_fetch_preserves_five_complete_originals_with_distinct_verified_schema"
+      ],
+      "private_test_functions_retained": 1
+    },
+    {
+      "path": "tests/test_innocare_conference.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_conflicting_caller_identity_is_rejected"
+      ],
+      "private_test_functions_retained": 5
+    },
+    {
+      "path": "tests/test_innocare_conference_transport.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_innocare_integration.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_innocare_failure_never_retries_mops",
+        "test_invalid_caller_is_attributed_to_selected_issuer_provider",
+        "test_no_store_originals_cannot_become_payload_cache",
+        "test_private_originals_do_not_enter_prompt",
+        "test_public_6861_routing_prefers_issuer_without_touching_mops"
+      ],
+      "private_test_functions_retained": 5
+    },
+    {
+      "path": "tests/test_institutional_current_continuation.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_institutional_final_continuation.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_institutional_mature_continuation.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_institutional_mirror_admission.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_institutional_next_continuation.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_kinik_conference.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_identity_does_not_borrow_good_name_to_hide_contradiction"
+      ],
+      "private_test_functions_retained": 14
+    },
+    {
+      "path": "tests/test_kinik_conference_integration.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_all_aggregate_cache_callers_respect_no_store_without_mutation",
+        "test_kinik_failed_body_provenance_survives_index_fallback_error",
+        "test_kinik_guard_or_budget_failure_never_starts_metadata_fallback",
+        "test_kinik_provider_rejects_bad_original_before_acquisition",
+        "test_kinik_receipt_never_enters_role_prompt",
+        "test_kinik_role_view_keeps_period_and_units_limits",
+        "test_kinik_roles_omit_only_qualified_image_page_and_obscured_footer",
+        "test_kinik_roles_reject_unknown_revision_or_projection",
+        "test_kinik_source_service_preserves_original_context",
+        "test_other_issuers_keep_existing_payload_cache",
+        "test_public_metadata_gap_prefers_verified_kinik_original"
+      ],
+      "private_test_functions_retained": 2
+    },
+    {
+      "path": "tests/test_kinik_conference_transport.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_kinik_presentation_pdf_reader.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_glyph_contract_is_fresh_and_not_shared_mutable_state"
+      ],
+      "private_test_functions_retained": 11
+    },
+    {
+      "path": "tests/test_legacy_revision_progress.py",
+      "decision": "keep_local",
+      "reason": "independent research workstream"
+    },
+    {
+      "path": "tests/test_legacy_source_wait_log.py",
+      "decision": "keep_local",
+      "reason": "independent research workstream"
+    },
+    {
+      "path": "tests/test_lienhwa_conference.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_identity_does_not_borrow_good_name_to_hide_contradiction",
+        "test_stripped_typed_document_still_requires_original_verification"
+      ],
+      "private_test_functions_retained": 20
+    },
+    {
+      "path": "tests/test_lienhwa_conference_transport.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_lienhwa_integration.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_invalid_caller_is_attributed_to_selected_issuer_provider",
+        "test_lienhwa_failure_never_retries_mops",
+        "test_no_store_originals_cannot_become_payload_cache",
+        "test_private_originals_do_not_enter_prompt",
+        "test_public_1229_routing_prefers_issuer_without_touching_mops",
+        "test_role_allowlist_is_fixed_and_preserves_partial_semantics",
+        "test_roles_reject_unknown_revision",
+        "test_source_observation_is_one_qualified_partial_document"
+      ],
+      "private_test_functions_retained": 1
+    },
+    {
+      "path": "tests/test_lienhwa_presentation_pdf_reader.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_macronix_conference.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_context_conflict_local_block_and_single_success_count",
+        "test_private_original_is_never_reusable_financial_cache",
+        "test_public_dispatch_honors_source_policy"
+      ],
+      "private_test_functions_retained": 7
+    },
+    {
+      "path": "tests/test_macronix_conference_transport.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_macronix_dynamic_context.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_macronix_presentation_index.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_370_day_age_is_inclusive_and_371_days_is_rejected",
+        "test_future_acquisition_epoch_is_rejected",
+        "test_future_year_and_original_acquired_before_event_are_rejected",
+        "test_index_url_requires_a_canonical_integer_year",
+        "test_invalid_epochs_are_value_errors",
+        "test_q4_can_be_published_in_next_year_q1",
+        "test_size_limits_do_not_parse_oversize_originals",
+        "test_years_reject_ambiguous_schema_duplicates_and_future"
+      ],
+      "private_test_functions_retained": 15
+    },
+    {
+      "path": "tests/test_macronix_presentation_semantics.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_market_observation_dates.py",
+      "decision": "keep_local",
+      "reason": "independent research workstream"
+    },
+    {
+      "path": "tests/test_moneydj_numeric_candidates.py",
+      "decision": "keep_local",
+      "reason": "independent research workstream"
+    },
+    {
+      "path": "tests/test_mops_body_budget_review.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_complete_public_presentation_above_8mb_fits_the_bounded_pdf_reader_limit",
+        "test_six_second_index_remains_rejected_at_original_five_second_bound"
+      ],
+      "private_test_functions_retained": 4
+    },
+    {
+      "path": "tests/test_mops_cooldown_recovery.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_invalid_or_future_request_time_cannot_reset_streak",
+        "test_monthly_query_recovers_while_annual_page_is_cooled_down",
+        "test_native_recognized_empty_ends_streak_but_does_not_create_data",
+        "test_recovered_streak_resets_once_then_real_consecutive_errors_escalate",
+        "test_recovery_storage_failure_preserves_native_result",
+        "test_success_cannot_clear_active_retry_after_or_future_failure",
+        "test_success_marker_racing_with_new_failure_does_not_reset_new_streak",
+        "test_supplied_session_does_not_reset_shared_runtime_guard",
+        "test_unknown_html_does_not_end_failure_streak"
+      ],
+      "private_test_functions_retained": 2
+    },
+    {
+      "path": "tests/test_mops_datacenter_shipping.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_mops_legacy_fallback.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_published_body_failure_is_preserved_without_index_success"
+      ],
+      "private_test_functions_retained": 0
+    },
+    {
+      "path": "tests/test_mops_material_review.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_mops_material_transport.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_ambiguous_protected_headers_are_rejected",
+        "test_blank_MIME_exact_disposition_does_not_replace_package_signature",
+        "test_blank_MIME_is_not_permitted_for_PDF_or_index",
+        "test_blank_MIME_replay_requires_ninth_field_and_cannot_change_regular_metadata_schema",
+        "test_blank_PPTX_MIME_does_not_bypass_invalid_native_package_gate",
+        "test_blank_PPTX_MIME_requires_only_exact_published_attachment_filename",
+        "test_content_disposition_protected_even_for_normal_MIME",
+        "test_declared_MIME_cannot_promote_wrong_or_truncated_signature",
+        "test_exact_post_returns_full_body_and_complete_metadata",
+        "test_exact_time_limit_includes_response_observation_and_native_error",
+        "test_expected_native_mime_or_octet_package_signature_is_accepted",
+        "test_expired_workflow_never_starts_HTTP",
+        "test_file_calendar_and_extension_fail_before_HTTP",
+        "test_incomplete_or_colliding_post_never_becomes_full_original",
+        "test_index_body_budget_stays_five_seconds_and_keeps_HTTP_truth",
+        "test_index_uses_exact_market_year_POST_and_1MiB_cap",
+        "test_invalid_descriptor_never_starts_subprocess",
+        "test_invalid_index_identity_or_year_never_starts_HTTP",
+        "test_late_false_metadata_validation_is_timeout_not_fallback_error",
+        "test_malformed_huge_content_length_remains_typed_with_HTTP_truth",
+        "test_material_body_budget_accepts_complete_six_second_response",
+        "test_material_body_budget_preserves_shorter_three_second_caller_deadline",
+        "test_material_body_budget_rejects_exact_ten_second_completion",
+        "test_material_validator_preserves_additional_provenance_fields_without_mutating",
+        "test_missing_content_type_header_does_not_receive_blank_MIME_exception",
+        "test_missing_or_inconsistent_native_blank_MIME_metadata_is_not_attested",
+        "test_native_metadata_mismatch_retains_wire_status_and_body",
+        "test_nonASCII_protected_header_fails_typed_without_losing_status",
+        "test_nonfinite_or_non_numeric_deadline_rejected_without_HTTP",
+        "test_normal_PPTX_MIME_retains_legacy_8_metadata_fields",
+        "test_provider_proxy_and_test_network_guard_block_before_HTTP",
+        "test_proxy_environment_blocked_before_subprocess",
+        "test_pure_replay_metadata_rejects_tampering_without_HTTP_or_observation",
+        "test_refusal_HTTP_and_full_error_body_survive_in_exception",
+        "test_rehashed_but_noncanonical_or_wrong_form_is_rejected",
+        "test_security_words_inside_native_PDF_are_not_an_HTML_challenge",
+        "test_wrong_PPTX_zip_with_unrelated_members_is_not_package_signature"
+      ],
+      "private_test_functions_retained": 3
+    },
+    {
+      "path": "tests/test_mops_otc_master.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_adapter_reuses_same_url_cache_and_guards_and_rejects_other_routes"
+      ],
+      "private_test_functions_retained": 2
+    },
+    {
+      "path": "tests/test_mops_payload_cache_coherence.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_mops_pptx_mime_review.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_blank_mime_exception_is_never_extended_to_pdf_or_index"
+      ],
+      "private_test_functions_retained": 6
+    },
+    {
+      "path": "tests/test_mops_pptx_review.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_case_aliased_parts_are_not_allowed",
+        "test_hidden_shape_cannot_be_claimed_as_visible_native_text",
+        "test_hidden_slide_wholly_excluded_even_when_text_garbled",
+        "test_image_only_visible_page_is_retained_as_empty_partial_not_invented_text",
+        "test_internal_relationship_cannot_escape_package_or_fetch",
+        "test_mutually_exclusive_choice_and_fallback_cannot_both_be_source_text",
+        "test_notes_are_not_transcript_or_slide_text",
+        "test_presentation_order_not_zip_name_order_drives_visible_numbers",
+        "test_symlink_zip_part_is_rejected_without_opening_target",
+        "test_untrusted_child_output_limit_kills_and_reaps",
+        "test_zip_header_aliasing_is_rejected"
+      ],
+      "private_test_functions_retained": 1
+    },
+    {
+      "path": "tests/test_mops_presentation.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_conflicting_original_context_is_not_equity_identity",
+        "test_documentless_marker_check_is_total",
+        "test_known_quote_short_names_do_not_reject_consistent_issuer"
+      ],
+      "private_test_functions_retained": 22
+    },
+    {
+      "path": "tests/test_mops_presentation_integration.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_acquisition_audit_counts_one_body_and_no_new_warm_success",
+        "test_expanded_profiles_reject_wrong_report_identity_before_fetch",
+        "test_internal_post_receipt_is_not_in_role_prompt",
+        "test_provider_invalid_context_stops_before_any_HTTP",
+        "test_public_free_path_uses_qualified_published_body",
+        "test_report_source_route_preserves_expanded_profile_identity",
+        "test_shared_presentation_role_preserves_format_and_missing_hidden_limits",
+        "test_source_service_passes_original_identity",
+        "test_transport_failure_is_reported_before_attempting_material_replay"
+      ],
+      "private_test_functions_retained": 7
+    },
+    {
+      "path": "tests/test_mops_presentation_shared_master.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_dedicated_native_surface_has_no_issuer_or_arbitrary_url_route"
+      ],
+      "private_test_functions_retained": 15
+    },
+    {
+      "path": "tests/test_mops_prior_year_presentation.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_previous_year_selection_age_and_calendar_are_bounded"
+      ],
+      "private_test_functions_retained": 6
+    },
+    {
+      "path": "tests/test_mops_public_annual_financial.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_429_stops_remaining_requests_and_honors_retry_after_before_next_index",
+        "test_actual_auo_originals_recover_explicit_2024_comparative_without_claiming_complete_2023_comparison",
+        "test_admission_reextracts_originals_and_rejects_tampered_fact_and_receipt",
+        "test_annual_source_provider_admits_verified_xbrl_fallback_as_actual_provider",
+        "test_archive_zlib_failure_stops_without_implicit_multi_year_retry",
+        "test_client_cleanup_expiry_cannot_promote_complete_bodies_to_source_success",
+        "test_complete_annual_operation_reuses_one_anonymous_client_and_closes_it",
+        "test_contradictory_issuer_abbreviation_cannot_establish_complete_company_series",
+        "test_corrupt_deflate_original_fails_closed_and_is_restored",
+        "test_default_ordinary_source_uses_named_public_entry_and_full_original_receipts",
+        "test_filing_received_before_its_fiscal_year_closed_cannot_project",
+        "test_final_original_readback_expiry_must_not_return_new_source_success",
+        "test_malformed_component_receipt_fails_closed",
+        "test_missing_intangible_row_can_only_be_recovered_from_explicit_next_annual_comparative",
+        "test_missing_purchase_row_is_inferred_zero_only_when_investing_section_reconciles",
+        "test_missing_purchase_zero_inference_fails_closed_when_investing_section_is_not_provable",
+        "test_missing_row_continuation_never_accepts_unresolved_or_ambiguous_annual_evidence",
+        "test_newer_complete_comparative_revisions_keep_original_and_revised_fact_provenance",
+        "test_normal_uncached_annual_flow_uses_public_source_before_SDK_and_names_unit_origin",
+        "test_pooled_each_request_uses_remaining_original_deadline",
+        "test_pooled_operation_rejections_close_without_retry",
+        "test_pooled_response_cookies_never_become_next_query_credentials",
+        "test_public_json_fallback_covers_transport_and_retryable_server_failures_only",
+        "test_public_json_fallback_requires_a_received_index_and_never_repairs_missing_facts",
+        "test_real_captured_public_five_year_receipts_can_project_including_negative_fcf",
+        "test_standalone_requests_and_separate_annual_operations_do_not_share_client_lifetime",
+        "test_statement_rejects_unverified_metadata_missing_and_ambiguous_amounts",
+        "test_subsidiary_options_do_not_change_explicit_parent_scope",
+        "test_transient_public_json_document_failure_falls_back_to_audited_official_xbrl",
+        "test_two_missing_purchase_rows_are_both_inferred_only_when_both_periods_reconcile"
+      ],
+      "private_test_functions_retained": 1
+    },
+    {
+      "path": "tests/test_mops_recovery_parser_boundaries.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_mops_semantic_role_pages.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_malformed_context_identity_cannot_crash_or_project_qualified_pages"
+      ],
+      "private_test_functions_retained": 6
+    },
+    {
+      "path": "tests/test_mops_static_material.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_mislabeled_or_incomplete_wire_response_is_rejected",
+        "test_qualified_get_records_the_actual_wire_identity",
+        "test_static_get_does_not_admit_unqualified_or_changed_requests"
+      ],
+      "private_test_functions_retained": 0
+    },
+    {
+      "path": "tests/test_mops_verification_diagnostics.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_verification_observation_fields_only_admit_fixed_enums"
+      ],
+      "private_test_functions_retained": 5
+    },
+    {
+      "path": "tests/test_myson_monthly_history.py",
+      "decision": "public_replay_with_safe_fixture",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture",
+      "fixture_scope": "Credential-free redacted HTML or minimal synthetic viewer metadata; not live acquisition proof",
+      "private_test_functions_retained": 0,
+      "public_test_functions": [
+        "test_failed_primary_recovers_six_current_months_from_published_sheet",
+        "test_earlier_month_cannot_conflict_with_official_year_to_date",
+        "test_unverified_sheet_keeps_official_two_month_partial",
+        "test_only_exact_current_issuer_published_links_are_fetched",
+        "test_explicit_zero_is_retained_but_blank_is_not_zero",
+        "test_cross_year_six_months_use_only_two_current_published_sheets",
+        "test_warm_read_preserves_original_epoch_and_does_not_count_new_acquisition",
+        "test_core_merge_keeps_issuer_api_freshness",
+        "test_healthy_primary_does_not_fetch_new_endpoints",
+        "test_conflicting_context_does_not_make_requests",
+        "test_unverified_issuer_master_keeps_two_month_snapshot",
+        "test_existing_csv_and_new_history_share_eight_second_budget",
+        "test_same_fetch_primary_failure_is_not_duplicated",
+        "test_existing_full_master_cache_reuses_original_epoch_without_extra_http",
+        "test_corrupt_saved_api_receipt_does_not_supply_warm_six_months",
+        "test_expiry_during_final_original_read_prevents_six_month_promotion",
+        "test_csv_name_conflict_stops_issuer_history_before_http"
+      ]
+    },
+    {
+      "path": "tests/test_npc_pcb_conference.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_context_conflict_local_block_and_single_success_count",
+        "test_private_original_is_never_reusable_financial_cache",
+        "test_public_dispatch_honors_source_policy"
+      ],
+      "private_test_functions_retained": 8
+    },
+    {
+      "path": "tests/test_npc_pcb_conference_transport.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_npc_pdf_symbols.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_npc_symbol_overlap.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_oct5_source_admission.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_explicit_backtest_end_excludes_provisional_day",
+        "test_maturity_boundary",
+        "test_maturity_source_requires_independent_raw_publication_and_price_match",
+        "test_missing_6715_metadata_is_unchecked_not_valid",
+        "test_phase_cache_keys_roll",
+        "test_session_cache_scope_uses_publication_maturity_boundary",
+        "test_whole_cache_rechecks_current_date_and_raw_proof"
+      ],
+      "private_test_functions_retained": 4
+    },
+    {
+      "path": "tests/test_official_issuer_master.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_official_issuer_master_json.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [],
+      "private_test_functions_retained": 16
+    },
+    {
+      "path": "tests/test_official_issuer_master_warm_selection.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_ordinary_announcement_admission.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_1216_routes_through_json_history_without_legacy_fallback",
+        "test_existing_special_json_and_tdr_routing_are_not_ordinary_admission",
+        "test_native_detail_header_requires_exact_issuer_and_market_tokens",
+        "test_native_supported_unlisted_issuer_saves_replayable_index_packet",
+        "test_normal_collector_rejects_native_index_name_conflict"
+      ],
+      "private_test_functions_retained": 9
+    },
+    {
+      "path": "tests/test_ordinary_event_identity.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_public_source_only_normal_path_keeps_same_title_different_sequences",
+        "test_public_warm_cache_legacy_shape_or_tamper"
+      ],
+      "private_test_functions_retained": 9
+    },
+    {
+      "path": "tests/test_ordinary_individual_annual.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_2033_annual_provider_routes_verified_history_through_individual_adapter",
+        "test_2033_five_year_individual_source_preserves_issuer_and_scope",
+        "test_2033_full_history_replays_reconciled_zero_evidence",
+        "test_2033_source_context_accepts_only_verified_issuer_names",
+        "test_bad_filing_fails_closed",
+        "test_c_priority_is_explicit_and_does_not_read_a",
+        "test_changed_raw_original_cannot_be_projected",
+        "test_complete_current_c_stays_consolidated_through_existing_collector",
+        "test_conflicting_incomplete_comparative_cannot_revise_primary",
+        "test_default_pe_provider_stops_before_individual_to_group_conversion",
+        "test_default_service_actual_acquisition_refresh_chart_and_retention_contract",
+        "test_default_stock_data_service_full_registry_keeps_individual_basis",
+        "test_existing_aggregate_circuit_is_honored_before_http",
+        "test_explicit_comparative_can_fill_missing_older_intangible_but_never_zero",
+        "test_explicit_context_identity_conflict_blocks_before_default_transport",
+        "test_full_core_does_not_forward_individual_profit_to_pe_river",
+        "test_full_five_year_individual_has_typed_basis_and_six_actual_requests",
+        "test_full_original_replay_rejects_scope_types_receipt_and_url_tampering",
+        "test_incomplete_or_mixed_scope_index_stops_before_any_filing",
+        "test_individual_equity_claim_must_not_be_relabelled_parent_equity",
+        "test_missing_intangible_is_zero_only_when_official_investing_detail_reconciles",
+        "test_next_year_is_selected_from_new_index_not_fixed_file",
+        "test_normal_full_extractor_preserves_typed_basis_and_shared_cache_epoch",
+        "test_normal_payload_cannot_promote_individual_history_into_ttm",
+        "test_normal_source_provider_does_not_misroute_nonfinancial_typed_basis",
+        "test_older_complete_c_cannot_hide_newer_a_basis",
+        "test_prompt_state_claims_quant_and_refresh_keep_individual_semantics",
+        "test_restricted_response_stops_without_retry_and_next_fetch_is_local",
+        "test_total_deadline_is_not_extended_by_index_or_completed_originals"
+      ],
+      "private_test_functions_retained": 2
+    },
+    {
+      "path": "tests/test_ordinary_individual_consumers.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_explicit_scope_conflict_in_native_original_prevents_public_acquisition",
+        "test_normal_capital_notes_do_not_relabel_individual_as_broker_consolidated",
+        "test_normal_payload_does_not_compare_unverified_ttm_with_individual_annual",
+        "test_original_receipt_cannot_be_reassigned_or_predate_report_close"
+      ],
+      "private_test_functions_retained": 2
+    },
+    {
+      "path": "tests/test_otc_security_identity_refresh.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_OTC_receipt_cannot_substitute_listed_master_or_market_suffix",
+        "test_suffix_must_match_explicit_native_market"
+      ],
+      "private_test_functions_retained": 3
+    },
+    {
+      "path": "tests/test_pcb_mops_presentation.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_pcsc_conference.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_pcsc_context_boundary.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_pcsc_reader.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_pcsc_registry_boundary.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_pcsc_transport.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_peer_candidate_order.py",
+      "decision": "keep_local",
+      "reason": "independent research workstream"
+    },
+    {
+      "path": "tests/test_performance_blockers.py",
+      "decision": "keep_local",
+      "reason": "independent research workstream"
+    },
+    {
+      "path": "tests/test_performance_denominator_semantics.py",
+      "decision": "keep_local",
+      "reason": "independent research workstream"
+    },
+    {
+      "path": "tests/test_performance_evidence_and_cost_profiles.py",
+      "decision": "keep_local",
+      "reason": "independent research workstream"
+    },
+    {
+      "path": "tests/test_performance_sample_context.py",
+      "decision": "keep_local",
+      "reason": "independent research workstream"
+    },
+    {
+      "path": "tests/test_phase42_content_branches.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_forced_official_recovery_bypasses_cache_without_changing_dates_or_limits",
+        "test_workplan_uses_only_actual_visible_refs_and_does_not_assign_impact"
+      ],
+      "private_test_functions_retained": 3
+    },
+    {
+      "path": "tests/test_philjobnet_component_refresh.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_philjobnet_medtecs.py",
+      "decision": "public_replay_with_safe_fixture",
+      "public_test_functions": [
+        "test_explicit_zero_portal_count_is_one_observation_and_not_unknown_empty",
+        "test_mutable_zero_or_scope_fields_cannot_replace_originals",
+        "test_conflicting_company_context_is_rejected",
+        "test_incomplete_loading_subsidiary_or_duplicate_profile_cannot_be_numeric_zero",
+        "test_contact_bridge_must_use_both_exact_country_panels",
+        "test_missing_archive_and_future_epoch_do_not_count",
+        "test_fetch_archives_complete_originals_and_rebuilds_saved_zero",
+        "test_refusal_is_unknown_and_stops_before_profile",
+        "test_other_ticker_makes_no_request",
+        "test_cache_retains_original_epoch_and_has_zero_native_requests_on_warm_read",
+        "test_prompt_keeps_scope_and_unknown_global_but_excludes_internal_receipt",
+        "test_native_transport_caps_refusals_and_never_retries",
+        "test_transport_deadline_and_unknown_urls_send_nothing",
+        "test_deleted_typed_slot_cannot_bypass_revalidation_and_warm_http_is_zero",
+        "test_component_and_general_fallback_have_distinct_cache_identity"
+      ],
+      "private_test_functions_retained": 0,
+      "fixture_scope": "Credential-free redacted HTML or minimal synthetic viewer metadata; not live acquisition proof"
+    },
+    {
+      "path": "tests/test_population_snapshot_reuse.py",
+      "decision": "keep_local",
+      "reason": "independent research workstream"
+    },
+    {
+      "path": "tests/test_public_annual_gap_cache.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_confirmed_public_failure_warm_read_preserves_error_without_nineteen_downloads",
+        "test_exactly_reconciled_2354_originals_recover_missing_zero_facts_from_saved_official_evidence",
+        "test_expired_gap_can_recover_from_explicit_complete_facts_and_clears_gap",
+        "test_gap_expiring_during_full_readback_cannot_suppress_new_acquisition",
+        "test_malformed_cached_component_falls_through_to_original_fetch",
+        "test_negative_readback_cannot_be_admitted_after_same_replay_deadline",
+        "test_optional_cache_failures_leave_original_acquisition_available",
+        "test_recovery_after_cache_read_failure_clears_hidden_old_gap",
+        "test_saved_original_replay_timeout_falls_back_to_real_acquisition",
+        "test_unverified_or_expired_cached_gap_never_suppresses_real_acquisition",
+        "test_unverified_strings_transport_and_quota_are_not_issuer_gap_cache",
+        "test_warm_reuse_never_extends_original_retry_time_or_inherits_data_fingerprint"
+      ],
+      "private_test_functions_retained": 1
+    },
+    {
+      "path": "tests/test_public_holding_annual_source.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_captured_public_layout_rejects_ambiguous_scope_periods_and_missing_amounts",
+        "test_full_public_prompt_has_typed_net_revenue_without_internal_original_paths",
+        "test_normal_holding_extraction_uses_verified_UI_and_avoids_duplicate_sdk_and_finmind",
+        "test_other_holding_layout_is_not_silently_enabled",
+        "test_public_holding_fetch_uses_nineteen_bounded_originals_and_rebuilds_comparatives",
+        "test_public_holding_parser_rejects_changed_unit_contract_and_duplicate_json_keys",
+        "test_public_holding_rejects_unbound_body_and_facts_before_prompt",
+        "test_public_projection_accepts_five_full_holding_UI_originals_with_ten_facts_each",
+        "test_refusal_stops_the_same_source_operation_without_implicit_retry",
+        "test_unexpected_exception_and_cleanup_failure_never_restart_whole_acquisition"
+      ],
+      "private_test_functions_retained": 2
+    },
+    {
+      "path": "tests/test_public_short_annual_index_gap_cache.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_complete_short_public_index_warm_read_does_not_repeat_HTTP_or_claim_success",
+        "test_four_published_filings_continue_to_statements_and_are_not_short_index_cache",
+        "test_short_index_original_prevalidation_cannot_restart_replay_deadline",
+        "test_short_warm_cache_preserves_retry_epoch_and_does_not_rewrite_cache",
+        "test_unverified_or_expired_saved_short_index_cannot_hide_real_recheck",
+        "test_unverified_or_noncontiguous_index_never_suppresses_another_attempt"
+      ],
+      "private_test_functions_retained": 1
+    },
+    {
+      "path": "tests/test_quality_oct14_boundaries.py",
+      "decision": "keep_local",
+      "reason": "independent research workstream"
+    },
+    {
+      "path": "tests/test_quality_projection_consistency.py",
+      "decision": "keep_local",
+      "reason": "independent research workstream"
+    },
+    {
+      "path": "tests/test_registered_master_fallback.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_renderer_evidence_order.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_gate_snapshot_contains_input_before_first_gate_all_modes"
+      ],
+      "private_test_functions_retained": 6
+    },
+    {
+      "path": "tests/test_report_annual_financial_source_refresh.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_report_annual_history_retention.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_report_conference_retention.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_report_display_consistency.py",
+      "decision": "keep_local",
+      "reason": "separate concurrent report-reader workstream"
+    },
+    {
+      "path": "tests/test_report_institutional_source_refresh.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_explicit_unknown_saved_analysis_metadata_is_not_promoted",
+        "test_legacy_without_analysis_completeness_does_not_invent_success",
+        "test_nontrading_weekday_before_cutoff_can_use_last_completed_session",
+        "test_refresh_uses_the_providers_mature_market_session",
+        "test_saved_compact_oos_survives_trimmed_rerun_and_size_governance_keeps_omission_receipts"
+      ],
+      "private_test_functions_retained": 10
+    },
+    {
+      "path": "tests/test_report_news_retention.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_report_reader_narrative_semantics.py",
+      "decision": "keep_local",
+      "reason": "separate concurrent report-reader workstream"
+    },
+    {
+      "path": "tests/test_report_security_identity_source_refresh.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_contradictory_saved_identity_receipt_is_rejected",
+        "test_corrupt_archived_original_rejects_verified_identity",
+        "test_equivalent_quote_and_official_type_representations_do_not_force_another_analysis",
+        "test_non_raw_evidence_kind_cannot_substantiate_full_original_classification",
+        "test_refresh_timestamp_overflow_is_unknown_not_an_exception"
+      ],
+      "private_test_functions_retained": 17
+    },
+    {
+      "path": "tests/test_sanyang_news_bundle.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_sanyang_shared_master.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_saved_analysis_replay_identity.py",
+      "decision": "keep_local",
+      "reason": "independent research workstream"
+    },
+    {
+      "path": "tests/test_saved_content_generation_facts.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_display_conversions_do_not_convert_eps_shares_or_create_missing_fcf",
+        "test_money_receipts_reach_actual_prompt_wire_for_each_mode_without_changing_mode_purpose",
+        "test_real_company_amount_on_same_line_is_still_checked_with_unit_definition"
+      ],
+      "private_test_functions_retained": 7
+    },
+    {
+      "path": "tests/test_sigurd_conference.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_POST_receipt_metadata_false_cannot_impersonate_zero",
+        "test_POST_singleflight_shares_exact_request",
+        "test_POST_timeout_persists_same_MOPS_endpoint_guard",
+        "test_failure_marker_survives_storage_loss_after_actual_http",
+        "test_independent_caller_identity_fields_cannot_borrow_good_aliases",
+        "test_native_failures_cannot_become_full_original_or_repeat_during_admission",
+        "test_native_request_exact_method_form_limits_metadata_and_warm_zero_HTTP",
+        "test_original_MOPS_endpoint_guard_is_not_bypassed"
+      ],
+      "private_test_functions_retained": 29
+    },
+    {
+      "path": "tests/test_sigurd_conference_integration.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_sigurd_english_role_selection_preserves_relevant_late_page",
+        "test_sigurd_failed_body_provenance_survives_index_fallback_error",
+        "test_sigurd_provider_rejects_bad_original_before_acquisition",
+        "test_sigurd_receipt_never_enters_role_prompt",
+        "test_sigurd_role_view_keeps_period_and_subsidiary_limits",
+        "test_sigurd_source_service_preserves_original_context"
+      ],
+      "private_test_functions_retained": 2
+    },
+    {
+      "path": "tests/test_sigurd_presentation_pdf_reader.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_sinbon_conference.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_context_conflict_local_block_and_single_success_count",
+        "test_private_original_is_never_reusable_financial_cache",
+        "test_public_dispatch_honors_source_policy",
+        "test_shared_MOPS_servlet_does_not_mark_other_issuers"
+      ],
+      "private_test_functions_retained": 9
+    },
+    {
+      "path": "tests/test_sinbon_conference_transport.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_sma_reasoning_regressions.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_hypothetical_is_not_current_assertion",
+        "test_missing_original_evidence_does_not_use_new_snapshot",
+        "test_negated_above_is_not_a_positive_assertion",
+        "test_negated_or_required_future_order_is_not_positive"
+      ],
+      "private_test_functions_retained": 4
+    },
+    {
+      "path": "tests/test_source_pdf_header_whitespace.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_healthy_original_has_no_recovery_evidence",
+        "test_other_pdf_with_same_one_byte_xref_error_is_not_silently_repaired"
+      ],
+      "private_test_functions_retained": 5
+    },
+    {
+      "path": "tests/test_source_runtime_reconciliation_guard.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_sti_conference.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_GET_receipt_metadata_false_cannot_impersonate_zero",
+        "test_GET_singleflight_shares_exact_request",
+        "test_duplicate_protected_headers_keep_actual_HTTP_status",
+        "test_exact_existing_english_identity_alias_requires_full_equality",
+        "test_failure_marker_survives_storage_loss_after_actual_http",
+        "test_independent_caller_identity_fields_cannot_borrow_good_aliases",
+        "test_native_failures_cannot_become_full_original_or_repeat_during_admission",
+        "test_native_request_exact_method_form_limits_metadata_and_warm_zero_HTTP",
+        "test_original_host_guard_is_not_bypassed"
+      ],
+      "private_test_functions_retained": 29
+    },
+    {
+      "path": "tests/test_sti_conference_integration.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_sti_failed_body_provenance_survives_index_fallback_error",
+        "test_sti_provider_rejects_bad_original_before_acquisition",
+        "test_sti_receipt_never_enters_role_prompt",
+        "test_sti_role_view_keeps_period_and_subsidiary_limits",
+        "test_sti_source_service_preserves_original_context"
+      ],
+      "private_test_functions_retained": 2
+    },
+    {
+      "path": "tests/test_sti_presentation_pdf_reader.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_exact_original_complete_with_qualified_three_hollow_squares",
+        "test_exact_standalone_glyph_changes_only_itself",
+        "test_generic_reader_keeps_same_original_partial",
+        "test_invalid_input_rejected_before_worker",
+        "test_invalid_timeout_rejected_before_worker",
+        "test_mutated_font_profile_never_normalizes",
+        "test_parent_final_validation_does_not_restart_deadline",
+        "test_parent_rejects_worker_proof_or_text_tampering",
+        "test_private_child_other_warning_or_unqualified_font_fails_closed",
+        "test_qualified_font_is_not_applied_on_a_different_page",
+        "test_tiny_deadline_is_terminal_without_returning_native_text",
+        "test_unknown_mixed_and_inconsistent_fragments_remain_unknown",
+        "test_wrong_occurrence_count_fails_closed_in_actual_private_child"
+      ],
+      "private_test_functions_retained": 2
+    },
+    {
+      "path": "tests/test_sym_issuer_news.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_contradictory_root_context_is_rejected",
+        "test_nested_context_is_not_overridden_by_good_root"
+      ],
+      "private_test_functions_retained": 20
+    },
+    {
+      "path": "tests/test_sym_issuer_news_integration.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_public_provider_rejects_explicit_malformed_context_without_network",
+        "test_public_provider_rejects_wrong_context_before_any_fetch",
+        "test_source_only_rejects_false_instrument_before_provider_call",
+        "test_source_service_passes_existing_issuer_context_to_provider"
+      ],
+      "private_test_functions_retained": 4
+    },
+    {
+      "path": "tests/test_sym_issuer_news_transport.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_syntec_annual_bridge.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_actual_missing2021_is_recovered_as_five_complete_periods_through_provider",
+        "test_actual_published_temporary_path_one_second_clock_quantization_keeps_original_receipt",
+        "test_exact_native_book_all_nine_facts_negative_FCF_and_opening_balance_not_substituted",
+        "test_explicit_identity_instrument_or_currency_conflict_refuses_before_http",
+        "test_full_original_receipt_projection_rejects_scope_time_hash_fact_formula_or_revision_tamper",
+        "test_honest_cached_full_roster_keeps_unknown_HTTP_and_original_epoch",
+        "test_local_host_cooldown_sends_no_request",
+        "test_native_profile_does_not_raise_generic_page_limit_or_claim_whole_book",
+        "test_native_raw_cached_master_receipt_requires_actual_namespace_and_original_fresh_at_use_proof",
+        "test_new_source_repairs_first_year_without_quote_TTM_news_or_old_analysis_mutation",
+        "test_normal_financial_path_uses_complete_bridge_and_keeps_native_transport_diagnostics",
+        "test_private_fixed_native_profile_keeps_decompression_limit",
+        "test_private_fixed_native_profile_refuses_encrypted_book",
+        "test_private_profile_invalid_deadline_refuses_before_child",
+        "test_private_profile_rejects_invalid_child_results",
+        "test_published_doc_transport_records_actual_failure_and_never_retries",
+        "test_real_native_raw_cache_cold_warm_keeps_original_time_without_HTTP_or_hard_refresh",
+        "test_roster_transport_does_not_relabel_unobserved_cache_as_native200",
+        "test_saved_source_audit_contains_complete_identity_index_and_facts_replay_without_duplicate_PDF",
+        "test_selected_physical_financial_rows_refuse_ambiguous_or_incomplete_facts",
+        "test_temp_generation_clock_bound_does_not_change_financial_publication_or_freshness"
+      ],
+      "private_test_functions_retained": 1
+    },
+    {
+      "path": "tests/test_tcfhc_annual_financial.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_public_annual_refresh_rejects_tcfhc_identity_conflict_before_provider",
+        "test_public_source_refresh_routes_the_failed_5880_issuer_to_published_books"
+      ],
+      "private_test_functions_retained": 10
+    },
+    {
+      "path": "tests/test_tcfhc_annual_transport.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_tcfhc_audited_financial.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_tcfhc_issuer_news.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_tcfhc_qa_shared_master.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_tecom_conference.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_context_conflict_local_block_and_single_success_count",
+        "test_private_original_is_never_reusable_financial_cache",
+        "test_public_dispatch_honors_source_policy"
+      ],
+      "private_test_functions_retained": 9
+    },
+    {
+      "path": "tests/test_tecom_conference_transport.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_tewc_conference.py",
+      "decision": "public_replay_with_safe_fixture",
+      "public_test_functions": [
+        "test_public_free_source_recovers_complete_original_with_visual_limits",
+        "test_saved_original_rejects_altered_claims",
+        "test_conflicting_identity_stops_before_http",
+        "test_five_http_components_count_as_one_source_and_cache_adds_no_success",
+        "test_published_chain_requires_matching_current_event",
+        "test_role_projection_selects_english_text_and_preserves_limits",
+        "test_original_age_is_rechecked_after_final_pdf_parse",
+        "test_late_english_role_page_precedes_unrelated_front_matter",
+        "test_source_only_presentation_refresh_preserves_report_and_core_observations",
+        "test_tampered_source_refresh_cannot_overwrite_saved_report",
+        "test_public_warm_delivery_rejects_identity_that_expires_in_final_pdf_read"
+      ],
+      "private_test_functions_retained": 0,
+      "fixture_scope": "Credential-free redacted HTML or minimal synthetic viewer metadata; not live acquisition proof"
+    },
+    {
+      "path": "tests/test_tewc_conference_transport.py",
+      "decision": "public_replay_with_safe_fixture",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture",
+      "fixture_scope": "Credential-free redacted HTML or minimal synthetic viewer metadata; not live acquisition proof",
+      "private_test_functions_retained": 0,
+      "public_test_functions": [
+        "test_complete_native_large_pdf_retains_full_archive_and_twelve_second_cap",
+        "test_complete_redirect_is_separate_native_303_header_receipt",
+        "test_complete_explicit_chain_warm_reuses_all_original_epochs",
+        "test_unknown_route_does_not_start_http",
+        "test_redirect_requires_complete_exact_single_native_response",
+        "test_mismatched_expected_download_rejected_before_redirect_request",
+        "test_storage_failure_prevents_native_http",
+        "test_redirect_failure_cooldown_is_not_bypassed_or_extended_by_force",
+        "test_saved_redirect_receipt_cannot_be_promoted_or_rebound",
+        "test_archive_failure_never_returns_success",
+        "test_deadline_expiring_during_original_readback_is_terminal",
+        "test_warm_expiry_during_readback_is_not_freshened",
+        "test_handoff_rechecks_original_epoch_after_read_hook",
+        "test_pdf_uses_remaining_workflow_budget_instead_of_new_twelve_seconds"
+      ]
+    },
+    {
+      "path": "tests/test_tpex_maturity_source_boundary.py",
+      "decision": "keep_local",
+      "reason": "independent research workstream"
+    },
+    {
+      "path": "tests/test_trade_price_basis_equivalence.py",
+      "decision": "keep_local",
+      "reason": "independent research workstream"
+    },
+    {
+      "path": "tests/test_trade_price_reference.py",
+      "decision": "keep_local",
+      "reason": "independent research workstream"
+    },
+    {
+      "path": "tests/test_twse_dated_daily_fallback.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_current_day_rwd_recovers_stale_feed_and_ignores_prior_average",
+        "test_current_primary_avoids_fallback_and_missing_prices_stay_unknown",
+        "test_transient_fallback_failure_is_visible_and_later_call_can_recover",
+        "test_weekend_uses_last_verified_session_not_saturday",
+        "test_wrong_missing_or_future_fallback_date_never_relabels_primary"
+      ],
+      "private_test_functions_retained": 0
+    },
+    {
+      "path": "tests/test_twse_official_freshness.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_invalid_explicit_twse_evidence_cannot_fall_through_to_later_stamp",
+        "test_original_twse_epoch_or_aware_iso_survives_both_source_locations",
+        "test_twse_canonical_projection_keeps_existing_market_and_instrument_applicability",
+        "test_twse_never_borrows_package_or_market_time",
+        "test_unselected_audit_is_not_promoted_and_other_source_policy_is_unchanged"
+      ],
+      "private_test_functions_retained": 1
+    },
+    {
+      "path": "tests/test_unitech_conference.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_caller_subject_and_all_explicit_type_aliases_are_fail_closed"
+      ],
+      "private_test_functions_retained": 11
+    },
+    {
+      "path": "tests/test_unitech_tcfhc_review_boundaries.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_changed_request_cannot_reuse_other_exact_issuer_context",
+        "test_unitech_lifecycle_abort_does_not_launch_other_source",
+        "test_unitech_remote_failure_stays_in_successful_official_fallback_components"
+      ],
+      "private_test_functions_retained": 3
+    },
+    {
+      "path": "tests/test_unitech_tcfhc_source_integration.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_new_provider_rejects_explicit_invalid_data_before_acquisition",
+        "test_tcfhc_parent_news_has_a_free_provider_route",
+        "test_unitech_private_receipt_is_not_agent_prompt_content",
+        "test_unitech_role_view_preserves_missing_charts_and_ownership_notice"
+      ],
+      "private_test_functions_retained": 2
+    },
+    {
+      "path": "tests/test_voltronic_conference.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_context_conflict_local_block_and_single_success_count",
+        "test_private_original_is_never_reusable_financial_cache",
+        "test_public_dispatch_honors_source_policy",
+        "test_shared_MOPS_servlet_does_not_mark_other_issuers"
+      ],
+      "private_test_functions_retained": 11
+    },
+    {
+      "path": "tests/test_voltronic_conference_transport.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_volume_scope_and_missing_values.py",
+      "decision": "keep_local",
+      "reason": "independent research workstream"
+    },
+    {
+      "path": "tests/test_wahlee_conference.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_wahlee_conference_transport.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_wahlee_integration.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_archived_presentation_cannot_become_reusable_financial_payload",
+        "test_invalid_context_is_local_block_for_the_selected_issuer",
+        "test_one_presentation_does_not_count_pages_as_successes",
+        "test_private_receipt_does_not_enter_prompts",
+        "test_public_routing_uses_wahlee_presentation_without_mops_retry",
+        "test_selected_source_failure_does_not_retry_mops"
+      ],
+      "private_test_functions_retained": 3
+    },
+    {
+      "path": "tests/test_walsin_conference.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_caller_identity_contradictions_are_rejected"
+      ],
+      "private_test_functions_retained": 6
+    },
+    {
+      "path": "tests/test_walsin_conference_transport.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_walsin_integration.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_invalid_caller_is_attributed_to_selected_issuer_provider",
+        "test_no_store_originals_cannot_become_payload_cache",
+        "test_private_originals_do_not_enter_prompt",
+        "test_public_1605_routing_prefers_issuer_without_touching_mops",
+        "test_role_allowlist_is_fixed_and_preserves_partial_semantics",
+        "test_roles_reject_unknown_revision",
+        "test_source_observation_is_one_qualified_partial_document",
+        "test_walsin_failure_never_retries_mops"
+      ],
+      "private_test_functions_retained": 1
+    },
+    {
+      "path": "tests/test_winbond_conference.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_independent_caller_identity_fields_cannot_borrow_good_aliases",
+        "test_native_request_budget_no_retry_redirect_proxy_or_cookie"
+      ],
+      "private_test_functions_retained": 26
+    },
+    {
+      "path": "tests/test_winbond_conference_integration.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_winbond_failed_body_provenance_survives_index_fallback_error",
+        "test_winbond_provider_rejects_bad_original_before_acquisition",
+        "test_winbond_receipt_never_enters_role_prompt",
+        "test_winbond_role_view_keeps_period_and_subsidiary_limits",
+        "test_winbond_source_service_preserves_original_context"
+      ],
+      "private_test_functions_retained": 2
+    },
+    {
+      "path": "tests/test_wiwynn_updated_news.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_zdt_conference.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_zdt_conference_transport.py",
+      "decision": "keep_local",
+      "reason": "all remaining cases require private evidence, saved reports or credential-bearing capture"
+    },
+    {
+      "path": "tests/test_zdt_integration.py",
+      "decision": "public_boundary_subset",
+      "public_test_functions": [
+        "test_archived_presentation_cannot_become_reusable_financial_payload",
+        "test_invalid_context_is_local_block_for_the_selected_issuer",
+        "test_one_presentation_does_not_count_pages_as_successes",
+        "test_private_receipt_does_not_enter_prompts",
+        "test_public_routing_uses_zdt_presentation_without_mops_retry",
+        "test_selected_source_failure_does_not_retry_mops"
+      ],
+      "private_test_functions_retained": 3
+    }
+  ],
+  "files": [
+    {
+      "path": "README.md",
+      "sha256": "207c858dc91d659bc3c4335d8f297c66a97e4a7642cf4815107cb19267b07bd9"
+    },
+    {
+      "path": "backend/market_screener_sources.py",
+      "sha256": "46f6d3f2c035a855a478bc237e22fdc8bd59b413d3c2392bbaa5cefa86a7f94f"
+    },
+    {
+      "path": "docs/free-source-candidates-2026-10-09.md",
+      "sha256": "4b84d5963015e3d44ae73307b69c93ca877b1a385fea7370c4f8fec38c22912c"
+    },
+    {
+      "path": "docs/official-daily-feed-recovery.md",
+      "sha256": "750ada7fd855423bd187676ff2ab3d1e1a34f3f39f078ee1952261fe47ddfdc7"
+    },
+    {
+      "path": "docs/source-annual-core-options-2026-10-11.md",
+      "sha256": "68764293b7c396ce7616fb1360cc95336b8a83d334aab197a772be99d8aa43e2"
+    },
+    {
+      "path": "docs/source-evidence-operations.md",
+      "sha256": "00f30eef4c2cda293b03769103f691438ade43d1fab6eae378da0f530fde5ca4"
+    },
+    {
+      "path": "docs/system-architecture-map.md",
+      "sha256": "759b50c705d0643c35237531be36cec807fd23f84352017f039c0b1621d445d2"
+    },
+    {
+      "path": "tests/fixtures/evidence_flatten_preoptimization.py.txt",
+      "sha256": "5fa96a2ae4639de72be48b009a2d39b9b45bd0d343f2987017d0ba635ff32e8a"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/PUBLIC_REPLAY_FIXTURES.md",
+      "sha256": "39fa7ee4df689711b147de66cfcc17998d30ce76d6b5d94825e18de664be03be"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/medtecs_contact_20261010_public_fixture.html",
+      "sha256": "58c76ed9e4e6b0d6bdea7c6428d6c5e8619e2e97a8c6f13a5dd3de587aac00da"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/myson_monthly_public_20261018/current.html.gz",
+      "sha256": "861408c5a5c078d3af52e76b4421c6fbdeada984931766f8039b4a51cb91167d"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/myson_monthly_public_20261018/previous.html.gz",
+      "sha256": "d975d041ca090cd88286c9bd7f1ada94fc000fd60396c1690a01d274ecbece93"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/social_query_precision.json",
+      "sha256": "7f09c795092afa7bab849cf0d914b3c41419ad9c67b95efd4f4b16598f1e2a00"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/tewc1623_index_20261014.gz",
+      "sha256": "e2b76539261d8200632b730a5634ba5162e8651a079dafabd85b7b7aff313577"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/tewc1623_master_20261014.gz",
+      "sha256": "4df7ef66315e974cff6fb9fdc33fa04d71c80e19ad5e72cb93d4fcb307aa5da4"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/tewc1623_redirect_20261014.gz",
+      "sha256": "60637cfa063a87e2fda051c234c2b34ff840cea35bf750dafd4520980f13a4a7"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/tewc1623_viewer_metadata_fixture_20261018.gz",
+      "sha256": "7b2e2d9790557a56d0c670efa05023166fdcb5ce2f0e23917aee8c53ee380b1f"
+    },
+    {
+      "path": "tests/test_allis_conference_integration.py",
+      "sha256": "19749bce6071dfd1cce1fbc21deafeb0d7f629e6ca9b9a22a97ad4faf183fb39"
+    },
+    {
+      "path": "tests/test_bank_financial_taxonomy.py",
+      "sha256": "f1a13509e77ff28fe652105ec6d4c5cee9038812dd2f0fec55b8f76c4533d251"
+    },
+    {
+      "path": "tests/test_cal_annual_bridge.py",
+      "sha256": "9b2a1687a17c5f46e3d13dbe022ae06e1ed85d093ddead52e698fd7c65450806"
+    },
+    {
+      "path": "tests/test_cal_master_fallback.py",
+      "sha256": "59c473dcdf0a689ea3fddf9ee2c170019bcb5ecca5721a52c2a4865b0b76f0e9"
+    },
+    {
+      "path": "tests/test_chb_integration.py",
+      "sha256": "7b00c0f28ed50dcd659bf20dd0c9b456e45e8793ceff3e51de0a035c6949c767"
+    },
+    {
+      "path": "tests/test_chipmos_conference.py",
+      "sha256": "56ffec22cfc12f8690a6f034393ba5b6dec7bb67f821607c0f2c7c102ad12b46"
+    },
+    {
+      "path": "tests/test_chipmos_conference_integration.py",
+      "sha256": "3fbe2ede329b644ac51dd4d2ca86016d43bb9e26ba1a265ea3626cbbbd0ea59a"
+    },
+    {
+      "path": "tests/test_chroma_integration.py",
+      "sha256": "2711da0f9ee2c726a480767c0fbdcb77cee949fae362bd02fe774701aa53102c"
+    },
+    {
+      "path": "tests/test_cht_conference.py",
+      "sha256": "fa185bbf527dc42a50abac53955bdc02dec498875ded54f8aa7aa991f18e6d04"
+    },
+    {
+      "path": "tests/test_cht_presentation_integration.py",
+      "sha256": "d366cd21c37a5844622b1fafa56f5eba939f63bdb011dec6dc85ef33e2c06b46"
+    },
+    {
+      "path": "tests/test_csc_conference.py",
+      "sha256": "fc0efa5d2dc0c90b204c7f8813f31c6239217fcb9ef4646bb70ac7344258bf87"
+    },
+    {
+      "path": "tests/test_csc_independent_review.py",
+      "sha256": "b4e55fd2cc8452e88bb9d6df0b356ba6b9e8587eb74eec6182f480cf9394733a"
+    },
+    {
+      "path": "tests/test_csc_presentation_integration.py",
+      "sha256": "e717e8ee196ab4352e50651894b60851341cc6cf9a3a90982fca31f8f052d476"
+    },
+    {
+      "path": "tests/test_eikei_conference.py",
+      "sha256": "a3303aabf0a713431316c7a459c7e3ed8113dc91c809510a8c8407c3a35d250d"
+    },
+    {
+      "path": "tests/test_evidence_flatten_incremental.py",
+      "sha256": "baf67580a06d55099c4059ee07c8a6fb647987982ff5338404847498a9e969a5"
+    },
+    {
+      "path": "tests/test_fubon_conference.py",
+      "sha256": "6f4b897017e9f73a052a58fc35c5c8b2cf13b5491675e5732fd42a0bbe007395"
+    },
+    {
+      "path": "tests/test_gce_conference.py",
+      "sha256": "cc415606a8f84059f93d49e65cc186e2af94b5b2d8a676c835ae82b5d3dcb0c5"
+    },
+    {
+      "path": "tests/test_gce_conference_integration.py",
+      "sha256": "f8a95f11a58319ba4befdab042cba8c092c832cd1936da5eceaa70c0cdc3b99a"
+    },
+    {
+      "path": "tests/test_getac_integration.py",
+      "sha256": "83c1636c1409c0e9729f9e108369749bb5f41fb68dee8cf551979cb8b908325e"
+    },
+    {
+      "path": "tests/test_hiwin_conference.py",
+      "sha256": "f028704e43c97aad8652aa40a1152c4301e40db5dc8535bc6cf8ca8d2371fe71"
+    },
+    {
+      "path": "tests/test_hiwin_conference_integration.py",
+      "sha256": "b4eaf48fc1ac3bca9d42f20539c72e36a9cf19d1832f2ba6bd37f40d83cdc5fb"
+    },
+    {
+      "path": "tests/test_holding_full_originals.py",
+      "sha256": "4d76bcace6243ec1363bba229a326f5dc70cb11eda40f39f4ae2d6bd73d3c225"
+    },
+    {
+      "path": "tests/test_innocare_conference.py",
+      "sha256": "2cb72401308c11c529348e18f93da2bf5d23754979a45e48484936806ec48180"
+    },
+    {
+      "path": "tests/test_innocare_integration.py",
+      "sha256": "4feca0d914848b35d76f38a2a649d0ed2ca066b22742aa17240eeb63a814d2fa"
+    },
+    {
+      "path": "tests/test_kinik_conference.py",
+      "sha256": "6e615ba092bfbf4b4cce201779faf6cfb818873cb7232107c5d3696f23e1be75"
+    },
+    {
+      "path": "tests/test_kinik_conference_integration.py",
+      "sha256": "f1957375c81b878abc78650a6d0559783ab24d01ee029b547b0409c23dcd537c"
+    },
+    {
+      "path": "tests/test_kinik_presentation_pdf_reader.py",
+      "sha256": "e4e0bfac2faff6c33b257b4c6b39f0d3db7ed93880d73cefb85107f157492675"
+    },
+    {
+      "path": "tests/test_lienhwa_conference.py",
+      "sha256": "f61c4867e252323304a867036ac19662f6d9ef96f35cc0efc3a8f4a3bac51f65"
+    },
+    {
+      "path": "tests/test_lienhwa_integration.py",
+      "sha256": "59647e5cee1180a9e281876b36b070644d13ca46f560f26d3f6d22a17267d68a"
+    },
+    {
+      "path": "tests/test_macronix_conference.py",
+      "sha256": "9666dd44184a52dad58da46ca95ce13511b61a1af0af5b9d8bb7af958d91a490"
+    },
+    {
+      "path": "tests/test_macronix_presentation_index.py",
+      "sha256": "f6fa27f06998a9fecd54eff06e5c864106ea2f39720eb002aff135614dfd64ce"
+    },
+    {
+      "path": "tests/test_mops_body_budget_review.py",
+      "sha256": "dd062def7e6a84990f1b1c980cf04bc506b2f6bc514ee5a9912b40558a84974e"
+    },
+    {
+      "path": "tests/test_mops_cooldown_recovery.py",
+      "sha256": "474eb11dbf53f0fe32bdf4b2d3f8028b57b93edff60248380ef5a2204aaa1e7f"
+    },
+    {
+      "path": "tests/test_mops_legacy_fallback.py",
+      "sha256": "54b79280f52b95818ad9eb73436cdc3fbe291fd7de00505936673185688ce740"
+    },
+    {
+      "path": "tests/test_mops_material_transport.py",
+      "sha256": "63e00be4207cae9db88f8ecba2de59ccd8ce4b374b49c7fdb1e197b36f5e0ab7"
+    },
+    {
+      "path": "tests/test_mops_otc_master.py",
+      "sha256": "63e705e4e96b162bd7575b177670659d69348eedc8cc488d7f4034e4afa7582f"
+    },
+    {
+      "path": "tests/test_mops_pptx_mime_review.py",
+      "sha256": "a8c6d18851b453bac1fca0fff5dc0cd009c68c4449e1960238a0315ad6f58d65"
+    },
+    {
+      "path": "tests/test_mops_pptx_review.py",
+      "sha256": "77b315477bbb48ec70f534165429d323073ff994180b94fa6ba0f6f255e07943"
+    },
+    {
+      "path": "tests/test_mops_presentation.py",
+      "sha256": "28812a5365086696ef4a55c6e8974b732c0e9924e155c94b243b60bd7e38f057"
+    },
+    {
+      "path": "tests/test_mops_presentation_integration.py",
+      "sha256": "399b4dcd9b2e05ac5a5fcf18416d73244dd6df2c540fc807a97073f8cd1e22bc"
+    },
+    {
+      "path": "tests/test_mops_presentation_shared_master.py",
+      "sha256": "d97ae2d703f229cce1d890297d6451c059af248eb31a535008c13bb91b46524b"
+    },
+    {
+      "path": "tests/test_mops_prior_year_presentation.py",
+      "sha256": "cbf3cc777828c9b9494e6d1f1922a3778426e87b0a05aa92c53b3d5ab2e27ba0"
+    },
+    {
+      "path": "tests/test_mops_public_annual_financial.py",
+      "sha256": "91499c446189cb66bf32ebf6cb7b9d20b9bdbaadfac8060f3ce107d33ab94bb3"
+    },
+    {
+      "path": "tests/test_mops_semantic_role_pages.py",
+      "sha256": "76a2c1808093fb46c3025d238375ee0238353ad2f9d375dc23d7a995dfb77bdd"
+    },
+    {
+      "path": "tests/test_mops_static_material.py",
+      "sha256": "b09de0f3418375420ff550f6508830143876943610109592375e7181e8063be9"
+    },
+    {
+      "path": "tests/test_mops_verification_diagnostics.py",
+      "sha256": "3caf68495f29a78c30e5fe5faf7a5179d930e692176934defe5b9981a0a47a8a"
+    },
+    {
+      "path": "tests/test_myson_monthly_history.py",
+      "sha256": "3bf1a90c084ba549a0709ef9c8f83e580925016f43f5e82eae99d7d84bd92095"
+    },
+    {
+      "path": "tests/test_npc_pcb_conference.py",
+      "sha256": "bb18e0b762dff4fa06321bacfd00f7f3d5b4f53ef8826827d7c281594098252a"
+    },
+    {
+      "path": "tests/test_oct5_source_admission.py",
+      "sha256": "4ec549bf52a668b08156762e46bb0755fa23187e1487ce8d42eedaffb33fb30e"
+    },
+    {
+      "path": "tests/test_official_issuer_master_json.py",
+      "sha256": "63b9f7ddfa98ada43fd32e7493e7dd3657b6d933969562cb3126ce1c9b7a1e7e"
+    },
+    {
+      "path": "tests/test_ordinary_announcement_admission.py",
+      "sha256": "ad6457859941d1defa2d61fae476a0a1350b454a4c79b14053be409d637409d7"
+    },
+    {
+      "path": "tests/test_ordinary_event_identity.py",
+      "sha256": "ef0eff8143414595e32ff738f6ca3b248858f54556b2cb9fac8fe62d11a992c4"
+    },
+    {
+      "path": "tests/test_ordinary_individual_annual.py",
+      "sha256": "68d481323ede72d724450a1f4409fef90140d1a6f83868ab5a174ceb24c726ae"
+    },
+    {
+      "path": "tests/test_ordinary_individual_consumers.py",
+      "sha256": "85d05a3854446208b0d2d256b88f95ea757dab0e932bd74090ed74334235758a"
+    },
+    {
+      "path": "tests/test_otc_security_identity_refresh.py",
+      "sha256": "945a6e3468c0ad9d5beaecd8bb4005fa5497eb6b4b7880f02d463f6a3e5d9296"
+    },
+    {
+      "path": "tests/test_phase42_content_branches.py",
+      "sha256": "d99bf07f2c35ffd94618fa1a7ed6ffb2bb573a410a1353cec9323b4b2d096cc9"
+    },
+    {
+      "path": "tests/test_philjobnet_medtecs.py",
+      "sha256": "3f3105843cada3d030e3cc28141f69f272623bae6eaa1dd404b4fc25c8f4c51b"
+    },
+    {
+      "path": "tests/test_public_annual_gap_cache.py",
+      "sha256": "a9db795c8f50d97d7dd57459213c11285511101eab92027e16761ac56d3d2953"
+    },
+    {
+      "path": "tests/test_public_holding_annual_source.py",
+      "sha256": "02bfc2ab7216aa9d49b9315b6b803266bf8530b7182474e3c95b2d7da5a1669b"
+    },
+    {
+      "path": "tests/test_public_short_annual_index_gap_cache.py",
+      "sha256": "97907e13dcbc0c3b5fabf4a2133d649d7db276d3d549d3b48cd60236bc42e139"
+    },
+    {
+      "path": "tests/test_renderer_evidence_order.py",
+      "sha256": "a7177e154c9b74d9726a0a877ba01901bba139b9e7d2efe2427b6dc5687ece34"
+    },
+    {
+      "path": "tests/test_report_institutional_source_refresh.py",
+      "sha256": "74c0286dd6e42e7c0b10fdb0e85bc04e7d4d68dcee83727da2c70a55e0559110"
+    },
+    {
+      "path": "tests/test_report_security_identity_source_refresh.py",
+      "sha256": "3fff7b0c7f2e554d439f72f220558da22532dfd4eead73f607ec43efd165df1a"
+    },
+    {
+      "path": "tests/test_saved_content_generation_facts.py",
+      "sha256": "6c27c8ee025de795cec8e735e6a4abea02bdbc225920c84452b90900348f0f58"
+    },
+    {
+      "path": "tests/test_sigurd_conference.py",
+      "sha256": "d4b45454b43847c3892f3318205c9436bef28b0e70a4c61bed4bc42b9ec5fd58"
+    },
+    {
+      "path": "tests/test_sigurd_conference_integration.py",
+      "sha256": "2139c50cfe58bd6a5d944a5ddd5dfed4d33a3b5a4f0c9f75f3f78b40dbbb6ded"
+    },
+    {
+      "path": "tests/test_sinbon_conference.py",
+      "sha256": "d164314ecf90c0da231f914902ea83a893bb83b8ce8174d6752664e74b60e77f"
+    },
+    {
+      "path": "tests/test_sma_reasoning_regressions.py",
+      "sha256": "926cfa1c259f41b94ff8785ef3c522dc44e08788233abc9f8ebd2a9f12899e67"
+    },
+    {
+      "path": "tests/test_source_pdf_header_whitespace.py",
+      "sha256": "2302963c89920227d233d8759b0be634451db18a21cc782dbf41128e8900dd01"
+    },
+    {
+      "path": "tests/test_sti_conference.py",
+      "sha256": "073e8c0f9b57ecfe403716284a881ae752b0ac69810e441434bf884a01b3edf6"
+    },
+    {
+      "path": "tests/test_sti_conference_integration.py",
+      "sha256": "3c03c1370306e76bd1d4c7684afba65cf7764f4e2718b8850cf77f51ba428a34"
+    },
+    {
+      "path": "tests/test_sti_presentation_pdf_reader.py",
+      "sha256": "f6339929ca60e5882457bc73ebd7ba6a460318250351e52917b640efdfe037af"
+    },
+    {
+      "path": "tests/test_sym_issuer_news.py",
+      "sha256": "62ae108ae722ad5c211b14a979a43c0ad101db0a99deb3514682b1243a22e149"
+    },
+    {
+      "path": "tests/test_sym_issuer_news_integration.py",
+      "sha256": "a713a81f8907fe6012604284a4b4d31b9530b55e65996346f68d47da6912adbd"
+    },
+    {
+      "path": "tests/test_syntec_annual_bridge.py",
+      "sha256": "562605155fd11ef4bf7140759ded6caecab890cc823002bea69ace8021fd3810"
+    },
+    {
+      "path": "tests/test_tcfhc_annual_financial.py",
+      "sha256": "ecff27f374e779a8e9ba352a25eaee23c9b8ce6ee05c14cb9ac03fa84583382c"
+    },
+    {
+      "path": "tests/test_tecom_conference.py",
+      "sha256": "d5a5fd8cd7851df17d3c6bf67baba5b770269ce6fff0514a7faabc92c5fc6a9c"
+    },
+    {
+      "path": "tests/test_tewc_conference.py",
+      "sha256": "b2aee09c089a94882994bcc9e4b34e2dde3f9dcd25f101726711e1a54bebc2aa"
+    },
+    {
+      "path": "tests/test_tewc_conference_transport.py",
+      "sha256": "cc477e537500e5f2f06b907a441388a4f487799dbba199ce5c778c7646678dce"
+    },
+    {
+      "path": "tests/test_twse_dated_daily_fallback.py",
+      "sha256": "f0cec6d671731443453e24f6443f7ba69d4a2154d838866d1ecef1b48d1598ed"
+    },
+    {
+      "path": "tests/test_twse_official_freshness.py",
+      "sha256": "f4776a41e4f0a29684e387c046a185cfe6d51b8b1a5a9cd54d89d4011be9d0f2"
+    },
+    {
+      "path": "tests/test_unitech_conference.py",
+      "sha256": "651a22dbaae68b0b9569093d93466c673c52b689d61b2522b6bdb7c212a8471a"
+    },
+    {
+      "path": "tests/test_unitech_tcfhc_review_boundaries.py",
+      "sha256": "f314edc209cb9c1968089b891c76100854938e67f6a1f2a4d7ead66a6ee7e40b"
+    },
+    {
+      "path": "tests/test_unitech_tcfhc_source_integration.py",
+      "sha256": "533a3457a78a6146c3203d40113db689961017582642e17366ca204619ef8e84"
+    },
+    {
+      "path": "tests/test_voltronic_conference.py",
+      "sha256": "f1741bb2d11a565fa270c377e46d317aa53308557360f3a057d643b3224e227e"
+    },
+    {
+      "path": "tests/test_wahlee_integration.py",
+      "sha256": "56ec9e74d1f22eb8dacef48a94463f6dee5129a5c79cff92c14c2edc2ac828c0"
+    },
+    {
+      "path": "tests/test_walsin_conference.py",
+      "sha256": "256c04cc24f41ac105cbeb680a8d6c294328e20114d1f205aac05fabbc27917a"
+    },
+    {
+      "path": "tests/test_walsin_integration.py",
+      "sha256": "d6281b2e3c3959e9fae0f2a52a29ffef8874de9023cc7fa14e66fbbfd54f4e3c"
+    },
+    {
+      "path": "tests/test_winbond_conference.py",
+      "sha256": "7e9f2280778dc47a688c823e651a469e7bd551fb50b242fe3bd2257d44812387"
+    },
+    {
+      "path": "tests/test_winbond_conference_integration.py",
+      "sha256": "b5f84762d6ef960a58067ffb0c4362265ae916fad30383fe29aca0593e759303"
+    },
+    {
+      "path": "tests/test_zdt_integration.py",
+      "sha256": "024be946ea7d23030db10d90218eb8392dd99f61eb382b0ed950d038f160e42a"
+    }
+  ],
+  "test_scope_changes": [
+    "MOPS failure test explicitly bypasses the independently added Lien Hwa route to isolate the requested shared MOPS path.",
+    "The TWSE source test retains date, amount, unit, URL and warning checks. Its independent candidate-scoring assertions remain in the full local research test.",
+    "The legacy flatten implementation is included as an independent comparison; saved-report captures remain local.",
+    "Credential-bearing originals stay local. Redacted HTML and synthetic minimal viewer metadata are explicitly labeled offline fixtures."
+  ],
+  "post_test_formatting_normalization": {
+    "path": "tests/test_tewc_conference.py",
+    "python_ast_unchanged": true
+  },
+  "local_formatting_noise_retained": [
+    "backend/data_fetch/market_sources/tpex_historical_quarterly_summary.py",
+    "backend/evidence_derived_claims.py"
+  ]
+}

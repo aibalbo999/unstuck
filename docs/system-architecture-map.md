@@ -526,3 +526,12 @@ Free notification identity uses the shared pipeline resolver for report-bearing 
 4. 加架構測試：禁止新程式直接引用 legacy tracking DB、禁止 API route 直接拼 output path、禁止 tracking refresh 對同 ticker 重複 fetch。
 
 - Gemma 輸入效率：`prompt_record_tables.py` 無損資料列表示、`prompt_role_payload.py` 六個證據角色投影，由 `agent_runtime/single_agent.py` 按實際模型啟用；超限保留完整資料備援，修復流程停用角色省略。驗證與分工詳見 `docs/usage-aware-model-routing-2026-09-05.md` 的 2026-09-09 Gemma 節。
+
+
+## 公開來源擴充的維護路徑
+
+公司身分與免費入口 collector 位於 `backend/data_fetch/market_sources/`，provider 接線位於 `backend/data_fetch/`，單一報告補件走 `backend/report_source_refresh.py`。原件封存與讀回走 `backend/official_response_evidence.py`，法說角色內容投影走 `backend/conference_presentation_prompt.py`；品質判定及原分析是否需要重跑應分開核對。
+
+讀取效能維護先查 `backend/tracking_read_executor.py`、`backend/performance_read_executor.py` 與 `backend/tracking_latest_reports.py`。報告檔案仍經 ReportArtifactLocator，current tracking state 仍以 operational.sqlite3 為準。
+
+公開的 [來源目錄](free-source-candidates-2026-10-09.md) 與 [操作契約](source-evidence-operations.md) 不包含私有執行證據。驗證使用隔離 runner，原始樣本、憑證、正式資料庫和個別操作歷史留在本機。
