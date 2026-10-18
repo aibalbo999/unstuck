@@ -19,9 +19,23 @@ def _number(value):
 
 
 @lru_cache(maxsize=96)
-def _institutional_rows(body, market, day):
+def _institutional_original(body, market, day):
     from official_institutional_source import _parse_report
-    return _parse_report(json.loads(body), market, day)['rows']
+    payload = json.loads(body)
+    rows = _parse_report(payload, market, day)['rows']
+    definitions = {
+        '本統計資訊含一般、零股、盤後定價，不含鉅額、拍賣、標購。': False,
+        '本統計資訊含一般、零股、盤後定價、鉅額，不含拍賣、標購。': True,
+    }
+    notes = payload.get('notes')
+    declared = [note for note in notes if isinstance(note, str) and note in definitions] if isinstance(notes, list) and market == 'TWSE' else []
+    scope = {'scope_verified': len(set(declared)) == 1,
+             'includes_block_trades': definitions[declared[0]] if len(set(declared)) == 1 else None}
+    return rows, scope
+
+
+def _institutional_rows(body, market, day):
+    return _institutional_original(body, market, day)[0]
 
 
 @lru_cache(maxsize=4)
@@ -210,7 +224,7 @@ def institutional_detail(data, supplemental_reports=()):
         if isinstance(prior_reports, list):
             reports.extend(prior_reports)
         reports.append(_map(prior.get('latest_official_observation')))
-    official, seen = {}, set()
+    official, seen, observations = {}, set(), {}
     for report in reports:
         report = _map(report)
         day, proof = report.get('date'), _map(report.get('raw_evidence'))
@@ -224,13 +238,15 @@ def institutional_detail(data, supplemental_reports=()):
             urls = {url, url.replace('https://www.twse.com.tw/', 'https://wwwc.twse.com.tw/', 1)}
             if proof.get('source_url') not in urls or proof.get('http_status') != 200:
                 raise ValueError('official URL/status mismatch')
-            parsed = _institutional_rows(read_response(proof), market, day)
+            parsed, scope = _institutional_original(read_response(proof), market, day)
             row = parsed.get(ticker.split('.')[0])
             if row is None:
                 raise ValueError('security absent; not zero trades')
             versions = official.setdefault(day, {category: set() for category in categories})
             for category in categories:
                 versions[category].add(row[category])
+                observations.setdefault((day, category), []).append({**scope, 'value': row[category],
+                    'acquired_at': proof.get('retrieved_at')})
         except (KeyError, ValueError, TypeError, OSError, EOFError, zlib.error):
             result['prior_receipt_issues'].append(day+' 早先原件缺漏或雜湊／身分未通過核對；不取消原失敗紀錄')
     valid_rows = [row for row in rows if isinstance(row, dict)
@@ -253,8 +269,20 @@ def institutional_detail(data, supplemental_reports=()):
             value = row.get('net_buy_shares')
             versions = source[category]
             if len(versions) != 1:
-                result['conflicts'].append({'date': day, 'category': category, 'official_values': sorted(versions)})
-                result['issues'].append(day+' '+label+' 官方原件版本數值有衝突，原值未替換')
+                records = observations[(day, category)]
+                scopes = {record['includes_block_trades'] for record in records}
+                per_scope = {scope: {record['value'] for record in records if record['includes_block_trades'] is scope}
+                             for scope in scopes}
+                if None in scopes:
+                    kind, reason = 'scope_unverified', '官方原件版本數值有衝突，部分交易範圍未宣告；原值未替換'
+                elif len(scopes) == 2 and all(len(values) == 1 for values in per_scope.values()):
+                    kind = 'transaction_scope_difference'
+                    reason = '同日官方原件分為含鉅額與不含鉅額兩種交易範圍，不當作同口徑修訂；沒有逐筆法人鉅額明細，不能認定差額全由鉅額交易造成。原值未替換'
+                else:
+                    kind, reason = 'same_scope_value_conflict', '同一交易範圍的官方原件版本數值有衝突，修訂原因未證實；原值未替換'
+                result['conflicts'].append({'date': day, 'category': category, 'official_values': sorted(versions),
+                    'kind': kind, 'reason': reason, 'observations': records})
+                result['issues'].append(day+' '+label+' '+reason)
             elif key in duplicates or type(value) is not int or row.get('unit') != 'shares':
                 result['issues'].append(day+' '+label+' 保存分項缺漏、重複或單位未核實')
             elif value != next(iter(versions)):
@@ -273,7 +301,11 @@ def institutional_detail(data, supplemental_reports=()):
     return result
 
 
-def evidence_gap_details(data, supplemental_reports=(), supplemental_volume=None):
+def evidence_gap_details(data, supplemental_reports=(), supplemental_volume=None, cash_flow_review=None):
     data = _map(data)
-    return {'cash_flow': cash_flow_detail(data), 'volume': volume_detail(data, supplemental_volume),
+    cash = cash_flow_detail(data)
+    if cash_flow_review is not None:
+        from report_fcf_period_evidence import cash_flow_period_reference
+        cash['period_reference'] = cash_flow_period_reference(data, cash_flow_review)
+    return {'cash_flow': cash, 'volume': volume_detail(data, supplemental_volume),
             'institutional': institutional_detail(data, supplemental_reports)}

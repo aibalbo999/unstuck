@@ -1,4 +1,4 @@
-"""Bounded actual-money checks against typed annual histories and raw TTM FCF.
+"""Bounded money-unit checks against annual histories and an undated FCF input.
 
 This is not a general numeric fact checker. Unknown scope/currency/source stays
 unverified; scenario estimates and other financial periods are not compared.
@@ -58,11 +58,11 @@ def _source(data: dict, metric: str, prefix: str):
     if len(periods) > 1 and re.fullmatch(r'\s*[年至到~～–—-]+\s*', prefix[periods[-2].end():periods[-1].start()]):
         return None  # Multi-year ranges do not identify which endpoint an amount represents.
     if metric in {'自由現金流', 'FCF'}:
-        # A dated/older TTM claim cannot borrow the current un-dated raw TTM value.
+        # Retain numeric unit rejection without certifying the scalar's period.
         if period != 'TTM' or any(re.search(r'\d|去年|今年', p.group()) for p in periods[:-1]):
             return None
         raw = _finite(data.get('free_cash_flow_raw'))
-        return (raw, 'data.free_cash_flow_raw', raw, 'twd', 'TTM') if raw is not None else None
+        return (raw, 'data.free_cash_flow_raw', raw, 'twd', '即期輸入（期間未核實）') if raw is not None else None
     if not re.fullmatch(r'20\d{2}年?', period):
         return None
     for contract in (data.get('unit_contract'), (data.get('quant_metrics') or {}).get('unit_contract') if isinstance(data.get('quant_metrics'), dict) else None):
@@ -154,8 +154,9 @@ def financial_money_claim_issues(text: str, data: dict | None) -> list[str]:
         if _amount_matches(match['number'], scale, expected, '負' in match['link'],
                            5e6 if unit == 'billion_twd' else 0):
             continue
+        comparison = '保存的即期輸入不符；此處只核對數值換算，期間未核實' if path == 'data.free_cash_flow_raw' else '同期間來源不符'
         issues.append(
-            f'財務金額單位紅線：{period} {match["metric"]} 原文「{claim}」與同期間來源不符；'
+            f'財務金額單位紅線：{period} {match["metric"]} 原文「{claim}」與{comparison}；'
             f'來源 {path} 原值={original:g} {unit}，正確換算為{expected / 1e8:g}億新台幣。'
             '請核對原值、單位與期間後重新生成，不得將其他年度、TTM或推估數字混用。')
     return list(dict.fromkeys(issues))

@@ -32,7 +32,7 @@ def audit(index, output):
             data = snapshot['data']
             bundle = locator.require_bundle(row['filename'], require_markdown=False)
             review, _ = load_review(storage, row['filename'], bundle.read_data_item().content)
-            details = evidence_gap_details(data, review.get('institutional_reports', ()), review.get('volume_observation'))
+            details = evidence_gap_details(data, review.get('institutional_reports', ()), review.get('volume_observation'), review.get('cash_flow_period_review'))
             warnings = [item['id'] for item in snapshot.get('content_credibility', {}).get('warnings', [])
                         if isinstance(item, dict) and isinstance(item.get('id'), str)]
             annual = [row.get('provider') for row in data.get('source_audit', [])
