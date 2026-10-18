@@ -18,6 +18,25 @@ def sha256(content: bytes) -> str:
     return hashlib.sha256(content).hexdigest()
 
 
+def _reader_snapshot(storage: LocalFileStorage, filename: str):
+    locator = ReportArtifactLocator(storage)
+    data_key = locator.existing_key(filename, kind='data')
+    snapshot = None
+    content_hash = None
+    if data_key is not None:
+        content = storage.get_report(data_key).content
+        content_hash = sha256(content)
+        snapshot = json.loads(content.decode('utf-8'))
+        if not isinstance(snapshot, dict):
+            raise ValueError('Saved report snapshot must be a JSON object')
+    return snapshot, data_key, content_hash
+
+
+def prepared_reader_html(storage: LocalFileStorage, filename: str, html: str) -> str:
+    snapshot, _, _ = _reader_snapshot(storage, filename)
+    return inject_reader(html, snapshot=snapshot)
+
+
 def migrate_report(
     index_path: Path,
     storage: LocalFileStorage,
@@ -30,6 +49,9 @@ def migrate_report(
     key = ReportArtifactLocator(storage).require_key(filename, kind="html")
     # Resolve through storage validation, including symlink and reserved-key checks.
     _, path = storage._target(key)
+    # Storage reads acquire the same filesystem lock; preload and recheck the
+    # snapshot under the write lock instead of recursively acquiring flock.
+    snapshot, data_key, data_hash = _reader_snapshot(storage, filename)
     sidecar = metadata_path(path)
     mode = "rw" if apply else "ro"
     conn = sqlite3.connect(f"{Path(index_path).resolve().as_uri()}?mode={mode}", uri=True, timeout=30)
@@ -38,6 +60,10 @@ def migrate_report(
         if apply:
             conn.execute("BEGIN IMMEDIATE")
         with exclusive_storage_lock(storage._root):
+            if data_key is not None:
+                _, data_path = storage._target(data_key)
+                if sha256(data_path.read_bytes()) != data_hash:
+                    raise ValueError('Saved report snapshot changed during preparation')
             row = conn.execute(
                 "SELECT * FROM reports WHERE output_dir=? AND filename=?",
                 (str(storage._root), filename),
@@ -57,7 +83,7 @@ def migrate_report(
             if old_metadata is not None and (not isinstance(metadata, dict) or metadata.get("sha256") != before_hash):
                 raise ValueError("Report sidecar checksum does not match saved content")
             decoded = original.decode("utf-8")
-            updated = inject_reader(decoded).encode("utf-8")
+            updated = inject_reader(decoded, snapshot=snapshot).encode("utf-8")
             if remove_reader(updated.decode("utf-8")) != remove_reader(decoded):
                 raise ValueError("Reader injection changed original report content")
             after_hash = sha256(updated)

@@ -83,3 +83,19 @@ def test_corrupt_checksum_is_not_silently_repaired(tmp_path):
     with pytest.raises(ValueError, match='checksum'):
         migrate_report(db, storage, name, apply=True)
     assert (storage._root / key).read_bytes() == original
+
+
+def test_snapshot_race_refuses_html_update_without_recursive_storage_lock(tmp_path, monkeypatch):
+    import report_reader_migration as migration
+    storage, db, name, key, original = fixture_bundle(tmp_path)
+    load = migration._reader_snapshot
+
+    def change_after_read(*args):
+        result = load(*args)
+        storage.save_report(key.replace('.html', '.data.json'), b'{"changed":true}', content_type='application/json')
+        return result
+
+    monkeypatch.setattr(migration, '_reader_snapshot', change_after_read)
+    with pytest.raises(ValueError, match='snapshot changed'):
+        migration.migrate_report(db, storage, name, apply=True)
+    assert storage.get_report(key).content == original

@@ -1,4 +1,19 @@
 <!-- onstock-reader:start:v1 -->
+{% if reader_observations is not defined %}
+{% set observed = namespace(sources=[], events=[]) %}
+{% for row in audit_entries|default([]) %}
+{% set _ = observed.sources.append({'source': row.get('source', '') if row.get('source') is string else '', 'provider': row.get('provider', '') if row.get('provider') is string else '', 'status': row.get('status', '') if row.get('status') is string else '', 'error_kind': row.get('error_kind', '') if row.get('error_kind') is string else '', 'message': row.get('message', '') if row.get('message') is string else '', 'fetched_at': row.get('fetched_at', '') if row.get('fetched_at') is string else '', 'record_count': row.get('record_count') if row.get('record_count') is number else none, 'stale': row.get('stale') is not sameas false}) %}
+{% endfor %}
+{% set calendar = data.get('event_calendar', {}) if data is defined and data is mapping else {} %}
+{% set calendar = calendar if calendar is mapping else {} %}
+{% set calendar_events = calendar.get('events') %}
+{% set calendar_events = calendar_events if calendar_events is sequence and calendar_events is not string and calendar_events is not mapping else [] %}
+{% for event in calendar_events[:30] if event is mapping %}
+{% set _ = observed.events.append({'type': event.get('type', '') if event.get('type') is string else '', 'label': event.get('label', '') if event.get('label') is string else '', 'date': event.get('date', '') if event.get('date') is string else '', 'end_date': event.get('end_date', '') if event.get('end_date') is string else '', 'source': event.get('source', '') if event.get('source') is string else ''}) %}
+{% endfor %}
+{% set reader_observations = {'source_audit': observed.sources, 'original_order': true, 'event_calendar': {'as_of_date': calendar.get('as_of_date', '') if calendar.get('as_of_date') is string else '', 'status': calendar.get('status', '') if calendar.get('status') is string else '', 'calendar_fetch_status': calendar.get('calendar_fetch_status', '') if calendar.get('calendar_fetch_status') is string else '', 'calendar_error_kind': calendar.get('calendar_error_kind', '') if calendar.get('calendar_error_kind') is string else '', 'coverage_complete': calendar.get('coverage_complete') is sameas true, 'events': observed.events}, 'analysis_not_rerun': context.get('refreshed_without_analysis_rerun') is sameas true if context is defined else false, 'refreshed_at': context.get('snapshot_refreshed_at', '') if context is defined and context.get('snapshot_refreshed_at') is string else ''} %}
+{% endif %}
+<script id="report-reader-observations" type="application/json">{{ reader_observations|tojson }}</script>
 <style id="report-reader-style">{% include "includes/report_reader_styles.html.j2" %}</style>
 <script id="report-reader-script">{% include "includes/report_reader_script.html.j2" %}</script>
 <!-- onstock-reader:end:v1 -->

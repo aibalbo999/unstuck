@@ -32,8 +32,9 @@ async function main() {
         for (const item of manifest.reports) {
             if (selected && !selected.has(item.filename)) continue;
             const original = fs.readFileSync(path.join(manifest.output, item.key), 'utf8');
+            const observations = original.match(/<script id="report-reader-observations" type="application\/json">[\s\S]*?<\/script>/)?.[0] || '';
             const base = original.replace(/<!-- onstock-reader:start:v1 -->[\s\S]*?<!-- onstock-reader:end:v1 -->/, '');
-            current = base.replace(/<\/body>\s*<\/html>\s*$/i, () => `<style>${style}</style><script id="report-reader-script">${script}</script></body></html>`);
+            current = base.replace(/<\/body>\s*<\/html>\s*$/i, () => `${observations}<style>${style}</style><script id="report-reader-script">${script}</script></body></html>`);
             errors = [];
             try {
                 await page.goto('https://reader.test/inventory', { waitUntil: 'load', timeout: 10000 });

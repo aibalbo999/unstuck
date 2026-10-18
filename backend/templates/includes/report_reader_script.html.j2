@@ -15,6 +15,31 @@
         mode_a_research: 'research', mode_b_trading: 'trading',
         mode_c_contrarian: 'contrarian', mode_d_event_swing: 'event-swing',
     })[main.dataset.reportTemplate] || 'research';
+    let observations = {};
+    try {
+        const saved = JSON.parse(document.getElementById('report-reader-observations')?.textContent || '{}');
+        if (saved && typeof saved === 'object' && !Array.isArray(saved)) observations = saved;
+    } catch (_) { /* A damaged display receipt must not invent confirmed data. */ }
+    const auditRows = all('.source-audit-table tbody tr').filter(row => query('.audit-status', row));
+    const sourceObservations = Array.isArray(observations.source_audit) ? observations.source_audit.filter(row => row && typeof row === 'object').map((row, index) => row.label || observations.original_order !== true ? row : { ...row, label: text(query('td', auditRows[index] || document.createElement('tr'))) }) : [];
+    const calendarReason = () => {
+        const calendar = observations.event_calendar;
+        if (!calendar || typeof calendar !== 'object' || !calendar.as_of_date) return '原保存資料未包含可判讀的事件日曆，須補抓後再評估事件影響';
+        const base = /^\d{4}-\d{2}-\d{2}$/.test(calendar.as_of_date) ? calendar.as_of_date : '';
+        if (!base) return '原日曆的觀測日期無法核對，不能代填事件日期';
+        const end = new Date(base + 'T00:00:00Z');
+        end.setUTCDate(end.getUTCDate() + 14);
+        if (!Number.isFinite(end.getTime())) return '原日曆的觀測日期無法核對，不能代填事件日期';
+        const horizon = end.toISOString().slice(0, 10);
+        const events = (Array.isArray(calendar.events) ? calendar.events : []).filter(event => event && ['earnings_date', 'ex_dividend_date', 'dividend_pay_date'].includes(event.type) && /^\d{4}-\d{2}-\d{2}$/.test(event.date));
+        const within = events.filter(event => (typeof event.end_date === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(event.end_date) && event.end_date >= event.date ? event.end_date : event.date) >= base && event.date <= horizon);
+        const next = events.filter(event => event.date > horizon).sort((a, b) => a.date.localeCompare(b.date))[0];
+        const coverage = calendar.coverage_complete === true ? '' : '；來源未保證完整覆蓋，不代表沒有其他事件';
+        if (within.length) return `日曆列有 ${within.slice(0, 3).map(event => event.date).join('、')} 的事件，但原分析尚未確認其影響與交易條件${coverage}`;
+        if (calendar.calendar_fetch_status === 'success' || calendar.status === 'success') return next ? `日曆已取得，下一筆已列事件為 ${next.date}，不在原報告的 14 日範圍內${coverage}` : `日曆已取得，但未列出原報告 14 日範圍內可確認的事件${coverage}`;
+        return `事件日曆未完整取得${calendar.calendar_error_kind ? '（' + calendar.calendar_error_kind + '）' : ''}，已有日期也不能視為完整覆蓋`;
+    };
+    const unfinishedMoat = all('.analysis-card').some(card => /護城河/.test(text(card)) && /待補推論步驟/.test(text(card)));
     const profiles = {
         research: ['A｜長線投資研究', '公司價值與長線判斷', '研究結論', ['最終建議', '基本情境估值', '整體護城河', '資料可信度']],
         trading: ['B｜交易與部位管理', '本次部位計畫', '本次部位動作', ['部位動作', '進場區間', '部位大小', '停損條件', '失效條件', '部位基準', '比例意義']],
@@ -54,9 +79,9 @@
         if (mode === 'event-swing' && shortObservation() && price) return '不適用（觀望中，暫不設定交易價位）';
         if (mode === 'trading' && price && decisionRows.get('部位動作') === '等待') return '不適用（本次等待，暫不設定新交易條件）';
         if (mode === 'contrarian' && /^(?:下行目標|防軋空停損)$/.test(key) && /^(?:目前|本次|暫時)?(?:先)?(?:不建立空方部位|不進行放空|不做空)(?:[，。；、\s]|$)/.test(decisionRows.get('做空觸發') || '')) return '不適用（原計畫明示不建立空方部位）';
-        if (/整體護城河|護城河評分/.test(key)) return '尚未確認（原報告未提供可核實的護城河評分；缺值不等於零分）';
+        if (/整體護城河|護城河評分/.test(key)) return unfinishedMoat ? '尚未確認（原分析的護城河推論仍有待補步驟，須重新分析；不能靠補股價直接填分）' : '尚未確認（原報告未提供可核實的護城河評分；缺值不等於零分）';
         if (/估值|基本情境|目標|支撐|壓力|停損|觸發|信心|風險/.test(key)) return '尚未確認（原報告未提供可核實的判斷或數值，不代填結論）';
-        if (/事件|催化/.test(key)) return '尚未確認（原報告未確認本次觀察期間的事件日期；不代表沒有事件）';
+        if (/事件|催化/.test(key)) return `尚未確認（${calendarReason()}）`;
         if (/成本/.test(key)) return '尚未提供（原報告未列出完整費率或交易成本估計，不以零代替）';
         if (/未評估|未驗證|未確認|未估計/.test(value)) return '尚未確認（原報告未完成此項核實，不能視為已確認結果）';
         return '尚未提供（原報告未填此項，未記錄缺漏原因）';
@@ -240,19 +265,56 @@
     if (mode === 'trading' && /^(?:未評估，)?未取得資金與持倉輸入$/.test(rows.get('部位基準') || '')) {
         rows.set('部位基準', '尚未提供（原報告未取得資金與持倉輸入，無法形成個人化部位計畫）');
     }
+    let auditIndex = 0;
+    const describedReceipts = new Set();
+    const usableReceipt = entry => ['success', 'skipped_fresh_cache'].includes(entry.status) && typeof entry.record_count === 'number' && entry.record_count > 0 && entry.stale === false;
     for (const sourceRow of all('.source-audit-table tbody tr')) {
         const statusNode = query('.audit-status', sourceRow);
         if (!statusNode) continue;
+        const observedIndex = auditIndex++;
         const status = Array.from(statusNode.classList).find(name => name.startsWith('audit-status-'))?.slice(13) || '';
         if (!status || ['success', 'skipped_fresh_cache'].includes(status)) continue;
         const cells = all('td', sourceRow);
         const source = text(cells[0]) || '資料來源';
-        const reason = text(cells[8]);
+        const provider = text(cells[1]);
+        const fetchedAt = text(cells[3]);
+        const matches = entry => entry.provider === provider && entry.status === status && entry.fetched_at === fetchedAt;
+        const receipt = sourceObservations.find(entry => entry.label === source && matches(entry)) || (observations.original_order === true && matches(sourceObservations[observedIndex] || {}) ? sourceObservations[observedIndex] : {});
+        const kind = typeof receipt.error_kind === 'string' ? receipt.error_kind : '';
+        let reason = text(cells[8]);
         const failed = /^(?:error|failed|failure|timeout|rate_limited)$/.test(status)
             || /HTTP\s*(?:429|5\d\d)|逾時|超時|連線失敗|timeout|connection error/i.test(reason);
         const notApplicable = /^(?:not_applicable|skipped|disabled)$/.test(status);
-        const category = failed ? '來源異常' : notApplicable ? '不適用' : status === 'not_configured' ? '尚未提供' : '尚未確認';
+        let category = failed ? '來源異常' : notApplicable ? '不適用' : status === 'not_configured' ? '尚未提供' : '尚未確認';
+        if (kind === 'cooldown' || /來源仍在冷卻期間/.test(reason)) {
+            category = '尚未確認'; reason = '來源暫在冷卻中，本次沒有重新取得資料；應等待冷卻結束，不代表本次又收到一次限流回應。' + (reason ? '原紀錄：' + reason : '');
+        } else if (kind === 'single_flight_busy') {
+            category = '尚未確認'; reason = '同來源已有其他取得工作進行中，本次未重複發送請求；須等待該次結果。' + (reason ? '原紀錄：' + reason : '');
+        } else if (kind === 'FilingError' && /fewer than five contiguous/.test(reason)) {
+            category = '尚未確認'; reason = '尚未取得連續五年、同合併口徑的官方年度財報；不是單純連線失敗，也不能用較少年度冒充完整五年。原紀錄：' + reason;
+        } else if (kind === 'FilingError' && /conflicting incomplete/.test(reason)) {
+            category = '尚未確認'; reason = '官方比較期間不完整或資料互有衝突，仍須核對原件；原財務品質門檻維持。原紀錄：' + reason;
+        } else if (kind === 'timeout' && !/逾時|超時|timeout/i.test(reason)) {
+            reason = '實際取得逾時，未能確認此來源的完整原件。原紀錄：' + reason;
+        }
+        if (receipt.source && sourceObservations.some(entry => entry.source === receipt.source && entry.provider !== provider && usableReceipt(entry))) reason += ' 另有同類備援取得紀錄，期間與覆蓋仍須分別核對，不能取代這份原件的缺口。';
+        const newer = sourceObservations.filter(entry => entry.label === source && entry.provider === provider && usableReceipt(entry) && Number.isFinite(Date.parse(fetchedAt)) && Date.parse(entry.fetched_at) > Date.parse(fetchedAt)).sort((a, b) => Date.parse(b.fetched_at) - Date.parse(a.fetched_at))[0];
+        if (newer) {
+            category += '（原報告紀錄）';
+            addLimit(`較新的來源取得紀錄｜${source}`, `${newer.fetched_at} 另有 ${newer.record_count} 筆取得紀錄；更新資料不代表原分析已重跑，也不會取消原品質警示。`);
+            describedReceipts.add(JSON.stringify([newer.source, newer.provider, newer.fetched_at]));
+        }
         addLimit(`${category}｜${source}`, reason || (failed ? '原紀錄顯示取得失敗，但未保存進一步原因。' : notApplicable ? '原紀錄顯示本次未使用此來源，未保存進一步原因。' : status === 'not_configured' ? '原紀錄顯示此來源尚未設定，未保存進一步原因。' : '原紀錄未確認來源完整性，未保存進一步原因。'));
+    }
+    const refreshedAt = Date.parse(observations.refreshed_at);
+    if (observations.analysis_not_rerun === true && Number.isFinite(refreshedAt)) {
+        for (const receipt of sourceObservations) {
+            const identity = JSON.stringify([receipt.source, receipt.provider, receipt.fetched_at]);
+            const acquired = Date.parse(receipt.fetched_at);
+            if (describedReceipts.has(identity) || !usableReceipt(receipt) || !Number.isFinite(acquired) || acquired > refreshedAt || refreshedAt - acquired > 120000) continue;
+            describedReceipts.add(identity);
+            addLimit(`資料補抓紀錄｜${receipt.label || receipt.source}`, `${receipt.fetched_at} 由 ${receipt.provider} 取得 ${receipt.record_count} 筆；這是來源資料更新，原分析尚未重跑、原品質警示仍保留，不能把原報告視為最新結論。`);
+        }
     }
     for (const label of profile[3]) {
         if (!rows.has(label)) continue;

@@ -13,8 +13,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
 
-from report_reader_assets import inject_reader
-from report_reader_migration import migrate_report, sha256
+from report_reader_migration import migrate_report, prepared_reader_html, sha256
 from storage.report_storage import LocalFileStorage
 
 
@@ -62,7 +61,7 @@ def main() -> int:
             if args.preview_dir and row["pipeline_id"] not in preview_modes:
                 args.preview_dir.mkdir(parents=True, exist_ok=True)
                 raw = storage.get_report(item["key"]).content.decode("utf-8")
-                preview_html = inject_reader(raw)
+                preview_html = prepared_reader_html(storage, row['filename'], raw)
                 (args.preview_dir / f"{row['pipeline_id']}.html").write_text(preview_html, encoding="utf-8")
                 from report_history_downloads import secure_html_response
                 headers = dict(secure_html_response(preview_html).headers)

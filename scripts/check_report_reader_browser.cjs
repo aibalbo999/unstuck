@@ -13,7 +13,7 @@ const root = path.resolve(__dirname, '..');
 const script = fs.readFileSync(path.join(root, 'backend/templates/includes/report_reader_script.html.j2'), 'utf8');
 const style = fs.readFileSync(path.join(root, 'backend/templates/includes/report_reader_styles.html.j2'), 'utf8');
 
-function fixture(mode, state = 'warning') {
+function fixture(mode, state = 'warning', observations = {}) {
     const rows = mode === 'trading' ? [['部位動作', '等待'], ['部位大小', '0%'], ['進場區間', 'N/A'], ['部位基準', '未評估，未取得資金與持倉輸入'], ['比例意義', '0% 僅指本研究不新增部位，不代表使用者實際持倉為零。']] : mode === 'event-swing' ? [['交易方向', 'Neutral'], ['進場區間', 'N/A'], ['1-2 週目標', '資料不足'], ['嚴格停損', 'N/A'], ['事件催化', '事件日期未確認'], ['重新評估條件', '等待站回10日均線且法人轉買超'], ['波動風險', 'High']] : mode === 'contrarian' ? [['空方結論', '避免'], ['做空觸發', '不建立空方部位'], ['下行目標', 'N/A'], ['防軋空停損', 'N/A']] : [['最終建議', '持有'], ['基本情境估值', 'NT$100.00'], ['整體護城河', '資料不足']];
     const focusRows = mode === 'contrarian' ? `<div class="mode-focus-risk-grid">${rows.map(([label, value]) => `<div><span>${label}</span><strong>${value}</strong></div>`).join('')}</div>` : `<dl>${rows.map(([label, value]) => `<div><dt>${label}</dt><dd>${value}</dd></div>`).join('')}</dl>`;
     return `<!doctype html><html><head><style>${style}</style></head><body>
@@ -31,7 +31,7 @@ function fixture(mode, state = 'warning') {
     <tr><td>新聞來源</td><td>provider</td><td><span class="audit-status audit-status-error">失敗</span></td><td></td><td>10</td><td>0</td><td>否</td><td>否</td><td>HTTP 429，請求暫受限制</td></tr>
     <tr><td>公告來源</td><td>provider</td><td><span class="audit-status audit-status-unavailable">無資料</span></td><td></td><td>10</td><td>0</td><td>否</td><td>否</td><td>查詢期間無公告，不推論沒有風險</td></tr>
     </tbody></table></div>
-    </main><script id="report-chart-data" type="application/json">{"prices":[100.00,null,98]}</script><script>${script}</script></body></html>`;
+    </main><script id="report-reader-observations" type="application/json">${JSON.stringify(observations).replaceAll('<', '\\u003c')}</script><script id="report-chart-data" type="application/json">{"prices":[100.00,null,98]}</script><script>${script}</script></body></html>`;
 }
 
 function changedFixture(mode, from, to) {
@@ -95,7 +95,7 @@ async function main() {
                 if (mode === 'research') assert(visible.includes('尚未確認（原報告未提供可核實的護城河評分'));
                 if (mode === 'contrarian') assert(visible.includes('不適用（原計畫明示不建立空方部位'));
                 if (mode === 'event-swing') {
-                    assert(visible.includes('尚未確認（原報告未確認本次觀察期間的事件日期'));
+                    assert(visible.includes('尚未確認（原保存資料未包含可判讀的事件日曆'));
                     assert(!visible.includes('Neutral'));
                     assert(!visible.includes('High'));
                     assert.equal(await page.locator('.hero > .verdict-banner .verdict-main').innerText(), '觀望（暫不建立新交易）');
@@ -138,6 +138,51 @@ async function main() {
         assert(!limits.includes('有效快取已提供資料'));
         assert(limits.includes('尚未提供｜公告來源'));
         results.push({ case: 'cache-and-configuration-are-not-provider-errors', status: 'passed' });
+        for (const [kind, message, expected] of [
+            ['cooldown', '來源仍在冷卻期間', '本次沒有重新取得資料'],
+            ['single_flight_busy', '來源未回傳名單', '已有其他取得工作進行中'],
+            ['FilingError', 'fewer than five contiguous published consolidated annual filings', '不能用較少年度冒充完整五年'],
+            ['FilingError', 'conflicting incomplete financial-institution comparative for 2022', '官方比較期間不完整或資料互有衝突'],
+            ['timeout', '發行人原文核對未完成', '實際取得逾時'],
+        ]) {
+            const data = { source_audit: [{ label: '新聞來源', provider: 'provider', status: 'error', fetched_at: '', error_kind: kind }] };
+            await page.goto('about:blank');
+            await page.setContent(fixture('research', 'warning', data).replace('HTTP 429，請求暫受限制', message));
+            const visible = await page.locator('.reader-limits').innerText();
+            assert(visible.includes(expected), `${kind}: ${visible}`);
+            if (kind !== 'timeout') assert(!visible.includes('來源異常｜新聞來源'));
+            assert((await page.locator('#reader-audit').textContent()).includes(message));
+            results.push({ case: `source-reason-${kind}-${message.slice(0, 12)}`, status: 'passed' });
+        }
+        for (const [day, expected] of [['2026-11-11', '不在原報告的 14 日範圍內'], ['2026-10-20', '原分析尚未確認其影響與交易條件']]) {
+            const data = { event_calendar: { as_of_date: '2026-10-17', status: 'success', calendar_fetch_status: 'success', coverage_complete: false, events: [{ type: 'earnings_date', date: day }] } };
+            await page.goto('about:blank');
+            await page.setContent(fixture('event-swing', 'warning', data));
+            const visible = await page.locator('.reader-brief').innerText();
+            assert(visible.includes(day) && visible.includes(expected));
+            assert(visible.includes('來源未保證完整覆蓋'));
+            assert(visible.includes('觀望（暫不建立新交易）'));
+            results.push({ case: `calendar-reason-${day}`, status: 'passed' });
+        }
+        const recovery = { source_audit: [{ label: '新聞來源', provider: 'provider', status: 'success', fetched_at: '2026-10-18T00:00:00Z', record_count: 1, stale: false }], analysis_not_rerun: true };
+        await page.goto('about:blank');
+        await page.setContent(fixture('research', 'warning', recovery).replace('audit-status-error">失敗</span></td><td></td>', 'audit-status-error">失敗</span></td><td>2026-10-17T00:00:00Z</td>'));
+        const recoveryText = await page.locator('.reader-limits').innerText();
+        assert(recoveryText.includes('來源異常（原報告紀錄）'));
+        assert(recoveryText.includes('較新的來源取得紀錄'));
+        assert(recoveryText.includes('更新資料不代表原分析已重跑'));
+        results.push({ case: 'new-source-receipt-does-not-erase-original-warning', status: 'passed' });
+        const replacement = { source_audit: [{ source: 'earnings_call', label: '法說會', provider: 'New official source', status: 'success', fetched_at: '2026-10-18T00:00:00Z', record_count: 1, stale: false }], analysis_not_rerun: true, refreshed_at: '2026-10-18T00:00:10Z' };
+        await page.goto('about:blank');
+        await page.setContent(fixture('research', 'warning', replacement));
+        const replacementText = await page.locator('.reader-limits').innerText();
+        assert(replacementText.includes('資料補抓紀錄｜法說會'));
+        assert(replacementText.includes('不能把原報告視為最新結論'));
+        results.push({ case: 'replacement-source-does-not-rewrite-the-old-analysis', status: 'passed' });
+        await page.goto('about:blank');
+        await page.setContent(changedFixture('research', '其他指標 N/A', '護城河待補推論步驟；其他指標 N/A'));
+        assert((await page.locator('.reader-brief').innerText()).includes('須重新分析；不能靠補股價直接填分'));
+        results.push({ case: 'incomplete-moat-is-not-a-missing-quote', status: 'passed' });
         if (preview) {
             fs.mkdirSync(output, { recursive: true });
             for (const mode of ['v1', 'v2', 'v3', 'v4']) {
