@@ -355,7 +355,8 @@ def test_mode_d_history_upgrades_legacy_content_credibility_from_trade_plan(tmp_
     result = list_reports_for_test(tmp_path, pipeline="v4")
 
     credibility = result["reports"][0]["content_credibility"]
-    assert credibility["status"] == "warning"
+    assert credibility["status"] == "blocked"
+    assert any(issue["id"] == "v4_material_news_without_source" for issue in credibility["blocking_issues"])
     assert credibility["checks"][0]["id"] == "trade_setup_alignment"
     details = credibility["checks"][0]["details"]
     assert {key: details[key] for key in ("trade_direction", "current_price", "target_price", "stop_loss")} == {
@@ -1292,7 +1293,7 @@ def test_refresh_data_snapshot_endpoint_updates_trust(tmp_path, monkeypatch, mut
     assert body["decision_freshness"]["snapshot_refreshed_at"]
     assert "投資結論仍以原報告生成時間為準" in body["decision_freshness"]["requires_rerun_reason"]
     assert [item.force_refresh for item in refresh_options] == [True]
-    assert [item.record_provider_sla for item in refresh_options] == [False]
+    assert [item.record_provider_sla for item in refresh_options] == [True]
     assert body["refresh_diff"]["data_trust_status"] == {"before": "stale", "after": "fresh", "changed": True}
     assert "可信度 stale → fresh" in body["refresh_diff"]["summary"]
     saved = json.loads((tmp_path / filename.replace(".html", ".data.json")).read_text(encoding="utf-8"))

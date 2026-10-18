@@ -2983,6 +2983,22 @@ def test_data_snapshot_content_hash_keys_use_safe_text_conversion():
     assert integrity["hash"] == expected_hash
 
 
+def test_data_snapshot_hash_survives_json_normalization_of_numeric_nested_keys():
+    from data_trust_snapshot_integrity import set_snapshot_integrity, verify_data_snapshot_integrity
+    from data_trust_snapshot_sanitizer import sanitize_for_snapshot
+
+    snapshot = {
+        "ticker": "HASH",
+        "data": {"sma_values": {5: 20.18, 10: 19.8, 20: 19.77, 60: 19.93}},
+        "reproducibility_packet": {},
+    }
+
+    set_snapshot_integrity(snapshot)
+    persisted_snapshot = sanitize_for_snapshot(snapshot)
+
+    assert verify_data_snapshot_integrity(persisted_snapshot)["valid"] is True
+
+
 def test_data_snapshot_content_hash_uses_safe_mapping_items():
     snapshot = data_trust.build_data_snapshot(
         {

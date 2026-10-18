@@ -2172,7 +2172,7 @@ def test_source_audit_summary_counts_are_derived_from_merged_payload_not_audit_c
         "international_news_context": {"topics": [{"tag": "ai"}]},
         "macro_indicators": {"series": {"DGS10": 4.2}},
         "chip_data": {"tdcc_shareholder_distribution": {"major": 42}},
-        "alternative_data": {"job_openings_104": {"job_count": 10}},
+        "alternative_data": {"job_openings_104": {"status": "success", "job_count": 10}},
         "social_sentiment": {"ptt_stock_direct": [{"title": "討論"}]},
         "sec_edgar": {"recent_filings": [{"form": "10-Q"}]},
         "taiwan_open_data": {"rates": {"USD": {"sell": "31.50"}}},

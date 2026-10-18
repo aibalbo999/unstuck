@@ -22,6 +22,26 @@ def build_fresh_cache_payload(
     if any(field not in cached for field in REQUIRED_DATA_SCHEMA_FIELDS):
         return None, [], True
 
+    from market_price_reconciliation import CONTRACT
+    daily = cached.get("daily_market_data") or {}
+    if daily.get("bars") and daily.get("price_basis_contract") != CONTRACT:
+        return None, ["market_data"], True
+
+    if daily.get("bars") and str(cached.get("ticker") or original_ticker).upper().endswith((".TW",".TWO")):
+        from datetime import datetime,timezone
+        from two_week_market_eligibility import completed_session
+        from report_source_admission import institutional_admission,price_admission
+        ticker=str(cached.get("ticker") or original_ticker).upper()
+        current_expected=completed_session(datetime.fromtimestamp(now_epoch,timezone.utc))
+        if not current_expected or daily.get("as_of")!=current_expected:
+            return None,["market_data"],False
+        if not institutional_admission(cached.get("institutional_trading"),current_expected)["eligible"] or not price_admission(daily,ticker)["eligible"]:
+            return None,["institutional_trading","market_data"],False
+
+    expected=(daily.get("history_query") or {}).get("expected_completed_session")
+    if expected and daily.get("as_of") != expected:
+        return None, ["market_data"], False
+
     cache_ticker = str(cached.get("ticker") or original_ticker).strip().upper()
     is_fresh, freshness = assess_cached(cached, cache_ticker)
     if not is_fresh:

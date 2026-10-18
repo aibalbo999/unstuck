@@ -116,8 +116,8 @@ def test_percentage_under_moat_dimension_is_not_assumed_to_be_a_score():
 
 def test_score_addition_does_not_change_seeded_financial_sampling():
     text = '\n'.join(f'股價{i}:100元' for i in range(25))
-    plain = evaluate_report_evidence(text, SNAPSHOT)
-    scored = evaluate_report_evidence(text + '\n信心:8/10\n資料信心分數:91/100', SNAPSHOT)
+    plain = evaluate_report_evidence(text, SNAPSHOT, sample_ratio=0.15, max_sample=30)
+    scored = evaluate_report_evidence(text + '\n信心:8/10\n資料信心分數:91/100', SNAPSHOT, sample_ratio=0.15, max_sample=30)
     assert plain['sampled_count'] == scored['sampled_count'] == 4
     assert [item['label'] for item in plain['sampled_claims']] == [item['label'] for item in scored['sampled_claims']]
 

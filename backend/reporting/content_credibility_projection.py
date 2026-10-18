@@ -45,6 +45,9 @@ def project_content_credibility(snapshot: Any) -> dict[str, Any] | None:
         return None
 
     context = dict(rerun_context)
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    context["candidate_evaluation_at"] = datetime.now(ZoneInfo("Asia/Taipei")).isoformat()
     context["pipeline_id"] = pipeline_id
     context["parsed"] = parsed
     context["data"] = data

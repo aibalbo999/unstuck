@@ -21,11 +21,11 @@ def index(monkeypatch):
         monkeypatch.setattr(module, 'set_cache_json', lambda key, value, ttl_seconds: state.__setitem__(key, value))
     monkeypatch.setattr(runtime, 'record_source_audit_entries', lambda entries: observations.extend(entries))
     responses = {170: EMPTY, 148: json.loads(FIXTURE.read_text())}
-    def post(url, **kwargs):
-        calls.append(kwargs['data'])
-        category = int(kwargs['data']['categoryId'])
-        return httpx.Response(200, json=responses[category], request=httpx.Request('POST', url))
-    monkeypatch.setattr(webpro, 'sync_post', post)
+    def get(url, **kwargs):
+        calls.append(kwargs['params'])
+        category = int(kwargs['params']['categoryId'])
+        return httpx.Response(200, json=responses[category], request=httpx.Request('GET', url))
+    monkeypatch.setattr(webpro, 'sync_get', get)
     return responses, calls, state, observations
 
 
@@ -44,7 +44,7 @@ def test_captured_mops_category_recovers_metadata_and_keeps_each_category_eviden
     assert [row['outcome'] for row in audit['category_observations']] == ['valid_empty', 'results']
     assert [row['category_id'] for row in audit['category_observations']] == [170, 148]
     assert [int(call['categoryId']) for call in index[1]] == [170, 148]
-    assert all(call['pageNumber'] == '1' and call['pagingSize'] == '3' for call in index[1])
+    assert all(call['pagingSize'] == '100' and call['companyCode'] == '2367' for call in index[1])
     second_audit = {}
     assert webpro.fetch_webpro_conference_context('2367.TW', diagnostics=second_audit) == result
     assert len(index[1]) == 2

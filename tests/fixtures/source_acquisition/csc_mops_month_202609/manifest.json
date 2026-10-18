@@ -1,0 +1,19 @@
+{
+  "captured_at_utc": "2026-10-17T02:06:19.114590+00:00",
+  "tls_verified": true,
+  "use": "isolated fixture for MOPS English issuer/event index and monthly presentation link parsing; no auth",
+  "responses": {
+    "iih": {
+      "url": "https://wwwc.twse.com.tw/rwd/en/IIH/company/events?code=2002",
+      "http_status": 200,
+      "bytes": 8467,
+      "sha256": "05319739136a8506a7fb2d681622ea041e60b4df95ba37f444c1b460538041ce"
+    },
+    "month": {
+      "url": "https://emops.twse.com.tw/server-java/t100sb07_1_e?TYPEK=all&step=show&code=2002&LPSHOW_DATE_YY=2026&LPSHOW_DATE_MM=09",
+      "http_status": 200,
+      "bytes": 2548,
+      "sha256": "d62053caf13210f9af95d51cad04abf0f1b532c439ed85ce9f5bc001871788a5"
+    }
+  }
+}

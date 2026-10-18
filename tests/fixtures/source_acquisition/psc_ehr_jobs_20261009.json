@@ -1,0 +1,97 @@
+{
+  "fixture_kind": "observed_public_fields_subset_not_original_http_bytes",
+  "original_reported_listing_total": 138,
+  "original_listing_sha256": "54ee57d6297041712167c8fc6cbc387a7620ce57507d144b97544dc692ee929d",
+  "fetched_at_epoch": 1791542247.791919,
+  "listing_data": [
+    3,
+    [
+      {
+        "id": "1613781649555324707",
+        "custId": "9900000736",
+        "enable": true,
+        "cleanI18nName": "彰化分公司財富管理組長"
+      },
+      {
+        "id": "1613781649555324680",
+        "custId": "9900000736",
+        "enable": true,
+        "cleanI18nName": "台中分公司財富管理顧問"
+      },
+      {
+        "id": "1613781649555324677",
+        "custId": "9900000736",
+        "enable": true,
+        "cleanI18nName": "宜蘭分公司財富管理顧問"
+      }
+    ]
+  ],
+  "detail_data": [
+    {
+      "id": "1613781649555324707",
+      "custId": "9900000736",
+      "custNo": "23218183000",
+      "coName": "統一綜合證券股份有限公司",
+      "enable": true,
+      "job": "彰化分公司財富管理組長",
+      "formattedCreateDate": "2024/08/30 11:22:50",
+      "formattedInputDate": "2024/08/30",
+      "formattedUpdateDate": "2026/10/05 18:21:54",
+      "formattedCloseDate": "無",
+      "closeDate": null,
+      "deleteDate": null,
+      "roleString": "全職",
+      "needEmpString": "1",
+      "salaryString": "面議（經常性薪資達4萬元或以上）",
+      "i18nAddressRegion": "彰化縣彰化市",
+      "peer": {
+        "i18nDescription": "1.負責分公司理財業務人員招募作業\n2.帶領業務團隊開發財管客戶客戶，達成理財團隊目標\n3.主管交辦事項",
+        "i18nOthers": "1.證照需求：信託業務員、衍生性商品證照、保險相關業務員證照\n2.善溝通，具客戶服務熱忱\n3.對金融商品銷售具企圖心\n4.可承受業績壓力"
+      }
+    },
+    {
+      "id": "1613781649555324680",
+      "custId": "9900000736",
+      "custNo": "23218183000",
+      "coName": "統一綜合證券股份有限公司",
+      "enable": true,
+      "job": "台中分公司財富管理顧問",
+      "formattedCreateDate": "2024/06/12 15:31:50",
+      "formattedInputDate": "2024/06/12",
+      "formattedUpdateDate": "2026/10/05 18:21:54",
+      "formattedCloseDate": "無",
+      "closeDate": null,
+      "deleteDate": null,
+      "roleString": "全職",
+      "needEmpString": "",
+      "salaryString": "月薪: NT$30,000 ~ NT$100,000",
+      "i18nAddressRegion": "台中市西區",
+      "peer": {
+        "i18nDescription": "負責推廣分公司理財業務及客戶開發,商品包含股票/基金/海外債/結構型商品/保險/車險……等,涵蓋所有財富管理銀行之全方位商品。",
+        "i18nOthers": "1.\t熟悉國內外金融情勢、海外有價證券交易及全方位投資理財商品\n2.\t具銀行、保險、證券、投信或法人金融業務相關背景者。\n3.\t具備2年以上財富管理開發經驗，有高端個人或法人客戶基礎尤佳\n4.\t具卓越的溝通能力與抗壓能力並勇於接受挑戰"
+      }
+    },
+    {
+      "id": "1613781649555324677",
+      "custId": "9900000736",
+      "custNo": "23218183000",
+      "coName": "統一綜合證券股份有限公司",
+      "enable": true,
+      "job": "宜蘭分公司財富管理顧問",
+      "formattedCreateDate": "2024/06/07 11:33:50",
+      "formattedInputDate": "2024/06/07",
+      "formattedUpdateDate": "2026/10/05 18:21:54",
+      "formattedCloseDate": "無",
+      "closeDate": null,
+      "deleteDate": null,
+      "roleString": "全職",
+      "needEmpString": "",
+      "salaryString": "月薪: NT$30,000 ~ NT$100,000",
+      "i18nAddressRegion": "宜蘭縣宜蘭市",
+      "peer": {
+        "i18nDescription": "負責推廣分公司理財業務及客戶開發,商品包含股票/基金/海外債/結構型商品/保險/車險……等,涵蓋所有財富管理銀行之全方位商品。",
+        "i18nOthers": "具有積極進取的態度、開發客戶的動力、商品行銷的能力且能為分公司增加獲利 的業務人員"
+      }
+    }
+  ]
+}

@@ -14,7 +14,7 @@ def record(name, days, index):
 
 
 @pytest.mark.parametrize("ticker,name,display", [
-    ("5314.TWO", "世紀", "世紀* / Myson Century, Inc."),
+    ("5314.TWO", "世紀民生", "世紀* / Myson Century, Inc."),
     ("2254.TW", "巨鎧精密-創", "巨鎧精密-創 / Coplus Inc."),
     ("1623.TW", "大東電", "大東電 / Ta Tun Electric Wire & Cable Co., Ltd."),
 ])
@@ -51,14 +51,13 @@ def test_older_search_hits_do_not_use_up_recent_news_slots(monkeypatch):
     monkeypatch.setattr(external_data_client, "ExternalDataClient", Client)
     result = FreeNewsWaterfallProvider().fetch(FetchRequest.from_ticker("1623.TW"),
                                               {"data": {"ticker": "1623.TW", "company_name": "大東電"}})
-    assert len(result.value) == 5
-    assert [r["title"] for r in result.value] == [f"大東電 營運新聞 {i + 10}" for i in (1, 2, 3, 4, 5)]
+    assert len(result.value) == 6
+    assert [r["title"] for r in result.value] == [f"大東電 營運新聞 {i + 10}" for i in (1, 2, 3, 4, 5, 8)]
     assert result.audit["rejected_reason_counts"]["historical"] == 5
     assert len(result.audit["source_record_archive"]) == 5
     assert result.audit["news_selection"]["eligible_count"] == 6
-    assert result.audit["news_selection"]["recent_count"] == 5
-    assert len(result.audit["additional_recent_catalysts"]) == 1
-    assert result.audit["additional_recent_catalysts"][0]["title"] == "大東電 營運新聞 18"
+    assert result.audit["news_selection"]["recent_count"] == 6
+    assert result.audit["additional_recent_catalysts"] == []
     assert result.status == "degraded_enrichment"  # Rejected evidence is still disclosed.
 
 

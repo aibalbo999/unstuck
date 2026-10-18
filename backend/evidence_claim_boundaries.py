@@ -1,11 +1,37 @@
 """Syntactic boundaries excluding metadata and incomplete non-financial fragments."""
 import re
+from datetime import datetime
 from typing import Any
 from evidence_claim_types import calendar_metadata_label, calendar_metadata_match
 from evidence_technical_claims import MOVING_AVERAGE_PERIOD_LIST_RE
 
+from contextvars import ContextVar
+from functools import wraps
+
+_MATCH_TEXT_RE = re.compile(r"[^0-9a-zA-Z_\u4e00-\u9fff]+")
+_MATCH_TEXT_CACHE = ContextVar("evidence_match_text_cache", default=None)
+
+
+def with_match_normalization_cache(function):
+    """Reuse pure text transformations within one report; never cache evidence."""
+    @wraps(function)
+    def wrapped(*args, **kwargs):
+        token = _MATCH_TEXT_CACHE.set({})
+        try:
+            return function(*args, **kwargs)
+        finally:
+            _MATCH_TEXT_CACHE.reset(token)
+    return wrapped
+
+
 def _normalize_match_text(value: Any) -> str:
-    return re.sub(r"[^0-9a-zA-Z_\u4e00-\u9fff]+", "", str(value or "").lower())
+    text = str(value or "").lower()
+    cache = _MATCH_TEXT_CACHE.get()
+    if cache is None:
+        return _MATCH_TEXT_RE.sub("", text)
+    if text not in cache:
+        cache[text] = _MATCH_TEXT_RE.sub("", text)
+    return cache[text]
 
 
 _NUMERIC_UNIT_PATTERN = r"(?:TWD|%|x|X|倍|億|元|張|B|M|K|k|T)"
@@ -32,8 +58,16 @@ def is_non_claim_match(line: str, match: re.Match[str], *, table_cell: bool = Fa
         return True
     if calendar_metadata_label(match.group("label")):
         return calendar_metadata_match(match)
-    timestamp = re.search(r"\d{4}-\d{2}-\d{2}T\d{1,2}:\d{2}:\d{2}", line)
-    if (timestamp and timestamp.start() <= match.start("label") <= timestamp.end()) or (line[max(0, match.start("label") - 1):match.start("label")] == "_" and re.search(r"`normalized[_ ]financials`", line[max(0, match.start("label") - 40):match.end("label")], re.IGNORECASE)) or re.search(r"`institutional_trading`\s*[:：]\s*\d+\s*-\s*day\s+lookback\b", line, re.IGNORECASE) or re.search(r"(?:不可用|unavailable|fallback|error|錯誤)\s*[:：]?\s*(?:4\d{2}|5\d{2})\b", line[max(0, match.start("num") - 80):match.end("num") + 1], re.IGNORECASE) or re.match(r"(?:\s*-\s*(?:day|days|week|weeks|month|months)\b|\s*(?:日|天|週|周|個月|月)\b)", line[match.end("num"):], re.IGNORECASE) or (table_cell and _TABLE_VALUE_LABEL_RE.fullmatch(match.group("label"))):
+    # Exclude only numeric tokens inside a complete, valid ISO timestamp.
+    # A line can cite several providers; retain every other number and its date context.
+    for timestamp in re.finditer(r"(?<![0-9A-Za-z])\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?(?![0-9A-Za-z])", line):
+        if timestamp.start() <= match.start("num") and match.end("num") <= timestamp.end():
+            try:
+                datetime.fromisoformat(timestamp.group().replace("Z", "+00:00"))
+            except ValueError:
+                continue
+            return True
+    if (line[max(0, match.start("label") - 1):match.start("label")] == "_" and re.search(r"`normalized[_ ]financials`", line[max(0, match.start("label") - 40):match.end("label")], re.IGNORECASE)) or re.search(r"`institutional_trading`\s*[:：]\s*\d+\s*-\s*day\s+lookback\b", line, re.IGNORECASE) or re.search(r"(?:不可用|unavailable|fallback|error|錯誤)\s*[:：]?\s*(?:4\d{2}|5\d{2})\b", line[max(0, match.start("num") - 80):match.end("num") + 1], re.IGNORECASE) or re.match(r"(?:\s*-\s*(?:day|days|week|weeks|month|months)\b|\s*(?:日|天|週|周|個月|月)\b)", line[match.end("num"):], re.IGNORECASE) or (table_cell and _TABLE_VALUE_LABEL_RE.fullmatch(match.group("label"))):
         return True
     label = _normalize_match_text(match.group("label"))
     number_start = match.start("num")

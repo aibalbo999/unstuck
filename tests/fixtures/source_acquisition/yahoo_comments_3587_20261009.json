@@ -1,0 +1,231 @@
+{
+  "quote_stores": {
+    "PageStore": {
+      "currentPageName": "quoteOverview",
+      "pageData": {
+        "url": "https://tw.stock.yahoo.com/quote/3587.TWO"
+      }
+    },
+    "QuoteFundamental": {
+      "currentSymbolInfo": {
+        "changeStatus": "down",
+        "exchange": "TWO",
+        "holdingType": "EQUITY",
+        "messageBoardId": "finmb_39965474_lang_zh",
+        "relatedSymbol": "",
+        "relatedSymbolName": "",
+        "sectorName": "櫃其他電子",
+        "sectorId": "160",
+        "symbol": "3587.TWO",
+        "strippedSymbol": "3587",
+        "symbolName": "閎康",
+        "isGlobal": false
+      }
+    },
+    "RouteStore": {
+      "currentNavigate": {
+        "transactionId": 817972553002788,
+        "url": "/quote/3587.TWO",
+        "method": "GET",
+        "body": {},
+        "externalUrl": "https://tw.stock.yahoo.com/quote/3587.TWO",
+        "route": null,
+        "error": null,
+        "isComplete": true
+      }
+    },
+    "CanvassStore": {
+      "comments": {
+        "commentCanvass-finmb_39965474_lang_zh": {
+          "contextUrl": null,
+          "contextDisplayText": null,
+          "hideOnFolded": null,
+          "newMessagesCount": 0,
+          "relatedTags": null,
+          "messageList": [],
+          "deepLink": null,
+          "error": false,
+          "replyList": {},
+          "replyListState": {},
+          "count": 48,
+          "context": "finmb_39965474_lang_zh",
+          "instanceId": "commentCanvass-finmb_39965474_lang_zh",
+          "selectedTags": [],
+          "sortBy": "createdAt",
+          "showLoadNext": true,
+          "expanded": false,
+          "userActivity": {
+            "readingUsersCount": 0,
+            "typingUsersCount": 0
+          },
+          "selectedTagsCount": 0,
+          "namespace": "yahoo_tw_finance",
+          "disabled": false
+        }
+      }
+    }
+  },
+  "messages": {
+    "canvassMessages": [
+      {
+        "messageId": "bfcc067e-1757-4362-932a-1d348124ec43",
+        "namespace": "yahoo_tw_finance",
+        "contextId": "finmb_39965474_lang_zh",
+        "details": {
+          "userText": "果然，空就對了"
+        },
+        "meta": {
+          "type": "TEXT",
+          "createdAt": 1791335704,
+          "updatedAt": 1791335704,
+          "visibility": "PUBLIC",
+          "messageEntity": "COMMENT"
+        }
+      },
+      {
+        "messageId": "3c75995b-b19c-4d24-a610-1aeb01c05608",
+        "namespace": "yahoo_tw_finance",
+        "contextId": "finmb_39965474_lang_zh",
+        "details": {
+          "userText": "開高見紅果然空就對了，哈"
+        },
+        "meta": {
+          "type": "TEXT",
+          "createdAt": 1790643797,
+          "updatedAt": 1790643797,
+          "visibility": "PUBLIC",
+          "messageEntity": "COMMENT"
+        }
+      },
+      {
+        "messageId": "6f3a409a-d35e-40ff-a7a8-ffecc484a9a9",
+        "namespace": "yahoo_tw_finance",
+        "contextId": "finmb_39965474_lang_zh",
+        "details": {
+          "userText": "果然開高走低,明天開高繼續空"
+        },
+        "meta": {
+          "type": "TEXT",
+          "createdAt": 1790144551,
+          "updatedAt": 1790144551,
+          "visibility": "PUBLIC",
+          "messageEntity": "COMMENT"
+        }
+      },
+      {
+        "messageId": "9abb8658-a97f-40a9-87d3-1ba69ae9a9a5",
+        "namespace": "yahoo_tw_finance",
+        "contextId": "finmb_39965474_lang_zh",
+        "details": {
+          "userText": "一紅至少6綠，每天開高走低，開盤空就對了"
+        },
+        "meta": {
+          "type": "TEXT",
+          "createdAt": 1790127290,
+          "updatedAt": 1790127290,
+          "visibility": "PUBLIC",
+          "messageEntity": "COMMENT"
+        }
+      },
+      {
+        "messageId": "cdb7c87d-a7eb-41ef-81ec-5787ec9f826a",
+        "namespace": "yahoo_tw_finance",
+        "contextId": "finmb_39965474_lang_zh",
+        "details": {
+          "userText": "這檔著實跟CPO沒啥關係，做時薪的工作也想漲，爹咖蛋"
+        },
+        "meta": {
+          "type": "TEXT",
+          "createdAt": 1788234830,
+          "updatedAt": 1788234830,
+          "visibility": "PUBLIC",
+          "messageEntity": "COMMENT"
+        }
+      },
+      {
+        "messageId": "3d63af35-e047-4c29-92bc-e5b31dd383c6",
+        "namespace": "yahoo_tw_finance",
+        "contextId": "finmb_39965474_lang_zh",
+        "details": {
+          "userText": "買到這支真正有雖"
+        },
+        "meta": {
+          "type": "TEXT",
+          "createdAt": 1788143979,
+          "updatedAt": 1788143979,
+          "visibility": "PUBLIC",
+          "messageEntity": "COMMENT"
+        }
+      },
+      {
+        "messageId": "654b30c2-6b09-4896-aa25-171c69c34a42",
+        "namespace": "yahoo_tw_finance",
+        "contextId": "finmb_39965474_lang_zh",
+        "details": {
+          "userText": "好像開始有點動作的樣子"
+        },
+        "meta": {
+          "type": "TEXT",
+          "createdAt": 1787536264,
+          "updatedAt": 1787536264,
+          "visibility": "PUBLIC",
+          "messageEntity": "COMMENT"
+        }
+      },
+      {
+        "messageId": "989c8b0a-9649-4eef-841f-a8b2ebce9b7c",
+        "namespace": "yahoo_tw_finance",
+        "contextId": "finmb_39965474_lang_zh",
+        "details": {
+          "userText": "這個沒有人玩了變殭屍股了"
+        },
+        "meta": {
+          "type": "TEXT",
+          "createdAt": 1786934278,
+          "updatedAt": 1786934278,
+          "visibility": "PUBLIC",
+          "messageEntity": "COMMENT"
+        }
+      },
+      {
+        "messageId": "14cc8512-8dc1-4155-a3c1-eab13f39d82c",
+        "namespace": "yahoo_tw_finance",
+        "contextId": "finmb_39965474_lang_zh",
+        "details": {
+          "userText": "只有股務在操控，股性搞爛"
+        },
+        "meta": {
+          "type": "TEXT",
+          "createdAt": 1786930128,
+          "updatedAt": 1786930128,
+          "visibility": "PUBLIC",
+          "messageEntity": "COMMENT"
+        }
+      },
+      {
+        "messageId": "80fcb891-68f6-4861-ae4d-7f3fc6799c19",
+        "namespace": "yahoo_tw_finance",
+        "contextId": "finmb_39965474_lang_zh",
+        "details": {
+          "userText": "沒一鼓作氣，今天到現在還跌，壬"
+        },
+        "meta": {
+          "type": "TEXT",
+          "createdAt": 1786067059,
+          "updatedAt": 1786067059,
+          "visibility": "PUBLIC",
+          "messageEntity": "COMMENT"
+        }
+      }
+    ],
+    "messagesLength": 10,
+    "total": {
+      "count": 48
+    }
+  },
+  "provenance": {
+    "quote_url": "https://tw.stock.yahoo.com/quote/3587.TWO",
+    "captured_at": "2026-10-09",
+    "fixture_projection": "only parser fields; author/profile/reactions removed; no credentials retained"
+  }
+}

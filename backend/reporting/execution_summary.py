@@ -6,6 +6,8 @@ from html import escape
 
 from analysis_types import AnalysisContext
 from .execution_summary_values import build_execution_summary_values
+from .evidence_ledger_view import evidence_ledger_markdown, evidence_ledger_html
+from .institutional_lineage_view import lineage_markdown, lineage_html
 
 
 def build_execution_summary_markdown(context: AnalysisContext, *, model_routes: str | None = None) -> str:
@@ -31,7 +33,7 @@ def build_execution_summary_markdown(context: AnalysisContext, *, model_routes: 
         lines.append(f"- **內容可信度摘要:** {values['content_credibility_summary']}")
     if values["conformance_summary"]:
         lines.append(f"- **符合性摘要:** {values['conformance_summary']}")
-    return "\n".join(lines)
+    return "\n".join(lines) + evidence_ledger_markdown(context) + lineage_markdown(context)
 
 
 def build_execution_summary_html(context: AnalysisContext, *, model_routes: str | None = None) -> str:
@@ -75,5 +77,7 @@ def build_execution_summary_html(context: AnalysisContext, *, model_routes: str 
             </div>
             <div class="execution-summary-grid">{item_html}</div>
             {evidence_summary}
+            {evidence_ledger_html(context)}
+            {lineage_html(context)}
         </div>
     """

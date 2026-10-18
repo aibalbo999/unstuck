@@ -9,7 +9,9 @@ from typing import Any
 from pipeline_modes import normalize_pipeline_run_id
 from watchlist_trigger_helpers import (
     flatten_text as _flatten_text,
+    latest_monthly_revenue_observation as _latest_monthly_revenue_observation,
     matching_calendar_event as _matching_calendar_event,
+    monthly_revenue_below_threshold as _monthly_revenue_below_threshold,
     monthly_evaluation_date as _monthly_evaluation_date,
     parse_iso_date as _parse_iso_date,
     parse_revenue_value as _parse_revenue_value,
@@ -156,6 +158,18 @@ def _report_catalyst(trigger: dict, data: dict) -> tuple[bool, str, dict]:
     condition = str(trigger.get("trigger_condition") or "").strip()
     if not condition:
         return False, "報告催化條件未設定", {"condition": ""}
+    threshold_twd = _monthly_revenue_below_threshold(condition)
+    if threshold_twd is not None:
+        observation, status = _latest_monthly_revenue_observation(
+            data.get("recent_monthly_revenue"), str(trigger.get("evaluation_date") or ""))
+        if observation is None:
+            return False, "月營收觀測不足或過期，暫不判定條件", {
+                "condition": condition, "threshold_twd": threshold_twd, "observation_status": status}
+        matched = observation["possible_upper_twd"] < threshold_twd
+        return matched, (
+            f"{observation['observed_month']} 月營收約 {observation['revenue_twd'] / 100_000_000:.2f} 億元，"
+            f"{'低於' if matched else '未確認低於'} {threshold_twd / 100_000_000:g} 億元"
+        ), {"condition": condition, "threshold_twd": threshold_twd, **observation}
     haystack = _flatten_text(data)
     matched = bool(haystack and condition in haystack)
     status = "已在新資料中出現" if matched else "尚未在新資料中出現"

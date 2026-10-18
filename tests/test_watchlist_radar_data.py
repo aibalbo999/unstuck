@@ -12,7 +12,8 @@ from watchlist_radar_data import RadarDataCache, trigger_sources
 def test_source_plan_keeps_unknown_conditions_full_and_disabled_out():
     assert trigger_sources([{'type': 'vix_above'}, {'type': 'foreign_sell_streak'}]) == ('institutional_trading', 'macro_indicators')
     assert trigger_sources([{'type': 'daily_screener'}, {'type': 'vix_above', 'enabled': False}]) == ()
-    assert trigger_sources([{'type': 'report_catalyst', 'trigger_condition': '月營收低於5億元'}]) == ('full',)
+    assert trigger_sources([{'type': 'report_catalyst', 'trigger_condition': '月營收低於5億元'}]) == ('monthly_revenue',)
+    assert trigger_sources([{'type': 'report_catalyst', 'trigger_condition': '管理層調升毛利率指引'}]) == ('full',)
     assert trigger_sources([{'type': 'revenue_record_high'}]) == ('market_data', 'monthly_revenue')
 
 
@@ -25,6 +26,7 @@ def test_cache_shares_requests_expires_and_never_reuses_failed_or_prior_day_data
             calls.append(request)
             await asyncio.sleep(0)
             assert request.options.force_refresh is True
+            assert request.options.radar_refresh is True
             return FetchResult(request=request, data={'error': 'bad'} if fail[0] else {'ticker': request.ticker, 'value': len(calls)})
     service = Service()
     cache = RadarDataCache(clock=lambda: tick[0])
@@ -66,6 +68,17 @@ def test_selective_provider_fetch_avoids_financial_and_news_and_preserves_audit(
     assert result.source_audit[0]['source'] == 'macro_indicators'
 
 
+def test_typed_trigger_does_not_enable_slow_source_radar_cache():
+    requests = []
+    class Service:
+        async def fetch_async(self, request):
+            requests.append(request)
+            return FetchResult(request=request, data={'ticker': request.ticker})
+    asyncio.run(RadarDataCache().fetch(Service(), '5314.TWO', ('market_data',), '2026-10-04'))
+    assert requests[0].options.radar_refresh is False
+    assert requests[0].options.force_refresh is False
+
+
 def test_radar_log_scope_propagates_into_threads_and_restores(monkeypatch):
     import runtime_logging as log
     lines = []
@@ -104,8 +117,33 @@ def test_selective_market_monthly_and_calendar_have_evaluator_fields():
     assert 'event_calendar' in result.data
 
 
+def test_monthly_threshold_radar_uses_only_monthly_provider():
+    from watchlist_triggers import evaluate_watchlist_triggers
+    calls = []
+    class Provider:
+        primary_source_provider = True
+        source = 'monthly_revenue'
+        def supports(self, request): return True
+        async def fetch_async(self, request, context=None):
+            calls.append(self.source)
+            return ProviderResult(self.source, 'FinMind test', 'success',
+                                  ['2026年8月: NT$4.80億'], {'source': self.source, 'status': 'success'})
+    service = StockDataService(registry=ProviderRegistry([Provider()]))
+    triggers = [{'type': 'report_catalyst', 'trigger_condition': '月營收低於5億元'}]
+    sources = trigger_sources(triggers)
+    result = asyncio.run(service.fetch_radar_async(
+        FetchRequest.from_ticker('5314.TWO', record_provider_sla=False), sources))
+    events = evaluate_watchlist_triggers({'ticker': '5314.TWO', 'triggers': triggers},
+                                         result.data, evaluation_date='2026-10-04')
+    assert calls == ['monthly_revenue']
+    assert len(events) == 1 and events[0]['matched'] is True
+
+
 def test_monitor_rechecks_false_condition_after_ttl_on_same_day(monkeypatch):
     import watchlist_service as service
+    async def no_pacing_wait(_seconds):
+        return None
+    monkeypatch.setattr(service, 'asyncio', SimpleNamespace(sleep=no_pacing_wait))
     tick = [0]
     calls = []
     class Data:

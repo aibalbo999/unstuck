@@ -6,7 +6,7 @@ _RECHECK_START = re.compile(r"(?:^|[，,；;。\n])\s*(?:須|需|必須)?等待|
 _RECHECK_END = re.compile(r"(?:重新(?:評估|檢查)|再(?:評估|觀察))(?:條件)?[。.!！\s]*$")
 _ASSERTED_OR_AMBIGUOUS = re.compile(r"但是|然而|但|其實|目前|已|截至|最近|過去|近\s*\d|(?:資料|數據)顯示|顯示")
 _CLAUSE_BREAK = re.compile(r"，|(?<!\d),|,(?!\d)")
-_FUTURE_JOIN = re.compile(r"\s*(?:且|或|並|以及|同時)\S")
+_FUTURE_JOIN = re.compile(r"\s*(?:且|或|並|以及|同時)\s*\S")
 
 
 def _coordinated_future_clauses(body):
@@ -21,14 +21,15 @@ def _coordinated_future_clauses(body):
 
 def split_exact_policy_suffix(text):
     """Only the fixed terminal system policy is separable; mixed claims remain."""
-    from trade_financial_risk import NEGATIVE_FCF_WARNING
+    from trade_financial_risk import NEGATIVE_FCF_WARNING, LEGACY_NEGATIVE_FCF_WARNING
     text = str(text or "").strip()
-    if text == NEGATIVE_FCF_WARNING:
+    if text in {NEGATIVE_FCF_WARNING, LEGACY_NEGATIVE_FCF_WARNING}:
         return "", True
-    for delimiter in ("；", ";"):
-        suffix = delimiter + NEGATIVE_FCF_WARNING
-        if text.endswith(suffix):
-            return text[:-len(suffix)].rstrip(), True
+    for flag in (NEGATIVE_FCF_WARNING, LEGACY_NEGATIVE_FCF_WARNING):
+        for delimiter in ("；", ";"):
+            suffix = delimiter + flag
+            if text.endswith(suffix):
+                return text[:-len(suffix)].rstrip(), True
     return text, False
 
 

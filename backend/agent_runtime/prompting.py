@@ -46,7 +46,13 @@ def data_for_agent_prompt(agent_num: int, data: StockData) -> StockData:
     prompt_data = prompt_evidence_copy(data)
     prompt_data["_prompt_agent_num"] = agent_id
     from conference_presentation_prompt import presentation_prompt_context, without_presentation_documents
-    presentation = presentation_prompt_context(prompt_data.get('earnings_call'), agent_id)
+    earnings_input = prompt_data.get('earnings_call')
+    raw_earnings = data.get('earnings_call')
+    if isinstance(raw_earnings, dict) and raw_earnings.get('source') in {'GUC official conference presentation', 'Seec official conference presentation', 'KingSlide official conference presentation', 'Macronix official conference presentation'}:
+        # Verify private originals before projection; the returned role view
+        # contains no receipt and the generic prompt copy remains sanitized.
+        earnings_input = raw_earnings
+    presentation = presentation_prompt_context(earnings_input, agent_id)
     if presentation:
         prompt_data['conference_presentation'] = presentation
     else:
@@ -159,6 +165,7 @@ def build_prompt(agent_num: int, data: StockData, context: AnalysisContext) -> s
     source_context = context
     market_contract = agent_num in FINAL_AGENTS and context.get("market_context_contract_version") == CONTRACT_VERSION
     gemma_prompt = context.get("_prompt_model_id") == "gemma-4-31b-it"
+    dense_trade_lite = agent_num == 24 and context.get("_prompt_model_id") == "gemini-3.5-flash-lite"
     repair_prompt = any(context.get(key) is not None and _safe_prompt_text(context.get(key)) for key in (
         "_audit_retry_instruction", "_audit_reflection_instruction", "_identity_retry_instruction"))
     role_scoped = gemma_prompt and not repair_prompt
@@ -179,7 +186,7 @@ def build_prompt(agent_num: int, data: StockData, context: AnalysisContext) -> s
     # Shrink formatting and unrelated sections, retaining complete source records.
     # Oversize input reaches admission intact and can take the full-data fallback.
     fin_data = (format_data_for_prompt(prompt_data, dense=True, role_scoped=role_scoped)
-                if gemma_prompt else format_data_for_prompt(prompt_data, compact=compact_primary, compact_json=True))
+                if gemma_prompt or dense_trade_lite else format_data_for_prompt(prompt_data, compact=compact_primary, compact_json=True))
     if agent_num == 7 and not gemma_prompt:
         fin_data = choose_financial_encoding(fin_data, format_data_for_prompt(
             prompt_data, compact=compact_primary, dense=True, role_scoped=False))
@@ -240,7 +247,7 @@ def build_prompt(agent_num: int, data: StockData, context: AnalysisContext) -> s
                        and not repair_prompt and not context.get('_model_sequence_override'))
     # Exact equality with the visible financial JSON also holds during a repair;
     # keep the repair instruction while sharing only its duplicate State values.
-    trade_references = (agent_num == 24 and str(context.get('_prompt_model_id') or '').startswith('gemini-'))
+    trade_references = (agent_num in {22, 23, 24} and str(context.get('_prompt_model_id') or '').startswith('gemini-'))
     if analysis_prompt.count(fin_data) == 1 and (agent_num == 7 or gemma_references or trade_references):
         compactor = compact_research_state_reference_section if agent_num == 7 else compact_state_reference_section
         state_view_section = compactor(fin_data, state_view_section)
@@ -249,12 +256,17 @@ def build_prompt(agent_num: int, data: StockData, context: AnalysisContext) -> s
     trade_block, trade_catalog, trade_fingerprint = source_block(data) if agent_num == 24 else ("", {}, "")
     audit_retry_instruction = deduplicate_source_repair_guidance(audit_retry_instruction, trade_block, trade_catalog)
     from institutional_evidence_prompt import build_institutional_source_prompt
+    from market_context_manifest import market_assessment_workplan
     from trade_catalog_evidence import INSTITUTIONAL_PROMPT_RULE
+    from trade_source_guidance import technical_comparison_prompt
+    from trade_source_contract import source_catalog
     prompt_parts = [
         INSTITUTIONAL_PROMPT_RULE if agent_num in {15, 18, 23, 24} else "",
         build_institutional_source_prompt(data) if agent_num in {15, 18, 23} else "",
+        technical_comparison_prompt(source_catalog(data)) if agent_num == 22 else "",
         analysis_prompt,
         "\n".join(block["text"] for block in source_blocks),
+        market_assessment_workplan(data, source_blocks) if market_contract else "",
         forensic_warning,   # v2 Agent 14 財務排雷品質警示
         state_view_section,
         build_reconciliation_source_prompt(context) if agent_num == 7 else "",

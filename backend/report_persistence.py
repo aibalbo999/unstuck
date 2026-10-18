@@ -65,23 +65,29 @@ def persist_report_bundle(
         data_snapshot_payload = {}
     data_trust = data_snapshot_payload.get("data_trust")
     data_bytes = json.dumps(data_snapshot_payload, ensure_ascii=False, indent=2).encode("utf-8")
-    saved_keys: list[str] = []
+    # Capture all previous bytes before any mutation. A save may write successfully
+    # and then raise, so attempted writes must also participate in recovery.
+    previous = {
+        key: storage.get_report(key)
+        for key in (keys.html_key, keys.md_key, keys.data_key)
+    }
+    attempted_keys: list[str] = []
 
     try:
+        attempted_keys.append(keys.html_key)
         storage.save_report(
             keys.html_key,
             str(html_content or "").encode("utf-8"),
             content_type=HTML_CONTENT_TYPE,
         )
-        saved_keys.append(keys.html_key)
+        attempted_keys.append(keys.md_key)
         storage.save_report(
             keys.md_key,
             str(markdown_content or "").encode("utf-8"),
             content_type=MARKDOWN_CONTENT_TYPE,
         )
-        saved_keys.append(keys.md_key)
+        attempted_keys.append(keys.data_key)
         storage.save_report(keys.data_key, data_bytes, content_type=DATA_SNAPSHOT_CONTENT_TYPE)
-        saved_keys.append(keys.data_key)
 
         metadata = repository.upsert(
             keys.filename,
@@ -90,12 +96,25 @@ def persist_report_bundle(
             markdown_content=markdown_content,
             data_trust=data_trust,
         )
-    except Exception:
-        for saved_key in reversed(saved_keys):
+    except Exception as publication_error:
+        recovery_errors: list[Exception] = []
+        for attempted_key in reversed(attempted_keys):
             try:
-                storage.delete_report(saved_key)
-            except Exception:
-                pass
+                prior = previous[attempted_key]
+                if prior is None:
+                    storage.delete_report(attempted_key)
+                else:
+                    storage.save_report(
+                        attempted_key, prior.content,
+                        content_type=prior.metadata.content_type,
+                    )
+            except Exception as recovery_error:
+                recovery_errors.append(recovery_error)
+        if recovery_errors:
+            raise ExceptionGroup(
+                "Report publication failed and artifact recovery was incomplete",
+                [publication_error, *recovery_errors],
+            ) from publication_error
         raise
     return {
         "filename": keys.filename,

@@ -1,0 +1,725 @@
+{
+  "years": [
+    "2021",
+    "2022",
+    "2023",
+    "2024",
+    "2025"
+  ],
+  "raw_twd_by_year": {
+    "2021": {
+      "revenue_history": 19461143000,
+      "net_income_history": 4602762000,
+      "gross_profit_history": 6269702000,
+      "operating_income_history": 5647090000,
+      "total_assets_history": 26506083000,
+      "total_equity_history": 20829905000,
+      "operating_cash_flow": 7414609000,
+      "property_purchase": -5419052000,
+      "intangible_purchase": -18773000,
+      "free_cash_flow": 1976784000
+    },
+    "2022": {
+      "revenue_history": 15950309000,
+      "net_income_history": 3158170000,
+      "gross_profit_history": 4230301000,
+      "operating_income_history": 3642680000,
+      "total_assets_history": 24432235000,
+      "total_equity_history": 20905749000,
+      "operating_cash_flow": 6387407000,
+      "property_purchase": -4392842000,
+      "intangible_purchase": -11495000,
+      "free_cash_flow": 1983070000
+    },
+    "2023": {
+      "revenue_history": 13570076000,
+      "net_income_history": 1997124000,
+      "gross_profit_history": 2829971000,
+      "operating_income_history": 2283819000,
+      "total_assets_history": 24512656000,
+      "total_equity_history": 21530166000,
+      "operating_cash_flow": 4520999000,
+      "property_purchase": -1590969000,
+      "intangible_purchase": -4169000,
+      "free_cash_flow": 2925861000
+    },
+    "2024": {
+      "revenue_history": 15213240000,
+      "net_income_history": 2496268000,
+      "gross_profit_history": 3357429000,
+      "operating_income_history": 2730450000,
+      "total_assets_history": 26070850000,
+      "total_equity_history": 22381313000,
+      "operating_cash_flow": 5729115000,
+      "property_purchase": -2117600000,
+      "intangible_purchase": -9403000,
+      "free_cash_flow": 3602112000
+    },
+    "2025": {
+      "revenue_history": 16764213000,
+      "net_income_history": 2449022000,
+      "gross_profit_history": 3385651000,
+      "operating_income_history": 2711575000,
+      "total_assets_history": 28029002000,
+      "total_equity_history": 24152194000,
+      "operating_cash_flow": 4888391000,
+      "property_purchase": -2822775000,
+      "intangible_purchase": -23460000,
+      "free_cash_flow": 2042156000
+    }
+  },
+  "revenue_history": [
+    19.461143,
+    15.950309,
+    13.570076,
+    15.21324,
+    16.764213
+  ],
+  "net_income_history": [
+    4.602762,
+    3.15817,
+    1.997124,
+    2.496268,
+    2.449022
+  ],
+  "gross_profit_history": [
+    6.269702,
+    4.230301,
+    2.829971,
+    3.357429,
+    3.385651
+  ],
+  "operating_income_history": [
+    5.64709,
+    3.64268,
+    2.283819,
+    2.73045,
+    2.711575
+  ],
+  "total_assets_history": [
+    26.506083,
+    24.432235,
+    24.512656,
+    26.07085,
+    28.029002
+  ],
+  "total_equity_history": [
+    20.829905,
+    20.905749,
+    21.530166,
+    22.381313,
+    24.152194
+  ],
+  "fcf_history": [
+    1.976784,
+    1.98307,
+    2.925861,
+    3.602112,
+    2.042156
+  ],
+  "ticker": "2441.TW",
+  "currency": "TWD",
+  "schema": "ordinary_consolidated_annual_history.v1",
+  "report_scope": "consolidated",
+  "source_url": "https://mops.twse.com.tw/mops/#/web/t164sb03",
+  "documents": [
+    {
+      "year": 2022,
+      "period_end": "2022-12-31",
+      "provider": "TWSE MOPS public annual JSON",
+      "url": "https://mops.twse.com.tw/mops/api/t164sb03",
+      "sha256": "7ba70c94670357381273c9a456e1da48c13c56e3c52577229c27a2b417711fb7",
+      "components": [
+        {
+          "year": 2022,
+          "period_end": "2022-12-31",
+          "statement": "BalanceSheet",
+          "provider": "TWSE MOPS public annual JSON",
+          "url": "https://mops.twse.com.tw/mops/api/t164sb03",
+          "request": {
+            "companyId": "2441",
+            "dataType": "2",
+            "season": "4",
+            "year": "111",
+            "subsidiaryCompanyId": ""
+          },
+          "sha256": "9e708b98162f8bf1474f0d1fac1731894bacc27061adbb31546bf8c33959d8f9",
+          "raw_receipt": {
+            "status": "archived",
+            "source_url": "https://mops.twse.com.tw/mops/api/t164sb03",
+            "retrieved_at": 1791712245.126709,
+            "http_status": 200,
+            "raw_response_sha256": "9e708b98162f8bf1474f0d1fac1731894bacc27061adbb31546bf8c33959d8f9",
+            "raw_response_path": "/Volumes/X10 Pro Mac/stock-agent/backend/cache/official-response-evidence/9e708b98162f8bf1474f0d1fac1731894bacc27061adbb31546bf8c33959d8f9.gz",
+            "raw_response_bytes": 4378,
+            "evidence_kind": "raw_http_response_bytes",
+            "historical_point_in_time_verified": false,
+            "finality_guaranteed": false
+          },
+          "unit_template_receipt": {
+            "status": "archived",
+            "source_url": "https://mops.twse.com.tw/mops/assets/t164sb03.js",
+            "retrieved_at": 1791709714.206555,
+            "http_status": 200,
+            "raw_response_sha256": "6d1695de0f0234163792333a4cf07ef9316f01687ef1a0928fa6ddc9feecc7ba",
+            "raw_response_path": "/Volumes/X10 Pro Mac/stock-agent/backend/cache/official-response-evidence/6d1695de0f0234163792333a4cf07ef9316f01687ef1a0928fa6ddc9feecc7ba.gz",
+            "raw_response_bytes": 6549,
+            "evidence_kind": "raw_http_response_bytes",
+            "historical_point_in_time_verified": false,
+            "finality_guaranteed": false
+          }
+        },
+        {
+          "year": 2022,
+          "period_end": "2022-12-31",
+          "statement": "IncomeStatement",
+          "provider": "TWSE MOPS public annual JSON",
+          "url": "https://mops.twse.com.tw/mops/api/t164sb04",
+          "request": {
+            "companyId": "2441",
+            "dataType": "2",
+            "season": "4",
+            "year": "111",
+            "subsidiaryCompanyId": ""
+          },
+          "sha256": "5cc1331565cb63b493fc72bc1396fef3b4b37db346389881da48df02007a6981",
+          "raw_receipt": {
+            "status": "archived",
+            "source_url": "https://mops.twse.com.tw/mops/api/t164sb04",
+            "retrieved_at": 1791712245.2069702,
+            "http_status": 200,
+            "raw_response_sha256": "5cc1331565cb63b493fc72bc1396fef3b4b37db346389881da48df02007a6981",
+            "raw_response_path": "/Volumes/X10 Pro Mac/stock-agent/backend/cache/official-response-evidence/5cc1331565cb63b493fc72bc1396fef3b4b37db346389881da48df02007a6981.gz",
+            "raw_response_bytes": 3202,
+            "evidence_kind": "raw_http_response_bytes",
+            "historical_point_in_time_verified": false,
+            "finality_guaranteed": false
+          },
+          "unit_template_receipt": {
+            "status": "archived",
+            "source_url": "https://mops.twse.com.tw/mops/assets/t164sb04.js",
+            "retrieved_at": 1791709714.234696,
+            "http_status": 200,
+            "raw_response_sha256": "fbfd5754dd2ce843cadd7a800e188fc84acda6ee61bfb64d5afd3a1ac9cfee23",
+            "raw_response_path": "/Volumes/X10 Pro Mac/stock-agent/backend/cache/official-response-evidence/fbfd5754dd2ce843cadd7a800e188fc84acda6ee61bfb64d5afd3a1ac9cfee23.gz",
+            "raw_response_bytes": 6507,
+            "evidence_kind": "raw_http_response_bytes",
+            "historical_point_in_time_verified": false,
+            "finality_guaranteed": false
+          }
+        },
+        {
+          "year": 2022,
+          "period_end": "2022-12-31",
+          "statement": "CashflowStatement",
+          "provider": "TWSE MOPS public annual JSON",
+          "url": "https://mops.twse.com.tw/mops/api/t164sb05",
+          "request": {
+            "companyId": "2441",
+            "dataType": "2",
+            "season": "4",
+            "year": "111",
+            "subsidiaryCompanyId": ""
+          },
+          "sha256": "afb9948c65cbc98f51d4d9f38c2826c1df53655d9065f6deee08e56013155cde",
+          "raw_receipt": {
+            "status": "archived",
+            "source_url": "https://mops.twse.com.tw/mops/api/t164sb05",
+            "retrieved_at": 1791711017.360204,
+            "http_status": 200,
+            "raw_response_sha256": "afb9948c65cbc98f51d4d9f38c2826c1df53655d9065f6deee08e56013155cde",
+            "raw_response_path": "/Volumes/X10 Pro Mac/stock-agent/backend/cache/official-response-evidence/afb9948c65cbc98f51d4d9f38c2826c1df53655d9065f6deee08e56013155cde.gz",
+            "raw_response_bytes": 4490,
+            "evidence_kind": "raw_http_response_bytes",
+            "historical_point_in_time_verified": false,
+            "finality_guaranteed": false
+          },
+          "unit_template_receipt": {
+            "status": "archived",
+            "source_url": "https://mops.twse.com.tw/mops/assets/t164sb05.js",
+            "retrieved_at": 1791709714.266504,
+            "http_status": 200,
+            "raw_response_sha256": "4f2491487da3489f8cb5cb9acd95dd6ee73981ebbbb0c45e8df4c5e2bfc0b413",
+            "raw_response_path": "/Volumes/X10 Pro Mac/stock-agent/backend/cache/official-response-evidence/4f2491487da3489f8cb5cb9acd95dd6ee73981ebbbb0c45e8df4c5e2bfc0b413.gz",
+            "raw_response_bytes": 6480,
+            "evidence_kind": "raw_http_response_bytes",
+            "historical_point_in_time_verified": false,
+            "finality_guaranteed": false
+          }
+        }
+      ],
+      "first_period_basis": {
+        "schema": "mops-public-complete-first-comparative.v1",
+        "period_year": 2021,
+        "source_filing_year": 2022,
+        "facts_origin": "reported_prior_period_in_consolidated_filing",
+        "no_primary_filing_for_first_period_claimed": true
+      },
+      "published_index_receipt": {
+        "status": "archived",
+        "source_url": "https://mopsov.twse.com.tw/mops/web/ajax_t203sb01",
+        "retrieved_at": 1791711300.624279,
+        "http_status": 200,
+        "raw_response_sha256": "9da7d127497cd68d9e227b5d486cb4c4d14beda94d2f71b2f0e19006074846c1",
+        "raw_response_path": "/Volumes/X10 Pro Mac/stock-agent/backend/cache/official-response-evidence/9da7d127497cd68d9e227b5d486cb4c4d14beda94d2f71b2f0e19006074846c1.gz",
+        "raw_response_bytes": 30786,
+        "evidence_kind": "raw_http_response_bytes",
+        "historical_point_in_time_verified": false,
+        "finality_guaranteed": false
+      }
+    },
+    {
+      "year": 2023,
+      "period_end": "2023-12-31",
+      "provider": "TWSE MOPS public annual JSON",
+      "url": "https://mops.twse.com.tw/mops/api/t164sb03",
+      "sha256": "c7d91bd8b52b802b52664c1df1b71c9a72d45649177e2794ba67e7f49cd84447",
+      "components": [
+        {
+          "year": 2023,
+          "period_end": "2023-12-31",
+          "statement": "BalanceSheet",
+          "provider": "TWSE MOPS public annual JSON",
+          "url": "https://mops.twse.com.tw/mops/api/t164sb03",
+          "request": {
+            "companyId": "2441",
+            "dataType": "2",
+            "season": "4",
+            "year": "112",
+            "subsidiaryCompanyId": ""
+          },
+          "sha256": "5214a08240619b8390e31ea819208f1792562fc56c765d2f1732873a33e7cdcc",
+          "raw_receipt": {
+            "status": "archived",
+            "source_url": "https://mops.twse.com.tw/mops/api/t164sb03",
+            "retrieved_at": 1791712245.316013,
+            "http_status": 200,
+            "raw_response_sha256": "5214a08240619b8390e31ea819208f1792562fc56c765d2f1732873a33e7cdcc",
+            "raw_response_path": "/Volumes/X10 Pro Mac/stock-agent/backend/cache/official-response-evidence/5214a08240619b8390e31ea819208f1792562fc56c765d2f1732873a33e7cdcc.gz",
+            "raw_response_bytes": 4441,
+            "evidence_kind": "raw_http_response_bytes",
+            "historical_point_in_time_verified": false,
+            "finality_guaranteed": false
+          },
+          "unit_template_receipt": {
+            "status": "archived",
+            "source_url": "https://mops.twse.com.tw/mops/assets/t164sb03.js",
+            "retrieved_at": 1791709714.206555,
+            "http_status": 200,
+            "raw_response_sha256": "6d1695de0f0234163792333a4cf07ef9316f01687ef1a0928fa6ddc9feecc7ba",
+            "raw_response_path": "/Volumes/X10 Pro Mac/stock-agent/backend/cache/official-response-evidence/6d1695de0f0234163792333a4cf07ef9316f01687ef1a0928fa6ddc9feecc7ba.gz",
+            "raw_response_bytes": 6549,
+            "evidence_kind": "raw_http_response_bytes",
+            "historical_point_in_time_verified": false,
+            "finality_guaranteed": false
+          }
+        },
+        {
+          "year": 2023,
+          "period_end": "2023-12-31",
+          "statement": "IncomeStatement",
+          "provider": "TWSE MOPS public annual JSON",
+          "url": "https://mops.twse.com.tw/mops/api/t164sb04",
+          "request": {
+            "companyId": "2441",
+            "dataType": "2",
+            "season": "4",
+            "year": "112",
+            "subsidiaryCompanyId": ""
+          },
+          "sha256": "62f001b93a333a8c4bcbd5d0bf1fdde9f9bd891ed015a97046b0f3c5bd2d52f7",
+          "raw_receipt": {
+            "status": "archived",
+            "source_url": "https://mops.twse.com.tw/mops/api/t164sb04",
+            "retrieved_at": 1791712245.475391,
+            "http_status": 200,
+            "raw_response_sha256": "62f001b93a333a8c4bcbd5d0bf1fdde9f9bd891ed015a97046b0f3c5bd2d52f7",
+            "raw_response_path": "/Volumes/X10 Pro Mac/stock-agent/backend/cache/official-response-evidence/62f001b93a333a8c4bcbd5d0bf1fdde9f9bd891ed015a97046b0f3c5bd2d52f7.gz",
+            "raw_response_bytes": 3132,
+            "evidence_kind": "raw_http_response_bytes",
+            "historical_point_in_time_verified": false,
+            "finality_guaranteed": false
+          },
+          "unit_template_receipt": {
+            "status": "archived",
+            "source_url": "https://mops.twse.com.tw/mops/assets/t164sb04.js",
+            "retrieved_at": 1791709714.234696,
+            "http_status": 200,
+            "raw_response_sha256": "fbfd5754dd2ce843cadd7a800e188fc84acda6ee61bfb64d5afd3a1ac9cfee23",
+            "raw_response_path": "/Volumes/X10 Pro Mac/stock-agent/backend/cache/official-response-evidence/fbfd5754dd2ce843cadd7a800e188fc84acda6ee61bfb64d5afd3a1ac9cfee23.gz",
+            "raw_response_bytes": 6507,
+            "evidence_kind": "raw_http_response_bytes",
+            "historical_point_in_time_verified": false,
+            "finality_guaranteed": false
+          }
+        },
+        {
+          "year": 2023,
+          "period_end": "2023-12-31",
+          "statement": "CashflowStatement",
+          "provider": "TWSE MOPS public annual JSON",
+          "url": "https://mops.twse.com.tw/mops/api/t164sb05",
+          "request": {
+            "companyId": "2441",
+            "dataType": "2",
+            "season": "4",
+            "year": "112",
+            "subsidiaryCompanyId": ""
+          },
+          "sha256": "40b816989222a0018336e3de29988e3f7a5f90e3cac934173bc0f3938757d2da",
+          "raw_receipt": {
+            "status": "archived",
+            "source_url": "https://mops.twse.com.tw/mops/api/t164sb05",
+            "retrieved_at": 1791712244.9424798,
+            "http_status": 200,
+            "raw_response_sha256": "40b816989222a0018336e3de29988e3f7a5f90e3cac934173bc0f3938757d2da",
+            "raw_response_path": "/Volumes/X10 Pro Mac/stock-agent/backend/cache/official-response-evidence/40b816989222a0018336e3de29988e3f7a5f90e3cac934173bc0f3938757d2da.gz",
+            "raw_response_bytes": 4329,
+            "evidence_kind": "raw_http_response_bytes",
+            "historical_point_in_time_verified": false,
+            "finality_guaranteed": false
+          },
+          "unit_template_receipt": {
+            "status": "archived",
+            "source_url": "https://mops.twse.com.tw/mops/assets/t164sb05.js",
+            "retrieved_at": 1791709714.266504,
+            "http_status": 200,
+            "raw_response_sha256": "4f2491487da3489f8cb5cb9acd95dd6ee73981ebbbb0c45e8df4c5e2bfc0b413",
+            "raw_response_path": "/Volumes/X10 Pro Mac/stock-agent/backend/cache/official-response-evidence/4f2491487da3489f8cb5cb9acd95dd6ee73981ebbbb0c45e8df4c5e2bfc0b413.gz",
+            "raw_response_bytes": 6480,
+            "evidence_kind": "raw_http_response_bytes",
+            "historical_point_in_time_verified": false,
+            "finality_guaranteed": false
+          }
+        }
+      ]
+    },
+    {
+      "year": 2024,
+      "period_end": "2024-12-31",
+      "provider": "TWSE MOPS public annual JSON",
+      "url": "https://mops.twse.com.tw/mops/api/t164sb03",
+      "sha256": "3aa013977e93f3b8715107dd8db92f24c94dbfaf026191641936ff423870f3f3",
+      "components": [
+        {
+          "year": 2024,
+          "period_end": "2024-12-31",
+          "statement": "BalanceSheet",
+          "provider": "TWSE MOPS public annual JSON",
+          "url": "https://mops.twse.com.tw/mops/api/t164sb03",
+          "request": {
+            "companyId": "2441",
+            "dataType": "2",
+            "season": "4",
+            "year": "113",
+            "subsidiaryCompanyId": ""
+          },
+          "sha256": "60879f1fc31c6590739d66dac6aa70ee358fcadf93949a0997e0017984a6238d",
+          "raw_receipt": {
+            "status": "archived",
+            "source_url": "https://mops.twse.com.tw/mops/api/t164sb03",
+            "retrieved_at": 1791712245.573374,
+            "http_status": 200,
+            "raw_response_sha256": "60879f1fc31c6590739d66dac6aa70ee358fcadf93949a0997e0017984a6238d",
+            "raw_response_path": "/Volumes/X10 Pro Mac/stock-agent/backend/cache/official-response-evidence/60879f1fc31c6590739d66dac6aa70ee358fcadf93949a0997e0017984a6238d.gz",
+            "raw_response_bytes": 4433,
+            "evidence_kind": "raw_http_response_bytes",
+            "historical_point_in_time_verified": false,
+            "finality_guaranteed": false
+          },
+          "unit_template_receipt": {
+            "status": "archived",
+            "source_url": "https://mops.twse.com.tw/mops/assets/t164sb03.js",
+            "retrieved_at": 1791709714.206555,
+            "http_status": 200,
+            "raw_response_sha256": "6d1695de0f0234163792333a4cf07ef9316f01687ef1a0928fa6ddc9feecc7ba",
+            "raw_response_path": "/Volumes/X10 Pro Mac/stock-agent/backend/cache/official-response-evidence/6d1695de0f0234163792333a4cf07ef9316f01687ef1a0928fa6ddc9feecc7ba.gz",
+            "raw_response_bytes": 6549,
+            "evidence_kind": "raw_http_response_bytes",
+            "historical_point_in_time_verified": false,
+            "finality_guaranteed": false
+          }
+        },
+        {
+          "year": 2024,
+          "period_end": "2024-12-31",
+          "statement": "IncomeStatement",
+          "provider": "TWSE MOPS public annual JSON",
+          "url": "https://mops.twse.com.tw/mops/api/t164sb04",
+          "request": {
+            "companyId": "2441",
+            "dataType": "2",
+            "season": "4",
+            "year": "113",
+            "subsidiaryCompanyId": ""
+          },
+          "sha256": "d13ebce13c86a673e45ddd1fcb47a2a35a2e71463b58c5d8c3b82ff87a428e91",
+          "raw_receipt": {
+            "status": "archived",
+            "source_url": "https://mops.twse.com.tw/mops/api/t164sb04",
+            "retrieved_at": 1791712245.675883,
+            "http_status": 200,
+            "raw_response_sha256": "d13ebce13c86a673e45ddd1fcb47a2a35a2e71463b58c5d8c3b82ff87a428e91",
+            "raw_response_path": "/Volumes/X10 Pro Mac/stock-agent/backend/cache/official-response-evidence/d13ebce13c86a673e45ddd1fcb47a2a35a2e71463b58c5d8c3b82ff87a428e91.gz",
+            "raw_response_bytes": 3130,
+            "evidence_kind": "raw_http_response_bytes",
+            "historical_point_in_time_verified": false,
+            "finality_guaranteed": false
+          },
+          "unit_template_receipt": {
+            "status": "archived",
+            "source_url": "https://mops.twse.com.tw/mops/assets/t164sb04.js",
+            "retrieved_at": 1791709714.234696,
+            "http_status": 200,
+            "raw_response_sha256": "fbfd5754dd2ce843cadd7a800e188fc84acda6ee61bfb64d5afd3a1ac9cfee23",
+            "raw_response_path": "/Volumes/X10 Pro Mac/stock-agent/backend/cache/official-response-evidence/fbfd5754dd2ce843cadd7a800e188fc84acda6ee61bfb64d5afd3a1ac9cfee23.gz",
+            "raw_response_bytes": 6507,
+            "evidence_kind": "raw_http_response_bytes",
+            "historical_point_in_time_verified": false,
+            "finality_guaranteed": false
+          }
+        },
+        {
+          "year": 2024,
+          "period_end": "2024-12-31",
+          "statement": "CashflowStatement",
+          "provider": "TWSE MOPS public annual JSON",
+          "url": "https://mops.twse.com.tw/mops/api/t164sb05",
+          "request": {
+            "companyId": "2441",
+            "dataType": "2",
+            "season": "4",
+            "year": "113",
+            "subsidiaryCompanyId": ""
+          },
+          "sha256": "eac65922534d5d38718f88eed0a33862ade5ba26e251a4390e546edd645557c7",
+          "raw_receipt": {
+            "status": "archived",
+            "source_url": "https://mops.twse.com.tw/mops/api/t164sb05",
+            "retrieved_at": 1791712245.777195,
+            "http_status": 200,
+            "raw_response_sha256": "eac65922534d5d38718f88eed0a33862ade5ba26e251a4390e546edd645557c7",
+            "raw_response_path": "/Volumes/X10 Pro Mac/stock-agent/backend/cache/official-response-evidence/eac65922534d5d38718f88eed0a33862ade5ba26e251a4390e546edd645557c7.gz",
+            "raw_response_bytes": 4144,
+            "evidence_kind": "raw_http_response_bytes",
+            "historical_point_in_time_verified": false,
+            "finality_guaranteed": false
+          },
+          "unit_template_receipt": {
+            "status": "archived",
+            "source_url": "https://mops.twse.com.tw/mops/assets/t164sb05.js",
+            "retrieved_at": 1791709714.266504,
+            "http_status": 200,
+            "raw_response_sha256": "4f2491487da3489f8cb5cb9acd95dd6ee73981ebbbb0c45e8df4c5e2bfc0b413",
+            "raw_response_path": "/Volumes/X10 Pro Mac/stock-agent/backend/cache/official-response-evidence/4f2491487da3489f8cb5cb9acd95dd6ee73981ebbbb0c45e8df4c5e2bfc0b413.gz",
+            "raw_response_bytes": 6480,
+            "evidence_kind": "raw_http_response_bytes",
+            "historical_point_in_time_verified": false,
+            "finality_guaranteed": false
+          }
+        }
+      ]
+    },
+    {
+      "year": 2025,
+      "period_end": "2025-12-31",
+      "provider": "TWSE MOPS public annual JSON",
+      "url": "https://mops.twse.com.tw/mops/api/t164sb03",
+      "sha256": "fee3ed813306d4b85ea70101a105faaefa3c43c049369a1486fceba02d0ff3b7",
+      "components": [
+        {
+          "year": 2025,
+          "period_end": "2025-12-31",
+          "statement": "BalanceSheet",
+          "provider": "TWSE MOPS public annual JSON",
+          "url": "https://mops.twse.com.tw/mops/api/t164sb03",
+          "request": {
+            "companyId": "2441",
+            "dataType": "2",
+            "season": "4",
+            "year": "114",
+            "subsidiaryCompanyId": ""
+          },
+          "sha256": "75a3e11084c7680a293921cdf153a4a73d21830a6a0fbc46d39cb1ce866005bf",
+          "raw_receipt": {
+            "status": "archived",
+            "source_url": "https://mops.twse.com.tw/mops/api/t164sb03",
+            "retrieved_at": 1791712245.86349,
+            "http_status": 200,
+            "raw_response_sha256": "75a3e11084c7680a293921cdf153a4a73d21830a6a0fbc46d39cb1ce866005bf",
+            "raw_response_path": "/Volumes/X10 Pro Mac/stock-agent/backend/cache/official-response-evidence/75a3e11084c7680a293921cdf153a4a73d21830a6a0fbc46d39cb1ce866005bf.gz",
+            "raw_response_bytes": 4295,
+            "evidence_kind": "raw_http_response_bytes",
+            "historical_point_in_time_verified": false,
+            "finality_guaranteed": false
+          },
+          "unit_template_receipt": {
+            "status": "archived",
+            "source_url": "https://mops.twse.com.tw/mops/assets/t164sb03.js",
+            "retrieved_at": 1791709714.206555,
+            "http_status": 200,
+            "raw_response_sha256": "6d1695de0f0234163792333a4cf07ef9316f01687ef1a0928fa6ddc9feecc7ba",
+            "raw_response_path": "/Volumes/X10 Pro Mac/stock-agent/backend/cache/official-response-evidence/6d1695de0f0234163792333a4cf07ef9316f01687ef1a0928fa6ddc9feecc7ba.gz",
+            "raw_response_bytes": 6549,
+            "evidence_kind": "raw_http_response_bytes",
+            "historical_point_in_time_verified": false,
+            "finality_guaranteed": false
+          }
+        },
+        {
+          "year": 2025,
+          "period_end": "2025-12-31",
+          "statement": "IncomeStatement",
+          "provider": "TWSE MOPS public annual JSON",
+          "url": "https://mops.twse.com.tw/mops/api/t164sb04",
+          "request": {
+            "companyId": "2441",
+            "dataType": "2",
+            "season": "4",
+            "year": "114",
+            "subsidiaryCompanyId": ""
+          },
+          "sha256": "41e3734afffb7c0bd50835e2ff00c0303871c7a03cadabacbcb031ee9c8a9938",
+          "raw_receipt": {
+            "status": "archived",
+            "source_url": "https://mops.twse.com.tw/mops/api/t164sb04",
+            "retrieved_at": 1791712245.957561,
+            "http_status": 200,
+            "raw_response_sha256": "41e3734afffb7c0bd50835e2ff00c0303871c7a03cadabacbcb031ee9c8a9938",
+            "raw_response_path": "/Volumes/X10 Pro Mac/stock-agent/backend/cache/official-response-evidence/41e3734afffb7c0bd50835e2ff00c0303871c7a03cadabacbcb031ee9c8a9938.gz",
+            "raw_response_bytes": 3139,
+            "evidence_kind": "raw_http_response_bytes",
+            "historical_point_in_time_verified": false,
+            "finality_guaranteed": false
+          },
+          "unit_template_receipt": {
+            "status": "archived",
+            "source_url": "https://mops.twse.com.tw/mops/assets/t164sb04.js",
+            "retrieved_at": 1791709714.234696,
+            "http_status": 200,
+            "raw_response_sha256": "fbfd5754dd2ce843cadd7a800e188fc84acda6ee61bfb64d5afd3a1ac9cfee23",
+            "raw_response_path": "/Volumes/X10 Pro Mac/stock-agent/backend/cache/official-response-evidence/fbfd5754dd2ce843cadd7a800e188fc84acda6ee61bfb64d5afd3a1ac9cfee23.gz",
+            "raw_response_bytes": 6507,
+            "evidence_kind": "raw_http_response_bytes",
+            "historical_point_in_time_verified": false,
+            "finality_guaranteed": false
+          }
+        },
+        {
+          "year": 2025,
+          "period_end": "2025-12-31",
+          "statement": "CashflowStatement",
+          "provider": "TWSE MOPS public annual JSON",
+          "url": "https://mops.twse.com.tw/mops/api/t164sb05",
+          "request": {
+            "companyId": "2441",
+            "dataType": "2",
+            "season": "4",
+            "year": "114",
+            "subsidiaryCompanyId": ""
+          },
+          "sha256": "df0b4b84d3fe501753565f313fbbe8ed38c7a22f64db65a99547290697a538f1",
+          "raw_receipt": {
+            "status": "archived",
+            "source_url": "https://mops.twse.com.tw/mops/api/t164sb05",
+            "retrieved_at": 1791712246.0534499,
+            "http_status": 200,
+            "raw_response_sha256": "df0b4b84d3fe501753565f313fbbe8ed38c7a22f64db65a99547290697a538f1",
+            "raw_response_path": "/Volumes/X10 Pro Mac/stock-agent/backend/cache/official-response-evidence/df0b4b84d3fe501753565f313fbbe8ed38c7a22f64db65a99547290697a538f1.gz",
+            "raw_response_bytes": 4141,
+            "evidence_kind": "raw_http_response_bytes",
+            "historical_point_in_time_verified": false,
+            "finality_guaranteed": false
+          },
+          "unit_template_receipt": {
+            "status": "archived",
+            "source_url": "https://mops.twse.com.tw/mops/assets/t164sb05.js",
+            "retrieved_at": 1791709714.266504,
+            "http_status": 200,
+            "raw_response_sha256": "4f2491487da3489f8cb5cb9acd95dd6ee73981ebbbb0c45e8df4c5e2bfc0b413",
+            "raw_response_path": "/Volumes/X10 Pro Mac/stock-agent/backend/cache/official-response-evidence/4f2491487da3489f8cb5cb9acd95dd6ee73981ebbbb0c45e8df4c5e2bfc0b413.gz",
+            "raw_response_bytes": 6480,
+            "evidence_kind": "raw_http_response_bytes",
+            "historical_point_in_time_verified": false,
+            "finality_guaranteed": false
+          }
+        }
+      ]
+    }
+  ],
+  "comparative_revisions": [],
+  "comparative_coverage": [
+    {
+      "year": 2021,
+      "comparative_filing_year": 2022,
+      "status": "complete",
+      "available_facts": [
+        "Assets",
+        "CashFlowsFromUsedInOperatingActivities",
+        "EquityAttributableToOwnersOfParent",
+        "GrossProfit",
+        "ProfitLossAttributableToOwnersOfParent",
+        "ProfitLossFromOperatingActivities",
+        "PurchaseOfIntangibleAssetsClassifiedAsInvestingActivities",
+        "PurchaseOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities",
+        "Revenue"
+      ],
+      "missing_facts": [],
+      "retained_primary_facts": []
+    },
+    {
+      "year": 2022,
+      "comparative_filing_year": 2023,
+      "status": "complete",
+      "available_facts": [
+        "Assets",
+        "CashFlowsFromUsedInOperatingActivities",
+        "EquityAttributableToOwnersOfParent",
+        "GrossProfit",
+        "ProfitLossAttributableToOwnersOfParent",
+        "ProfitLossFromOperatingActivities",
+        "PurchaseOfIntangibleAssetsClassifiedAsInvestingActivities",
+        "PurchaseOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities",
+        "Revenue"
+      ],
+      "missing_facts": [],
+      "retained_primary_facts": []
+    },
+    {
+      "year": 2023,
+      "comparative_filing_year": 2024,
+      "status": "complete",
+      "available_facts": [
+        "Assets",
+        "CashFlowsFromUsedInOperatingActivities",
+        "EquityAttributableToOwnersOfParent",
+        "GrossProfit",
+        "ProfitLossAttributableToOwnersOfParent",
+        "ProfitLossFromOperatingActivities",
+        "PurchaseOfIntangibleAssetsClassifiedAsInvestingActivities",
+        "PurchaseOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities",
+        "Revenue"
+      ],
+      "missing_facts": [],
+      "retained_primary_facts": []
+    },
+    {
+      "year": 2024,
+      "comparative_filing_year": 2025,
+      "status": "complete",
+      "available_facts": [
+        "Assets",
+        "CashFlowsFromUsedInOperatingActivities",
+        "EquityAttributableToOwnersOfParent",
+        "GrossProfit",
+        "ProfitLossAttributableToOwnersOfParent",
+        "ProfitLossFromOperatingActivities",
+        "PurchaseOfIntangibleAssetsClassifiedAsInvestingActivities",
+        "PurchaseOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities",
+        "Revenue"
+      ],
+      "missing_facts": [],
+      "retained_primary_facts": []
+    }
+  ]
+}

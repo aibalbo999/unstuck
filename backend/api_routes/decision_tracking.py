@@ -3,11 +3,12 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Request
+from fastapi.responses import JSONResponse
 
 import decision_tracking_service
 
@@ -17,6 +18,7 @@ class DecisionTrackingRouteDeps:
     get_output_dir: Callable[[], str]
     get_refresh_service: Callable[[], Any]
     require_mutation_authorized: Callable[[Request], None]
+    read_tracking: Callable[[str], Awaitable[dict]] | None = None
 
 
 def create_decision_tracking_router(deps: DecisionTrackingRouteDeps) -> APIRouter:
@@ -24,6 +26,9 @@ def create_decision_tracking_router(deps: DecisionTrackingRouteDeps) -> APIRoute
 
     @router.get("")
     async def get_decision_tracking():
+        if deps.read_tracking is not None:
+            result = await deps.read_tracking(deps.get_output_dir())
+            return JSONResponse(result, status_code=503) if result.get("status") == "unavailable" else result
         return await asyncio.to_thread(decision_tracking_service.list_decision_tracking, deps.get_output_dir())
 
     @router.post("")

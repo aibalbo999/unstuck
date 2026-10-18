@@ -43,8 +43,15 @@ async def fetch_radar_payload(request, sources, registry):
             if provider is None:
                 raise RuntimeError(f'雷達缺少資料來源：{source}')
             result = await provider.fetch_async(request, {'original_ticker': request.ticker})
+            for entry in result.audit.get('related_entries') or []:
+                if isinstance(entry, dict):
+                    data['source_audit'].append(entry)
             data['source_audit'].append(result.audit)
-            if result.status != 'success' or not result.value:
+            fresh_cache = (result.status == 'skipped_fresh_cache'
+                           and source == 'monthly_revenue'
+                           and result.audit.get('cache_hit') is True
+                           and result.audit.get('stale') is False)
+            if (result.status != 'success' and not fresh_cache) or not result.value:
                 raise RuntimeError(f'雷達資料來源暫時不可用：{source}')
             value = result.value
         if provider_source == 'market_data':
@@ -60,4 +67,7 @@ async def fetch_radar_payload(request, sources, registry):
         else:
             field = 'recent_monthly_revenue' if source == 'monthly_revenue' else source
             data[field] = value
+            if source == 'monthly_revenue':
+                from .market_sources.official_monthly_revenue import apply_monthly_freshness
+                apply_monthly_freshness(data, request.ticker, result.audit)
     return data

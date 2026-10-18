@@ -28,13 +28,30 @@ def snapshot_content_hash(snapshot: Mapping) -> str:
     if not isinstance(snapshot, Mapping):
         return ""
     stable = {}
+    # JSON object keys are strings. Normalize nested mapping keys before
+    # sorting so integer keys (such as SMA periods) hash identically before
+    # persistence and after JSON turns them into strings. Keep values and
+    # fields untouched so existing snapshot semantics remain stable.
     for key, value in _safe_mapping_items(snapshot):
         key_str = safe_text(key)
         if not key_str or key_str in {"snapshot_hash", "content_hash", "snapshot_size_bytes"}:
             continue
-        stable[key_str] = _hashable_snapshot_value(key_str, value)
+        stable[key_str] = _normalize_mapping_keys(_hashable_snapshot_value(key_str, value))
     encoded = json.dumps(stable, ensure_ascii=False, sort_keys=True, separators=(",", ":"), default=str)
     return hashlib.sha256(encoded.encode("utf-8")).hexdigest()
+
+
+def _normalize_mapping_keys(value: Any) -> Any:
+    if isinstance(value, Mapping):
+        normalized = {}
+        for key, item in _safe_mapping_items(value):
+            key_str = safe_text(key)
+            if key_str:
+                normalized[key_str] = _normalize_mapping_keys(item)
+        return normalized
+    if isinstance(value, (list, tuple)):
+        return [_normalize_mapping_keys(item) for item in value]
+    return value
 
 
 def set_snapshot_integrity(snapshot: dict) -> dict:

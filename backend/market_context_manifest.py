@@ -219,3 +219,22 @@ def adopt_market_context_result(context: dict, agent_num: int, data: dict, promp
             if isinstance(rendered, list) and prompt_fingerprint(text) in rendered:
                 receipt["rendered_text_sha256"] = list(dict.fromkeys([*rendered, *projected_hashes]))[:8]
     return result
+
+
+def market_assessment_workplan(data: dict, blocks: list[dict]) -> str:
+    """Require decisions about visible evidence without manufacturing impacts."""
+    plan = {}
+    for source in SOURCE_FIELDS:
+        plan[source] = {
+            "available_count": available_source_count(data, source),
+            "visible_source_refs": [block["ref"] for block in blocks if block["source"] == source],
+        }
+    return (
+        "【最終市場來源評估必填工作表】market_context_assessment 必須逐一包含 global_market_context 與 international_news_context。"
+        "每項自行評估 impact（affects_conclusion / no_material_impact / not_assessed）、reason 與 source_refs；"
+        "有可見資料時，逐項閱讀實際來源，說明傳導至本股票或不影響結論的理由、相反證據、觀測時間及與兩週期間的關係。"
+        "影響或無實質影響均須引用下列對應可見 ref，不能以空泛『已納入』代替；"
+        "若未能評估，明寫具體缺口並標 not_assessed，不得假造無影響。"
+        "來源缺失或未進入提示時，列明缺口且 source_refs=[]；新聞不是已排定公司事件，過期或缺日期不可冒充兩週催化。\n"
+        + _encoded(plan)
+    )

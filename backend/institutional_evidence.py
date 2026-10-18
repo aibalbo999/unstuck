@@ -53,7 +53,9 @@ def institutional_evidence_records(data):
         # Preserve indexes: a malformed row must not make a citation point at its neighbour.
         return [r if isinstance(r, dict) else {} for r in typed["records"]]
     raw = _map(context.get("institutional_trading")) or _map(data.get("institutional_trading"))
-    if raw.get("source") != _PROVIDER:
+    source = raw.get("source")
+    allowed = {_PROVIDER, "TWSE T86", "TPEx dailyTrade"}
+    if not isinstance(source,str) or not set(source.split(" + ")).issubset(allowed) or not source:
         return []
     latest = _date(raw.get("latest_date"))
     lookback = _number(raw.get("lookback_trading_days"))
@@ -82,6 +84,8 @@ def institutional_evidence_records(data):
         row = _map(row); observed = _date(row.get("date"))
         add(f"daily_total_net_buy_last_10[{i}].net_buy_thousand_shares", row.get("net_buy_thousand_shares"),
             "thousand_shares", "total", {"kind": "day", "date": observed}, observed)
+    from institutional_daily_evidence import daily_category_records
+    records.extend(daily_category_records(raw))
     return records
 
 

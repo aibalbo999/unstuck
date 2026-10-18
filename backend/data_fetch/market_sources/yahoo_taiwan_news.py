@@ -1,4 +1,4 @@
-"""Bounded Yahoo Taiwan quote-page news; no JavaScript execution or article fetches."""
+"""Bounded Yahoo Taiwan RSS-first news with quote-page fallback."""
 from __future__ import annotations
 
 from collections import Counter
@@ -12,10 +12,11 @@ import time
 from urllib.parse import urlsplit
 
 import httpx
+import feedparser
 
 from external_http_client import proxy_url_for_request
 from .yahoo_taiwan_transport import curl_stream
-from news_record_utils import clean_text
+from news_record_utils import clean_text, news_record as _news_record, parse_news_datetime
 from search_admission import endpoint_admission
 from search_provider_runtime import SourceResponseError, cooldown_state, remember_failure, scope_key, observe_http_response
 
@@ -23,6 +24,8 @@ PROVIDER = 'Yahoo Finance news'
 GUARD_KEY = scope_key(PROVIDER, endpoint='yahoo_tw_quote_news')
 TRANSPORT = 'yahoo_taiwan_quote_news_html'
 PARSER_VERSION = 'yahoo-tw-quote-news-v1'
+RSS_TRANSPORT = 'yahoo_taiwan_stock_rss'
+RSS_PARSER_VERSION = 'yahoo-tw-stock-rss-v1'
 MAX_BODY_BYTES = 2 * 1024 * 1024
 MAX_OBJECT_CHARS = 1_000_000
 MAX_DEPTH = 64
@@ -58,6 +61,102 @@ def source_url(ticker: str) -> str:
     if not match:
         raise ValueError('Unresolved Taiwan equity')
     return f'https://tw.stock.yahoo.com/quote/{match[1]}/news'
+
+
+def rss_source_url(ticker: str) -> str:
+    if not _TICKER.fullmatch(str(ticker or '').strip().upper()):
+        raise ValueError('Unresolved Taiwan equity')
+    return f'https://tw.stock.yahoo.com/rss?s={ticker.strip().upper()}'
+
+
+def parse_yahoo_taiwan_rss(raw: bytes, ticker: str, *, diagnostics: dict) -> list[dict]:
+    """Parse Yahoo's official ticker-bound RSS feed without following article links."""
+    if not isinstance(raw, bytes) or len(raw) > MAX_BODY_BYTES:
+        raise ValueError('RSS response exceeds limit')
+    feed = feedparser.parse(raw)
+    if getattr(feed, 'bozo', False) or not str(getattr(feed, 'version', '')).startswith('rss'):
+        raise ValueError('Invalid Yahoo Taiwan RSS feed')
+    entries = list(getattr(feed, 'entries', []) or [])
+    if len(entries) > MAX_STREAM_SLOTS:
+        raise ValueError('Excessive Yahoo Taiwan RSS items')
+    url = rss_source_url(ticker)
+    records, rejected, originals = [], [], {}
+    for index, entry in enumerate(entries[:MAX_ARTICLES]):
+        path = f'$.rss.channel.item[{index}]'
+        original = {
+            'title': entry.get('title'), 'link': entry.get('link'),
+            'published': entry.get('published'), 'source': entry.get('source'),
+            'summary': entry.get('summary'), 'id': entry.get('id'),
+        }
+        originals[path] = original
+        title = clean_text(original['title'])
+        link = original['link']
+        try:
+            parsed_link = urlsplit(link) if isinstance(link, str) else None
+            valid_link = (parsed_link is not None and parsed_link.scheme == 'https'
+                          and parsed_link.hostname == 'tw.stock.yahoo.com'
+                          and parsed_link.path.startswith('/news/')
+                          and not parsed_link.username and not parsed_link.password
+                          and parsed_link.port in (None, 443))
+        except ValueError:
+            valid_link = False
+        if not title:
+            rejected.append({'reason': 'invalid_title', 'quality_affecting': True,
+                             'source_json_path': path, 'record': original})
+            continue
+        if not valid_link:
+            rejected.append({'reason': 'invalid_link', 'quality_affecting': True,
+                             'source_json_path': path, 'record': original})
+            continue
+        source = original['source']
+        if isinstance(source, dict):
+            source = source.get('title')
+        if isinstance(source, list):
+            source = source[0].get('title') if source and isinstance(source[0], dict) else ''
+        published = entry.get('published_parsed') or original['published'] or ''
+        item = _news_record(
+            title=title, link=link, published_date=published,
+            source=clean_text(source) or 'Yahoo Finance Taiwan RSS',
+            summary=clean_text(original['summary'])[:280],
+        )
+        if item is None:
+            rejected.append({'reason': 'invalid_record', 'quality_affecting': True,
+                             'source_json_path': path, 'record': original})
+            continue
+        item.update(
+            # Yahoo's RSS terms require preserving each headline as supplied.
+            title=original['title'],
+            date=item['published_date'], source_type='yahoo_taiwan_news',
+            aggregator_source='Yahoo股市',
+            source_record_id=str(original.get('id') or ''), source_json_path=path,
+            page_ticker=ticker, source_page_url=url,
+        )
+        records.append(item)
+    diagnostics.update(
+        parser_version=RSS_PARSER_VERSION, rss_item_count=len(entries),
+        candidate_count=min(len(entries), MAX_ARTICLES),
+        capacity_excluded_count=max(0, len(entries) - MAX_ARTICLES),
+        _candidate_originals=originals, _parser_rejections=rejected,
+        _non_evidence_archive=[],
+    )
+    return records
+
+
+def _has_recent_rss_records(records: list[dict]) -> bool:
+    from config import CATALYST_LOOKBACK_DAYS
+    from news_freshness_policy import news_cutoff
+
+    cutoff = news_cutoff()
+    lower = cutoff.timestamp() - max(1, int(CATALYST_LOOKBACK_DAYS)) * 86400
+    for record in records:
+        published = parse_news_datetime(record.get('date'))
+        if published is not None and lower <= published.timestamp() <= cutoff.timestamp():
+            return True
+    return False
+
+
+def _component_details(details: dict) -> dict:
+    return {key: value for key, value in details.items() if not key.startswith('_')}
 
 
 def _decode_assignment(raw: bytes) -> tuple[dict, dict]:
@@ -253,10 +352,11 @@ def parse_yahoo_taiwan_news(raw: bytes, ticker: str, *, diagnostics: dict) -> li
 
 
 def fetch_yahoo_taiwan_news(ticker: str, *, diagnostics: dict) -> list[dict]:
-    """One GET; existing outer Yahoo guard precedes this persistent endpoint guard."""
-    url = source_url(ticker)
-    diagnostics.update(transport=TRANSPORT, source_url=url, actual_provider='Yahoo Taiwan',
-                       parser_version=PARSER_VERSION, http_request_sent=False)
+    """Prefer Yahoo's public ticker RSS; use the quote page if it has no recent items."""
+    diagnostics.update(transport=RSS_TRANSPORT, source_url=rss_source_url(ticker),
+                       actual_provider='Yahoo Finance Taiwan RSS',
+                       parser_version=RSS_PARSER_VERSION, http_request_sent=False,
+                       http_request_count=0)
     deadline = time.monotonic() + DEADLINE_SECONDS
     with endpoint_admission(GUARD_KEY, timeout_seconds=DEADLINE_SECONDS) as owns:
         if owns is None or not owns():
@@ -270,14 +370,183 @@ def fetch_yahoo_taiwan_news(ticker: str, *, diagnostics: dict) -> list[dict]:
                                retry_after_seconds=max(0, blocked['retry_at'] - time.time()))
             # A historical 429 is not a new HTTP response or a new cooldown start.
             raise SourceResponseError('cooldown', parser_version=PARSER_VERSION)
+        components = []
+        request_count = 0
         try:
-            return _fetch_page(ticker, diagnostics, deadline, owns)
+            rss_diagnostics = {}
+            rss_error = None
+            try:
+                rss_records = _fetch_rss(ticker, rss_diagnostics, deadline, owns)
+            except SourceResponseError as error:
+                rss_error = error
+                rss_diagnostics.update(error.diagnostic, status='error', error_kind=error.error_kind)
+                rss_records = []
+            request_count += int(rss_diagnostics.get('http_request_sent') is True)
+            components.append({'provider': 'Yahoo Finance Taiwan ticker RSS',
+                               'status': 'error' if rss_error else 'success' if rss_records else 'valid_empty',
+                               'record_count': len(rss_records), **_component_details(rss_diagnostics)})
+            # Only a complete-but-unusable RSS representation is worth trying
+            # through the alternate page route. A transport/timeout/server
+            # failure must not double the load or turn one failed fetch into
+            # two provider attempts. A missing RSS route (404) may still fall
+            # back while the established quote page remains available.
+            may_fallback_after_rss_error = bool(
+                rss_error
+                and (rss_error.error_kind == 'parse_error'
+                     or (rss_error.error_kind == 'http_error' and rss_error.status_code == 404))
+            )
+            if rss_error and not may_fallback_after_rss_error:
+                diagnostics.update(rss_diagnostics, component_statuses=components,
+                                   http_request_count=request_count,
+                                   http_request_sent=request_count > 0,
+                                   actual_provider='Yahoo Finance Taiwan RSS')
+                raise rss_error
+            if rss_records and _has_recent_rss_records(rss_records):
+                diagnostics.update(rss_diagnostics, component_statuses=components,
+                                   http_request_count=request_count,
+                                   http_request_sent=request_count > 0,
+                                   actual_provider='Yahoo Finance Taiwan RSS',
+                                   transport=RSS_TRANSPORT, source_url=rss_source_url(ticker),
+                                   parser_version=RSS_PARSER_VERSION,
+                                   coverage_status='recent_ticker_rss_records')
+                return rss_records
+
+            page_diagnostics = {}
+            try:
+                page_records = _fetch_page(ticker, page_diagnostics, deadline, owns)
+            except SourceResponseError as page_error:
+                request_count += int(page_diagnostics.get('http_request_sent') is True)
+                page_diagnostics.update(transport=TRANSPORT, source_url=source_url(ticker),
+                                        actual_provider='Yahoo Taiwan', parser_version=PARSER_VERSION)
+                if rss_error is not None:
+                    page_error.diagnostic.setdefault('rss_error_kind', rss_error.error_kind)
+                diagnostics.update(page_diagnostics, component_statuses=components + [{
+                    'provider': 'Yahoo Taiwan quote news page', 'status': 'error',
+                    'record_count': 0, **_component_details(page_diagnostics),
+                }], http_request_count=request_count,
+                                   http_request_sent=request_count > 0)
+                raise page_error
+            request_count += int(page_diagnostics.get('http_request_sent') is True)
+            page_diagnostics.update(transport=TRANSPORT, source_url=source_url(ticker),
+                                    actual_provider='Yahoo Taiwan', parser_version=PARSER_VERSION)
+            components.append({'provider': 'Yahoo Taiwan quote news page',
+                               'status': 'success' if page_records else 'valid_empty',
+                               'record_count': len(page_records), **_component_details(page_diagnostics)})
+            rss_non_evidence = []
+            if rss_records:
+                originals = rss_diagnostics.get('_candidate_originals', {})
+                for record in rss_records:
+                    path = record.get('source_json_path')
+                    rss_non_evidence.append({
+                        'reason': 'rss_no_recent_records', 'quality_affecting': False,
+                        'source_json_path': path,
+                        'record': originals.get(path, record), 'normalized_record': record,
+                    })
+            page_diagnostics['_parser_rejections'] = (
+                list(rss_diagnostics.get('_parser_rejections') or [])
+                + list(page_diagnostics.get('_parser_rejections') or [])
+            )
+            page_diagnostics['_non_evidence_archive'] = (
+                rss_non_evidence + list(rss_diagnostics.get('_non_evidence_archive') or [])
+                + list(page_diagnostics.get('_non_evidence_archive') or [])
+            )
+            diagnostics.update(page_diagnostics, component_statuses=components,
+                               http_request_count=request_count,
+                               http_request_sent=request_count > 0)
+            return page_records
         except SourceResponseError as error:
             if diagnostics.get('http_request_sent') and owns():
                 state = remember_failure(GUARD_KEY, error)
                 diagnostics.update(retry_at=state.get('retry_at'),
                                    retry_after_seconds=max(0, state.get('retry_at', 0) - time.time()))
             raise
+
+
+def _fetch_rss(ticker: str, diagnostics: dict, deadline: float, owns) -> list[dict]:
+    url = rss_source_url(ticker)
+    body = bytearray()
+    observed_bytes = 0
+    response_status = None
+    complete = False
+    diagnostics.update(transport=RSS_TRANSPORT, source_url=url,
+                       actual_provider='Yahoo Finance Taiwan RSS',
+                       parser_version=RSS_PARSER_VERSION, http_request_sent=False)
+    try:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0 or not owns():
+            raise SourceResponseError('timeout' if remaining <= 0 else 'lease_lost',
+                                      parser_version=RSS_PARSER_VERSION)
+        kwargs = {'follow_redirects': False}
+        proxy = proxy_url_for_request(url, PROVIDER)
+        if proxy:
+            kwargs['proxy'] = proxy
+        observe_http_response(None)
+        diagnostics['http_request_sent'] = True
+        with curl_stream('GET', url, deadline=deadline, diagnostics=diagnostics, **kwargs) as response:
+            response_status = response.status_code
+            observe_http_response(response)
+            diagnostics['http_status'] = response_status
+            if response_status != 200:
+                kind = {401: 'authentication', 402: 'payment_required', 403: 'access_denied',
+                        429: 'rate_limited'}.get(response_status,
+                                                  'server_error' if response_status >= 500 else 'http_error')
+                error = SourceResponseError(kind, status_code=response_status,
+                                            parser_version=RSS_PARSER_VERSION)
+                error.response = response
+                raise error
+            length = response.headers.get('Content-Length', '')
+            if length.isdigit() and int(length) > MAX_BODY_BYTES:
+                raise SourceResponseError('response_too_large', status_code=response_status,
+                                          parser_version=RSS_PARSER_VERSION)
+            content_type = str(response.headers.get('Content-Type') or '').split(';', 1)[0].strip().lower()
+            if content_type and content_type not in {
+                'application/rss+xml', 'application/xml', 'text/xml', 'application/atom+xml',
+            }:
+                raise SourceResponseError('parse_error', status_code=response_status,
+                                          parser_version=RSS_PARSER_VERSION)
+            for chunk in response.iter_bytes(chunk_size=16_384):
+                observed_bytes += len(chunk)
+                if time.monotonic() >= deadline or not owns():
+                    raise SourceResponseError('timeout' if time.monotonic() >= deadline else 'lease_lost',
+                                              status_code=response_status,
+                                              parser_version=RSS_PARSER_VERSION)
+                space = MAX_BODY_BYTES - len(body)
+                body.extend(chunk[:space])
+                if len(chunk) > space:
+                    raise SourceResponseError('response_too_large', status_code=response_status,
+                                              parser_version=RSS_PARSER_VERSION)
+            complete = True
+        records = parse_yahoo_taiwan_rss(bytes(body), ticker, diagnostics=diagnostics)
+        if time.monotonic() >= deadline or not owns():
+            raise SourceResponseError('timeout' if time.monotonic() >= deadline else 'lease_lost',
+                                      status_code=response_status,
+                                      parser_version=RSS_PARSER_VERSION)
+        return records
+    except Exception as original:
+        if isinstance(original, SourceResponseError):
+            error = original
+        else:
+            kind = ('timeout' if isinstance(original, (httpx.TimeoutException, TimeoutError))
+                    else 'transport_error' if isinstance(original, httpx.TransportError)
+                    else 'parse_error')
+            error = SourceResponseError(kind, status_code=response_status,
+                                        parser_version=RSS_PARSER_VERSION)
+        diagnostics.update(error.diagnostic)
+        if error is original:
+            raise
+        raise error from original
+    finally:
+        diagnostics.update(response_bytes=len(body), response_bytes_read=observed_bytes,
+                           response_complete=complete,
+                           response_hash_scope='full_decoded_body' if complete else
+                           'captured_prefix' if body else 'not_read')
+        if complete:
+            diagnostics['response_sha256'] = hashlib.sha256(body).hexdigest()
+        elif body:
+            diagnostics['captured_prefix_sha256'] = hashlib.sha256(body).hexdigest()
+        captured = diagnostics.pop('_transport_capture', None)
+        if captured is not None:
+            diagnostics.update(captured)
 
 
 def _fetch_page(ticker: str, diagnostics: dict, deadline: float, owns) -> list[dict]:

@@ -16,7 +16,8 @@ def isolated_source(monkeypatch):
     from cache_backends import InMemoryCache
 
     cache_store.set_cache_backend(InMemoryCache())
-    now = [datetime(2026, 9, 23, 12, tzinfo=timezone.utc).timestamp()]
+    # 23:00 in Taipei: fixtures containing 2026-09-23 represent a matured session.
+    now = [datetime(2026, 9, 23, 15, tzinfo=timezone.utc).timestamp()]
     monkeypatch.setattr(shared_provider_cache.time, "time", lambda: now[0])
     monkeypatch.setattr(provider_resilience, "_check_provider_state", lambda *_: None)
     monkeypatch.setattr(provider_resilience, "enforce_provider_throttle", lambda *_: None)
@@ -167,14 +168,16 @@ def test_registry_merge_keeps_cached_acquisition_time(monkeypatch, isolated_sour
     freshness = result["source_freshness"]["institutional_trading"]
     assert freshness["fetched_at_epoch"] == acquired
     assert freshness["cache_hit"] is True and freshness["age_seconds"] == 100
-    assert freshness["stale"] is False and freshness["observed_at"] == "2026-09-22"
+    assert freshness["stale"] is True and freshness["observed_at"] == "2026-09-22"
+    assert result["institutional_trading"]["latest_session_admission"]["eligible"] is False
 
 
 def test_fresh_single_observation_has_partial_window_and_persistable_date_details(monkeypatch):
     from provider_observation_details import observation_details
     install_rows(monkeypatch, observation("2026-09-22"))
     result = InstitutionalTradingProvider().fetch(FetchRequest.from_ticker("2321.TW"))
-    assert result.audit["stale"] is False
+    assert result.audit["stale"] is True
+    assert result.value["latest_session_admission"]["eligible"] is False
     assert result.audit["coverage_status"] == "partial"
     assert result.value["observed_date_count"] == 1
     assert result.value["last_5_trading_days_net_buy_thousand_shares"] is None
@@ -185,21 +188,24 @@ def test_fresh_single_observation_has_partial_window_and_persistable_date_detail
     assert component["retrieval_status"] == "success"
 
 
-def test_stale_ttl_expires_then_new_observation_gets_existing_fresh_ttl(monkeypatch, isolated_source):
+def test_latest_unverified_observation_uses_short_recheck_ttl(monkeypatch, isolated_source):
     from data_freshness import source_max_age_seconds
     rows = observation()
     calls = install_rows(monkeypatch, rows)
     request = FetchRequest.from_ticker("2321.TW")
     InstitutionalTradingProvider().fetch(request)
-    isolated_source[0] += 899
+    isolated_source[0] += 299
     cached = InstitutionalTradingProvider().fetch(request)
     assert len(calls) == 1 and cached.audit["stale"] is True
-    rows[:] = observation("2026-09-23")
+    # A source row for the prior completed session remains unverified against
+    # the current session and should retain the short recheck interval.
+    rows[:] = observation("2026-09-22")
     isolated_source[0] += 2
     fresh = InstitutionalTradingProvider().fetch(request)
-    assert len(calls) == 2 and fresh.audit["stale"] is False
-    assert fresh.value["latest_date"] == "2026-09-23"
-    isolated_source[0] += source_max_age_seconds("institutional_trading", "2321.TW") - 1
+    assert len(calls) == 2 and fresh.audit["stale"] is True
+    assert fresh.value["latest_session_admission"]["eligible"] is False
+    assert fresh.value["latest_date"] == "2026-09-22"
+    isolated_source[0] += 299
     assert InstitutionalTradingProvider().fetch(request).audit["cache_hit"] is True
     assert len(calls) == 2
     isolated_source[0] += 2

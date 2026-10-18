@@ -100,14 +100,37 @@ def repair_report_reading_notice(html: str, context: dict | None = None) -> str:
 
 
 def repair_report_html_for_view(html: str, reading_notice_context: dict | None = None) -> str:
-    repaired = normalize_ticker_autolinks(str(html or ""))
+    from reporting.legacy_valuation_display import repair_legacy_valuation_display
+    repaired = normalize_ticker_autolinks(repair_legacy_valuation_display(html))
     repaired = repair_report_reading_notice(repaired, reading_notice_context)
     repaired = repair_report_execution_summary_quality(repaired, reading_notice_context)
+    if reading_notice_context and reading_notice_context.get('_current_quality_projection') is True:
+        from reporting.evidence_ledger_view import evidence_ledger_html
+        ledger = evidence_ledger_html(reading_notice_context)
+        if ledger:
+            ledger_re = re.compile(r'<details class="evidence-ledger">[\s\S]*?</details>')
+            if ledger_re.search(repaired):
+                repaired = ledger_re.sub(lambda m: ledger, repaired)
+            else:
+                notice = REPORT_READING_NOTICE_RE.search(repaired)
+                if notice:
+                    repaired = repaired[:notice.end()] + ledger + repaired[notice.end():]
+
+
     return repair_sidebar_navigation(repaired)
 
 
 def repair_report_markdown_for_download(markdown: str, reading_notice_context: dict | None = None) -> str:
-    text = str(markdown or "")
+    from reporting.legacy_valuation_display import repair_legacy_valuation_display
+    text = repair_legacy_valuation_display(markdown)
+    if reading_notice_context and reading_notice_context.get('_current_quality_projection') is True:
+        from reporting.evidence_ledger_view import evidence_ledger_markdown
+        ledger = evidence_ledger_markdown(reading_notice_context)
+        if ledger:
+            ledger_re = re.compile(r'<!-- evidence-ledger:start -->[\s\S]*?<!-- evidence-ledger:end -->')
+            text = ledger_re.sub(lambda m: ledger.strip(), text) if ledger_re.search(text) else text + '\n' + ledger
+
+
     if not reading_notice_context:
         return text
     notice = build_report_reading_notice_markdown(reading_notice_context).strip()

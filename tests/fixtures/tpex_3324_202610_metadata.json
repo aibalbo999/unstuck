@@ -1,0 +1,10 @@
+{
+  "source_url": "https://www.tpex.org.tw/www/zh-tw/afterTrading/tradingStock?code=3324&date=2026%2F10%2F01&response=json",
+  "retrieved_at": "2026-10-07T15:19:51.023821+00:00",
+  "http_status": 200,
+  "sha256": "a8c2d5da63fb045214f4fe15f042b7b38c06b8c3dae95299e44b1de0d1372af7",
+  "historical_point_in_time_verified": false,
+  "finality_guaranteed": false,
+  "reference_page": "https://www.tpex.org.tw/zh-tw/mainboard/trading/info/stock-pricing.html",
+  "purpose": "single ticker/month raw schema fixture;not poll/backfill"
+}

@@ -26,29 +26,40 @@ def fetch_institutional_result(request: FetchRequest, *, fetch=None) -> Provider
         fetch = fetch_institutional_trading_trend
 
     fresh_ttl = source_max_age_seconds(SOURCE, request.ticker)
+    from datetime import datetime
+    from zoneinfo import ZoneInfo
+    from market_evidence_policy import session_cache_scope
+    expected,phase=session_cache_scope(datetime.fromtimestamp(time.time(),ZoneInfo('Asia/Taipei')))
+    primary_key=f'institutional:{request.ticker}:{INSTITUTIONAL_LOOKBACK_DAYS}:v2:{expected}:{phase}'
 
     def result_ttl(value):
         if not value:
             return EMPTY_RECHECK_SECONDS
         recency = observation_recency(value.get("latest_date"), ticker=request.ticker, now_epoch=time.time())
-        return fresh_ttl if recency["observation_status"] == "recent" else STALE_RECHECK_SECONDS
+        return fresh_ttl if value.get("latest_date")==expected and phase=="post_cutoff" and recency["observation_status"] == "recent" else min(STALE_RECHECK_SECONDS,300)
 
     started = time.time()
     with source_operation(SOURCE, PROVIDER):
         value, meta = shared_fetch(
-            f"institutional:{request.ticker}:{INSTITUTIONAL_LOOKBACK_DAYS}:v1",
+            primary_key,
             lambda: call_provider_with_resilience(PROVIDER, fetch, (request.ticker,), {}),
             freshness_seconds=fresh_ttl, retention_seconds=fresh_ttl,
             error_retry_seconds=EMPTY_RECHECK_SECONDS, result_ttl=result_ttl,
             use_cache=not request.options.force_refresh,
         )
         value = dict(value) if isinstance(value, dict) else {}
+        if meta.get("cache_hit") and not meta.get("stale") and not meta.get("error_kind"):
+            from institutional_observations import rebuild_cached_primary_summary
+            value = rebuild_cached_primary_summary(
+                value, request.ticker, now_epoch=time.time(), limit=INSTITUTIONAL_LOOKBACK_DAYS)
         from official_institutional_source import recover_institutional_observations
         value, recovery = recover_institutional_observations(
-            request.ticker, value, now_epoch=time.time(), limit=INSTITUTIONAL_LOOKBACK_DAYS)
+            request.ticker, value, now_epoch=time.time(), limit=INSTITUTIONAL_LOOKBACK_DAYS,
+            force_refresh=request.options.force_refresh)
         if value and recovery:
             value["official_recovery"] = recovery
         primary_acquisition = dict(meta)
+        primary_acquisition.update(cache_key=primary_key,expected_completed_session=expected,acquisition_phase=phase)
         if recovery.get("added_observation_count"):
             receipts = [row for row in recovery.get("reports", []) if row.get("status") == "available"]
             fetched = [row.get("fetched_at_epoch") for row in receipts if row.get("fetched_at_epoch")]
@@ -57,10 +68,14 @@ def fetch_institutional_result(request: FetchRequest, *, fetch=None) -> Provider
             meta = {**meta, "fetched_at_epoch": min(fetched) if fetched else None,
                     "cache_hit": bool(receipts) and all(row.get("cache_hit") for row in receipts)
                                  and (not value.get("daily_category_observations") or bool(primary_acquisition.get("cache_hit")))}
+        from report_source_admission import institutional_admission
+        admission=institutional_admission(value,expected)
+        if value:value["latest_session_admission"]=admission
         actual_provider = str(value.get("source") or DATASET)
         recency = observation_recency(value.get("latest_date"), ticker=request.ticker, now_epoch=time.time())
         stale = bool(meta.get("stale")) or bool(value and recency["observation_status"] != "recent")
         error_kind = str(meta.get("error_kind") or "")
+        stale = stale or bool(value and (not expected or value.get("latest_date")!=expected or phase!="post_cutoff" or not admission["eligible"]))
         partial = bool(value) and (stale or bool(value.get("rejected_record_count"))
                                     or value.get("window_coverage_status") != "complete" or recovery.get("conflicts"))
         status = ("degraded_enrichment" if value and (stale or error_kind) else "success" if value
@@ -71,13 +86,15 @@ def fetch_institutional_result(request: FetchRequest, *, fetch=None) -> Provider
                    "最近查詢仍未取得較新法人觀測；保留原日期與數值，不推定缺列為零。" if stale else
                    "法人來源已取得；觀測日期與實際涵蓋期間分開標示。" if value else
                    "法人來源回傳空資料；不能推定為零交易。")
+        if not admission["eligible"]:
+            message="法人觀測不可作已查驗候選："+admission["reason"]+"；保留原值、取得及觀測時間。"
         audit = build_source_audit_entry(
             SOURCE, PROVIDER, status, fetched_at_epoch=meta.get("fetched_at_epoch"),
             started_at_epoch=started, finished_at_epoch=time.time(),
             record_count=source_record_count(SOURCE, {SOURCE: value}),
             cache_hit=bool(meta.get("cache_hit")), stale=stale, error_kind=error_kind, message=message,
         )
-        audit.update(meta, **recency, actual_provider=actual_provider, primary_provider=DATASET, stale=stale,
+        audit.update(meta, **recency, latest_session_admission=admission, cache_key=primary_key, expected_completed_session=expected, acquisition_phase=phase, actual_provider=actual_provider, primary_provider=DATASET, stale=stale,
                      retrieval_status="error" if error_kind else "success" if value else "empty",
                      coverage_status="partial" if partial else "available" if value else "unavailable")
         audit["component_statuses"] = {"institutional_observations": {
@@ -86,6 +103,7 @@ def fetch_institutional_result(request: FetchRequest, *, fetch=None) -> Provider
             "retrieval_status": audit["retrieval_status"], "stale": stale, "cache_hit": bool(meta.get("cache_hit")),
             "fetched_at_epoch": meta.get("fetched_at_epoch"),
             "reason_code": "acquisition_failed" if error_kind else "no_observations" if not value else
+                           admission["reason"] if not admission["eligible"] else
                            "observation_" + recency["observation_status"] if stale else
                            "incomplete_observation_window" if partial else "complete_observation_window",
         }}
@@ -104,6 +122,9 @@ def fetch_institutional_result(request: FetchRequest, *, fetch=None) -> Provider
             value.update(**recency, actual_provider=actual_provider, stale=stale,
                          cache_hit=bool(meta.get("cache_hit")), fetched_at_epoch=meta.get("fetched_at_epoch"),
                          coverage_status=audit["coverage_status"], coverage_note=message)
+        if value:
+            from official_institutional_verification import attach_cached_verification
+            value = attach_cached_verification(value, request.ticker)
         return ProviderResult(source=SOURCE, provider=PROVIDER, status=status, value=value,
                               audit=audit, duration_ms=audit.get("duration_ms") or 0,
                               as_of=recency["observed_at"])
@@ -120,6 +141,8 @@ def apply_institutional_freshness(data: dict, ticker: str, audit: dict) -> None:
     if audit.get("stale"):
         entry.update(stale=True, is_fresh=False)
     data.setdefault("source_freshness", {})[SOURCE] = entry
+    if isinstance(data.get(SOURCE),dict):
+        data[SOURCE].update(cache_hit=bool(audit.get("cache_hit")),stale=bool(audit.get("stale")),fetched_at_epoch=audit.get("fetched_at_epoch"))
 
 
 def institutional_window_status(dates: list[str], ticker: str, count: int) -> str:

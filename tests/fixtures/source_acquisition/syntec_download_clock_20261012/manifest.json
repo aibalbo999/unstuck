@@ -1,0 +1,18 @@
+{
+  "source_url": "https://doc.twse.com.tw/server-java/t57sb01",
+  "source_url_basis": "fixed published FORM transport request in exact v3 runtime, canonical compact component index3",
+  "sha256": "b371e9e4074aff1a9cad5ffa6c93f66add995c0a9d7a6f97542899851074850d",
+  "bytes": 491,
+  "retrieved_at": 1791743342.059056,
+  "http_status": 200,
+  "published_temporary_pdf_url": "https://doc.twse.com.tw/pdf/202204_7750_AI1_20261012_022903.pdf",
+  "temporary_generation_stamp_Taipei": "2026-10-12T02:29:03+08:00",
+  "receipt_minus_server_path_stamp_seconds": -0.9409439563751221,
+  "first_formal_parent_id": 439872,
+  "first_formal_fetch_id": "d567146d1ef4438c80a995e47d736f74",
+  "formal_http_status": 502,
+  "original_all_report_artifacts_unchanged": true,
+  "no_HTTP_readback_request": true,
+  "retained_original_ledger_failure": true,
+  "not_financial_publication_or_data_freshness_timestamp": true
+}

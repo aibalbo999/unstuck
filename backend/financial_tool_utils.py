@@ -21,7 +21,7 @@ def safe_float(value: Any) -> Optional[float]:
         if not math.isfinite(number):
             return None
         return number
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return None
 
 

@@ -29,7 +29,7 @@ def _number(value):
 def evaluate_trade_path(
     *, bars, generated_date: date, as_of: date, direction, entry_zone=None,
     target_price=None, stop_loss=None, horizon_trading_days=5, transaction_cost=None,
-    benchmark_return_pct=None,
+    benchmark_return_pct=None, market=None, execution_context=None,
 ) -> dict:
     """Evaluate the first N observed sessions AFTER the report date.
 
@@ -51,21 +51,26 @@ def evaluate_trade_path(
         "evaluation_date": None, "return_basis": "per_position_gross_price_return",
         "execution_assumption": "entry_zone_touch_conservative_daily_ohlc",
         "benchmark_return_pct": _number(benchmark_return_pct),
-        "transaction_cost": None,
+        "transaction_cost": None, "net_outcome": None,
     }
+
+    if market is not None:
+        from backtest_price_comparability import assess_cost_evidence
+        result["cost_evidence"] = assess_cost_evidence(execution_context, transaction_cost)
 
     def finish(status, reason, exit_price=None, exit_date=None):
         result.update(status=status, reason=reason, exit_price=exit_price, exit_date=exit_date)
         if status in {"not_entered", "no_trade"}:
-            result.update(strategy_roi_pct=0.0, net_strategy_roi_pct=0.0,
+            result.update(strategy_roi_pct=0.0, net_strategy_roi_pct=None,
                           position_assumption="cash_no_position_zero_interest")
         elif exit_price is not None:
             sign = 1 if direction == "Long" else -1
             roi = sign * (exit_price / result["entry_price"] - 1) * 100
             result["strategy_roi_pct"] = round(roi, 4)
             result["outcome"] = "hit" if roi > 0 else "miss"
-            if result["transaction_cost"] is not None:
+            if result["transaction_cost"] is not None and (market is None or result.get("cost_evidence", {}).get("status") == "complete_declared_assumptions"):
                 result["net_strategy_roi_pct"] = round(roi - result["transaction_cost"] / result["entry_price"] * 100, 4)
+                result["net_outcome"] = "hit" if result["net_strategy_roi_pct"] > 0 else "miss"
         if result["strategy_roi_pct"] is not None and result["benchmark_return_pct"] is not None:
             result["excess_return_pct"] = round(result["strategy_roi_pct"] - result["benchmark_return_pct"], 4)
         return result
@@ -84,14 +89,42 @@ def evaluate_trade_path(
         seen.add(day)
         rows.append((day, row))
     rows.sort(key=lambda item: item[0])
+    if rows:
+        import hashlib
+        import json
+        serialized = json.dumps([raw for _, raw in rows], sort_keys=True, ensure_ascii=False, default=str)
+        result["bar_observation"] = {"bar_count": len(rows), "first_date": rows[0][0].isoformat(),
+            "last_date": rows[-1][0].isoformat(), "sha256": hashlib.sha256(serialized.encode()).hexdigest(),
+            "provenance": rows[0][1].get("observation_provenance"),
+            "scope": "provider response fingerprint;not archived raw bars or proof of point-in-time availability"}
     if not rows:
         return finish("insufficient_data", "missing_ohlc")
-    if len(rows) < horizon_trading_days:
+    if len(rows) < horizon_trading_days and market is None:
         return result
+    if market is not None:
+        from backtest_session_contract import session_window
+        window = session_window(generated_date, horizon_trading_days, market=market)
+        result["session_contract"] = window
+        if window["status"] != "verified":
+            return finish("insufficient_data", window["status"])
+        if window["maturity_date"] > as_of.isoformat():
+            return result
+        expected = window["sessions"]
+        actual = [day.isoformat() for day, _ in rows if day.isoformat() <= expected[-1]]
+        if actual != expected:
+            return finish("insufficient_data", "session_coverage_incomplete")
+    else:
+        result["session_contract"] = {"status": "unverified_legacy_caller"}
     rows = rows[:horizon_trading_days]
     result["evaluation_date"] = rows[-1][0].isoformat()
     if direction == "Neutral":
         return finish("no_trade", "explicit_observation_plan")
+    if market is not None:
+        from backtest_price_comparability import assess_price_comparability
+        comparability = assess_price_comparability(execution_context, [raw for _, raw in rows])
+        result["price_comparability"] = comparability
+        if comparability["status"] != "verified":
+            return finish("insufficient_data", comparability["reason"])
     contract = evaluate_trade_execution(direction=direction, entry_zone=entry_zone,
                                        target_price=target_price, stop_loss=stop_loss,
                                        transaction_cost=transaction_cost)

@@ -52,7 +52,8 @@ def test_omitted_block_cannot_authorize_references():
     from trade_source_contract import bind_source_prompt
     context={"structured_outputs":{}}
     bind_source_prompt(context,"prompt truncated","complete evidence block",{"short_term_market_context":{"x":1}},"hash")
-    process_agent_response(24,json.dumps(setup_payload()),context)
+    payload=setup_payload();payload["price_level_evidence"]=[]
+    process_agent_response(24,json.dumps(payload),context)
     assert context["structured_outputs"][24]["source_assessment"]["status"]=="degraded"
 
 def test_source_repair_is_one_bounded_local_call_and_preserves_upstream():
@@ -133,6 +134,37 @@ def test_price_reference_cannot_substitute_for_institutional_catalyst():
     result=context['structured_outputs'][24]
     assert result['trade_direction']=='Neutral'
     assert 'catalyst_evidence_scope_mismatch' in result['source_assessment']['reason_codes']
+
+
+def test_rejected_observed_flow_is_not_published_as_an_observed_fact():
+    from trade_source_contract import bind_trade_payload
+    from reporting.content_credibility_trade_basis import evaluate_trade_basis
+
+    ref = 'short_term_market_context.technical_indicators.sma_5'
+    context = {'data': {}, '_trade_source_manifest': {
+        'version': 'trade-sources:v3', 'visible': True, 'fingerprint': 'fixed',
+        'catalog': {'short_term_market_context': {'technical_indicators': {
+            'availability': 'available', 'source': 'fixture', 'as_of': '2026-10-02',
+            'sma_5': 111.0,
+        }}},
+    }}
+    claim = '三大法人近30個交易日累計淨買超30929.67千股，近5個交易日累計淨買超2306.08千股。'
+    payload = {
+        'trade_direction': 'Neutral', 'core_catalyst': '等待帶量突破後再重新評估',
+        'catalyst_source_refs': [], 'observed_signal': claim,
+        'observed_source_refs': [ref], 'recheck_condition': '等待帶量突破後再重新評估',
+    }
+
+    result, assessment = bind_trade_payload(payload, context)
+
+    assert assessment['status'] == 'degraded'
+    assert 'observed_catalyst_evidence_scope_mismatch' in assessment['reason_codes']
+    assert result['observed_signal'] is None
+    assert result['observed_source_refs'] == []
+    assert claim in assessment['rejection_diagnostics']['original_semantic_fields']['observed_signal']
+    assert not evaluate_trade_basis(
+        {'parsed': {'trade_setup': result}}, {}, 'v4'
+    )['blocking_issues']
 
 @pytest.mark.parametrize('extra, expected', [('', 'Long'), ('，同時外資買超', 'Neutral')])
 def test_verified_investor_conference_does_not_exempt_flow_claims(extra, expected):

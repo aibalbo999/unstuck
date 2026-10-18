@@ -88,6 +88,8 @@ def build_analysis_graph_builder(pipeline_id: str, services: WorkflowServices) -
     graph.add_node("validate_repaired_data", with_node_telemetry("validate_repaired_data", services.validate, services))
     graph.add_node("prepare_analysis", with_node_telemetry("prepare_analysis", services.prepare, services), retry_policy=AGENT_RETRY_POLICY)
     graph.add_node("blocked_finalize", with_node_telemetry("blocked_finalize", _blocked_finalize, services))
+    graph.add_node("partial_finalize", with_node_telemetry("partial_finalize", _partial_finalize, services))
+    graph.add_edge("partial_finalize", END)
     graph.add_node("final_audit", with_node_telemetry("final_audit", services.final_audit, services), retry_policy=AGENT_RETRY_POLICY)
     graph.add_node("chief_editor", with_node_telemetry("chief_editor", services.chief_editor, services), retry_policy=AGENT_RETRY_POLICY)
     graph.add_node("tear_sheet", with_node_telemetry("tear_sheet", services.tear_sheet, services), retry_policy=AGENT_RETRY_POLICY)
@@ -203,13 +205,13 @@ def _add_agent_group_edges(
             for node_name in group_nodes:
                 graph.add_edge("prepare_analysis", node_name)
         graph.add_edge([*group_nodes, *preload_nodes_by_join_group.get(group_index, [])], join_name)
-        if group_index < len(groups):
-            for next_agent_num in groups[group_index]:
-                graph.add_edge(join_name, f"agent_{next_agent_num}")
-            for preload_agent_num in preload_after_groups.get(group_index, ()):
-                graph.add_edge(join_name, preload_node_name(preload_agent_num))
-        else:
-            graph.add_edge(join_name, "final_audit")
+        targets = ([f"agent_{num}" for num in groups[group_index]] +
+                   [preload_node_name(num) for num in preload_after_groups.get(group_index, ())]
+                   if group_index < len(groups) else ["final_audit"])
+        def route(state, targets=targets):
+            from memo_output_completion import incomplete_memo_roles
+            return ["partial_finalize"] if incomplete_memo_roles(state) else targets
+        graph.add_conditional_edges(join_name, route, {name: name for name in [*targets, "partial_finalize"]})
 
 
 def _join_node_factory(join_name: str) -> Callable[[AgentGraphState], AgentGraphState]:
@@ -235,6 +237,11 @@ def _blocked_finalize(state: AgentGraphState) -> AgentGraphState:
         "total_time": max(0.0, now - float(state.get("started_at") or now)),
         "execution_trace": [{"id": "blocked_finalize", "node": "blocked_finalize", "at": now}],
     }
+
+
+def _partial_finalize(state):
+    value = _blocked_finalize(state)
+    return {**value, "status": "partial", "execution_trace": [{"id": "partial_finalize", "node": "partial_finalize"}]}
 
 
 def _finalize(state: AgentGraphState) -> AgentGraphState:

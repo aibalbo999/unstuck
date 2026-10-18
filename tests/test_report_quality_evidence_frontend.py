@@ -24,11 +24,11 @@ def test_shared_quality_evidence_helper_loads_before_all_consumers():
     assert (STATIC_DIR / "report_quality_audit_scope_helpers.js").exists()
     assert (STATIC_DIR / "report_quality_queue_scope_helpers.js").exists()
     assert (STATIC_DIR / "report_quality_evidence_freshness_helpers.js").exists()
-    assert f"{helper}?v=20260902-refresh-reason-code-normalization" in index_html
+    assert f"{helper}?v=20261007-financial-period-unit" in index_html
     assert f"{action_scope_helper}?v=20260902-action-freshness-scope" in index_html
     assert f"{audit_scope_helper}?v=20260902-distribution-scope" in index_html
     assert f"{queue_scope_helper}?v=20260902-bounded-items" in index_html
-    assert f"{freshness_helper}?v=20260902-integer-summary-counts" in index_html
+    assert f"{freshness_helper}?v=20261007-financial-period-unit" in index_html
     assert "/static/report_quality_gate_policy.js?v=20260902-reason-code-normalization" in index_html
     assert "/static/ui_data_trust.js?v=20260902-reason-label-parity" in index_html
     assert "/static/report_preview_helpers.js?v=20260921-analysis-completeness" in index_html
@@ -693,3 +693,21 @@ process.stdout.write(html);
     assert "品質處理建議（唯讀品質投影，不等同今日待辦）：人工審核 1；按資料新鮮度：資料已更新、本文需完整重跑：人工審核 1" in result.stdout
     assert "內容阻斷版本：資料已更新、本文需完整重跑 1 份" in result.stdout
     assert "1 份品質 metadata 缺口" not in result.stdout
+
+
+def test_financial_period_unit_reason_labels_are_visible_in_both_quality_helpers():
+    script = r"""
+const fs = require('fs');
+global.window = {};
+eval(fs.readFileSync('backend/static/report_quality_evidence_helpers.js', 'utf8'));
+eval(fs.readFileSync('backend/static/report_quality_evidence_freshness_helpers.js', 'utf8'));
+const counts = { financial_period_currency_or_unit_unknown: 2, financial_original_input_unavailable: 1, financial_amount_scope_unbound: 3, financial_projection_not_observed_fact: 4 };
+console.log(JSON.stringify({ summary: window.StockAgentReportQualityEvidence.formatUnverifiableReasonSummary(counts), freshness: window.StockAgentReportQualityEvidence.formatUnverifiableReasonFreshnessSummary({current: counts}, {current: 1}, {current: 10}) }));
+"""
+    rendered = json.loads(_node(script))
+    for value in rendered.values():
+        assert '財期、幣別或單位尚未核實' in value
+        assert '原分析財務輸入未能核實' in value
+        assert '月均、變動端點等金額口徑未綁定' in value
+        assert '財務情境推估，非觀測事實' in value
+        assert 'financial_' not in value

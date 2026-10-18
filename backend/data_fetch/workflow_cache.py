@@ -12,6 +12,33 @@ from .constants import DATA_SCHEMA_VERSION, REQUIRED_DATA_SCHEMA_FIELDS
 from .types import ProviderResult
 
 
+def _normalize_annual_coverage(cached: dict) -> dict:
+    """Downgrade legacy combined labels without rewriting evidence or clocks."""
+    annual = cached.get("annual_workforce")
+    if (not isinstance(annual, dict)
+            or annual.get("observation_kind") != "annual_workforce_disclosure"
+            or annual.get("coverage_status") != "complete"):
+        return cached
+    metrics = annual.get("metrics")
+    workforce_fields = ("employee_average_salary_thousand_twd",
+                        "nonmanager_median_salary_thousand_twd", "female_manager_percent")
+    from .annual_occupational_safety import COUNT_FIELDS, PERCENT_FIELDS
+    safety = annual.get("esg_occupational_safety")
+    safety_metrics = safety.get("metrics") if isinstance(safety, dict) else None
+    incomplete = (not isinstance(metrics, dict)
+                  or any(metrics.get(field) is None for field in workforce_fields)
+                  or bool(annual.get("missing_metric_fields"))
+                  or not isinstance(safety, dict)
+                  or safety.get("coverage_status") != "complete"
+                  or safety.get("status") != "success"
+                  or bool(safety.get("missing_metric_fields"))
+                  or not isinstance(safety_metrics, dict)
+                  or any(safety_metrics.get(field) is None for field in (*COUNT_FIELDS, *PERCENT_FIELDS)))
+    if incomplete:
+        cached = {**cached, "annual_workforce": {**annual, "coverage_status": "partial"}}
+    return cached
+
+
 def schema_compatible_cached_payload(ticker: str) -> dict | None:
     cache_key = f"financial_data:{ticker}"
     cached = get_cache_json(cache_key)
@@ -28,7 +55,7 @@ def fresh_cached_payload(ticker: str, cached: dict) -> dict | None:
     if not is_fresh:
         return None
 
-    cached = dict(cached)
+    cached = _normalize_annual_coverage(dict(cached))
     apply_news_freshness(cached)
     cached["_cache_hit"] = True
     cached["source_audit"] = []
@@ -44,7 +71,7 @@ def fallback_cached_payload(ticker: str, cached: dict | None, core_result: Provi
 
     cache_ticker = str(cached.get("ticker") or ticker).strip().upper()
     _is_fresh, freshness = assess_cached_financial_data(cached, cache_ticker)
-    fallback = dict(cached)
+    fallback = _normalize_annual_coverage(dict(cached))
     apply_news_freshness(fallback)
     fallback["_cache_hit"] = True
     fallback["source_audit"] = []

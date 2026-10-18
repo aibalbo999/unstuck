@@ -15,6 +15,7 @@ from analysis_job_reports import render_and_persist_report
 from analysis_job_telemetry import make_analysis_job_telemetry_callback
 from analysis_job_retry import build_analysis_retry_event, prepare_analysis_retry
 from analysis_job_provenance import attach_model_executions, freeze_and_record_analysis_inputs
+from analysis_job_checkpoint import load_analysis_checkpoint_inputs, new_mode_input
 from data_fetch import FetchRequest, StockDataService
 from job_store import append_event, get_events_since, is_job_cancel_requested, terminal_job_result, update_job
 from pipeline_modes import (
@@ -81,34 +82,45 @@ async def run_stock_analysis_job_async(
             return ""
 
         _raise_if_cancelled(job_id)
-        append_event(job_id, {
-            "type": "status",
-            "message": f"正在獲取 {ticker_upper} 財務數據...",
-            "pipeline_id": run_id,
-            "pipeline_label": run_label,
-            "pipeline_sequence": list(pipeline_sequence),
-        })
-        data_result = await STOCK_DATA_SERVICE.fetch_async(
-            FetchRequest.from_ticker(ticker_upper, force_refresh=force_refresh)
+        runtime_settings = runtime_settings_for_output_dir(OUTPUT_DIR)
+        checkpoint_inputs = await load_analysis_checkpoint_inputs(
+            job_id=job_id, ticker=ticker_upper, pipeline_sequence=pipeline_sequence, settings=runtime_settings,
         )
         _raise_if_cancelled(job_id)
-        data = data_result.data
-        blocking_data_notice = build_data_fetch_blocking_notice(data_result)
-        if blocking_data_notice:
-            message = blocking_data_notice["message"]
-            update_job(job_id, "error", error=message)
+        if checkpoint_inputs:
+            data = next(iter(checkpoint_inputs.values()))
             append_event(job_id, {
-                "type": "error",
-                "phase": "data_trust",
-                "message": message,
-                "data_trust": blocking_data_notice.get("data_trust", {}),
+                "type": "status", "phase": "analysis_resume", "pipeline_id": run_id,
+                "message": "已載入同一工作的原分析資料與進度；保留原取得時間、品質限制及完成結果。",
+            })
+        else:
+            append_event(job_id, {
+                "type": "status",
+                "message": f"正在獲取 {ticker_upper} 財務數據...",
                 "pipeline_id": run_id,
                 "pipeline_label": run_label,
+                "pipeline_sequence": list(pipeline_sequence),
             })
-            return ""
+            data_result = await STOCK_DATA_SERVICE.fetch_async(
+                FetchRequest.from_ticker(ticker_upper, force_refresh=force_refresh)
+            )
+            _raise_if_cancelled(job_id)
+            data = data_result.data
+            blocking_data_notice = build_data_fetch_blocking_notice(data_result)
+            if blocking_data_notice:
+                message = blocking_data_notice["message"]
+                update_job(job_id, "error", error=message)
+                append_event(job_id, {
+                    "type": "error", "phase": "data_trust", "message": message,
+                    "data_trust": blocking_data_notice.get("data_trust", {}),
+                    "pipeline_id": run_id, "pipeline_label": run_label,
+                })
+                return ""
         if "error" in data:
             append_event(job_id, {"type": "status", "message": f"財務數據獲取有誤：{data['error']}，將繼續分析"})
-        metrics_snapshot = QuantEngine.compute_all(data)
+        metrics_snapshot = data.get("quant_metrics") if checkpoint_inputs else None
+        if not isinstance(metrics_snapshot, dict):
+            metrics_snapshot = QuantEngine.compute_all(data)
         data["quant_metrics"] = metrics_snapshot
         if metrics_snapshot.get("fallback_fields"):
             data["quant_metrics"]["__has_fallback"] = True
@@ -119,21 +131,22 @@ async def run_stock_analysis_job_async(
         reports = []
         completed_agent_offset = 0
         sequence_total = len(pipeline_sequence)
-        runtime_settings = runtime_settings_for_output_dir(OUTPUT_DIR)
         report_storage = create_report_storage_for_output_dir(OUTPUT_DIR)
 
         for sequence_index, current_pipeline_id in enumerate(pipeline_sequence, start=1):
             _raise_if_cancelled(job_id)
-            mode_data = {key: value for key, value in data.items() if key != "temporal_memory"}
-            temporal_memory = build_temporal_memory(
-                ticker_upper, output_dir=OUTPUT_DIR, current_price=data.get("current_price"),
-                pipeline_id=current_pipeline_id,
-            )
-            if temporal_memory:
-                mode_data["temporal_memory"] = temporal_memory
-                append_event(job_id, {"type": "status", "pipeline_id": current_pipeline_id,
-                    "message": "已載入同模式上一期報告記憶，最終 Agent 將反思先前假設。"})
-            freeze_and_record_analysis_inputs(job_id, current_pipeline_id, mode_data, append_event)
+            mode_data = checkpoint_inputs.get(current_pipeline_id)
+            if mode_data is None:
+                mode_data = new_mode_input(data)
+                temporal_memory = build_temporal_memory(
+                    ticker_upper, output_dir=OUTPUT_DIR, current_price=data.get("current_price"),
+                    pipeline_id=current_pipeline_id,
+                )
+                if temporal_memory:
+                    mode_data["temporal_memory"] = temporal_memory
+                    append_event(job_id, {"type": "status", "pipeline_id": current_pipeline_id,
+                        "message": "已載入同模式上一期報告記憶，最終 Agent 將反思先前假設。"})
+                freeze_and_record_analysis_inputs(job_id, current_pipeline_id, mode_data, append_event)
             pipeline_def = get_pipeline_definition(current_pipeline_id)
             current_thread_id = f"{job_id}:{current_pipeline_id}"
             current_pipeline_label = pipeline_def["label"]
@@ -187,6 +200,13 @@ async def run_stock_analysis_job_async(
             )
             _raise_if_cancelled(job_id)
             context = analysis_result.context
+            # The graph may have repaired its input. Persist the actual basis
+            # used by the report, never a discarded pre-resume fetch.
+            report_data = context.get("data")
+            if not isinstance(report_data, dict):
+                report_data = mode_data
+            update_job(job_id, "running", data_snapshot=report_data,
+                       metrics_snapshot=report_data.get("quant_metrics", metrics_snapshot))
             attach_model_executions(context, get_events_since(job_id), current_pipeline_id)
             audit_notice = build_operator_audit_notice(context)
 

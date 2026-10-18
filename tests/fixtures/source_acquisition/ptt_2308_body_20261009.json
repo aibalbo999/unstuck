@@ -1,0 +1,14 @@
+{
+  "fixture_kind": "selected_fields_from_current_public_ptt_article_not_full_http_body",
+  "historical_point_in_time_verified": false,
+  "source_url": "https://www.ptt.cc/bbs/Stock/M.1788940456.A.918.html",
+  "source_response_sha256": "fdd1bdc467a9a45bed698a44792728b42a46d89706ddb75a7cce68732adfcd22",
+  "title": "[情報] 2308 台達電 115年8月營收",
+  "timestamp_text": "Wed Sep  9 15:54:12 2026",
+  "author_body_text": "標題：台達電(2308) 115年8月營收\n\n來源： 公開資訊觀測站 網址： https://mopsov.twse.com.tw/mops/web/t146sb05 內文：\n\n(單位：新台幣仟元)\n項目              營業收入淨額\n本月              64,586,049\n去年同期          47,859,758\n增減金額          16,726,291\n增減百分比        34.95%\n本年累計          474,267,973\n去年累計          336,211,288\n增減金額          138,056,685\n增減百分比        41.06%\n\n\n「本公司115年08月份合併營業額為新台幣645.86億元， 較去年同期合併營業額 新台幣478.60億元成長34.9% ， 較上月份合併營業額新台幣670.73億元減少3.7% ；\n\n115年1~8月份累積合併營業額為新台幣4,742.68億元，較去年同期累積合併營業\n\n額新台幣3,362.11億元成長41.1%。」\n\n= 月減 3.7% 年增 34.9% --",
+  "replay_cutoff": "2026-10-09T00:05:41+08:00",
+  "replay_context": {
+    "ticker": "2308.TW"
+  },
+  "limitation": "Current downloaded body replayed at the observed selection cutoff; no claim it equals the original job response bytes."
+}

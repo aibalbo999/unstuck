@@ -8,7 +8,7 @@ from trade_execution_contract import neutral_observation_is_explicit
 _GATES = {'report_lint': ('status', 'passed'), 'final_audit': ('status', 'passed'),
           'evidence_exit_gate': ('verdict', 'approved'),
           'content_credibility': ('status', 'passed'), 'report_conformance': ('status', 'passed')}
-_LABELS = {'complete': '分析完整', 'observation': '正常觀望',
+_LABELS = {'partial': '分析未完整', 'complete': '分析完整', 'observation': '正常觀望',
            'degraded': '資料不足降級', 'quality_warning': '分析品質警告'}
 _NOTES = {
     'complete': '分析欄位與來源契約已完成，仍須依原品質檢查與資料時點判讀。',
@@ -170,6 +170,12 @@ def assess_report_analysis_completeness(payload) -> dict:
     if status in {'complete', 'observation'} and (warning or not recorded):
         reason_codes.append('quality_warning' if warning else 'quality_not_recorded')
         status = 'quality_warning'
+    from memo_output_completion import incomplete_memo_notice, incomplete_memo_roles
+    roles = incomplete_memo_roles(context)
+    if roles:
+        status, basis, mode_summary = 'partial', 'required_memo_output_completion', incomplete_memo_notice(context)
+        reason_codes.extend(f"agent_{role['agent']}_output_incomplete" for role in roles)
+        warning = True
     label = _LABELS[status]
     if status == 'quality_warning' and not warning:
         label = '分析完整度未確認'

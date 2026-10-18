@@ -1,0 +1,96 @@
+{
+  "reference_now": "2026-10-09T15:00:00+00:00",
+  "selection_kind": "selected issuer roster and one API item; detail and PDF are complete native responses; not historical point-in-time",
+  "roster_selected": [
+    {
+      "出表日期": "1151008",
+      "公司代號": "9103",
+      "公司名稱": "美德向邦醫療國際股份有限公司",
+      "公司簡稱": "美德醫療-DR",
+      "外國企業註冊地國": "BM 百慕達群島                                                  ",
+      "產業別": "91",
+      "住址": "台北市信義區松高路9號11樓",
+      "營利事業統一編號": "00000000",
+      "董事長": "楊克誠",
+      "總經理": "楊威遠",
+      "發言人": "林逸清",
+      "發言人職稱": "財務長",
+      "代理發言人": "楊宛蒨",
+      "總機電話": "02-27392222",
+      "成立日期": "19971126",
+      "上市日期": "20021213",
+      "普通股每股面額": "美金0.05元",
+      "實收資本額": "827042000",
+      "私募股數": "0",
+      "特別股": "0",
+      "編制財務報表類型": "1",
+      "股票過戶機構": "元大證券股務代理部",
+      "過戶電話": "(02)2586-5859",
+      "過戶地址": "(106)臺北市大安區敦化南路2段67號地下一樓",
+      "簽證會計師事務所": "Baker Tilly TFW LLP",
+      "簽證會計師1": "王建源",
+      "簽證會計師2": "-",
+      "英文簡稱": "MEDTECS",
+      "英文通訊地址": "11F,NO.9,Songgao Road,Xinyi District,Taipei CITY 11073,TaiwanTaipei Taiwan",
+      "傳真機號碼": "(02)2729-8055",
+      "電子郵件信箱": "investor.relations@medtecs.com",
+      "網址": "www.medtecs.com",
+      "已發行普通股數或TDR原股發行股數": "549411240"
+    }
+  ],
+  "api_selected": {
+    "meta": {
+      "code": "200",
+      "message": "success",
+      "totalPages": 1,
+      "totalItems": 1,
+      "requestTimestamp": 1791557671688
+    },
+    "data": [
+      {
+        "ref_id": "SG261009OTHRW6Y4",
+        "sub": "ANNC18",
+        "category_name": "General Announcement",
+        "submitted_by": "Clement Yang Ker-Cheng",
+        "title": "General Announcement::Completion of the Disposal of RMKH Glove (Cambodia) Co., Ltd.",
+        "announcer_name": null,
+        "issuers": [
+          {
+            "isin_code": "BMG5958R1043",
+            "stock_code": "546",
+            "security_name": "MEDTECS INTERNATIONAL CORP LTD",
+            "issuer_name": "MEDTECS INTERNATIONAL CORP LTD",
+            "ibm_code": "1H12"
+          }
+        ],
+        "security_name": "MEDTECS INTERNATIONAL CORP LTD",
+        "url": "https://links.sgx.com/1.0.0/corporate-announcements/NS5OFIA2R7WXB5B4/6e0783d954dc878882b51d5471c5cf3f8e86a0d2dda8a1dd5e1e3757230c4405",
+        "issuer_name": "MEDTECS INTERNATIONAL CORP LTD",
+        "submission_date": "20261009",
+        "submission_date_time": 1791538317000,
+        "broadcast_date_time": 1791538318000,
+        "xml": null,
+        "submission_time": null,
+        "cat": "ANNC",
+        "id": "NS5OFIA2R7WXB5B4",
+        "sn": null,
+        "product_category": null
+      }
+    ]
+  },
+  "detail_utf8": "\r\n\r\n \r\n<!DOCTYPE html PUBLIC \"-//W3C//DTD XHTML 1.0 Transitional//EN\">\r\n<html xmlns=\"http://www.w3.org/1999/xhtml\">\r\n<head id=\"Head1\"><meta http-equiv=\"X-UA-Compatible\" content=\"IE=edge\" />\r\n    <!-- Start of AMS-119 -->\r\n    <!-- https://links.sgx.com/ -->\r\n    <meta name=\"google-site-verification\" content=\"SKCD7LtF_EdGuhV5caePuD054_h51vFY9WG5xx0IS1U\" />\r\n    <!-- https://links.qasgx.com/ -->\r\n    <meta name=\"google-site-verification\" content=\"ZrGm8P6B7iUr73skN403XszYC9liLvvtx6elagyFjDA\" />\r\n    <!-- End of AMS-119 -->\r\n   <link rel=\"shortcut icon\" type=\"image/x-icon\" href=\"/image/favicon.ico\" /><link href=\"../../../_layouts/1033/styles/SGX.COW.MasterPage/SGX_COW_MasterPage/SGX_Stocks.css\" rel=\"stylesheet\" type=\"text/css\" />\r\n    <!-- Custom Corporate announcement -->\r\n    <link href=\"../../../_layouts/1033/styles/SGX.COW.MasterPage/SGX_COW_MasterPage/SGX_Master.css\" rel=\"stylesheet\" type=\"text/css\" />\r\n    <!--Warrants-->\r\n    <link href=\"../../../_layouts/1033/styles/SGX.COW.MasterPage/SGX_COW_MasterPage/SGX_Warrants.css\" rel=\"stylesheet\" type=\"text/css\" />\r\n    <!--CorpInfo-->\r\n    <link href=\"../../../_layouts/1033/styles/SGX.COW.MasterPage/SGX_COW_MasterPage/SGX_CorpInfo.css\" rel=\"stylesheet\" type=\"text/css\" />\r\n    <!--IPOAllinOne-->\r\n    <link href=\"../../../_layouts/1033/styles/SGX.COW.MasterPage/SGX_COW_MasterPage/SGX_IPO_Page.css\" rel=\"stylesheet\" type=\"text/css\" /><title>General Announcement&#58;&#58;Completion of the Disposal of RMKH Glove &#40;Cambodia&#41; Co., Ltd.</title><meta name='Title' content='MEDTECS INTERNATIONAL CORP LTD' /> <meta name='Date' content='20261009T17&#58;31&#58;58Z' /> <meta name='Description' content='General Announcement&#58;&#58;Completion of the Disposal of RMKH Glove &#40;Cambodia&#41; Co., Ltd.-SG261009OTHRW6Y4' /> <meta property=\"og:image\" content=\"http://www.sgx.com/sgxv2/image/theme/sgxPortal.png\"><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><meta property='og:title' content='MEDTECS INTERNATIONAL CORP LTD : 09-Oct-2026' /><meta property='og:description'  content='General Announcement&#58;&#58;Completion of the Disposal of RMKH Glove &#40;Cambodia&#41; Co., Ltd.' /> <title>\r\n\tGeneral Announcement&#58;&#58;Completion of the Disposal of RMKH Glove &#40;Cambodia&#41; Co., Ltd.\r\n</title></head>\r\n<body>\r\n    <form name=\"form1\" method=\"post\" action=\"./6e0783d954dc878882b51d5471c5cf3f8e86a0d2dda8a1dd5e1e3757230c4405\" id=\"form1\">\r\n<input type=\"hidden\" name=\"__VIEWSTATE\" id=\"__VIEWSTATE\" value=\"/wEPDwULLTE2MzA3MzU0MzJkZOVkOQMbrSXdViAQgYMU0hsr7zvKTs+SnaNWOOsWjz/Z\" />\r\n\r\n<input type=\"hidden\" name=\"__VIEWSTATEGENERATOR\" id=\"__VIEWSTATEGENERATOR\" value=\"CA0B0334\" />\r\n<input type=\"hidden\" name=\"__EVENTVALIDATION\" id=\"__EVENTVALIDATION\" value=\"/wEdAAKQLjGCD0Jtd5asm75/a75S3ThACAVDZfh+zsvMUGBHioPi1LVvWrT3XZz88HpSqNv2fImC+3kS0iDfYrYoxu07\" />\r\n    <div id=\"divControls\" class=\"announcement\">\r\n<link rel=\"Stylesheet\" href=\"../../../_layouts/1033/styles/infoviewstyle.css\" />\r\n<input type=\"hidden\" name=\"ctl09$hfIsArchived\" id=\"ctl09_hfIsArchived\" value=\"False\" />\r\n<div id=\"ctl09_pnlTemplate\" style=\"margin: 0 auto; max-width: 670px\">\r\n\t\r\n    <!DOCTYPE html PUBLIC \"-//W3C//DTD HTML 4.01 Transitional//EN\"><html xmlns:ms=\"urn:schemas-microsoft-com:xslt\" xmlns:fo=\"http://www.w3.org/1999/XSL/Format\" xmlns:fn=\"http://www.w3.org/2005/xpath-functions\" xmlns:java=\"java\" xmlns:xlink=\"http://www.w3.org/1999/xlink\" xmlns:xs=\"http://www.w3.org/2001/XMLSchema\" xmlns:xsi=\"http://www.w3.org/2001/XMLSchema-instance\"><div style=\"display:none; \"></div><div class=\"announcement\"><h1>General Announcement&#58;&#58;Completion of the Disposal of RMKH Glove &#40;Cambodia&#41; Co., Ltd.</h1><div></div><h2 class=\"announcement-group-header\">Issuer &amp; Securities</h2><div class=\"announcement-group\"><dl><dt>Issuer/ Manager</dt><dd>MEDTECS INTERNATIONAL CORP LTD</dd><dt>Securities</dt><dd>MEDTECS INTERNATIONAL CORP LTD - BMG5958R1043 - 546<br></dd><dt>Stapled Security</dt><dd>No</dd></dl></div><h2 class=\"announcement-group-header\">Announcement Details</h2><div class=\"announcement-group\"><dl><dt>Announcement Title </dt><dd>General Announcement</dd><dt>Date &amp;Time of Broadcast </dt><dd>09-Oct-2026 17:31:58</dd><dt>Status </dt><dd>New</dd><dt>Announcement Sub Title</dt><dd>Completion of the Disposal of RMKH Glove (Cambodia) Co., Ltd.</dd><dt>Announcement Reference</dt><dd>SG261009OTHRW6Y4</dd><dt>Submitted By (Co./ Ind. Name)</dt><dd>Clement Yang Ker-Cheng</dd><dt>Designation</dt><dd>Executive Chairman</dd><dt>Description (Please provide a detailed description of the event in the box below)</dt><dd>Please refer to the attachment.<br /><br />This document has been prepared by the Company and its contents have been reviewed by the Company's sponsor, PrimePartners Corporate Finance Pte. Ltd. (\"Sponsor\"), for compliance with the relevant rules of the Singapore Exchange Securities Trading Limited (\"Exchange\").<br /><br />This document has not been examined or approved by the Exchange. The Exchange assumes no responsibility for the contents of this document including the correctness of any of the statements or opinions made or reports contained in this document.<br /><br />The contact person for the Sponsor is Ms Foo Jien Jieng, 16 Collyer Quay, #10-00 Collyer Quay Centre, Singapore 049318, sponsorship@ppcf.com.sg.</dd></dl></div><h2 class=\"announcement-group-header\">Attachments</h2><div class=\"announcement-group\"><dl class=\"announcement-attachment-list\"><dd><a href=\"/1.0.0/corporate-announcements/NS5OFIA2R7WXB5B4/906536_Medtecs%20-%20Completion%20of%20the%20RMKH%20Disposal.pdf\" target=\"_blank\" class=\"announcement-attachment\">Medtecs - Completion of the RMKH Disposal.pdf</a></dd><dd class=\"announcement-attachment-size\">Total size =159K</dd></dl></div><dl id=\"tblRelatedAnnouncements\" style=\"display:none\"><h2 class=\"announcement-group-header\">Related Announcements</h2><div class=\"announcement-group\"><dl class=\"announcement-attachment-list\"><dt>Related Announcements</dt><dd><br />                  <br />                </dd></dl></div></dl><script type=\"text/javascript\">\n            document.body.oncopy = function() { return false; }\n            document.body.oncut = function() { return false; }\n            document.body.onpaste = function() { return false; }\n            var addthis_config = {\"data_track_addressbar\":true};\n          </script></div></html>\r\n\r\n</div>\r\n\r\n\r\n</div>\r\n    </form>\t\r\n</body>\r\n</html>\r\n",
+  "pdf_bounded_extraction": {
+    "page_count": 1,
+    "pages": [
+      {
+        "page_number": 1,
+        "text": "1 \n \nMEDTECS INTERNATIONAL CORPORATION LIMITED  \n(Incorporated in Bermuda) \n \nCOMPLETION OF THE DISPOSAL OF RMKH GLOVE (CAMBODIA) CO., LTD. \n \n \nThe Board of Directors (“ Board”) of Medtecs International Corporation Limited (the \n“Company”, and together with its subsidiaries, the “ Group”) refers to the Company’s \nannouncement dated 10 April 2026 (the “ Announcement”) in relation to, inter alia, the  \nproposed disposal of the Group’s entire equity interest in RMKH Glove (Cambodia) Co., Ltd. \n(“RMKH Cambodia”) to Shijiazhuang Hongray Group Co., Ltd. (“Hongray”) (the “Disposal”). \n \nUnless otherwise defined, all capitalised terms used in this announcement shall bear the \nsame meanings ascribed to them in the Announcement. \n \nFurther to the Announcement, the Board is pleased to announce that the Disposal has been \ncompleted on 9 October 2026. The full Consideration of US$ 13,144,512 has been received \nby the Company, while 100% of RMKH Cambodia shares has been transferred to Hongray. As \nmentioned in paragraph 5.3 of the Announcement, following completion of the Disposal, the \nRMKH Indebtedness will remain owing by RMKH Cambodia to the Group and will not be \nnovated or waived. As at completion date, the RMKH Indebtedness amounted to US$20.7 \nmillion. Please refer to paragraph 5.4 of the Announcement for details on the repayment of the \nRMKH Indebtedness.  \n \nBY ORDER OF THE BOARD \nClement Yang Ker-Cheng \nChairman – Executive Director \n9 October 2026 \n \n \nThis announcement has been reviewed by the Company’s sponsor, PrimePartners Corporate \nFinance Pte. Ltd. (“Sponsor”). It has not been examined or approved by the Singapore \nExchange Securities Trading Limited (the “Exchange”) and the Exchange assumes no \nresponsibility for the contents of this announcement, including the correctness of any of the \nstatements or opinions made or reports contained in this announcement. \n \nThe contact person for the Sponsor is Ms Foo Jien Jieng, 16 Collyer Quay, #10-00 Collyer \nQuay Centre, Singapore 049318, sponsorship@ppcf.com.sg. \n \n"
+      }
+    ],
+    "empty_pages": [],
+    "garbled_pages": [],
+    "coverage_status": "complete",
+    "parser_version": "6.19.0",
+    "content_sha256": "c4008add8d53a2ae13b2c08379f5ff6c2556ba8608d19bd41fb112684ff8b50d"
+  }
+}

@@ -25,6 +25,7 @@ from provider_throttle import (
     enforce_provider_throttle,
     enforce_provider_throttle_async,
     mark_rate_limit_cooldown,
+    is_provider_rate_limit_error,
     provider_throttle_state,
 )
 
@@ -195,7 +196,14 @@ def _retry_wait_strategy():
 
 
 def _should_retry(exc: BaseException) -> bool:
-    return getattr(exc, "retryable", True) is not False and not isinstance(exc, (ProviderCircuitOpenError, ProviderRateLimitOpenError))
+    return (getattr(exc, "retryable", True) is not False
+            and not isinstance(exc, (ProviderCircuitOpenError, ProviderRateLimitOpenError))
+            and not is_provider_rate_limit_error(exc))
+
+
+def _counts_toward_circuit(exc: BaseException) -> bool:
+    """Issuer-specific content failures must not disable a shared provider."""
+    return getattr(exc, "circuit_failure", True) is not False
 
 
 def provider_circuit_state(provider: str) -> dict[str, Any]:
@@ -250,7 +258,8 @@ def call_provider_with_resilience(provider: str, func: Callable, args: tuple = (
                 return result
     except Exception as exc:
         mark_rate_limit_cooldown(provider, exc)
-        _record_provider_failure(provider, exc)
+        if _counts_toward_circuit(exc):
+            _record_provider_failure(provider, exc)
         raise exc
 
 
@@ -281,5 +290,6 @@ async def call_provider_with_resilience_async(provider: str, func_or_awaitable, 
                 return result
     except Exception as exc:
         mark_rate_limit_cooldown(provider, exc)
-        _record_provider_failure(provider, exc)
+        if _counts_toward_circuit(exc):
+            _record_provider_failure(provider, exc)
         raise exc

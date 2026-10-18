@@ -25,7 +25,10 @@ def evaluate_strategy_artifacts(artifacts: list[dict[str, Any]]) -> dict[str, An
         "summary": {
             "total_artifacts": len(rows),
             "model_count": len(models),
-            "best_model_id": best_model_id,
+            "best_model_id": None,
+            "descriptive_highest_model_id": best_model_id,
+            "comparison_status": "in_sample_descriptive_only",
+            "out_of_sample_validation": "not_established",
         },
         "models": models,
         "watchlist_triggers": triggers,

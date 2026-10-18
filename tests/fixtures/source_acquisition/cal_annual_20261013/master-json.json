@@ -1,0 +1,21 @@
+{
+  "url": "https://openapi.twse.com.tw/v1/opendata/t187ap03_L",
+  "http_status": 200,
+  "sha256": "8fe3ad48ac759c6c4680d5ee5e909ad2e65bdd6501c93c23678738e01dbc6245",
+  "bytes": 1327580,
+  "rows": 1095,
+  "receipt": {
+    "status": "archived",
+    "source_url": "https://openapi.twse.com.tw/v1/opendata/t187ap03_L",
+    "retrieved_at": 1791902608.271668,
+    "http_status": 200,
+    "raw_response_sha256": "8fe3ad48ac759c6c4680d5ee5e909ad2e65bdd6501c93c23678738e01dbc6245",
+    "raw_response_path": "/var/folders/2d/1zcx512x7972tr245966vnzw0000gn/T/stock-agent-cal-master-alternative-pozegxps/cache/official-response-evidence/8fe3ad48ac759c6c4680d5ee5e909ad2e65bdd6501c93c23678738e01dbc6245.gz",
+    "raw_response_bytes": 1327580,
+    "evidence_kind": "raw_http_response_bytes",
+    "historical_point_in_time_verified": false,
+    "finality_guaranteed": false
+  },
+  "completed_at": "2026-10-13T14:43:28.315653+00:00",
+  "elapsed_seconds": 7.130641791038215
+}

@@ -67,7 +67,14 @@ def execution_projection(job, *, events=(), registry=None, now=None):
                 retry_at = _iso_timestamp(timestamp(retry.get('retry_at')))
                 if retry_at:
                     retry_basis = 'recorded_request'
+    incomplete = next((row for row in rows if row.get('phase') == 'analysis_output_incomplete'), None)
+    semantic = {}
+    if terminal and incomplete:
+        state, reason = 'partial', 'required_agent_output_incomplete'
+        semantic = {'status': 'partial', 'analysis_completion': {'status': 'partial', 'recoverable': True,
+                    'agent': incomplete.get('agent'), 'finish_reasons': incomplete.get('finish_reasons', [])}}
     return {
+        **semantic,
         'db_status': status, 'execution_state': state, 'execution_health': health,
         'retry_at': retry_at, 'retry_at_basis': retry_basis, 'execution_reason_code': reason,
         'execution_reason': error if terminal else sanitize_error_message(retry.get('message')) if status == 'waiting_retry' else None,

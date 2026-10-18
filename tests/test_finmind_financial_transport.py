@@ -88,6 +88,78 @@ def test_financial_fallback_uses_one_bounded_transport_without_sdk_login(monkeyp
     assert result["revenue_history"] == [2.0]
 
 
+def test_radar_reuses_partial_finmind_tables_without_claiming_new_acquisition(monkeypatch):
+    from cache_backends import InMemoryCache
+    import cache_store
+    import source_audit
+    from data_fetch.market_sources import finmind_financial_transport as transport
+
+    cache_store.set_cache_backend(InMemoryCache())
+    calls = []
+    tables = synthetic_tables()
+
+    def bounded(stock_id, start_date):
+        calls.append((stock_id, start_date))
+        return {"tables": tables,
+                "components": {name: {"status": "success"} for name in tables},
+                "error": None}
+
+    monkeypatch.setattr(transport, "fetch_statement_tables", bounded)
+    monkeypatch.setattr(source_audit, "call_provider_with_resilience",
+                        lambda _provider, func, args, kwargs: func(*args, **kwargs))
+    try:
+        def cached(symbol):
+            return taiwan.fetch_finmind_financial_statement_fallback(symbol, use_cache=True)
+
+        first = taiwan.audited_finmind_financial_statement_fallback("5314.TWO", fetcher=cached)
+        second = taiwan.audited_finmind_financial_statement_fallback("5314.TWO", fetcher=cached)
+        forced = taiwan.audited_finmind_financial_statement_fallback("5314.TWO")
+
+        assert len(calls) == 2
+        assert first["value"]["fcf_history"] == second["value"]["fcf_history"] == [None]
+        assert first["audit"]["status"] == forced["audit"]["status"] == "degraded_enrichment"
+        assert second["audit"]["status"] == "degraded_enrichment"
+        assert second["audit"]["cache_hit"] is True
+        assert second["audit"]["event_kind"] == "cache_hit"
+    finally:
+        cache_store.reset_cache_store_for_tests()
+
+
+def test_radar_cached_transport_failure_keeps_partial_and_error_provenance(monkeypatch):
+    from cache_backends import InMemoryCache
+    import cache_store
+    import source_audit
+    from data_fetch.market_sources import finmind_financial_transport as transport
+
+    cache_store.set_cache_backend(InMemoryCache())
+    calls = []
+    def refused(stock_id, start_date):
+        calls.append((stock_id, start_date))
+        return {"tables": {"financials": synthetic_tables()["financials"]},
+                "components": {"financials": {"status": "success"},
+                               "balance": {"status": "error", "http_status": 429}},
+                "error": {"reason": "http_refused", "status_code": 429}}
+
+    monkeypatch.setattr(transport, "fetch_statement_tables", refused)
+    monkeypatch.setattr(source_audit, "call_provider_with_resilience",
+                        lambda _provider, func, args, kwargs: func(*args, **kwargs))
+    try:
+        def cached(symbol):
+            return taiwan.fetch_finmind_financial_statement_fallback(symbol, use_cache=True)
+
+        first = taiwan.audited_finmind_financial_statement_fallback("5314.TWO", fetcher=cached)
+        second = taiwan.audited_finmind_financial_statement_fallback("5314.TWO", fetcher=cached)
+
+        assert len(calls) == 1
+        assert first["audit"]["status"] == "error"
+        assert second["audit"]["status"] == "error"
+        assert second["audit"]["component_statuses"]["balance"]["http_status"] == 429
+        assert "失敗" in second["audit"]["message"]
+        assert second["value"]["revenue_history"] == [2.0]
+    finally:
+        cache_store.reset_cache_store_for_tests()
+
+
 class FakeResponse:
     def __init__(self, payload=None, *, status=200, chunks=None):
         import json

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
 import asyncio
+from datetime import datetime, timedelta
 from types import SimpleNamespace
+from zoneinfo import ZoneInfo
 
 import httpx
 import pytest
@@ -66,8 +68,21 @@ def test_yahoo_500_is_not_valid_empty(monkeypatch):
 
 @pytest.mark.parametrize('ticker', ['2330.TW', '2330.TWO'])
 def test_ptt_normalizes_taiwan_symbol_and_avoids_partial_number(ticker, monkeypatch):
-    html = ''.join(f'<div class="r-ent"><div class="title"><a href="/bbs/Stock/{i}.html">{title}</a></div><div class="date">9/23</div></div>' for i, title in enumerate(['[新聞] 2330 法說會', '[新聞] 12330 金額']))
-    monkeypatch.setattr(news_fetchers, 'sync_get', lambda *a, **k: SimpleNamespace(text=html))
+    posted = datetime.now(ZoneInfo('Asia/Taipei')) - timedelta(minutes=1)
+    link = f'/bbs/Stock/M.{int(posted.timestamp())}.A.ABCDEF.html'
+    search_html = ''.join(
+        f'<div class="r-ent"><div class="title"><a href="{link}">{title}</a></div></div>'
+        for title in ('[新聞] 2330 法說會', '[新聞] 12330 金額'))
+    article_html = (
+        '<div id="main-content">'
+        '<div class="article-metaline"><span class="article-meta-tag">標題</span>'
+        '<span class="article-meta-value">[新聞] 2330 法說會</span></div>'
+        '<div class="article-metaline"><span class="article-meta-tag">時間</span>'
+        f'<span class="article-meta-value">{posted.strftime("%a %b %d %H:%M:%S %Y")}</span></div>'
+        '</div>'
+    )
+    monkeypatch.setattr(news_fetchers, 'sync_get', lambda url, **_kw: SimpleNamespace(
+        text=search_html if '/search?' in url else article_html, status_code=200))
     records = news_fetchers.fetch_ptt_stock_sentiment(ticker)
     assert [r['title'] for r in records] == ['[新聞] 2330 法說會']
 
@@ -122,7 +137,9 @@ def test_conference_rejection_does_not_probe_previous_year(monkeypatch):
     import official_financials_webpro_conference as webpro
     monkeypatch.setattr(webpro, 'fetch_webpro_conference_context', lambda *a, **k: (_ for _ in ()).throw(runtime.SourceResponseError('access_denied')))
     with pytest.raises(runtime.SourceResponseError):
-        earnings.fetch_free_earnings_call_context('2330.TW')
+        # Exercise the yearly index boundary directly. 2330 also has a
+        # specialized published-material adapter before the generic route.
+        earnings._fetch_official_index_context('2330.TW')
     assert len(calls) == 1
 
 
@@ -151,6 +168,43 @@ def test_search_malformed_payload_cannot_become_empty(monkeypatch):
     with pytest.raises(Exception) as caught:
         asyncio.run(clients.fetch_provider_results(None, 'serpapi', 'test', max_results=2, lookback_days=30))
     assert getattr(caught.value, 'error_kind', '') == 'parse_error'
+
+
+def test_duckduckgo_news_is_a_free_search_upstream_fallback(monkeypatch):
+    from datetime import datetime, timedelta, timezone
+
+    expected_date = (datetime.now(timezone.utc) - timedelta(hours=1)).isoformat()
+    monkeypatch.setattr(clients, 'fetch_duckduckgo_news_strict', lambda query, limit: [{
+        'title': 'Taiwan Semiconductor outlook update',
+        'link': 'https://news.example.test/tsmc-outlook',
+        'published_date': expected_date,
+        'source': 'Example News',
+        'summary': 'Company guidance was updated.',
+    }], raising=False)
+    rows = asyncio.run(clients.fetch_provider_results(
+        None, 'duckduckgo_news', 'Taiwan Semiconductor outlook',
+        max_results=3, lookback_days=30,
+    ))
+    assert len(rows) == 1
+    assert rows[0].provider == 'duckduckgo_news'
+    assert rows[0].source == 'Example News'
+    assert rows[0].published_at == expected_date
+
+    monkeypatch.setattr(search, 'WEB_SEARCH_PROVIDER_ORDER', 'google_news_rss,duckduckgo_news')
+    assert search._provider_order() == ['google_news_rss', 'duckduckgo_news']
+    assert search._provider_configured('duckduckgo_news') is True
+    assert 'duckduckgo_news' in search.FREE_NAME_FALLBACK_PROVIDERS
+
+
+def test_duckduckgo_strict_fetch_keeps_transport_errors_distinct_from_empty(monkeypatch):
+    def timeout(*args, **kwargs):
+        raise TimeoutError('news search timed out')
+
+    monkeypatch.setattr(news_fetchers, 'DDGS', object())
+    monkeypatch.setattr(news_fetchers, '_duckduckgo_news_rows', timeout)
+    with pytest.raises(TimeoutError):
+        news_fetchers.fetch_duckduckgo_news_strict('company news', 5)
+    assert news_fetchers.fetch_duckduckgo_news('company news', 5) == []
 
 
 def test_cooldown_survives_sqlite_backend_reopen(tmp_path, monkeypatch):

@@ -38,6 +38,8 @@ def _db_path() -> Path:
 
 
 def _init_schema(conn: sqlite3.Connection) -> None:
+    from watchlist_dispatch_store import init_schema
+    init_schema(conn)
     conn.execute(
         """
         CREATE TABLE IF NOT EXISTS watchlist_items (

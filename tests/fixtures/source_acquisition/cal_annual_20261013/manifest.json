@@ -1,0 +1,206 @@
+{
+  "parts": {
+    "book2022": {
+      "filename": "book2022.gz",
+      "sha256": "03236bb27957c77f9929f8e59252e58991d2e5b9546fd6d6d66db283326ce46f",
+      "bytes": 2378818,
+      "url": "https://cms-externalcontent-prod.s3.ap-northeast-1.amazonaws.com/ci/Investor-relations/Consolidated-Financial-Statements/EN/2022Q4.pdf"
+    },
+    "book2024": {
+      "filename": "book2024.gz",
+      "sha256": "8e174913beaf840ac7334d59493dea7828cd1a00e38667572192d920ecede320",
+      "bytes": 2084245,
+      "url": "https://cms-externalcontent-prod.s3.ap-northeast-1.amazonaws.com/ci/Investor-relations/Consolidated-Financial-Statements/EN/2024Q4.pdf"
+    },
+    "book2025": {
+      "filename": "book2025.gz",
+      "sha256": "8133e72efbae8949d2b6adba428f329bcf8ee369fd65bf30448a0ee7d1ff18d1",
+      "bytes": 2823333,
+      "url": "https://cms-externalcontent-prod.s3.ap-northeast-1.amazonaws.com/ci/Investor-relations/Consolidated-Financial-Statements/EN/2025Q4.pdf"
+    },
+    "ir-index": {
+      "filename": "ir-index.gz",
+      "sha256": "b1dd1c14cd6daf1cb1a7ea664dbbd367b6a80f728fb7f5508d28dae21d03205c",
+      "bytes": 1103216,
+      "url": "https://www.china-airlines.com/nz/en/about-china-airlines/investor-relations?tab=FinancialReportsTab"
+    },
+    "master": {
+      "filename": "master.gz",
+      "sha256": "4bdebaa535e5446c8fd806c8a2d58158d5dc1a038ac63772960132197ea291da",
+      "bytes": 673299,
+      "url": "https://mopsfin.twse.com.tw/opendata/t187ap03_L.csv"
+    },
+    "mops0": {
+      "filename": "mops0.gz",
+      "sha256": "e8454c60595a0c8faa6c7d7a2af7d80b1bf5d178057449fca444eb8f50e34b47",
+      "bytes": 35922,
+      "url": "original-formal-event-451307-component-0"
+    },
+    "mops1": {
+      "filename": "mops1.gz",
+      "sha256": "6d1695de0f0234163792333a4cf07ef9316f01687ef1a0928fa6ddc9feecc7ba",
+      "bytes": 6549,
+      "url": "original-formal-event-451307-component-1"
+    },
+    "mops2": {
+      "filename": "mops2.gz",
+      "sha256": "fbfd5754dd2ce843cadd7a800e188fc84acda6ee61bfb64d5afd3a1ac9cfee23",
+      "bytes": 6507,
+      "url": "original-formal-event-451307-component-2"
+    },
+    "mops3": {
+      "filename": "mops3.gz",
+      "sha256": "4f2491487da3489f8cb5cb9acd95dd6ee73981ebbbb0c45e8df4c5e2bfc0b413",
+      "bytes": 6480,
+      "url": "original-formal-event-451307-component-3"
+    },
+    "mops4": {
+      "filename": "mops4.gz",
+      "sha256": "8bb41acb3e76e29c4ba43e7becfce764fd052a99dd1ab1f2766b42fc873cbf39",
+      "bytes": 5491,
+      "url": "original-formal-event-451307-component-4"
+    },
+    "mops5": {
+      "filename": "mops5.gz",
+      "sha256": "f686844bcd0825db70de9e215b7c23415d40fc6eff03d8dc8ba9b5a5b1bd2a81",
+      "bytes": 3599,
+      "url": "original-formal-event-451307-component-5"
+    },
+    "mops6": {
+      "filename": "mops6.gz",
+      "sha256": "5a1219f2e62dd20f00c7c8af237498ffaf5557cc7b8855166f57c9b79baea400",
+      "bytes": 5419,
+      "url": "original-formal-event-451307-component-6"
+    },
+    "mops7": {
+      "filename": "mops7.gz",
+      "sha256": "bc7bc663267ef1d71446efa9d1f394cee6e5d7da941c01b4b7e52bb7fd1b0668",
+      "bytes": 5417,
+      "url": "original-formal-event-451307-component-7"
+    },
+    "mops8": {
+      "filename": "mops8.gz",
+      "sha256": "d24e4535a220c86af75b6be6b9add5740d88b3f5d9e338ffee113bacc6fcdd32",
+      "bytes": 3732,
+      "url": "original-formal-event-451307-component-8"
+    },
+    "mops9": {
+      "filename": "mops9.gz",
+      "sha256": "dbd898119be9f8394f6605fca038c313ea155907cbd9cdef705c034363193f38",
+      "bytes": 5501,
+      "url": "original-formal-event-451307-component-9"
+    },
+    "mops10": {
+      "filename": "mops10.gz",
+      "sha256": "910a6184ef984a2a9083a01339567611afbc4e874d19260a5f6ae80426deac03",
+      "bytes": 5620,
+      "url": "original-formal-event-451307-component-10"
+    },
+    "mops11": {
+      "filename": "mops11.gz",
+      "sha256": "3b46247d0ba6424f560d1ad84cd4c68eac8f78dcbe9fde804082b49abfd5d82b",
+      "bytes": 3731,
+      "url": "original-formal-event-451307-component-11"
+    },
+    "mops12": {
+      "filename": "mops12.gz",
+      "sha256": "ff8d1fdb4fb905c3fda76cb20a529ec86023d5dcb6df614ede9c801098d5f643",
+      "bytes": 5654,
+      "url": "original-formal-event-451307-component-12"
+    },
+    "mops13": {
+      "filename": "mops13.gz",
+      "sha256": "b1581a4e52ba1e70a929d59e51657f10aa3848623af4bacbb222e902d8532b4a",
+      "bytes": 5710,
+      "url": "original-formal-event-451307-component-13"
+    },
+    "mops14": {
+      "filename": "mops14.gz",
+      "sha256": "8d4008452fdb9bfa1f14c7d2b7b50f0dc04c4ae41cec53449ae5c2a0d291c240",
+      "bytes": 3742,
+      "url": "original-formal-event-451307-component-14"
+    },
+    "mops15": {
+      "filename": "mops15.gz",
+      "sha256": "e8b6ce3abec7a50a8b08be22f2d045dfefe05d2e0d53e6ad9ee89390bbd299d4",
+      "bytes": 5839,
+      "url": "original-formal-event-451307-component-15"
+    },
+    "mops16": {
+      "filename": "mops16.gz",
+      "sha256": "b739cbe39444d5f9fb3f93ebf83848af27b379bbbc62055230d4f6429f6f1da8",
+      "bytes": 5502,
+      "url": "original-formal-event-451307-component-16"
+    },
+    "mops17": {
+      "filename": "mops17.gz",
+      "sha256": "ed2e40e3076c294d8e2f3702df5e1b779b1a9f8fe196f2c215fe2a5ab413996e",
+      "bytes": 3745,
+      "url": "original-formal-event-451307-component-17"
+    },
+    "mops18": {
+      "filename": "mops18.gz",
+      "sha256": "1d1ae9f16e05d7ff5be78bfbd20cf92bea9af69ac8c4eb429bd90df3c990492f",
+      "bytes": 5752,
+      "url": "original-formal-event-451307-component-18"
+    }
+  },
+  "failure_event_id": 451307,
+  "facts": {
+    "2021": {
+      "Assets": 294721081000,
+      "EquityAttributableToOwnersOfParent": 74043573000,
+      "Revenue": 138841403000,
+      "ProfitLossAttributableToOwnersOfParent": 9379905000,
+      "GrossProfit": 23354457000,
+      "ProfitLossFromOperatingActivities": 14968035000,
+      "CashFlowsFromUsedInOperatingActivities": 49885400000,
+      "PurchaseOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities": -2477191000,
+      "PurchaseOfIntangibleAssetsClassifiedAsInvestingActivities": -203116000
+    },
+    "2022": {
+      "Assets": 294412193000,
+      "EquityAttributableToOwnersOfParent": 70000201000,
+      "Revenue": 150722471000,
+      "ProfitLossAttributableToOwnersOfParent": 2859503000,
+      "GrossProfit": 11370213000,
+      "ProfitLossFromOperatingActivities": 2584734000,
+      "CashFlowsFromUsedInOperatingActivities": 46848741000,
+      "PurchaseOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities": -2568507000,
+      "PurchaseOfIntangibleAssetsClassifiedAsInvestingActivities": -151010000
+    },
+    "2023": {
+      "Assets": 291242431000,
+      "EquityAttributableToOwnersOfParent": 74591115000,
+      "Revenue": 184816790000,
+      "ProfitLossAttributableToOwnersOfParent": 6818552000,
+      "GrossProfit": 23830774000,
+      "ProfitLossFromOperatingActivities": 10157421000,
+      "CashFlowsFromUsedInOperatingActivities": 55845601000,
+      "PurchaseOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities": -1997578000,
+      "PurchaseOfIntangibleAssetsClassifiedAsInvestingActivities": -167860000
+    },
+    "2024": {
+      "Assets": 327383538000,
+      "EquityAttributableToOwnersOfParent": 86000631000,
+      "Revenue": 203879338000,
+      "ProfitLossAttributableToOwnersOfParent": 14383345000,
+      "GrossProfit": 34160304000,
+      "ProfitLossFromOperatingActivities": 18202347000,
+      "CashFlowsFromUsedInOperatingActivities": 54283415000,
+      "PurchaseOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities": -4584954000,
+      "PurchaseOfIntangibleAssetsClassifiedAsInvestingActivities": -204657000
+    },
+    "2025": {
+      "Assets": 354823917000,
+      "EquityAttributableToOwnersOfParent": 97583792000,
+      "Revenue": 209138766000,
+      "ProfitLossAttributableToOwnersOfParent": 14700319000,
+      "GrossProfit": 37226516000,
+      "ProfitLossFromOperatingActivities": 20836218000,
+      "CashFlowsFromUsedInOperatingActivities": 49385273000,
+      "PurchaseOfPropertyPlantAndEquipmentClassifiedAsInvestingActivities": -6197341000,
+      "PurchaseOfIntangibleAssetsClassifiedAsInvestingActivities": -269314000
+    }
+  }
+}

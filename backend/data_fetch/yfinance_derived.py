@@ -79,6 +79,7 @@ def apply_market_fallbacks_and_quality_calibration(
     info,
     ticker,
     data_source_notes,
+    annual_group_basis_verified: bool = True,
 ) -> dict:
     from source_audit import audited_fetch
 
@@ -116,13 +117,13 @@ def apply_market_fallbacks_and_quality_calibration(
         market_cap = current_price * shares_outstanding
         data_source_notes.append("市值由 current price × shares outstanding 推算，因 yfinance marketCap 缺值。")
 
-    if is_missing_value(revenue_ttm) and revenue_history:
+    if annual_group_basis_verified and is_missing_value(revenue_ttm) and revenue_history:
         latest_revenue_b = next((v for v in reversed(revenue_history) if v), None)
         if latest_revenue_b:
             revenue_ttm = latest_revenue_b * 1e9
             data_source_notes.append("TTM 營收缺值，暫以最新年度營收補值；估值時需保守看待。")
 
-    if is_missing_value(free_cash_flow) and fcf_history:
+    if annual_group_basis_verified and is_missing_value(free_cash_flow) and fcf_history:
         latest_fcf_b = next((v for v in reversed(fcf_history) if v is not None), None)
         if latest_fcf_b is not None:
             free_cash_flow = latest_fcf_b * 1e9
@@ -178,14 +179,14 @@ def apply_market_fallbacks_and_quality_calibration(
         latest_annual_revenue_growth = (revenue_history[-1] / revenue_history[-2] - 1) * 100
 
     ttm_vs_latest_annual_revenue_change = None
-    if _is_number(revenue_ttm) and revenue_history and revenue_history[-1] and revenue_history[-1] > 0:
+    if annual_group_basis_verified and _is_number(revenue_ttm) and revenue_history and revenue_history[-1] and revenue_history[-1] > 0:
         ttm_vs_latest_annual_revenue_change = (float(revenue_ttm) / (revenue_history[-1] * 1e9) - 1) * 100
 
     latest_annual_net_income_growth = None
     if len(net_income_history) >= 2 and net_income_history[-2] and net_income_history[-1] and net_income_history[-2] > 0:
         latest_annual_net_income_growth = (net_income_history[-1] / net_income_history[-2] - 1) * 100
 
-    if _is_number(yahoo_revenue_growth_raw) and latest_annual_revenue_growth is not None:
+    if annual_group_basis_verified and _is_number(yahoo_revenue_growth_raw) and latest_annual_revenue_growth is not None:
         yahoo_growth_pct = float(yahoo_revenue_growth_raw) * 100
         if abs(yahoo_growth_pct - latest_annual_revenue_growth) > 50:
             data_quality_notes.append(

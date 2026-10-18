@@ -56,14 +56,14 @@ def reset_job_store_for_tests() -> None:
     _resource.reset()
 
 
-def create_job(ticker: str, pipeline_id: str = "v1", worker_instance_id: str | None = None) -> str:
-    job_id = uuid.uuid4().hex
+def create_job(ticker: str, pipeline_id: str = "v1", worker_instance_id: str | None = None, *, job_id: str | None = None) -> str:
+    job_id = str(job_id or uuid.uuid4().hex).strip()
     now = time.time()
     owner = str(worker_instance_id or "").strip() or None
     with _JOB_LOCK, _connect() as conn:
-        conn.execute(
+        inserted = conn.execute(
             """
-            INSERT INTO analysis_jobs (
+            INSERT OR IGNORE INTO analysis_jobs (
                 job_id, ticker, pipeline_id, status, created_at, updated_at,
                 worker_instance_id, claimed_at
             )
@@ -71,6 +71,11 @@ def create_job(ticker: str, pipeline_id: str = "v1", worker_instance_id: str | N
             """,
             (job_id, ticker, pipeline_id, now, now, owner, now if owner else None),
         )
+        if inserted.rowcount == 0:
+            previous = conn.execute("SELECT ticker, pipeline_id FROM analysis_jobs WHERE job_id = ?", (job_id,)).fetchone()
+            if previous is None or (previous["ticker"], previous["pipeline_id"]) != (ticker, pipeline_id):
+                raise ValueError("job id already belongs to different work")
+            return job_id
     append_event(job_id, {"type": "status", "message": f"已建立 {ticker} 分析任務", "pipeline_id": pipeline_id})
     return job_id
 

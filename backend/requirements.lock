@@ -830,6 +830,9 @@ frozendict==2.4.7 \
     --hash=sha256:ffd1a9f9babec9119712e76a39397d8aa0d72ef8c4ccad917c6175d7e7f81b74 \
     --hash=sha256:fff8584e3bbdc5c1713cd016fbf4b88babfffd4e5e89b39020f2a208dd24c900
     # via yfinance
+fonttools==4.66.1 \
+    --hash=sha256:7234ae9e28db64273fbbfa72caebd0a97e3bdba6b05064114741b9539ef339d0
+    # via -r backend/requirements.txt
 frozenlist==1.8.0 \
     --hash=sha256:0325024fe97f94c41c08872db482cf8ac4800d80e79222c6b0b7b162d5b13686 \
     --hash=sha256:032efa2674356903cd0261c4317a561a6850f3ac864a63fc1583147fb05a79b0 \
@@ -2494,6 +2497,9 @@ pyjwt==2.13.0 \
 pypdf==6.19.0 \
     --hash=sha256:7e5d6e730e7dae87d560a2cee218b852f6498c8be61966f3cd02ead971e48d14 \
     --hash=sha256:bbc43aca292369ccc6cbc8a921991ecf2538a3587ab5a116eff06c321d647155
+    # via -r backend/requirements.txt
+xlrd==2.0.2 \
+    --hash=sha256:ea762c3d29f4cca48d82df517b6d89fbce4db3107f9d78713e48cd321d5c9aa9
     # via -r backend/requirements.txt
 pytest==9.0.3 \
     --hash=sha256:2c5efc453d45394fdd706ade797c0a81091eccd1d6e4bccfcd476e2b8e0ab5d9 \

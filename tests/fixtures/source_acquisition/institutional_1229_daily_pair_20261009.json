@@ -1,0 +1,240 @@
+{
+  "origin_job_id": "223a52bc7c7c4f458eed52fdf0b7b487",
+  "thread_id": "223a52bc7c7c4f458eed52fdf0b7b487:report-rerun:full_report:80ea8230e176115a4049c7c4618c003afc76cb821a4d6d3adf952085f7703930",
+  "agent_output_sha256": "671989e47a7ab41cd8c8fc08043441ba3c0803e17efacddc75fb9810b2b22085",
+  "text": "10/07 與 10/08 單日法人合計轉為淨買超，分別為 523.37 千股與 846.27 千股。",
+  "data": {
+    "ticker": "1229.TW",
+    "institutional_trading": {
+      "source": "FinMind TaiwanStockInstitutionalInvestorsBuySell",
+      "latest_date": "2026-10-08",
+      "lookback_trading_days": 30,
+      "total_net_buy_thousand_shares": 361.13,
+      "daily_total_net_buy_last_10": [
+        {
+          "date": "2026-09-23",
+          "net_buy_thousand_shares": 471.42
+        },
+        {
+          "date": "2026-09-24",
+          "net_buy_thousand_shares": 303.93
+        },
+        {
+          "date": "2026-09-29",
+          "net_buy_thousand_shares": -1961.14
+        },
+        {
+          "date": "2026-09-30",
+          "net_buy_thousand_shares": 875.14
+        },
+        {
+          "date": "2026-10-01",
+          "net_buy_thousand_shares": 347.18
+        },
+        {
+          "date": "2026-10-02",
+          "net_buy_thousand_shares": -438.13
+        },
+        {
+          "date": "2026-10-05",
+          "net_buy_thousand_shares": -789.3
+        },
+        {
+          "date": "2026-10-06",
+          "net_buy_thousand_shares": -617.3
+        },
+        {
+          "date": "2026-10-07",
+          "net_buy_thousand_shares": 523.37
+        },
+        {
+          "date": "2026-10-08",
+          "net_buy_thousand_shares": 846.27
+        }
+      ]
+    }
+  },
+  "before_diagnostics": [
+    {
+      "reason": "法人單位／數值紅線：同主體同期間淨額不符；千股=1000股，台股1張=1000股，千張=1000000股，買超／賣超正負方向不可混用。",
+      "span": [
+        22,
+        39
+      ],
+      "claim": "淨買超，分別為 523.37 千股",
+      "context": "10/07與10/08單日法人合計轉為",
+      "population": "total",
+      "window": {
+        "kind": "two_explicit_days",
+        "dates": [
+          "2026-10-07",
+          "2026-10-08"
+        ]
+      },
+      "claimed_unit": "千股",
+      "same_scope_sources": [
+        {
+          "path": null,
+          "population": "total",
+          "window": {
+            "kind": "two_explicit_days",
+            "dates": [
+              "2026-10-07",
+              "2026-10-08"
+            ]
+          },
+          "observed_at": "2026-10-08",
+          "unit": "thousand_shares",
+          "value": 1369.64,
+          "provider": "FinMind TaiwanStockInstitutionalInvestorsBuySell",
+          "source_ref": "derived_sum(institutional_trading.daily_total_net_buy_last_10[8].net_buy_thousand_shares,institutional_trading.daily_total_net_buy_last_10[9].net_buy_thousand_shares)"
+        }
+      ],
+      "available_population_sources": [
+        {
+          "path": "institutional_trading.total_net_buy_thousand_shares",
+          "population": "total",
+          "window": {
+            "kind": "trailing_trading_days",
+            "trading_days": 30
+          },
+          "observed_at": "2026-10-08",
+          "unit": "thousand_shares",
+          "value": 361.13,
+          "provider": "FinMind TaiwanStockInstitutionalInvestorsBuySell",
+          "source_ref": "institutional_trading.total_net_buy_thousand_shares"
+        },
+        {
+          "path": "institutional_trading.daily_total_net_buy_last_10[0].net_buy_thousand_shares",
+          "population": "total",
+          "window": {
+            "kind": "day",
+            "date": "2026-09-23"
+          },
+          "observed_at": "2026-09-23",
+          "unit": "thousand_shares",
+          "value": 471.42,
+          "provider": "FinMind TaiwanStockInstitutionalInvestorsBuySell",
+          "source_ref": "institutional_trading.daily_total_net_buy_last_10[0].net_buy_thousand_shares"
+        },
+        {
+          "path": "institutional_trading.daily_total_net_buy_last_10[1].net_buy_thousand_shares",
+          "population": "total",
+          "window": {
+            "kind": "day",
+            "date": "2026-09-24"
+          },
+          "observed_at": "2026-09-24",
+          "unit": "thousand_shares",
+          "value": 303.93,
+          "provider": "FinMind TaiwanStockInstitutionalInvestorsBuySell",
+          "source_ref": "institutional_trading.daily_total_net_buy_last_10[1].net_buy_thousand_shares"
+        },
+        {
+          "path": "institutional_trading.daily_total_net_buy_last_10[2].net_buy_thousand_shares",
+          "population": "total",
+          "window": {
+            "kind": "day",
+            "date": "2026-09-29"
+          },
+          "observed_at": "2026-09-29",
+          "unit": "thousand_shares",
+          "value": -1961.14,
+          "provider": "FinMind TaiwanStockInstitutionalInvestorsBuySell",
+          "source_ref": "institutional_trading.daily_total_net_buy_last_10[2].net_buy_thousand_shares"
+        },
+        {
+          "path": "institutional_trading.daily_total_net_buy_last_10[3].net_buy_thousand_shares",
+          "population": "total",
+          "window": {
+            "kind": "day",
+            "date": "2026-09-30"
+          },
+          "observed_at": "2026-09-30",
+          "unit": "thousand_shares",
+          "value": 875.14,
+          "provider": "FinMind TaiwanStockInstitutionalInvestorsBuySell",
+          "source_ref": "institutional_trading.daily_total_net_buy_last_10[3].net_buy_thousand_shares"
+        },
+        {
+          "path": "institutional_trading.daily_total_net_buy_last_10[4].net_buy_thousand_shares",
+          "population": "total",
+          "window": {
+            "kind": "day",
+            "date": "2026-10-01"
+          },
+          "observed_at": "2026-10-01",
+          "unit": "thousand_shares",
+          "value": 347.18,
+          "provider": "FinMind TaiwanStockInstitutionalInvestorsBuySell",
+          "source_ref": "institutional_trading.daily_total_net_buy_last_10[4].net_buy_thousand_shares"
+        },
+        {
+          "path": "institutional_trading.daily_total_net_buy_last_10[5].net_buy_thousand_shares",
+          "population": "total",
+          "window": {
+            "kind": "day",
+            "date": "2026-10-02"
+          },
+          "observed_at": "2026-10-02",
+          "unit": "thousand_shares",
+          "value": -438.13,
+          "provider": "FinMind TaiwanStockInstitutionalInvestorsBuySell",
+          "source_ref": "institutional_trading.daily_total_net_buy_last_10[5].net_buy_thousand_shares"
+        },
+        {
+          "path": "institutional_trading.daily_total_net_buy_last_10[6].net_buy_thousand_shares",
+          "population": "total",
+          "window": {
+            "kind": "day",
+            "date": "2026-10-05"
+          },
+          "observed_at": "2026-10-05",
+          "unit": "thousand_shares",
+          "value": -789.3,
+          "provider": "FinMind TaiwanStockInstitutionalInvestorsBuySell",
+          "source_ref": "institutional_trading.daily_total_net_buy_last_10[6].net_buy_thousand_shares"
+        },
+        {
+          "path": "institutional_trading.daily_total_net_buy_last_10[7].net_buy_thousand_shares",
+          "population": "total",
+          "window": {
+            "kind": "day",
+            "date": "2026-10-06"
+          },
+          "observed_at": "2026-10-06",
+          "unit": "thousand_shares",
+          "value": -617.3,
+          "provider": "FinMind TaiwanStockInstitutionalInvestorsBuySell",
+          "source_ref": "institutional_trading.daily_total_net_buy_last_10[7].net_buy_thousand_shares"
+        },
+        {
+          "path": "institutional_trading.daily_total_net_buy_last_10[8].net_buy_thousand_shares",
+          "population": "total",
+          "window": {
+            "kind": "day",
+            "date": "2026-10-07"
+          },
+          "observed_at": "2026-10-07",
+          "unit": "thousand_shares",
+          "value": 523.37,
+          "provider": "FinMind TaiwanStockInstitutionalInvestorsBuySell",
+          "source_ref": "institutional_trading.daily_total_net_buy_last_10[8].net_buy_thousand_shares"
+        },
+        {
+          "path": "institutional_trading.daily_total_net_buy_last_10[9].net_buy_thousand_shares",
+          "population": "total",
+          "window": {
+            "kind": "day",
+            "date": "2026-10-08"
+          },
+          "observed_at": "2026-10-08",
+          "unit": "thousand_shares",
+          "value": 846.27,
+          "provider": "FinMind TaiwanStockInstitutionalInvestorsBuySell",
+          "source_ref": "institutional_trading.daily_total_net_buy_last_10[9].net_buy_thousand_shares"
+        }
+      ]
+    }
+  ]
+}

@@ -29,20 +29,20 @@ def source(monkeypatch):
         monkeypatch.setattr(module, 'get_cache_json', lambda key: deepcopy(state.get(key)))
         monkeypatch.setattr(module, 'set_cache_json', set_cache)
     monkeypatch.setattr(runtime, 'record_source_audit_entries', lambda entries: observations.extend(deepcopy(entries)))
-    def post(url, **kwargs):
+    def get(url, **kwargs):
         assert url == webpro.LIST_URL  # Never fetch event links or content.
-        data = kwargs['data']
-        assert data['pageNumber'] == '1' and data['pagingSize'] == '3'
-        assert data['stockCodeOrCompanyName'] == '2892'
-        category = int(data['categoryId'])
+        params = kwargs['params']
+        assert params['pagingSize'] == str(webpro.PAGE_SIZE)
+        assert params['companyCode'] == '2892'
+        category = int(params['categoryId'])
         calls.append(category)
         assert len(calls) <= 2, 'No extra category or page budget'
         value = responses[category]
         if isinstance(value, Exception):
             raise value
         now[0] += 1
-        return httpx.Response(200, json=value, request=httpx.Request('POST', url))
-    monkeypatch.setattr(webpro, 'sync_post', post)
+        return httpx.Response(200, json=value, request=httpx.Request('GET', url))
+    monkeypatch.setattr(webpro, 'sync_get', get)
     return responses, state, calls, observations, writes, now
 
 
@@ -59,7 +59,7 @@ def test_real_older_partial170_cannot_hide_newer148_metadata(source):
     assert context['coverage_status'] == 'metadata_only'
     assert context['transcript_available'] is False
     assert context['summary'] == context['transcript_excerpt'] == '' and context['materials'] == []
-    assert context['selection_policy'] == 'latest_eligible_category_v2'
+    assert context['selection_policy'] == 'latest_eligible_category_v3'
     assert source[2] == [170, 148]
     assert [row['outcome'] for row in audit['category_observations']] == ['partial', 'results']
     assert audit['outcome'] == context['selection_status'] == 'partial'
@@ -97,7 +97,7 @@ def test_second_category_failure_retains_first_with_short_incomplete_cache(sourc
     assert audit['category_observations'][1]['error_kind'] in ('parse_error', 'timeout')
     assert context['category_observations'][1] == audit['category_observations'][1]
     assert [row['status'] for row in source[3]] == ['degraded_enrichment', 'error' if isinstance(failure, dict) else 'unavailable']
-    stored = source[1]['webpro-conference-context:v2:2892']
+    stored = source[1]['webpro-conference-context:v4:2892']
     original = deepcopy(stored)
     assert 0 < stored['fresh_until_epoch'] - source[5][0] <= 300
     assert stored['fresh_until_epoch'] <= context['fetched_at_epoch'] + 86400
@@ -105,7 +105,7 @@ def test_second_category_failure_retains_first_with_short_incomplete_cache(sourc
     cached_audit = {}
     assert webpro.fetch_webpro_conference_context('2892.TW', diagnostics=cached_audit) == context
     assert cached_audit['outcome'] == 'partial' and cached_audit['cache_hit'] is True
-    assert source[1]['webpro-conference-context:v2:2892'] == original
+    assert source[1]['webpro-conference-context:v4:2892'] == original
     assert len(source[3]) == 2 and len(source[2]) == 2
 
 
@@ -160,7 +160,7 @@ def test_all_empty_is_valid_empty_without_positive_context(source):
     assert audit['recency_comparison_complete'] is True
     assert source[2] == [170, 148]
     assert all(row['status'] == 'degraded_enrichment' for row in source[3])
-    assert 'webpro-conference-context:v2:2892' not in source[1]
+    assert 'webpro-conference-context:v4:2892' not in source[1]
 
 
 def test_old_context_policy_ignored_unchanged_and_v3_category_cache_reused(source):
@@ -178,8 +178,8 @@ def test_old_context_policy_ignored_unchanged_and_v3_category_cache_reused(sourc
     assert source[2] == [170, 148] and len(source[3]) == 2
     assert audit['cache_hit'] is True
     assert context['fetched_at_epoch'] == first_acquisitions
-    assert source[1]['webpro-conference-context:v2:2892']['fresh_until_epoch'] == min(row['fetched_at_epoch'] for row in audit['category_observations']) + 86400
-    for raw in ('webpro-conference-metadata-v3:2892', 'webpro-conference-metadata-v3:148:2892'):
+    assert source[1]['webpro-conference-context:v4:2892']['fresh_until_epoch'] == min(row['fetched_at_epoch'] for row in audit['category_observations']) + 86400
+    for raw in ('webpro-conference-metadata-v5:2892', 'webpro-conference-metadata-v5:148:2892'):
         assert 'shared_provider:v1:' + hashlib.sha256(raw.encode()).hexdigest() in source[1]
 
 
@@ -189,7 +189,7 @@ def test_selected_first_original_acquisition_bounds_partial_cache(source, monkey
     source[5][0] = first_meta['fetched_at_epoch'] + 86390
     source[0][148] = {}
     context = webpro.fetch_webpro_conference_context('2892.TW')
-    cached = source[1]['webpro-conference-context:v2:2892']
+    cached = source[1]['webpro-conference-context:v4:2892']
     assert context['fetched_at_epoch'] == first_meta['fetched_at_epoch']
     assert 0 < cached['fresh_until_epoch'] - source[5][0] < 11
     assert cached['fresh_until_epoch'] == first_meta['fetched_at_epoch'] + 86400
@@ -201,14 +201,14 @@ def test_mixed_age_categories_cannot_renew_older_comparison_evidence(source):
     source[5][0] += 86300
     _, second_meta = webpro._fetch_category('2892', 148)
     context = webpro.fetch_webpro_conference_context('2892.TW')
-    stored = deepcopy(source[1]['webpro-conference-context:v2:2892'])
+    stored = deepcopy(source[1]['webpro-conference-context:v4:2892'])
     assert context['date'] == '2026-08-27'
     assert context['fetched_at_epoch'] == second_meta['fetched_at_epoch']
     assert stored['fresh_until_epoch'] == first_meta['fetched_at_epoch'] + 86400
     assert 0 < stored['fresh_until_epoch'] - source[5][0] < 100
     source[5][0] += 20
     assert webpro.fetch_webpro_conference_context('2892.TW') == context
-    assert source[1]['webpro-conference-context:v2:2892'] == stored
+    assert source[1]['webpro-conference-context:v4:2892'] == stored
     assert source[2] == [170, 148] and len(source[3]) == 2
 
 
@@ -257,3 +257,53 @@ def test_second_failure_partial_survives_provider_snapshot_and_prompt(source, mo
     assert 'source_record_archive' not in json.dumps(prompt)
     assert 'http://www.zucast.com' not in json.dumps(prompt)
     assert prompt['earnings_call']['selection_status'] == 'partial'
+
+
+def test_webpro_company_endpoint_recovers_issuer_rows_and_filters_categories(monkeypatch):
+    """The company feed returns rows for multiple categories and needs exact local filtering."""
+    import cache_store
+    import official_financials_webpro_conference as webpro
+
+    state = {}
+    monkeypatch.setattr(cache_store, 'get_cache_json', lambda key: deepcopy(state.get(key)))
+    monkeypatch.setattr(cache_store, 'set_cache_json',
+                        lambda key, value, ttl_seconds: state.__setitem__(key, deepcopy(value)))
+    monkeypatch.setattr(webpro, 'cooldown_state', lambda _key: {})
+    monkeypatch.setattr(webpro, 'record_observation', lambda *args, **kwargs: None)
+
+    company_rows = [{
+        'agentUserName': '2610', 'agentSimpleName': '華航',
+        'eventDate': '2026-08-20 00:00:00.0', 'isValid': True,
+        'categoryId': 148, 'guid': 'event-2610',
+        'webLinkPath': 'https://irconference.twse.com.tw/2610_30_20260820_ch.mp4',
+    }, {
+        'agentUserName': '2610', 'agentSimpleName': '華航',
+        'eventDate': '2026-06-18 00:00:00.0', 'isValid': True,
+        'categoryId': 102, 'guid': 'other-category', 'webLinkPath': None,
+    }, {
+        'agentUserName': '2303', 'agentSimpleName': '聯電',
+        'eventDate': '2026-10-16 00:00:00.0', 'isValid': True,
+        'categoryId': 148, 'guid': 'wrong-issuer',
+        'webLinkPath': 'https://irconference.twse.com.tw/2303_1_20261016_ch.mp4',
+    }]
+    calls = []
+
+    def get(url, *, params, **kwargs):
+        assert url == webpro.LIST_URL
+        calls.append(dict(params))
+        rows = company_rows
+        payload = {'status': {'code': '1'}, 'result': {'materials': {'material': rows}},
+                   'pagingObject': {'totalCount': len(company_rows)}}
+        return httpx.Response(200, json=payload, request=httpx.Request('GET', url))
+
+    monkeypatch.setattr(webpro, 'sync_get', get)
+    diagnostic = {}
+    context = webpro.fetch_webpro_conference_context('2610.TW', diagnostics=diagnostic)
+
+    assert context['date'] == '2026-08-20'
+    assert context['event_url'].endswith('/2610_30_20260820_ch.mp4')
+    assert context['category_id'] == 148
+    assert diagnostic['category_observations'][1]['raw_count'] == 1
+    assert diagnostic['category_observations'][1]['usable_count'] == 1
+    assert len(calls) == 2
+    assert all(call['companyCode'] == '2610' and call['pagingSize'] == str(webpro.PAGE_SIZE) for call in calls)

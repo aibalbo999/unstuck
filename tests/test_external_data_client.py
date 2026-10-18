@@ -10,22 +10,28 @@ GOOGLE = [{"title": "Google", "link": "https://news.example/a", "published_date"
 DDG = [{"title": "DDG", "link": "https://news.example/b", "published_date": "", "source": "DuckDuckGo News", "summary": ""}]
 
 
-def test_taiwan_news_fetches_google_and_ptt_before_ddg(caplog):
+def test_taiwan_news_does_not_treat_forum_post_as_news(caplog):
+    calls = {"ptt": 0}
+
+    def ptt(*_args, **_kwargs):
+        calls["ptt"] += 1
+        return PTT
+
     client = ExternalDataClient(
         google_news=lambda *_args, **_kwargs: [],
         ddg_news=lambda *_args, **_kwargs: [],
-        ptt_news=lambda *_args, **_kwargs: PTT,
     )
+    client.ptt_news = ptt
 
     with caplog.at_level(logging.WARNING):
-        assert client.get_news("2330 台積電", ticker="2330") == PTT
+        assert client.get_news("2330 台積電", ticker="2330") == []
 
     assert [entry["provider"] for entry in client.last_news_audit] == [
         "Google News RSS",
-        "PTT Stock",
+        "DuckDuckGo News",
     ]
-    assert [entry["status"] for entry in client.last_news_audit] == ["unavailable", "success"]
-    assert "DuckDuckGo News" not in caplog.text
+    assert [entry["status"] for entry in client.last_news_audit] == ["unavailable", "unavailable"]
+    assert calls["ptt"] == 0
 
 
 def test_news_dedupes_and_skips_ptt_for_us_ticker():
@@ -38,14 +44,14 @@ def test_news_dedupes_and_skips_ptt_for_us_ticker():
     client = ExternalDataClient(
         google_news=lambda *_args, **_kwargs: [GOOGLE[0], dict(GOOGLE[0])],
         ddg_news=lambda *_args, **_kwargs: DDG,
-        ptt_news=ptt,
     )
+    client.ptt_news = ptt
 
     assert client.get_news("AAPL", ticker="AAPL") == [GOOGLE[0]]
     assert calls["ptt"] == 0
 
 
-def test_taiwan_news_merges_google_and_ptt_before_ddg():
+def test_taiwan_news_prefers_google_without_fetching_forum():
     calls = {"ddg": 0, "ptt": 0}
 
     def ddg(*_args, **_kwargs):
@@ -62,14 +68,27 @@ def test_taiwan_news_merges_google_and_ptt_before_ddg():
     client = ExternalDataClient(
         google_news=lambda *_args, **_kwargs: GOOGLE,
         ddg_news=ddg,
-        ptt_news=ptt,
     )
+    client.ptt_news = ptt
 
     result = client.get_news("2330 台積電", ticker="2330.TW", limit=10)
 
-    assert result == [GOOGLE[0], PTT[0]]
-    assert calls == {"ddg": 0, "ptt": 1}
-    assert [entry["provider"] for entry in client.last_news_audit] == ["Google News RSS", "PTT Stock"]
+    assert result == [GOOGLE[0]]
+    assert calls == {"ddg": 0, "ptt": 0}
+    assert [entry["provider"] for entry in client.last_news_audit] == ["Google News RSS"]
+
+
+def test_taiwan_news_falls_back_to_ddg_without_fetching_forum():
+    calls = {"ptt": 0}
+    client = ExternalDataClient(
+        google_news=lambda *_args, **_kwargs: [],
+        ddg_news=lambda *_args, **_kwargs: DDG,
+    )
+    client.ptt_news = lambda *_args, **_kwargs: calls.__setitem__("ptt", calls["ptt"] + 1) or PTT
+
+    assert client.get_news("2330 台積電", ticker="2330.TW") == DDG
+    assert calls["ptt"] == 0
+    assert [entry["provider"] for entry in client.last_news_audit] == ["Google News RSS", "DuckDuckGo News"]
 
 
 def test_news_does_not_infer_ptt_ticker_from_numeric_query(caplog):
@@ -82,8 +101,8 @@ def test_news_does_not_infer_ptt_ticker_from_numeric_query(caplog):
     client = ExternalDataClient(
         google_news=lambda *_args, **_kwargs: [],
         ddg_news=lambda *_args, **_kwargs: [],
-        ptt_news=ptt,
     )
+    client.ptt_news = ptt
 
     with caplog.at_level(logging.WARNING):
         assert client.get_news("2026 market outlook") == []
@@ -91,7 +110,7 @@ def test_news_does_not_infer_ptt_ticker_from_numeric_query(caplog):
     assert "PTT Stock" not in caplog.text
 
 
-def test_domestic_two_suffix_can_use_ptt_and_mops_fallback():
+def test_domestic_two_suffix_separates_forum_and_mops_fallback():
     calls = {"ptt": 0, "mops": 0}
 
     def ptt(*_args, **_kwargs):
@@ -105,14 +124,14 @@ def test_domestic_two_suffix_can_use_ptt_and_mops_fallback():
     client = ExternalDataClient(
         google_news=lambda *_args, **_kwargs: [],
         ddg_news=lambda *_args, **_kwargs: [],
-        ptt_news=ptt,
         financial_fetcher=lambda *_args: {"total_debt_raw": None},
         mops_fetcher=mops,
     )
+    client.ptt_news = ptt
 
-    assert client.get_news("上櫃公司", ticker="1234.TWO") == PTT
+    assert client.get_news("上櫃公司", ticker="1234.TWO") == []
     assert client.get_financial_data("1234.TWO", year=2025, season=4)["total_debt_raw"] == 900
-    assert calls == {"ptt": 1, "mops": 1}
+    assert calls == {"ptt": 0, "mops": 1}
 
 
 def test_invalid_yfinance_debt_uses_mops():

@@ -64,6 +64,11 @@ def create_or_attach_analysis_job(
     task_id = analysis_task_id(job_id)
     created = result.get("created")
     if created is False:
+        from watchlist_dispatch_store import pending_job_ids
+        if safe_text(job.get("status")) == "queued" and job_id in pending_job_ids():
+            # The durable scheduler owns recovery; a manual API read/attach must
+            # not race it or terminalize the work on an ambiguous Redis failure.
+            return serialize_analysis_job(job)
         if safe_text(job.get("status")) == "queued" and task_queue_has_task(task_queue, task_id) is False:
             try:
                 task_queue.enqueue(

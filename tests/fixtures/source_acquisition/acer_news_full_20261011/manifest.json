@@ -1,0 +1,55 @@
+{
+  "state": "seven_complete_native_originals_portable",
+  "parts": {
+    "master": {
+      "filename": "master.raw.gz",
+      "url": "https://openapi.twse.com.tw/v1/opendata/t187ap03_L",
+      "bytes": 1327578,
+      "sha256": "ace3e78957b763b9e99b4f3d222b6838c2b176778bc5a7295d3754e1dafe4865",
+      "retrieved_at": 1791665479.241487
+    },
+    "index": {
+      "filename": "index.raw.gz",
+      "url": "https://news.acer.com/zh",
+      "bytes": 171067,
+      "sha256": "ff632414b0192693b38224fbd01bef5ed6bb9735315d72d1f333652204deefb9",
+      "retrieved_at": 1791732067.249486
+    },
+    "article0": {
+      "filename": "article0.raw.gz",
+      "url": "https://news.acer.com/hong-qi2026nian9yue-ying-shou-xin-tai-bi34737yi-yuan-chuang14nian-tong-qi-xin-gao",
+      "bytes": 124919,
+      "sha256": "96689b2d5fc9fdda53a7b831a8688f64232ac7d45d893280e5059cc84174bdc2",
+      "retrieved_at": 1791732128.844346
+    },
+    "article1": {
+      "filename": "article1.raw.gz",
+      "url": "https://news.acer.com/hong-qi50zhou-nian-jia-ting-ri-sheng-da-deng-chang-xian-chang-xuan-bu-yuan-gong-ke0yuan-ru-zhu-ke-wang-hui-guan",
+      "bytes": 136643,
+      "sha256": "b9f357da903e88b7026ede76b2551202a234baf8c678d536658ff5329bb78f33",
+      "retrieved_at": 1791732130.030551
+    },
+    "article2": {
+      "filename": "article2.raw.gz",
+      "url": "https://news.acer.com/hong-qi-lian-xu-qi-nian-huo-xuanforbes-quan-qiu-zui-jia-gu-zhu-huan-qing50zhou-nian",
+      "bytes": 135097,
+      "sha256": "3381bc0f2726d42682e044eb7bcbbba45d8b245a9144f9bd0ed2a1ec64be236d",
+      "retrieved_at": 1791732131.189846
+    },
+    "article3": {
+      "filename": "article3.raw.gz",
+      "url": "https://news.acer.com/hong-qi-fa-biao-shou-kuan-googlebook-bi-dian-zhan-xian-gao-jie-gong-yi-yu-zhi-hui-ti-yan",
+      "bytes": 189228,
+      "sha256": "7d7c4ed1ffdc555c91ee669a65b50939c22eb48dd5ef94aae705f9c14900ad31",
+      "retrieved_at": 1791732131.9242392
+    },
+    "article4": {
+      "filename": "article4.raw.gz",
+      "url": "https://news.acer.com/hong-qi2026shu-qi-shi-xi-ji-hua-shou-huo-man-man-pei-yang-quan-qiu-jing-zheng-li",
+      "bytes": 136349,
+      "sha256": "0722217da16e2d8dc2e2d1cc890212075dcaf6a50a52f32f6068b5921f8c3c84",
+      "retrieved_at": 1791732132.640197
+    }
+  },
+  "source_only_no_five_year_or_report_quality_success": true
+}

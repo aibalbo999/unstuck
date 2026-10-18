@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time as datetime_time
 from typing import Optional
 import math
 
@@ -21,33 +21,12 @@ except ImportError:
 
 
 def fetch_finmind_news_catalysts(ticker: str) -> list[dict]:
-    if DataLoader is None or not is_taiwan_ticker(ticker):
-        return []
-    stock_id = _stock_id_from_ticker(ticker)
-    start_date = (datetime.now() - timedelta(days=CATALYST_LOOKBACK_DAYS)).strftime("%Y-%m-%d")
-    try:
-        df = DataLoader().taiwan_stock_news(stock_id=stock_id, start_date=start_date)
-    except Exception:
-        return []
-    if df is None or df.empty:
-        return []
-    records = []
-    for _, row in df.tail(20).iloc[::-1].iterrows():
-        title = str(row.get("title", "")).strip()
-        if not title:
-            continue
-        records.append({
-            "date": str(row.get("date", ""))[:19],
-            "title": title,
-            "summary": str(row.get("description", "") or "")[:280],
-            "source": str(row.get("source", "FinMind")).strip() or "FinMind",
-            "link": str(row.get("link", "")).strip(),
-            "source_type": "finmind_news",
-        })
-    return records
+    from .finmind_news import fetch_finmind_news_result
+    from ..types import FetchRequest
+    return fetch_finmind_news_result(FetchRequest.from_ticker(ticker)).value
 
 
-def fetch_monthly_revenue_records(ticker: str, data_loader_cls=DataLoader) -> tuple[list, dict | None]:
+def fetch_monthly_revenue_records(ticker: str, data_loader_cls=DataLoader, *, force_refresh=False) -> tuple[list, dict | None]:
     from source_audit import audited_fetch
 
     recent_monthly_revenue = []
@@ -55,28 +34,9 @@ def fetch_monthly_revenue_records(ticker: str, data_loader_cls=DataLoader) -> tu
     if not is_taiwan_ticker(ticker) or data_loader_cls is None:
         return recent_monthly_revenue, monthly_revenue_audit
 
-    def fetch_records():
-        fm_dl = data_loader_cls()
-        stock_id = _stock_id_from_ticker(ticker)
-        start_date = (datetime.now() - timedelta(days=240)).strftime("%Y-%m-%d")
-        df_rev = fm_dl.taiwan_stock_month_revenue(stock_id=stock_id, start_date=start_date)
-        records = []
-        if df_rev is not None and not df_rev.empty:
-            for _, row in df_rev.tail(6).iterrows():
-                year = row.get("revenue_year")
-                month = row.get("revenue_month")
-                value = row.get("revenue")
-                if year and month and value:
-                    records.append(f"{year}年{month}月: NT${float(value) / 1e8:.2f}億")
-        return records
-
-    monthly_revenue_result = audited_fetch(
-        "monthly_revenue",
-        "FinMind TaiwanStockMonthRevenue",
-        fetch_records,
-        default=[],
-        unavailable_message="FinMind 月營收未回傳可用資料。",
-    )
+    from .finmind_monthly_revenue import fetch_monthly_records
+    monthly_revenue_result = fetch_monthly_records(
+        ticker, data_loader_cls, audit_fetch=audited_fetch, force_refresh=force_refresh)
     return monthly_revenue_result.get("value") or [], monthly_revenue_result.get("audit")
 
 
@@ -89,29 +49,57 @@ def fetch_institutional_trading_trend(ticker: str) -> dict:
     from source_observation_freshness import parse_observation_date
 
     stock_id = _stock_id_from_ticker(ticker)
-    today = datetime.fromtimestamp(time.time(), ZoneInfo("Asia/Taipei")).date()
+    now_epoch = time.time()
+    moment = datetime.fromtimestamp(now_epoch, ZoneInfo("Asia/Taipei"))
+    today = moment.date()
     start_day = today - timedelta(days=max(INSTITUTIONAL_LOOKBACK_DAYS + 15, 45))
+    # Holidays can make 45 calendar days shorter than the requested 30
+    # exchange sessions. Keep the conservative fallback when the calendar is
+    # unknown; never manufacture a missing observation or a zero trade.
+    from official_institutional_source import expected_sessions
+    sessions = expected_sessions(ticker, now_epoch, INSTITUTIONAL_LOOKBACK_DAYS)
+    if sessions:
+        start_day = min(start_day, datetime.fromisoformat(sessions[-1]).date())
+        end_day = datetime.fromisoformat(sessions[0]).date()
+    else:
+        # If the exchange calendar is unavailable, at least exclude today's
+        # provisional row before the conservative publication boundary.
+        end_day = today if moment.time().replace(tzinfo=None) >= datetime_time(22, 30) else today - timedelta(days=1)
     start_date = start_day.isoformat()
+    end_date = end_day.isoformat()
     # The typed acquisition boundary records raised failures separately from empty data.
-    df = DataLoader().taiwan_stock_institutional_investors(stock_id=stock_id, start_date=start_date)
+    loader=DataLoader()
+    df = loader.taiwan_stock_institutional_investors(
+        stock_id=stock_id, start_date=start_date, end_date=end_date)
     if df is None or df.empty:
         return {}
 
+    from official_response_evidence import archive_response
+    acquired=datetime.fromtimestamp(time.time(),ZoneInfo("UTC")).isoformat()
+    source_url=loader._dispatcher_url("TaiwanStockInstitutionalInvestorsBuySell") if hasattr(loader,"_dispatcher_url") else None
+    sdk_evidence=archive_response(df.to_json(orient="records",force_ascii=False,date_format="iso").encode(),source_url=source_url,retrieved_at=acquired,evidence_kind="sdk_dataframe_json_not_raw_http",http_status=None)
+    sdk_evidence["query"]={"dataset":"TaiwanStockInstitutionalInvestorsBuySell","data_id":stock_id,
+                           "start_date":start_date,"end_date":end_date}
     df = df.copy()
     if not {"stock_id", "date", "name", "buy", "sell"}.issubset(df.columns):
         raise ValueError("Institutional response lacks required identity or observation fields")
     original_count = len(df)
     dates_parsed = df["date"].map(lambda value: parse_observation_date(str(value)))
-    valid_dates = dates_parsed.map(lambda day: day is not None and start_day <= day <= today)
-    df = df.loc[(df["stock_id"].astype(str).str.strip() == stock_id) & valid_dates].copy()
+    exact_stock = df["stock_id"].astype(str).str.strip() == stock_id
+    beyond_end_date = exact_stock & dates_parsed.map(lambda day: day is not None and day > end_day)
+    valid_dates = dates_parsed.map(lambda day: day is not None and start_day <= day <= end_day)
+    df = df.loc[exact_stock & valid_dates].copy()
     df["date"] = dates_parsed.loc[df.index].map(lambda day: day.isoformat())
+    # Keep booleans distinct before pandas converts them to numeric 0/1.
+    valid_numbers = ~df["buy"].map(pd.api.types.is_bool) & ~df["sell"].map(pd.api.types.is_bool)
     for column in ("buy", "sell"):
         df[column] = pd.to_numeric(df[column], errors="coerce")
-    valid_numbers = df["buy"].map(lambda value: math.isfinite(value) and value >= 0) & df["sell"].map(lambda value: math.isfinite(value) and value >= 0)
+        valid_numbers &= df[column].map(lambda value: math.isfinite(value) and value >= 0 and int(value) == value)
     df = df.loc[valid_numbers].copy()
     if df.empty:
         raise ValueError("Institutional response has no valid exact-stock dated observations")
-    rejected_count = original_count - len(df)
+    provisional_excluded_count = int(beyond_end_date.sum())
+    rejected_count = original_count - len(df) - provisional_excluded_count
     df["net_buy"] = df["buy"] - df["sell"]
     df["category"] = df["name"].map(lambda name: (
         "foreign" if "Foreign" in str(name)
@@ -121,45 +109,17 @@ def fetch_institutional_trading_trend(ticker: str) -> dict:
     by_day = df.groupby(["date", "category"], as_index=False)["net_buy"].sum()
     dates = sorted(by_day["date"].unique())[-INSTITUTIONAL_LOOKBACK_DAYS:]
     recent = by_day[by_day["date"].isin(dates)]
-    totals = recent.groupby("category")["net_buy"].sum().to_dict()
-    daily_total = recent.groupby("date")["net_buy"].sum().tail(10)
-    total_net = sum(totals.values())
-    last_5_net = recent[recent["date"].isin(dates[-5:])]["net_buy"].sum() if dates else 0
-    from ..institutional_provider import institutional_window_status
-    last_5_window_status = institutional_window_status(list(dates), ticker, 5)
-    if total_net > 0 and last_5_net > 0:
-        trend = "accumulation"
-    elif total_net < 0 and last_5_net < 0:
-        trend = "distribution"
-    else:
-        trend = "mixed"
-
-    return {
-        "source": "FinMind TaiwanStockInstitutionalInvestorsBuySell",
-        "lookback_trading_days": len(dates),
-        "observed_date_count": len(dates),
-        "observation_dates": [str(day) for day in dates],
-        "window_basis": "available_observations; not proof of complete exchange sessions",
-        "window_coverage_status": institutional_window_status(list(dates), ticker, INSTITUTIONAL_LOOKBACK_DAYS),
-        "last_5_window_status": last_5_window_status,
-        "rejected_record_count": rejected_count,
-        "daily_category_observations": [
-            {"date": str(row.date), "category": str(row.category), "net_buy_shares": int(row.net_buy),
-             "source": "FinMind TaiwanStockInstitutionalInvestorsBuySell", "unit": "shares"}
-            for row in recent.itertuples(index=False)
-        ],
-        "latest_date": str(dates[-1]) if dates else "",
-        "net_buy_shares_by_category": {key: int(value) for key, value in totals.items()},
-        "net_buy_thousand_shares_by_category": {key: round(value / 1000, 2) for key, value in totals.items()},
-        "total_net_buy_shares": int(total_net),
-        "total_net_buy_thousand_shares": round(total_net / 1000, 2),
-        "last_5_trading_days_net_buy_thousand_shares": round(last_5_net / 1000, 2) if last_5_window_status == "complete" else None,
-        "trend": trend,
-        "daily_total_net_buy_last_10": [
-            {"date": str(date), "net_buy_thousand_shares": round(value / 1000, 2)}
-            for date, value in daily_total.items()
-        ],
-    }
+    from institutional_observations import summarize_observations
+    records = [
+        {"date": str(row.date), "category": str(row.category), "net_buy_shares": int(row.net_buy),
+         "source": "FinMind TaiwanStockInstitutionalInvestorsBuySell", "unit": "shares"}
+        for row in recent.itertuples(index=False)
+    ]
+    summary = summarize_observations(records, ticker, limit=INSTITUTIONAL_LOOKBACK_DAYS,
+                                     rejected_count=rejected_count)
+    sdk_evidence["response_row_count"] = original_count
+    sdk_evidence["excluded_after_end_date_row_count"] = provisional_excluded_count
+    return {"source_provenance": sdk_evidence, **summary}
 
 
 def _history_has_values(values: list) -> bool:
@@ -239,9 +199,10 @@ def _finmind_statement_dates(*frames: pd.DataFrame) -> list[str]:
 
 class _FinMindStatementValue(dict):
     """Keep the legacy value keys, with transport coverage owned by the audit."""
-    def __init__(self, value: dict, components: dict):
+    def __init__(self, value: dict, components: dict, cache_metadata: dict | None = None):
         super().__init__(value)
         self.components = components
+        self.cache_metadata = cache_metadata or {}
 
 
 def _finmind_selected_fields_present(value: dict) -> bool:
@@ -297,27 +258,68 @@ def audited_finmind_financial_statement_fallback(ticker: str, *, fetcher=None, a
                                    message="FinMind 已取得部分財報；空表或必要欄位缺值仍保留。")
         else:
             result["audit"]["coverage_status"] = "selected_fields_present" if complete else "empty"
+    cache_metadata = (getattr(captured_error, "cache_metadata", {}) if captured_error is not None
+                      else getattr(result.get("value"), "cache_metadata", {}))
+    if cache_metadata.get("cache_hit") and not cache_metadata.get("stale"):
+        # Retained source values help the radar evaluate its condition, but
+        # are not a new provider acquisition in the SLA denominator.
+        original_status = result["audit"].get("status")
+        result["audit"].update(status="skipped_fresh_cache" if original_status == "success" else original_status,
+                               cache_hit=True,
+                               event_kind="cache_hit", stale=False,
+                               fetched_at_epoch=cache_metadata.get("fetched_at_epoch"),
+                               message=("沿用先前抓取失敗時保留的部分年度資料；原始錯誤仍見 component_statuses。"
+                                        if captured_error is not None else
+                                        "沿用仍在有效期內的 FinMind 年度財報觀測。"))
     return result
 
 
-def fetch_finmind_financial_statement_fallback(ticker: str) -> dict:
+def fetch_finmind_financial_statement_fallback(ticker: str, *, use_cache: bool = False) -> dict:
     if DataLoader is None or not is_taiwan_ticker(ticker):
         return {}
 
-    stock_id = _stock_id_from_ticker(ticker)
-    start_date = (datetime.now() - timedelta(days=365 * 6 + 30)).strftime("%Y-%m-%d")
+    def acquire() -> dict:
+        from .finmind_financial_transport import fetch_statement_tables
 
-    from .finmind_financial_transport import fetch_statement_tables, FinMindFinancialFetchError
+        stock_id = _stock_id_from_ticker(ticker)
+        start_date = (datetime.now() - timedelta(days=365 * 6 + 30)).strftime("%Y-%m-%d")
+        outcome = fetch_statement_tables(stock_id, start_date)
+        frames = {name: pd.DataFrame(rows) for name, rows in outcome["tables"].items()}
+        return {"value": _assemble_finmind_financial_statements(frames),
+                "components": outcome["components"], "error": outcome["error"]}
 
-    outcome = fetch_statement_tables(stock_id, start_date)
-    frames = {name: pd.DataFrame(rows) for name, rows in outcome["tables"].items()}
-    result = _assemble_finmind_financial_statements(frames)
-    if outcome["error"]:
-        raise FinMindFinancialFetchError(
-            outcome["error"]["reason"], status_code=outcome["error"].get("status_code"),
-            partial_value=result, component_statuses=outcome["components"],
+    metadata = {}
+    if use_cache:
+        from shared_provider_cache import shared_fetch
+
+        # Financial statement rows are slow moving. Cache the compact parsed
+        # result, not multi-megabyte raw transport frames. An incomplete HTTP
+        # operation has only a short retry interval; forced report refreshes
+        # still bypass this radar-only cache.
+        acquired, metadata = shared_fetch(
+            f"finmind_financial_radar:v1:{ticker}:{datetime.now():%Y-%m-%d}",
+            acquire, freshness_seconds=4 * 60 * 60,
+            result_ttl=lambda row: 60 if row.get("error") else 4 * 60 * 60,
+            lock_wait_seconds=21,
         )
-    return _FinMindStatementValue(result, outcome["components"])
+        if not isinstance(acquired, dict):
+            from .finmind_financial_transport import FinMindFinancialFetchError
+            error = FinMindFinancialFetchError(str(metadata.get("error_kind") or "cache_unavailable"))
+            error.cache_metadata = metadata
+            raise error
+    else:
+        acquired = acquire()
+
+    from .finmind_financial_transport import FinMindFinancialFetchError
+    result = acquired["value"]
+    if acquired["error"]:
+        error = FinMindFinancialFetchError(
+            acquired["error"]["reason"], status_code=acquired["error"].get("status_code"),
+            partial_value=result, component_statuses=acquired["components"],
+        )
+        error.cache_metadata = metadata
+        raise error
+    return _FinMindStatementValue(result, acquired["components"], metadata)
 
 
 def _assemble_finmind_financial_statements(frames: dict) -> dict:

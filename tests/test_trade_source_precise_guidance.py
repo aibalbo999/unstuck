@@ -9,7 +9,17 @@ from trade_source_contract import bind_trade_payload, source_block
 from structured_output_runtime import process_agent_response
 from agent_runtime.trade_source_repair import repair_trade_sources
 from test_trade_catalog_expansion import data
-from test_trade_source_completion import setup_payload
+from test_trade_source_completion import setup_payload as base_setup_payload
+
+
+def setup_payload():
+    # These tests isolate institutional scope; price references must still bind
+    # to the same fixture rather than unrelated 95/110 values.
+    _, context = source_context()
+    prices = context["_trade_source_manifest"]["catalog"]["short_term_market_context"]["technical_indicators"]
+    result = base_setup_payload()
+    result.update(support_level=str(prices["sma_20"]), resistance_level=str(prices["sma_5"]))
+    return result
 
 
 REF = 'short_term_market_context.institutional_evidence.records[0]'
@@ -75,6 +85,31 @@ def test_repair_receives_rejected_reference_value_and_does_not_edit_upstream():
     assert REF in prompts[0]
     assert '外資近30個交易日淨賣超3005.03千股。' in prompts[0]
     assert ctx['analyses'] == upstream
+
+
+def test_observed_ownership_trend_repair_identifies_single_date_limit():
+    from trade_source_diagnostics import source_repair_feedback
+
+    _, ctx = source_context()
+    ref = 'short_term_market_context.ownership_evidence.records[0]'
+    ctx['_trade_source_manifest']['catalog']['short_term_market_context']['ownership_evidence'] = {
+        'records': [{'value': 83.49, 'unit': 'percent', 'population': 'major_holders',
+                     'threshold': 'gt_1000_lots', 'observed_at': date.today().isoformat(),
+                     'provider': 'TDCC OpenData'}]
+    }
+    payload = setup_payload()
+    payload.update(trade_direction='Neutral', entry_zone='N/A', target_price='N/A',
+                   stop_loss='N/A', core_catalyst='等待量能改善後再重新評估',
+                   catalyst_source_refs=[],
+                   observed_signal='大戶持股比例83.49%已連續兩週減少',
+                   observed_source_refs=[ref])
+
+    result, assessment = bind_trade_payload(payload, ctx)
+
+    assert assessment['status'] == 'degraded'
+    assert result['observed_signal'] is None
+    assert 'ownership_trend_from_point_in_time' in assessment['rejection_diagnostics']['observed_scope_requirements']
+    assert '移除持股趨勢句' in source_repair_feedback(assessment, ctx['_trade_source_manifest'], result)
 
 
 def test_reference_receipt_is_bounded_even_for_invalid_parent_object_refs():
@@ -184,3 +219,29 @@ def test_unknown_catalog_root_cannot_gain_fact_cards(root):
     original = copy.deepcopy(catalog)
     assert source_fact_cards(catalog) == []
     assert catalog == original
+
+
+def test_initial_prompt_limits_are_machine_readable_before_any_repair():
+    from trade_source_guidance import source_fact_cards
+    block, ctx = source_context()
+    cards = source_fact_cards(ctx['_trade_source_manifest']['catalog'])
+    flow = next(card for card in cards if card['ref'] == REF)
+    assert flow['supports'] == ['dated_numeric_net_flow']
+    assert 'daily_alternation' in flow['unsupported']
+    assert '近10日買賣交錯' in block and '連續兩週減少' in block
+    assert 'recheck_condition' in block
+
+
+def test_valid_flow_fact_does_not_admit_attached_unsupported_sequence():
+    _, ctx = source_context()
+    payload = setup_payload()
+    fact = f'截至{date.today().isoformat()}，外資近30個交易日淨賣超3005.03千股。'
+    payload.update(trade_direction='Neutral', entry_zone='N/A', target_price='N/A',
+                   stop_loss='N/A', core_catalyst='等待量能改善後再重新評估', catalyst_source_refs=[],
+                   observed_signal=fact, observed_source_refs=[REF])
+    assert bind_trade_payload(payload, ctx)[1]['status'] == 'observation'
+    payload['observed_signal'] = fact + '近10日買賣交錯。'
+    result, assessment = bind_trade_payload(payload, ctx)
+    assert assessment['status'] == 'degraded'
+    assert 'observed_catalyst_evidence_scope_mismatch' in assessment['reason_codes']
+    assert result['observed_signal'] is None

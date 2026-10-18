@@ -1,0 +1,35 @@
+[
+  {
+    "id": 439878,
+    "source": "earnings_call",
+    "provider": "Universal official conference presentation",
+    "status": "success",
+    "duration_ms": 1178,
+    "record_count": 1,
+    "message": "{\"outcome\":\"results\",\"http_request_sent\":true,\"source_url\":\"https://www.uk.com.tw/zh-tw/download-c16560/%E6%B3%95%E4%BA%BA%E8%AA%AA%E6%98%8E%E6%9C%83.html\",\"endpoint\":\"index\",\"actual_provider\":\"Universal official conference presen",
+    "created_at": 1791760758.34993,
+    "details_json": "{\"ticker\": \"1325.TW\", \"fetch_id\": \"1a910d6db5344044a84fae028d3490f9\", \"operation_id\": \"0cd20ea3168f45b380e8fe5664883ac4\", \"attempt_id\": \"2eb3e5b34bc84b8a864222caaeaa2fe4\", \"event_kind\": \"http_attempt\", \"outcome\": \"results\", \"parser_version\": \"universal-original-presentation-v1\", \"actual_provider\": \"Universal official conference presentation\", \"response_sha256\": \"3ee5185e6dd73e11e9a148debf1e5b8a11cd21362df5c69f07726f9a9b7a9389\", \"coverage_status\": \"metadata_only\", \"http_request_sent\": true, \"fetched_at_epoch\": 1791760758.272287, \"response_bytes\": 143147, \"http_status\": 200}"
+  },
+  {
+    "id": 439879,
+    "source": "earnings_call",
+    "provider": "Universal official conference presentation",
+    "status": "success",
+    "duration_ms": 1645,
+    "record_count": 1,
+    "message": "{\"outcome\":\"results\",\"http_request_sent\":true,\"source_url\":\"https://www.uk.com.tw/v_comm/inc/download_file.asp?re_id=2174&fid=42331\",\"endpoint\":\"pdf\",\"actual_provider\":\"Universal official conference presentation\",\"parser_version\":",
+    "created_at": 1791760760.2549171,
+    "details_json": "{\"ticker\": \"1325.TW\", \"fetch_id\": \"1a910d6db5344044a84fae028d3490f9\", \"operation_id\": \"0cd20ea3168f45b380e8fe5664883ac4\", \"attempt_id\": \"8cbe41e7fc5946eaa72c259ce659a1cf\", \"event_kind\": \"http_attempt\", \"outcome\": \"results\", \"parser_version\": \"universal-original-presentation-v1\", \"actual_provider\": \"Universal official conference presentation\", \"response_sha256\": \"bbf5334b5242cb33358bb4b0570a999716cc579adec92fb54e8f0ab4e7a387c2\", \"coverage_status\": \"native_text_complete\", \"http_request_sent\": true, \"fetched_at_epoch\": 1791760760.2066538, \"response_bytes\": 637681, \"http_status\": 200}"
+  },
+  {
+    "id": 439880,
+    "source": "earnings_call",
+    "provider": "Universal official conference presentation",
+    "status": "success",
+    "duration_ms": 5137,
+    "record_count": 1,
+    "message": "恒大官方法說簡報原件及原生文字頁面已取得；不是逐字稿，影像、圖表閱讀順序及各項陳述尚未獨立驗證。活動日期不是首次發布日期。",
+    "created_at": 1791760762.4341462,
+    "details_json": "{\"ticker\": \"1325.TW\", \"fetch_id\": \"1a910d6db5344044a84fae028d3490f9\", \"operation_id\": \"0cd20ea3168f45b380e8fe5664883ac4\", \"event_kind\": \"aggregate\", \"provider_attempts\": [{\"attempt_id\": \"c637ff07e5bf4bfb847f60a9ebae2e9b\", \"source\": \"earnings_call\", \"provider\": \"MOPS / TWSE WebPro investor conference\", \"attempt_number\": 1, \"status\": \"success\"}], \"provider_attempt_count\": 1, \"actual_provider\": \"Universal official conference presentation\", \"coverage_status\": \"native_text_complete\", \"error_kind\": \"\", \"cache_hit\": false, \"stale\": false, \"fetched_at_epoch\": 1791760760.2066538, \"component_statuses\": {\"index\": {\"parser_version\": \"universal-original-presentation-v1\", \"http_status\": 200, \"response_bytes\": 143147, \"response_sha256\": \"3ee5185e6dd73e11e9a148debf1e5b8a11cd21362df5c69f07726f9a9b7a9389\", \"fetched_at_epoch\": 1791760758.272287, \"status\": \"success\"}, \"pdf\": {\"parser_version\": \"universal-original-presentation-v1\", \"http_status\": 200, \"response_bytes\": 637681, \"response_sha256\": \"bbf5334b5242cb33358bb4b0570a999716cc579adec92fb54e8f0ab4e7a387c2\", \"fetched_at_epoch\": 1791760760.2066538, \"status\": \"success\"}}}"
+  }
+]

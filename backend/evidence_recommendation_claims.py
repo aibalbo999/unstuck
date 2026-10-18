@@ -10,7 +10,7 @@ _LABEL_PATHS = {
     "長期目標12個月": _HORIZONS["12"], "長期潛力5年": "長期潛力（5年）",
     **{f"{key}個月目標": value for key, value in _HORIZONS.items()},
 }
-_PAIR = re.compile(r"(?:^|[;；|])\s*(?:買入|買進|持有|避免|放空|觀望)?\s*(3|6|12)個月\s*[:：]\s*(?:NT\$|\$)?(-?\d[\d,]*(?:\.\d+)?)\s*(?:元|TWD)?(?=\s*(?:[;；|]|$))", re.I)
+_PAIR = re.compile(r"(?:^|[;；|])\s*(?:買入|買進|持有|避免|放空|觀望)?\s*(3|6|12)個月\s*[:：]\s*(?:NT\$|\$)?(-?\d[\d,]*(?:\.\d+)?)\s*(?:元|TWD)?(?=\s*(?:[;；|（(]|$))", re.I)
 
 
 def recommendation_horizon_path(claim: dict, normalized_label: str) -> tuple[str, ...] | None:
@@ -20,6 +20,10 @@ def recommendation_horizon_path(claim: dict, normalized_label: str) -> tuple[str
         pairs = [pair for pair in _PAIR.finditer(text) if pair.group(1) == horizon.group(1)]
         if len(pairs) == 1 and clean_number(pairs[0].group(2)) == claim.get("reported_value"):
             path = _HORIZONS[horizon.group(1)]
+        else:
+            # This is still a conclusion horizon when its legacy binding is
+            # ambiguous; adjacent prose cannot turn it into observed revenue.
+            return ()
     if path:
         return () if claim.get("_legacy_conclusion_context_missing") else (f"rerun_context.parsed.recommendation.{path}",)
     return None

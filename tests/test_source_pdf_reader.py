@@ -233,9 +233,54 @@ def test_cpu_limit_stops_worker_independently_of_parent_timeout(monkeypatch):
     assert_reaped(processes)
 
 
+def test_failed_memory_sample_during_nonzero_child_exit_is_worker_failure(monkeypatch):
+    """A terminal signal can precede the final process-info/poll update."""
+    import signal
+    processes = track_child(monkeypatch, 'import time; time.sleep(30)')
+    original_spawn = reader.subprocess.Popen
+    def spawn(*args, **kwargs):
+        child = original_spawn(*args, **kwargs)
+        real_poll = child.poll
+        polls = [0]
+        def poll():
+            polls[0] += 1
+            return None if polls[0] <= 3 else real_poll()
+        child.poll = poll
+        return child
+    monkeypatch.setattr(reader.subprocess, 'Popen', spawn)
+    def sample(pid):
+        os.kill(pid, signal.SIGTERM)
+        raise reader.SourcePdfError('memory_accounting_unavailable')
+    monkeypatch.setattr(reader, '_memory_sampler', lambda: sample)
+    with pytest.raises(reader.SourcePdfError, match='worker_failed'):
+        reader.extract_pdf_pages(make_pdf([b'A']))
+    assert processes[0].returncode < 0
+    assert_reaped(processes)
+
+
+def test_live_child_memory_failure_still_fails_closed_even_if_child_finishes(monkeypatch):
+    processes = track_child(monkeypatch, 'import sys; sys.stdin.buffer.read(); sys.stdout.write("{}")')
+    def sample(pid):
+        raise reader.SourcePdfError('memory_accounting_unavailable')
+    monkeypatch.setattr(reader, '_memory_sampler', lambda: sample)
+    with pytest.raises(reader.SourcePdfError, match='memory_accounting_unavailable'):
+        reader.extract_pdf_pages(make_pdf([b'A']))
+    assert_reaped(processes)
+
+
 def test_parser_warning_is_not_silent_full_coverage(monkeypatch):
     import source_pdf_worker as worker
     import logging
     handler = worker._FailOnWarning()
     with pytest.raises(worker._Failure, match='parser_warning'):
         handler.handle(logging.LogRecord('pypdf', logging.WARNING, '', 0, 'source text', (), None))
+
+
+def test_official_systex_cff_presentation_decodes_without_suppressing_warnings():
+    raw = (Path(__file__).parent / 'fixtures/source_acquisition/systex_20260917_conference_complete.pdf').read_bytes()
+    assert hashlib.sha256(raw).hexdigest() == '0261069f2d4ebb6c2fb1488a972ccaa43588000a63f66d89939eb3b77829209f'
+    result = reader.extract_pdf_pages(raw)
+    assert result['page_count'] == 20
+    cover = ''.join(result['pages'][0]['text'].split())
+    assert '精誠集團簡介' in cover and '2026.09.17' in cover
+    assert result['content_sha256'] == hashlib.sha256(raw).hexdigest()

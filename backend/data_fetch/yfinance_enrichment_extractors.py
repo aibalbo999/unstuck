@@ -28,17 +28,59 @@ def extract_price_history_ranges(stock) -> dict:
 @with_exchange_volume
 def extract_market_history_bundle(stock, *, as_of=None) -> dict:
     """Use the existing 5y history request for both charts and daily evidence."""
-    today = as_of or datetime.now().date()
+    from datetime import timezone
+    from market_price_reconciliation import CONTRACT, reconcile
+    from .market_sources.twse_session_observation import official_observation
+    from zoneinfo import ZoneInfo
+    from two_week_market_eligibility import completed_session
+    ticker = str(getattr(stock, "ticker", "") or "").upper()
+    now = datetime.now(ZoneInfo("Asia/Taipei"))
+    today = as_of or now.date()
+    moment = datetime.combine(today, datetime.max.time(), ZoneInfo("Asia/Taipei")) if as_of else now
+    expected = completed_session(moment) if ticker.endswith((".TW", ".TWO")) else None
+    end_date = (date.fromisoformat(expected) if expected else today) + timedelta(days=1)
+    query = {"period": "5y", "auto_adjust": False}
+    if ticker.endswith((".TW", ".TWO")) or as_of:
+        query["end"] = end_date.isoformat()
     try:
-        hist = stock.history(period="5y")
+        raw = stock.history(**query)
     except Exception:
-        hist = None
+        raw = None
+    acquired = datetime.now(timezone.utc).isoformat()
+    from .market_sources.yfinance_session_recovery import recover_session
+    raw, recovery = recover_session(stock, raw, expected, as_of=today)
+    hist = _adjusted_history(raw)
     daily = daily_market_data_from_frame(hist, as_of=today, volume_unit="shares")
+    daily["price_adjustment_basis"] = "yfinance adjusted OHLC = raw provider OHLC * (Adj Close / Close); equivalent auto_adjust=True basis;not exchange raw"
+    daily["price_basis_contract"] = CONTRACT
+    daily["volume_basis"] = "yfinance provider shares; provider scope not assumed equal to TWSE totals"
+    daily["retrieved_at"] = acquired
+    daily["session_recovery"] = recovery
+    daily["history_query"] = {**query, "end_is_exclusive": True, "expected_completed_session": expected, "calendar_verified": expected is not None}
+    raw_daily = daily_market_data_from_frame(raw, as_of=today, volume_unit="shares")
+    last = raw_daily["bars"][-1] if raw_daily["bars"] else {}
+    daily["provider_raw_observation"] = {**last, "ticker": ticker, "retrieved_at": recovery.get("retrieved_at") if recovery.get("adopted") else acquired, "volume_unit": "shares", "volume_scope": "provider_unspecified_transaction_scope", "volume_scope_verified": False, "source": "yfinance history auto_adjust=False", "price_basis": "provider_ohlc_auto_adjust_false;historical split raw equivalence not established"}
+    daily["official_observation"] = official_observation(ticker, last["date"]) if last else {"status": "unavailable"}
+    daily["price_reconciliation"] = reconcile(daily)
     return {
         "price_history_ranges": _price_history_ranges_from_frame(hist, as_of=today),
         "daily_market_data": daily,
         "technical_indicators": calculate_technical_indicators(daily),
     }
+
+
+def _adjusted_history(raw):
+    """Derive adjusted OHLC from one raw+Adj Close fetch; never assume factor 1."""
+    if raw is None or raw.empty or not {"Close", "Adj Close"} <= set(raw.columns):
+        return None
+    from market_price_reconciliation import number
+    frame = raw.copy()
+    closes=frame["Close"].map(number);adj=frame["Adj Close"].map(number)
+    ratio=adj/closes
+    ratio=ratio.where((closes>0)&(adj>0))
+    for column in ("Open", "High", "Low", "Close"):
+        if column in frame:frame[column]=frame[column]*ratio
+    return frame
 
 
 def _price_history_ranges_from_frame(hist, *, as_of: date) -> dict:

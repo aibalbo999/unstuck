@@ -1,0 +1,519 @@
+{
+  "evidence_kind": "complete_publisher_html_with_selected_master_and_official_roster_rows_and_decoded_sdk_fields",
+  "reference_now": "2026-10-09T19:02:21.917602+00:00",
+  "raw_html_base64": "PCFET0NUWVBFPg0KPGh0bWwgeG1sbnM9Imh0dHA6Ly93d3cudzMub3JnLzE5OTkveGh0bWwiPg0KPGhlYWQ+DQo8bWV0YSBodHRwLWVxdWl2PSJYLVVBLUNvbXBhdGlibGUiIGNvbnRlbnQ9IklFPUVtdWxhdGVJRTExIiAvPg0KPG1ldGEgSFRUUC1FUVVJVj0iQ29udGVudC1UeXBlIiBDT05URU5UPSJ0ZXh0L2h0bWw7IGNoYXJzZXQ9YmlnNSIgLz4NCjxtZXRhIG5hbWU9InJvYm90cyIgY29udGVudD0iaW5kZXgsIGZvbGxvdyIgLz4NCjxtZXRhIG5hbWU9Imdvb2dsZWJvdCIgY29udGVudD0iaW5kZXgsIGZvbGxvdyIgLz4NCjxtZXRhIG5hbWU9ImRlc2NyaXB0aW9uIiBjb250ZW50PSLAsLF6p9azdLR4tKSleKrRw/6q0aZQt36q0bv5qu2ye6Snpf6k6Kbsp7m+47jqsFShQ01vbmV5REqleKrRwFe5RLSjqNGnub7jrdOq0bDypbutsbBdsMiz+KrtoUKkVKRqqmukSMR3vVikwKWstaWkzqZoutin3rNOpMCqUqv8vNC5z6rtoUFNb25leURKpXiq0b7jplinub7js/i7+bjqsFTF/bF6p/Oos7N0tHi0pLBUrqe4VcXcqrqq0aWrpuaxoaFDIiAvPg0KPG1ldGEgbmFtZT0ia2V5d29yZHMiIGNvbnRlbnQ9IqV4qtGhQrKjt34iIC8+DQo8bWV0YSBwcm9wZXJ0eT0ib2c6dGl0bGUiIGNvbnRlbnQ9IqZQt36q0bv5qu2yey2lzafewuXA+KtPsLctqOSlTMLlwPi+uaf3LaV4qtEtTW9uZXlESrJ6sF269CIgLz4NCjxtZXRhIHByb3BlcnR5PSJvZzp0eXBlIiBjb250ZW50PSJ3ZWJzaXRlIiAvPg0KPG1ldGEgcHJvcGVydHk9Im9nOnVybCIgY29udGVudD0iaHR0cHM6Ly93d3cubW9uZXlkai5jb20vWi9aSC9aSDAvWkgwMC9aSDAwLmRqaHRtP0E9QzAxNzEzNyZCPTUiIC8+DQo8bWV0YSBwcm9wZXJ0eT0ib2c6ZGVzY3JpcHRpb24iIGNvbnRlbnQ9IqfWs3S0eLSkpXiq0cP+qtGmULd+qtG7+artsnukp6X+pOim7Ke5vuO46rBUoUO0o6jRp7m+463TqtGw8qW7rbGwXbDIs/iq7aFCpFSkaqprpEjEd71YpMClrLWlpM6maLrYp96zTqTAqlKr/LzQuc+q7aFBvuOmWKe5vuOz+Lv5uOqwVMX9sXqn86izs3S0eLSksFSup7hVxdyquqrRpaum5rGhoUMiIC8+DQo8bWV0YSBwcm9wZXJ0eT0ib2c6aW1hZ2UiIGNvbnRlbnQ9Imh0dHBzOi8vd3d3Lm1vbmV5ZGouY29tL2Z1bmRkai9pbWFnZXMvRkItTmV3cy5wbmciIC8+DQo8bWV0YSBwcm9wZXJ0eT0iZmI6YXBwX2lkIiBjb250ZW50PSIxMjI4ODc0Mzc3MjE1ODkiIC8+DQo8c2NyaXB0IHR5cGU9InRleHQvamF2YXNjcmlwdCIgc3JjPSIvei9kamEvYXV0aC9qcy9jb21tb24iPjwvc2NyaXB0Pg0KPHNjcmlwdCB0eXBlPSJ0ZXh0L2phdmFzY3JpcHQiIHNyYz0iL3ovanMvanF1ZXJ5LWxhdGVzdC5kampzIj48L3NjcmlwdD4NCjxzY3JpcHQgdHlwZT0idGV4dC9qYXZhc2NyaXB0IiBzcmM9Ii96L2pzL0FwcGxldDJDYW52YXMuZGpqcyI+PC9zY3JpcHQ+DQo8c2NyaXB0IHR5cGU9InRleHQvamF2YXNjcmlwdCIgc3JjPSIvREpKU0xpYi9DYW52YXNDaGFydFNWQy9leHRlbmQvY2hhcnRMb2FkT2JqL2NoYXJ0TG9hZE9ial9zdG9jay5qcyI+PC9zY3JpcHQ+DQo8c2NyaXB0IHR5cGU9InRleHQvamF2YXNjcmlwdCIgc3JjPSIvei9qcy9ESldlYkdyYXBoLmRqanMiPjwvc2NyaXB0Pg0KPHNjcmlwdCB0eXBlPSJ0ZXh0L2phdmFzY3JpcHQiIHNyYz0iL3ovanMveG1sMmpzb25KUy5kampzIj48L3NjcmlwdD4NCjxzY3JpcHQgdHlwZT0idGV4dC9qYXZhc2NyaXB0IiBzcmM9Ii96L2pzL2pzb24yeG1sSlMuZGpqcyI+PC9zY3JpcHQ+DQo8c2NyaXB0IHR5cGU9InRleHQvamF2YXNjcmlwdCIgc3JjPSIvei9qcy9qc29uMi5kampzIj48L3NjcmlwdD4NCjxzY3JpcHQgbGFuZ3VhZ2U9ImphdmFzY3JpcHQiIHNyYz0iL3ovanMvY29va2llLmpzIj48L3NjcmlwdD4NCjxsaW5rIHJlbD0iY2Fub25pY2FsIiBocmVmPSJodHRwczovL3d3dy5tb25leWRqLmNvbS9aL1pIL1pIMC9aSDAwL1pIMDAuZGpodG0/QT1DMDE3MTM3JkI9NSI+DQo8bGluayByZWw9c3R5bGVzaGVldCBocmVmPSIvei9qcy9tZGozY3NzLmRqY3NzIiB0eXBlPSJ0ZXh0L2NzcyIgLz4NCjxsaW5rIHJlbD1zdHlsZXNoZWV0IGhyZWY9Ii96L2pzL1RhYmxlTGF5b3V0Q3NzLmRqY3NzIiB0eXBlPSJ0ZXh0L2NzcyIgLz4NCjxzY3JpcHQgbGFuZ3VhZ2U9IkphdmFTY3JpcHQiIHNyYz0iL3ovanMvanNGdW5jdGlvbi5kampzIj48L3NjcmlwdD4NCjxzY3JpcHQgbGFuZ3VhZ2U9IkphdmFTY3JpcHQiIHNyYz0iL3ovanMvREpVUkwuanMiPjwvc2NyaXB0Pg0KPHNjcmlwdCBhc3luYz0nYXN5bmMnIHNyYz0naHR0cHM6Ly93d3cuZ29vZ2xldGFnc2VydmljZXMuY29tL3RhZy9qcy9ncHQuanMnPjwvc2NyaXB0Pg0KPHNjcmlwdD4NCiB2YXIgZ29vZ2xldGFnID0gZ29vZ2xldGFnIHx8IHt9Ow0KICBnb29nbGV0YWcuY21kID0gZ29vZ2xldGFnLmNtZCB8fCBbXTsNCjwvc2NyaXB0Pg0KPHNjcmlwdD4NCiAgZ29vZ2xldGFnLmNtZC5wdXNoKGZ1bmN0aW9uKCkgew0KCWdvb2dsZXRhZy5kZWZpbmVTbG90KCcvMTI2ODA1NDA3L21vbmV5ZGpfQWxsQ2hhbm5lbF83Mjg5MF8xJywgWzcyOCwgOTBdLCAnZGl2LWdwdC1hZC0xNTAyNDMwODMwMzAwLTAnKS5hZGRTZXJ2aWNlKGdvb2dsZXRhZy5wdWJhZHMoKSk7DQoJZ29vZ2xldGFnLnB1YmFkcygpLmVuYWJsZVNpbmdsZVJlcXVlc3QoKTsNCglnb29nbGV0YWcuZW5hYmxlU2VydmljZXMoKTsNCiAgfSk7DQo8L3NjcmlwdD4NCjwhLS0gR29vZ2xlIFRhZyBNYW5hZ2VyIC0tPg0KPHNjcmlwdD4oZnVuY3Rpb24odyxkLHMsbCxpKXt3W2xdPXdbbF18fFtdO3dbbF0ucHVzaCh7J2d0bS5zdGFydCc6DQpuZXcgRGF0ZSgpLmdldFRpbWUoKSxldmVudDonZ3RtLmpzJ30pO3ZhciBmPWQuZ2V0RWxlbWVudHNCeVRhZ05hbWUocylbMF0sDQpqPWQuY3JlYXRlRWxlbWVudChzKSxkbD1sIT0nZGF0YUxheWVyJz8nJmw9JytsOicnO2ouYXN5bmM9dHJ1ZTtqLnNyYz0NCidodHRwczovL3d3dy5nb29nbGV0YWdtYW5hZ2VyLmNvbS9ndG0uanM/aWQ9JytpK2RsO2YucGFyZW50Tm9kZS5pbnNlcnRCZWZvcmUoaixmKTsNCn0pKHdpbmRvdyxkb2N1bWVudCwnc2NyaXB0JywnZGF0YUxheWVyJywnR1RNLVhCSkonKTs8L3NjcmlwdD4NCjwhLS0gRW5kIEdvb2dsZSBUYWcgTWFuYWdlciAtLT4NCjxzY3JpcHQgbGFuZ3VhZ2U9IkphdmFTY3JpcHQiIHNyYz0iL3ovanMvaXNTcGVjaWFsS2luZC5kampzIj48L3NjcmlwdD4NCjxzY3JpcHQgbGFuZ3VhZ2U9IkphdmFTY3JpcHQiIHNyYz0iL3ovanMvbWRqanMuZGpqcyI+PC9zY3JpcHQ+DQo8c2NyaXB0IGxhbmd1YWdlPSJKYXZhU2NyaXB0Ij48IS0tDQokKGRvY3VtZW50KS5yZWFkeShmdW5jdGlvbigpew0KdmFyIGdfc3pUaXRsZSA9ICemULd+qtG7+artsnstpc2n3sLlwPirT7C3LajkpUzC5cD4vrmn9yc7DQpDaGVja01lbnUoOSwgJ0MwMTcxMzcnKTsNCn0pOw0KLy8gLS0+PC9zY3JpcHQ+DQo8dGl0bGU+plC3fqrRu/mq7bJ7LaXNp97C5cD4q0+wty2o5KVMwuXA+L65p/ctpXiq0S1Nb25leURKsnqwXbr0PC90aXRsZT4NCjwvaGVhZD4NCjxib2R5Pg0KPCEtLSBHb29nbGUgVGFnIE1hbmFnZXIgKG5vc2NyaXB0KSAtLT4NCjxub3NjcmlwdD48aWZyYW1lIHNyYz0iaHR0cHM6Ly93d3cuZ29vZ2xldGFnbWFuYWdlci5jb20vbnMuaHRtbD9pZD1HVE0tWEJKSiINCmhlaWdodD0iMCIgd2lkdGg9IjAiIHN0eWxlPSJkaXNwbGF5Om5vbmU7dmlzaWJpbGl0eTpoaWRkZW4iPjwvaWZyYW1lPjwvbm9zY3JpcHQ+DQo8IS0tIEVuZCBHb29nbGUgVGFnIE1hbmFnZXIgKG5vc2NyaXB0KSAtLT4NCjxjZW50ZXI+DQo8c2NyaXB0IHR5cGU9InRleHQvamF2YXNjcmlwdCIgc3JjPSIvei96dS9qcy96dTEwR2V0VVN0b2NrLmRqanMiPjwvc2NyaXB0Pg0KPHNjcmlwdCB0eXBlPSJ0ZXh0L2phdmFzY3JpcHQiIHNyYz0iL3ovanMvanF1ZXJ5LmJnaWZyYW1lLmpzIj48L3NjcmlwdD4NCjxzY3JpcHQgdHlwZT0idGV4dC9qYXZhc2NyaXB0IiBzcmM9Ii96L2pzL2pxdWVyeS5kaW1lbnNpb25zLmpzIj48L3NjcmlwdD4NCjxzY3JpcHQgdHlwZT0idGV4dC9qYXZhc2NyaXB0IiBzcmM9Ii96L2pzL2pxdWVyeS5wb3NpdGlvbkJ5LmpzIj48L3NjcmlwdD4NCjxzY3JpcHQgdHlwZT0idGV4dC9qYXZhc2NyaXB0IiBzcmM9Ii96L2pzL2pxdWVyeS5qZE1lbnUuanMiPjwvc2NyaXB0Pg0KPHNjcmlwdCB0eXBlPSJ0ZXh0L2phdmFzY3JpcHQiIHNyYz0iL3ovanMvTGVmdE1lbnVTdG9jay5qcyI+PC9zY3JpcHQ+DQo8c2NyaXB0IHR5cGU9InRleHQvamF2YXNjcmlwdCIgc3JjPSIvei9qcy9MZWZ0TWVudVN0b2NrX3p1LmpzIj48L3NjcmlwdD4NCjxzY3JpcHQgdHlwZT0idGV4dC9qYXZhc2NyaXB0IiBzcmM9Ii96L2pzL3oxMGpzTmV3X3oxMC5kampzIj48L3NjcmlwdD4NCjxzY3JpcHQgdHlwZT0idGV4dC9qYXZhc2NyaXB0IiBzcmM9Ii96L2pzL21kak1ha2VVcmwuanMiPjwvc2NyaXB0Pg0KPHNjcmlwdCB0eXBlPSJ0ZXh0L2phdmFzY3JpcHQiIHNyYz0iL3ovU3RraWROYW1lL2pzL21lbnVTZXQuanMiPjwvc2NyaXB0Pg0KPHNjcmlwdCB0eXBlPSJ0ZXh0L2phdmFzY3JpcHQiIHNyYz0iL3ovU3RraWROYW1lL2pzL21JbmNsdWRlRmlsZXMuanMiPjwvc2NyaXB0Pg0KPHNjcmlwdCB0eXBlPSJ0ZXh0L2phdmFzY3JpcHQiIHNyYz0iL3ovanMvZ2VuZm9vdGVyLmRqanMiPjwvc2NyaXB0Pg0KPGxpbmsgdHlwZT0idGV4dC9jc3MiIGhyZWY9Ii96L2pzL2pxdWVyeS5qZE1lbnVbU3RvY2tdLmNzcyIgcmVsPSJzdHlsZXNoZWV0IiA+DQo8ZGl2IGlkPSJMZWZ0TWVudUFEIiBzdHlsZT0iZGlzcGxheTpub25lOyI+PHNjcmlwdCBzcmM9Ii9hZHMvZ2V0VGV4dEFELmFzcHg/VHlwZT1CdXR0b25UZXh0QTM2Jm5vdGFibGU9MSIgdHlwZT0idGV4dC9qYXZhc2NyaXB0Ij48L3NjcmlwdD48L2Rpdj4NCgo8bGluayByZWw9J3N0eWxlc2hlZXQnIGhyZWY9J2h0dHBzOi8vd3d3Lm1vbmV5ZGouY29tL3puZXcvanMvZGpjaGFubmVsLmNzcycgdHlwZT0ndGV4dC9jc3MnPgo8ZGl2IGlkPSd0Y21fYXV0bycgZGF0YS1vcHRpb24tbW9kZT0nMCcgZGF0YS1vcHRpb24tYWN0aW9ubWVudT0nMTAwMScgZGF0YS1vcHRpb24td3JhcHBlcndpZHRoPSc5ODBweCcgZGF0YS1vcHRpb24taW1ncHJlZml4PScvREpNZW51LycgZGF0YS1vcHRpb24tbWVudWRhdGFkb21haW49J2h0dHBzOi8vd3d3Lm1vbmV5ZGouY29tLycgc3R5bGU9J2hlaWdodDogMzZweDsgYmFja2dyb3VuZC1jb2xvcjogIzNhM2EzYSc+PC9kaXY+CjxzY3JpcHQgc3JjPSdodHRwczovL3d3dy5tb25leWRqLmNvbS9ESk1lbnUvdGNtLm1pbi5iaWc1LmpzJz48L3NjcmlwdD48aW1nIGJvcmRlcj0nMCcgc3JjPScvaW1hZ2VzL0ZyZWUuZ2lmJyB3aWR0aD0nMTAwJScgaGVpZ2h0PScxMCc+CjxTQ1JJUFQgTEFOR1VBR0U9J2phdmFzY3JpcHQnIHNyYz0naHR0cHM6Ly93d3cubW9uZXlkai5jb20vei9qcy9kamNoYW5uZWwuanMnPjwvU0NSSVBUPgo8ZGl2IGlkPSJvdXRkaXYiIHN0eWxlPSJ3aWR0aDo5NzVweDttYXJnaW4tdG9wOjFweDsqbWFyZ2luLXRvcDotMTVweFw5OyI+DQo8ZGl2IGlkPSJoZWFkZXIiPg0KPGRpdiBpZD0iU3RvY2tIZWFkIj48L2Rpdj4NCjxkaXYgaWQ9IlN0b2NrTWVudURpdiIgc3R5bGU9ImJvcmRlci1zdHlsZTpub25lO3dpZHRoOjk3NXB4O21hcmdpbi10b3A6LTVweDttYXJnaW4tYm90dG9tOjE1cHg7Ij48L2Rpdj4NCjwvZGl2Pg0KPGRpdiBpZD0iYXNpZGUiIHN0eWxlPSJ3aWR0aDoxNzVweDtmbG9hdDpsZWZ0O2Rpc3BsYXk6aW5saW5lLWJsb2NrO21pbi1oZWlnaHQ6NTAwcHg7Ij4NCjxkaXYgaWQ9IkxlZnRNZW51VVAiIHN0eWxlPSJjbGVhcjpib3RoOyI+PC9kaXY+DQo8ZGl2IGlkPSJMZWZ0TWVudSIgc3R5bGU9ImNsZWFyOmJvdGg7Ij48L2Rpdj4NCjwvZGl2Pg0KPGRpdiBzdHlsZT0iZmxvYXQ6bGVmdDt3aWR0aDoxNXB4Oyp3aWR0aDoxMHB4OyI+Jm5ic3A7PC9kaXY+DQo8ZGl2IGlkPSJhcnRpY2xlIiBzdHlsZT0id2lkdGg6Nzg1cHg7ZGlzcGxheTpub25lOyI+DQo8c2NyaXB0IGxhbmd1YWdlPSJqYXZhc2NyaXB0IiBzcmM9Ii96L2pzL1NVLmRqanMiPjwvc2NyaXB0Pg0KPHNjcmlwdCBsYW5ndWFnZT0iamF2YXNjcmlwdCIgc3JjPSIvei9qcy9Hb29nbGVOZXdBRC1CSUc1LmpzIj48L3NjcmlwdD4NCg0KDQo8dGFibGUgYm9yZGVyPSIwIiB3aWR0aD0iNjI4IiBhbGlnbj0iY2VudGVyIj4NCjx0cj48dGQgY2xhc3M9InQzbjAiPg0KplC3fqrRu/mq7bJ7oVUNCjxhIGhyZWY9Ii96L3poL3poai96aGouZGpodG0/QT1DMDE3MTM3Ij6mULd+wOemrDwvYT6hVQ0KPGEgaHJlZj0iL3ovemgvemhrL3poay5kamh0bT9BPUMwMTcxMzciPqZQt361+6TxPC9hPqFVDQo8YSBocmVmPSIvei96aC96aGwvemhsLmRqaHRtP0E9QzAxNzEzNyI+plC3frBdsMg8L2E+DQo8L3RkPjwvdHI+DQo8L3RhYmxlPg0KDQo8c2NyaXB0IGxhbmd1YWdlPSJKYXZhc2NyaXB0IiBzcmM9Ii96L2pzL0luZHVzdHJ5TGlzdE5ld0pTLmRqanMiPjwvc2NyaXB0Pg0KPFNDUklQVCBMQU5HVUFHRT1qYXZhc2NyaXB0PjwhLS0NCglHZW5Gb3JtSGVhZCgpOw0KLy8tLT48L1NDUklQVD4NCjx0YWJsZSBib3JkZXI9IjAiIHdpZHRoPSI2MjgiPjx0cj48dGQgY2xhc3M9InQwIj4NCjx0YWJsZSBpZD0ib01haW5UYWJsZSIgY2xhc3M9InQwMSIgYm9yZGVyPSIwIiBjZWxscGFkZGluZz0iMSIgY2VsbHNwYWNpbmc9IjEiIHdpZHRoPSIxMDAlIj4NCjx0ciBpZD0ib1Njcm9sbEhlYWQiPg0KPHRkIGlkPSJvSGVhZFRpdGxlIiBjbGFzcz0idDEwIiBjb2xzcGFuPSIxMCI+PFNDUklQVCBMQU5HVUFHRT1qYXZhc2NyaXB0PjwhLS0NCglpSUQgPSAnQzAxNzEzNyc7DQoJZ2VuU2VsZWN0KCdDOTQxMDAwMCcsJ0MwMTcxMzcnKTsNCglmb3IgKGk9MDtpPGRvY3VtZW50LkYuSS5vcHRpb25zLmxlbmd0aDtpKyspDQoJew0KCQl2YXIgdG1wSUQxID0gZG9jdW1lbnQuRi5JLm9wdGlvbnNbaV0udmFsdWUudG9VcHBlckNhc2UoKTsNCgkJaWYgKHRtcElEMSA9PSAnQzk0MTAwMDAnKSANCgkJew0KCQkJZG9jdW1lbnQuRi5JLnNlbGVjdGVkSW5kZXggPSBpOw0KCQkJYnJlYWs7DQoJCX0NCgl9DQoJZm9yIChpPTA7aTxkb2N1bWVudC5GLnN1Ykkub3B0aW9ucy5sZW5ndGg7aSsrKQ0KCXsNCgkJdmFyIHRtcElEMiA9IGRvY3VtZW50LkYuc3ViSS5vcHRpb25zW2ldLnZhbHVlLnRvVXBwZXJDYXNlKCk7DQoJCWlmIChpSUQgIT0gJycpDQoJCXsNCgkJCWlmICh0bXBJRDIgPT0gaUlEICkNCgkJCXsNCgkJCQlkb2N1bWVudC5GLnN1Ykkuc2VsZWN0ZWRJbmRleCA9IGk7DQoJCQkJYnJlYWs7DQoJCQl9DQoJCX0NCgkJZWxzZQ0KCQkJZG9jdW1lbnQuRi5zdWJJLnNlbGVjdGVkSW5kZXggPSAwOw0KCX0NCi8vLS0+PC9TQ1JJUFQ+DQqs28P2pL2lcarRu/mq7bJ7PGRpdiBjbGFzcz0idDExIj6z+LlTrXC64qTptMGhRzEwLzA4PC9kaXY+PC90ZD4NCjwvdHI+DQo8dHIgaWQ9Im9TY3JvbGxNZW51Ij4NCgk8dGQgY2xhc3M9InQyIiBub3dyYXAgaWQ9Im9GaWVsZHNOYW1lIj6q0bK8ple62TxhIGhyZWY9Ii96L3poL3poYS96aDAwLmRqaHRtP0E9QzAxNzEzNyZCPTEiPjxpbWcgc3JjPSIvei9pbWFnZXMvc29ydGluZy5ibXAiIHdpZHRoPSIxMyIgaGVpZ2h0PSIxMyIgYm9yZGVyPSIwIj48L2E+PC90ZD4NCgk8dGQgY2xhc3M9InQyIj6zzKvhpeap9jxCUj6k6bTBPGEgaHJlZj0iL3ovemgvemhhL3poMDAuZGpodG0/QT1DMDE3MTM3JkI9MTMiPjxpbWcgc3JjPSIvei9pbWFnZXMvc29ydGluZy5ibXAiIHdpZHRoPSIxMyIgaGVpZ2h0PSIxMyIgYm9yZGVyPSIwIj48L2E+PC90ZD4NCgk8dGQgY2xhc3M9InQyIj6mrL1Mu/k8YSBocmVmPSIvei96aC96aGEvemgwMC5kamh0bT9BPUMwMTcxMzcmQj0xNCI+PGltZyBzcmM9Ii96L2ltYWdlcy9zb3J0aW5nLmJtcCIgd2lkdGg9IjEzIiBoZWlnaHQ9IjEzIiBib3JkZXI9IjAiPjwvYT48L3RkPg0KCTx0ZCBjbGFzcz0idDIiPrqmtl48YSBocmVmPSIvei96aC96aGEvemgwMC5kamh0bT9BPUMwMTcxMzcmQj00Ij48aW1nIHNyYz0iL3ovaW1hZ2VzL3NvcnRpbmcuYm1wIiB3aWR0aD0iMTMiIGhlaWdodD0iMTMiIGJvcmRlcj0iMCI+PC9hPjwvdGQ+DQoJPHRkIGNsYXNzPSJ0MiI+uqa2XrRUPGEgaHJlZj0iL3ovemgvemhhL3poMDAuZGpodG0/QT1DMDE3MTM3JkI9NSI+PGltZyBzcmM9Ii96L2ltYWdlcy9zb3J0aW5nLmJtcCIgd2lkdGg9IjEzIiBoZWlnaHQ9IjEzIiBib3JkZXI9IjAiPjwvYT48L3RkPg0KCTx0ZCBjbGFzcz0idDIiPqrxpEC2ZzxCUj6z+LlTPGEgaHJlZj0iL3ovemgvemhhL3poMDAuZGpodG0/QT1DMDE3MTM3JkI9NiI+PGltZyBzcmM9Ii96L2ltYWdlcy9zb3J0aW5nLmJtcCIgd2lkdGg9IjEzIiBoZWlnaHQ9IjEzIiBib3JkZXI9IjAiPjwvYT48L3RkPg0KCTx0ZCBjbGFzcz0idDIiPqrxpECt06TrPEJSPrP4uVM8YSBocmVmPSIvei96aC96aGEvemgwMC5kamh0bT9BPUMwMTcxMzcmQj03Ij48aW1nIHNyYz0iL3ovaW1hZ2VzL3NvcnRpbmcuYm1wIiB3aWR0aD0iMTMiIGhlaWdodD0iMTMiIGJvcmRlcj0iMCI+PC9hPjwvdGQ+DQoJPHRkIGNsYXNzPSJ0MiI+qvGkR63TpOs8QlI+s/i5UzxhIGhyZWY9Ii96L3poL3poYS96aDAwLmRqaHRtP0E9QzAxNzEzNyZCPTgiPjxpbWcgc3JjPSIvei9pbWFnZXMvc29ydGluZy5ibXAiIHdpZHRoPSIxMyIgaGVpZ2h0PSIxMyIgYm9yZGVyPSIwIj48L2E+PC90ZD4NCgk8dGQgY2xhc3M9InQyIj6q8aRUrdOk6zxCUj6z+LlTPGEgaHJlZj0iL3ovemgvemhhL3poMDAuZGpodG0/QT1DMDE3MTM3JkI9OSI+PGltZyBzcmM9Ii96L2ltYWdlcy9zb3J0aW5nLmJtcCIgd2lkdGg9IjEzIiBoZWlnaHQ9IjEzIiBib3JkZXI9IjAiPjwvYT48L3RkPg0KCTx0ZCBjbGFzcz0idDIiPqS1pn6lSKjTPEJSPrP4uVM8YSBocmVmPSIvei96aC96aGEvemgwMC5kamh0bT9BPUMwMTcxMzcmQj0xMCI+PGltZyBzcmM9Ii96L2ltYWdlcy9zb3J0aW5nLmJtcCIgd2lkdGg9IjEzIiBoZWlnaHQ9IjEzIiBib3JkZXI9IjAiPjwvYT48L3RkPg0KPC90cj4NCjx0cj4NCjx0ZCBub3dyYXAgaWQ9Im9BZGRDaGVja2JveCIgY2xhc3M9InQzdDEiPjxhIGhyZWY9ImphdmFzY3JpcHQ6TGluazJTdGsoJ0FTNDkwNScpOyI+NDkwNaV4wXC5cTwvYT48L3RkPg0KPHRkIG5vd3JhcCBjbGFzcz0idDNuMCI+MjAyNi8xMC8wODwvdGQ+DQo8dGQgbm93cmFwIGNsYXNzPSJ0M24xIj44OS4wMDwvdGQ+DQo8dGQgbm93cmFwIGNsYXNzPSJ0M24xIj48Zm9udCBjbGFzcz0iZm9udEdyZWVuIj4tMy44MDwvZm9udD48L3RkPg0KPHRkIG5vd3JhcCBjbGFzcz0idDNuMSI+PGZvbnQgY2xhc3M9ImZvbnRHcmVlbiI+LTQuMDklPC9mb250PjwvdGQ+DQo8dGQgbm93cmFwIGNsYXNzPSJ0M24xIj48Zm9udCBjbGFzcz0iZm9udFJlZCI+NS44MyU8L2ZvbnQ+PC90ZD4NCjx0ZCBub3dyYXAgY2xhc3M9InQzbjEiPjxmb250IGNsYXNzPSJmb250UmVkIj40LjM0JTwvZm9udD48L3RkPg0KPHRkIG5vd3JhcCBjbGFzcz0idDNuMSI+PGZvbnQgY2xhc3M9ImZvbnRSZWQiPjM1LjkwJTwvZm9udD48L3RkPg0KPHRkIG5vd3JhcCBjbGFzcz0idDNuMSI+PGZvbnQgY2xhc3M9ImZvbnRSZWQiPjM0LjY4JTwvZm9udD48L3RkPg0KPHRkIG5vd3JhcCBjbGFzcz0idDNuMSI+PGZvbnQgY2xhc3M9ImZvbnRSZWQiPjQ4LjEzJTwvZm9udD48L3RkPg0KPC90cj4NCjx0cj4NCjx0ZCBub3dyYXAgaWQ9Im9BZGRDaGVja2JveCIgY2xhc3M9InQzdDFfcmV2Ij48YSBocmVmPSJqYXZhc2NyaXB0OkxpbmsyU3RrKCdBUzIzNTInKTsiPjIzNTKozqVAuUY8L2E+PC90ZD4NCjx0ZCBub3dyYXAgY2xhc3M9InQzbjBfcmV2Ij4yMDI2LzEwLzA4PC90ZD4NCjx0ZCBub3dyYXAgY2xhc3M9InQzbjFfcmV2Ij4yOC41NTwvdGQ+DQo8dGQgbm93cmFwIGNsYXNzPSJ0M24xX3JldiI+PGZvbnQgY2xhc3M9ImZvbnRHcmVlbiI+LTAuMzU8L2ZvbnQ+PC90ZD4NCjx0ZCBub3dyYXAgY2xhc3M9InQzbjFfcmV2Ij48Zm9udCBjbGFzcz0iZm9udEdyZWVuIj4tMS4yMSU8L2ZvbnQ+PC90ZD4NCjx0ZCBub3dyYXAgY2xhc3M9InQzbjFfcmV2Ij48Zm9udCBjbGFzcz0iZm9udEdyZWVuIj4tMS44OSU8L2ZvbnQ+PC90ZD4NCjx0ZCBub3dyYXAgY2xhc3M9InQzbjFfcmV2Ij48Zm9udCBjbGFzcz0iZm9udEdyZWVuIj4tMC4zNSU8L2ZvbnQ+PC90ZD4NCjx0ZCBub3dyYXAgY2xhc3M9InQzbjFfcmV2Ij48Zm9udCBjbGFzcz0iZm9udFJlZCI+MC44OCU8L2ZvbnQ+PC90ZD4NCjx0ZCBub3dyYXAgY2xhc3M9InQzbjFfcmV2Ij48Zm9udCBjbGFzcz0iZm9udEdyZWVuIj4tMTQuMTglPC9mb250PjwvdGQ+DQo8dGQgbm93cmFwIGNsYXNzPSJ0M24xX3JldiI+PGZvbnQgY2xhc3M9ImZvbnRSZWQiPjI1LjYyJTwvZm9udD48L3RkPg0KPC90cj4NCjx0cj4NCjx0ZCBub3dyYXAgaWQ9Im9BZGRDaGVja2JveCIgY2xhc3M9InQzdDEiPjxhIGhyZWY9ImphdmFzY3JpcHQ6TGluazJTdGsoJ0FTNDEwNCcpOyI+NDEwNKjOwuU8L2E+PC90ZD4NCjx0ZCBub3dyYXAgY2xhc3M9InQzbjAiPjIwMjYvMTAvMDg8L3RkPg0KPHRkIG5vd3JhcCBjbGFzcz0idDNuMSI+NzIuMDA8L3RkPg0KPHRkIG5vd3JhcCBjbGFzcz0idDNuMSI+MC4wMDwvdGQ+DQo8dGQgbm93cmFwIGNsYXNzPSJ0M24xIj4wLjAwJTwvdGQ+DQo8dGQgbm93cmFwIGNsYXNzPSJ0M24xIj48Zm9udCBjbGFzcz0iZm9udEdyZWVuIj4tMC45NiU8L2ZvbnQ+PC90ZD4NCjx0ZCBub3dyYXAgY2xhc3M9InQzbjEiPjxmb250IGNsYXNzPSJmb250UmVkIj4xLjI3JTwvZm9udD48L3RkPg0KPHRkIG5vd3JhcCBjbGFzcz0idDNuMSI+PGZvbnQgY2xhc3M9ImZvbnRSZWQiPjIuMjclPC9mb250PjwvdGQ+DQo8dGQgbm93cmFwIGNsYXNzPSJ0M24xIj48Zm9udCBjbGFzcz0iZm9udFJlZCI+My45MCU8L2ZvbnQ+PC90ZD4NCjx0ZCBub3dyYXAgY2xhc3M9InQzbjEiPjxmb250IGNsYXNzPSJmb250R3JlZW4iPi02LjY2JTwvZm9udD48L3RkPg0KPC90cj4NCjx0cj4NCjx0ZCBub3dyYXAgaWQ9Im9BZGRDaGVja2JveCIgY2xhc3M9InQzdDFfcmV2Ij48YSBocmVmPSJqYXZhc2NyaXB0OkxpbmsyU3RrKCdBUzQxMDcnKTsiPjQxMDeoua9TPC9hPjwvdGQ+DQo8dGQgbm93cmFwIGNsYXNzPSJ0M24wX3JldiI+MjAyNi8xMC8wODwvdGQ+DQo8dGQgbm93cmFwIGNsYXNzPSJ0M24xX3JldiI+MTA5LjUwPC90ZD4NCjx0ZCBub3dyYXAgY2xhc3M9InQzbjFfcmV2Ij4wLjAwPC90ZD4NCjx0ZCBub3dyYXAgY2xhc3M9InQzbjFfcmV2Ij4wLjAwJTwvdGQ+DQo8dGQgbm93cmFwIGNsYXNzPSJ0M24xX3JldiI+PGZvbnQgY2xhc3M9ImZvbnRHcmVlbiI+LTAuOTAlPC9mb250PjwvdGQ+DQo8dGQgbm93cmFwIGNsYXNzPSJ0M24xX3JldiI+PGZvbnQgY2xhc3M9ImZvbnRHcmVlbiI+LTMuMTAlPC9mb250PjwvdGQ+DQo8dGQgbm93cmFwIGNsYXNzPSJ0M24xX3JldiI+PGZvbnQgY2xhc3M9ImZvbnRHcmVlbiI+LTYuMDElPC9mb250PjwvdGQ+DQo8dGQgbm93cmFwIGNsYXNzPSJ0M24xX3JldiI+PGZvbnQgY2xhc3M9ImZvbnRHcmVlbiI+LTEuODklPC9mb250PjwvdGQ+DQo8dGQgbm93cmFwIGNsYXNzPSJ0M24xX3JldiI+PGZvbnQgY2xhc3M9ImZvbnRHcmVlbiI+LTQuNzQlPC9mb250PjwvdGQ+DQo8L3RyPg0KPHRyPg0KPHRkIG5vd3JhcCBpZD0ib0FkZENoZWNrYm94IiBjbGFzcz0idDN0MSI+PGEgaHJlZj0iamF2YXNjcmlwdDpMaW5rMlN0aygnQVM0MTI2Jyk7Ij40MTI2pNPC5TwvYT48L3RkPg0KPHRkIG5vd3JhcCBjbGFzcz0idDNuMCI+MjAyNi8xMC8wODwvdGQ+DQo8dGQgbm93cmFwIGNsYXNzPSJ0M24xIj43Ny41MDwvdGQ+DQo8dGQgbm93cmFwIGNsYXNzPSJ0M24xIj4wLjAwPC90ZD4NCjx0ZCBub3dyYXAgY2xhc3M9InQzbjEiPjAuMDAlPC90ZD4NCjx0ZCBub3dyYXAgY2xhc3M9InQzbjEiPjxmb250IGNsYXNzPSJmb250R3JlZW4iPi0wLjY0JTwvZm9udD48L3RkPg0KPHRkIG5vd3JhcCBjbGFzcz0idDNuMSI+PGZvbnQgY2xhc3M9ImZvbnRHcmVlbiI+LTAuNjQlPC9mb250PjwvdGQ+DQo8dGQgbm93cmFwIGNsYXNzPSJ0M24xIj48Zm9udCBjbGFzcz0iZm9udFJlZCI+MC42NSU8L2ZvbnQ+PC90ZD4NCjx0ZCBub3dyYXAgY2xhc3M9InQzbjEiPjxmb250IGNsYXNzPSJmb250UmVkIj4wLjkxJTwvZm9udD48L3RkPg0KPHRkIG5vd3JhcCBjbGFzcz0idDNuMSI+PGZvbnQgY2xhc3M9ImZvbnRHcmVlbiI+LTMuNzElPC9mb250PjwvdGQ+DQo8L3RyPg0KPHRyPg0KPHRkIG5vd3JhcCBpZD0ib0FkZENoZWNrYm94IiBjbGFzcz0idDN0MV9yZXYiPjxhIGhyZWY9ImphdmFzY3JpcHQ6TGluazJTdGsoJ0FTNDczNScpOyI+NDczNbuormk8L2E+PC90ZD4NCjx0ZCBub3dyYXAgY2xhc3M9InQzbjBfcmV2Ij4yMDI2LzEwLzA4PC90ZD4NCjx0ZCBub3dyYXAgY2xhc3M9InQzbjFfcmV2Ij4zOC4wNTwvdGQ+DQo8dGQgbm93cmFwIGNsYXNzPSJ0M24xX3JldiI+PGZvbnQgY2xhc3M9ImZvbnRSZWQiPjAuMDU8L2ZvbnQ+PC90ZD4NCjx0ZCBub3dyYXAgY2xhc3M9InQzbjFfcmV2Ij48Zm9udCBjbGFzcz0iZm9udFJlZCI+MC4xMyU8L2ZvbnQ+PC90ZD4NCjx0ZCBub3dyYXAgY2xhc3M9InQzbjFfcmV2Ij48Zm9udCBjbGFzcz0iZm9udFJlZCI+NS41NSU8L2ZvbnQ+PC90ZD4NCjx0ZCBub3dyYXAgY2xhc3M9InQzbjFfcmV2Ij48Zm9udCBjbGFzcz0iZm9udFJlZCI+My44MiU8L2ZvbnQ+PC90ZD4NCjx0ZCBub3dyYXAgY2xhc3M9InQzbjFfcmV2Ij48Zm9udCBjbGFzcz0iZm9udFJlZCI+MjQuODUlPC9mb250PjwvdGQ+DQo8dGQgbm93cmFwIGNsYXNzPSJ0M24xX3JldiI+PGZvbnQgY2xhc3M9ImZvbnRSZWQiPjI3LjI1JTwvZm9udD48L3RkPg0KPHRkIG5vd3JhcCBjbGFzcz0idDNuMV9yZXYiPjxmb250IGNsYXNzPSJmb250UmVkIj4yOS4yNCU8L2ZvbnQ+PC90ZD4NCjwvdHI+DQo8dHI+DQo8dGQgbm93cmFwIGlkPSJvQWRkQ2hlY2tib3giIGNsYXNzPSJ0M3QxIj48YSBocmVmPSJqYXZhc2NyaXB0OkxpbmsyU3RrKCdBUzQxMTYnKTsiPjQxMTap+rDywuU8L2E+PC90ZD4NCjx0ZCBub3dyYXAgY2xhc3M9InQzbjAiPjIwMjYvMTAvMDg8L3RkPg0KPHRkIG5vd3JhcCBjbGFzcz0idDNuMSI+MzkuOTA8L3RkPg0KPHRkIG5vd3JhcCBjbGFzcz0idDNuMSI+PGZvbnQgY2xhc3M9ImZvbnRSZWQiPjAuMTU8L2ZvbnQ+PC90ZD4NCjx0ZCBub3dyYXAgY2xhc3M9InQzbjEiPjxmb250IGNsYXNzPSJmb250UmVkIj4wLjM4JTwvZm9udD48L3RkPg0KPHRkIG5vd3JhcCBjbGFzcz0idDNuMSI+PGZvbnQgY2xhc3M9ImZvbnRSZWQiPjAuMjUlPC9mb250PjwvdGQ+DQo8dGQgbm93cmFwIGNsYXNzPSJ0M24xIj48Zm9udCBjbGFzcz0iZm9udEdyZWVuIj4tMC4yNSU8L2ZvbnQ+PC90ZD4NCjx0ZCBub3dyYXAgY2xhc3M9InQzbjEiPjxmb250IGNsYXNzPSJmb250UmVkIj4wLjYzJTwvZm9udD48L3RkPg0KPHRkIG5vd3JhcCBjbGFzcz0idDNuMSI+PGZvbnQgY2xhc3M9ImZvbnRSZWQiPjQuMDQlPC9mb250PjwvdGQ+DQo8dGQgbm93cmFwIGNsYXNzPSJ0M24xIj48Zm9udCBjbGFzcz0iZm9udEdyZWVuIj4tNC41NyU8L2ZvbnQ+PC90ZD4NCjwvdHI+DQo8dHI+DQo8dGQgbm93cmFwIGlkPSJvQWRkQ2hlY2tib3giIGNsYXNzPSJ0M3QxX3JldiI+PGEgaHJlZj0iamF2YXNjcmlwdDpMaW5rMlN0aygnQVM0MTYzJyk7Ij40MTYz9l7cZzwvYT48L3RkPg0KPHRkIG5vd3JhcCBjbGFzcz0idDNuMF9yZXYiPjIwMjYvMTAvMDg8L3RkPg0KPHRkIG5vd3JhcCBjbGFzcz0idDNuMV9yZXYiPjEzNS41MDwvdGQ+DQo8dGQgbm93cmFwIGNsYXNzPSJ0M24xX3JldiI+PGZvbnQgY2xhc3M9ImZvbnRSZWQiPjEuNTA8L2ZvbnQ+PC90ZD4NCjx0ZCBub3dyYXAgY2xhc3M9InQzbjFfcmV2Ij48Zm9udCBjbGFzcz0iZm9udFJlZCI+MS4xMiU8L2ZvbnQ+PC90ZD4NCjx0ZCBub3dyYXAgY2xhc3M9InQzbjFfcmV2Ij48Zm9udCBjbGFzcz0iZm9udEdyZWVuIj4tMC43MyU8L2ZvbnQ+PC90ZD4NCjx0ZCBub3dyYXAgY2xhc3M9InQzbjFfcmV2Ij48Zm9udCBjbGFzcz0iZm9udFJlZCI+NC42MyU8L2ZvbnQ+PC90ZD4NCjx0ZCBub3dyYXAgY2xhc3M9InQzbjFfcmV2Ij48Zm9udCBjbGFzcz0iZm9udEdyZWVuIj4tNS45MCU8L2ZvbnQ+PC90ZD4NCjx0ZCBub3dyYXAgY2xhc3M9InQzbjFfcmV2Ij48Zm9udCBjbGFzcz0iZm9udEdyZWVuIj4tMC4zNyU8L2ZvbnQ+PC90ZD4NCjx0ZCBub3dyYXAgY2xhc3M9InQzbjFfcmV2Ij48Zm9udCBjbGFzcz0iZm9udFJlZCI+NTIuMjIlPC9mb250PjwvdGQ+DQo8L3RyPg0KPHRyPg0KPHRkIG5vd3JhcCBpZD0ib0FkZENoZWNrYm94IiBjbGFzcz0idDN0MSI+PGEgaHJlZj0iamF2YXNjcmlwdDpMaW5rMlN0aygnQVM2NzMwJyk7Ij42NzMwsWC8czwvYT48L3RkPg0KPHRkIG5vd3JhcCBjbGFzcz0idDNuMCI+MjAyNi8xMC8wODwvdGQ+DQo8dGQgbm93cmFwIGNsYXNzPSJ0M24xIj4zMy4wMDwvdGQ+DQo8dGQgbm93cmFwIGNsYXNzPSJ0M24xIj48Zm9udCBjbGFzcz0iZm9udFJlZCI+MS4xMDwvZm9udD48L3RkPg0KPHRkIG5vd3JhcCBjbGFzcz0idDNuMSI+PGZvbnQgY2xhc3M9ImZvbnRSZWQiPjMuNDUlPC9mb250PjwvdGQ+DQo8dGQgbm93cmFwIGNsYXNzPSJ0M24xIj48Zm9udCBjbGFzcz0iZm9udFJlZCI+Mi40OCU8L2ZvbnQ+PC90ZD4NCjx0ZCBub3dyYXAgY2xhc3M9InQzbjEiPjxmb250IGNsYXNzPSJmb250UmVkIj4yLjk2JTwvZm9udD48L3RkPg0KPHRkIG5vd3JhcCBjbGFzcz0idDNuMSI+PGZvbnQgY2xhc3M9ImZvbnRHcmVlbiI+LTQuMjElPC9mb250PjwvdGQ+DQo8dGQgbm93cmFwIGNsYXNzPSJ0M24xIj48Zm9udCBjbGFzcz0iZm9udEdyZWVuIj4tMTAuODElPC9mb250PjwvdGQ+DQo8dGQgbm93cmFwIGNsYXNzPSJ0M24xIj48Zm9udCBjbGFzcz0iZm9udEdyZWVuIj4tMi45NyU8L2ZvbnQ+PC90ZD4NCjwvdHI+DQo8dHI+DQo8dGQgbm93cmFwIGlkPSJvQWRkQ2hlY2tib3giIGNsYXNzPSJ0M3QxX3JldiI+PGEgaHJlZj0iamF2YXNjcmlwdDpMaW5rMlN0aygnQVM2NTA0Jyk7Ij42NTA0q26kuzwvYT48L3RkPg0KPHRkIG5vd3JhcCBjbGFzcz0idDNuMF9yZXYiPjIwMjYvMTAvMDg8L3RkPg0KPHRkIG5vd3JhcCBjbGFzcz0idDNuMV9yZXYiPjQxLjcwPC90ZD4NCjx0ZCBub3dyYXAgY2xhc3M9InQzbjFfcmV2Ij48Zm9udCBjbGFzcz0iZm9udFJlZCI+My43NTwvZm9udD48L3RkPg0KPHRkIG5vd3JhcCBjbGFzcz0idDNuMV9yZXYiPjxmb250IGNsYXNzPSJmb250UmVkIj45Ljg4JTwvZm9udD48L3RkPg0KPHRkIG5vd3JhcCBjbGFzcz0idDNuMV9yZXYiPjxmb250IGNsYXNzPSJmb250UmVkIj4yLjAyJTwvZm9udD48L3RkPg0KPHRkIG5vd3JhcCBjbGFzcz0idDNuMV9yZXYiPjxmb250IGNsYXNzPSJmb250UmVkIj40LjM2JTwvZm9udD48L3RkPg0KPHRkIG5vd3JhcCBjbGFzcz0idDNuMV9yZXYiPjxmb250IGNsYXNzPSJmb250UmVkIj4wLjcyJTwvZm9udD48L3RkPg0KPHRkIG5vd3JhcCBjbGFzcz0idDNuMV9yZXYiPjxmb250IGNsYXNzPSJmb250UmVkIj43LjUzJTwvZm9udD48L3RkPg0KPHRkIG5vd3JhcCBjbGFzcz0idDNuMV9yZXYiPjxmb250IGNsYXNzPSJmb250R3JlZW4iPi01Ljk2JTwvZm9udD48L3RkPg0KPC90cj4NCjx0cj4NCjx0ZCBub3dyYXAgaWQ9Im9BZGRDaGVja2JveCIgY2xhc3M9InQzdDEiPjxhIGhyZWY9ImphdmFzY3JpcHQ6TGluazJTdGsoJ0FTOTEwMycpOyI+OTEwM6z8vHfC5cD4LURSPC9hPjwvdGQ+DQo8dGQgbm93cmFwIGNsYXNzPSJ0M24wIj4yMDI2LzEwLzA4PC90ZD4NCjx0ZCBub3dyYXAgY2xhc3M9InQzbjEiPjUuODg8L3RkPg0KPHRkIG5vd3JhcCBjbGFzcz0idDNuMSI+PGZvbnQgY2xhc3M9ImZvbnRSZWQiPjAuNTM8L2ZvbnQ+PC90ZD4NCjx0ZCBub3dyYXAgY2xhc3M9InQzbjEiPjxmb250IGNsYXNzPSJmb250UmVkIj45LjkxJTwvZm9udD48L3RkPg0KPHRkIG5vd3JhcCBjbGFzcz0idDNuMSI+PGZvbnQgY2xhc3M9ImZvbnRSZWQiPjE5LjAzJTwvZm9udD48L3RkPg0KPHRkIG5vd3JhcCBjbGFzcz0idDNuMSI+PGZvbnQgY2xhc3M9ImZvbnRSZWQiPjE1LjA3JTwvZm9udD48L3RkPg0KPHRkIG5vd3JhcCBjbGFzcz0idDNuMSI+PGZvbnQgY2xhc3M9ImZvbnRSZWQiPjExLjM2JTwvZm9udD48L3RkPg0KPHRkIG5vd3JhcCBjbGFzcz0idDNuMSI+PGZvbnQgY2xhc3M9ImZvbnRSZWQiPjE1LjUyJTwvZm9udD48L3RkPg0KPHRkIG5vd3JhcCBjbGFzcz0idDNuMSI+PGZvbnQgY2xhc3M9ImZvbnRSZWQiPjMyLjQzJTwvZm9udD48L3RkPg0KPC90cj4NCg0KPC90YWJsZT4NCjwvdGQ+PC90cj48L3RhYmxlPg0KPFNDUklQVCBMQU5HVUFHRT1qYXZhc2NyaXB0PjwhLS0NCglHZW5Gb3JtVGFpbCgpOw0KCQ0KCWZ1bmN0aW9uIGdvVVJMKCkNCgl7DQoJCXZhciBNYWluSUQgPSBkb2N1bWVudC5GLkkub3B0aW9uc1tkb2N1bWVudC5GLkkuc2VsZWN0ZWRJbmRleF0udmFsdWU7DQoJCXZhciBTdWJJRCA9IGRvY3VtZW50LkYuc3ViSS5vcHRpb25zW2RvY3VtZW50LkYuc3ViSS5zZWxlY3RlZEluZGV4XS52YWx1ZTsNCgkJdmFyIHNVUkwgPSAnJzsNCgkJDQoJCXNVUkwgPSAnL3ovemgvemhhL1pIMDAuZGpodG0/QT0nICsgU3ViSUQ7DQoJCQ0KCQlzZWxmLmxvY2F0aW9uID0gc1VSTDsNCgl9DQovLy0tPjwvU0NSSVBUPg0KDQo8L2Rpdj48L2Rpdj48c2NyaXB0IGxhbmd1YWdlPSJqYXZhc2NyaXB0IiBzcmM9Ii96L2pzL1NELmRqanMiPjwvc2NyaXB0Pg0KPGNlbnRlcj48ZGl2IGlkPSJGb290ZXJEaXYiIGFsaWduPWNlbnRlciBzdHlsZT0iY2xlYXI6Ym90aDt3aWR0aDo5NzVweDttYXJnaW4tdG9wOjEwcHg7Ij48L2Rpdj48L2NlbnRlcj4NCjxzY3JpcHQgbGFuZ3VhZ2U9ImphdmFzY3JpcHQiIHNyYz0iL3ovanMvY29va2llLmpzIj48L3NjcmlwdD4NCjxzY3JpcHQgbGFuZ3VhZ2U9ImphdmFzY3JpcHQiIHNyYz0iL3ovanMvREpDaGVja1ZhbGlkSnMuZGpqcyI+PC9zY3JpcHQ+DQo8L2JvZHk+DQo8L2h0bWw+DQo=",
+  "html_receipt": {
+    "status": "archived",
+    "source_url": "https://m.moneydj.com/z/zh/zha/zh00.djhtm?A=C017137&B=5",
+    "retrieved_at": 1791572541.495143,
+    "http_status": 200,
+    "raw_response_sha256": "2141b3c7921363861d592bd69654f9d971c898f9befffad39e45db22f61aefaa",
+    "raw_response_path": "/Volumes/X10 Pro Mac/stock-agent/backend/cache/official-response-evidence/2141b3c7921363861d592bd69654f9d971c898f9befffad39e45db22f61aefaa.gz",
+    "raw_response_bytes": 16913,
+    "evidence_kind": "raw_http_response_bytes",
+    "historical_point_in_time_verified": false,
+    "finality_guaranteed": false
+  },
+  "master_rows": [
+    {
+      "stock_id": "9103",
+      "stock_name": "美德醫療-DR",
+      "industry_category": "存託憑證",
+      "type": "twse",
+      "date": "2024-12-04"
+    },
+    {
+      "stock_id": "6730",
+      "stock_name": "常廣",
+      "industry_category": "生技醫療業",
+      "type": "emerging",
+      "date": "2025-12-09"
+    },
+    {
+      "stock_id": "4905",
+      "stock_name": "台聯電",
+      "industry_category": "通信網路業",
+      "type": "tpex",
+      "date": "2026-06-03"
+    },
+    {
+      "stock_id": "6504",
+      "stock_name": "南六",
+      "industry_category": "其他",
+      "type": "twse",
+      "date": "2026-10-10"
+    },
+    {
+      "stock_id": "6730",
+      "stock_name": "常廣",
+      "industry_category": "生技醫療業",
+      "type": "tpex",
+      "date": "2026-10-10"
+    },
+    {
+      "stock_id": "2352",
+      "stock_name": "佳世達",
+      "industry_category": "電腦及週邊設備業",
+      "type": "twse",
+      "date": "2026-10-10"
+    },
+    {
+      "stock_id": "2352",
+      "stock_name": "佳世達",
+      "industry_category": "電子工業",
+      "type": "twse",
+      "date": "2026-10-10"
+    },
+    {
+      "stock_id": "4107",
+      "stock_name": "邦特",
+      "industry_category": "生技醫療業",
+      "type": "tpex",
+      "date": "2026-10-10"
+    },
+    {
+      "stock_id": "4116",
+      "stock_name": "明基醫",
+      "industry_category": "生技醫療業",
+      "type": "tpex",
+      "date": "2026-10-10"
+    },
+    {
+      "stock_id": "4126",
+      "stock_name": "太醫",
+      "industry_category": "生技醫療業",
+      "type": "tpex",
+      "date": "2026-10-10"
+    },
+    {
+      "stock_id": "4104",
+      "stock_name": "佳醫",
+      "industry_category": "生技醫療業",
+      "type": "twse",
+      "date": "2026-10-10"
+    },
+    {
+      "stock_id": "4104",
+      "stock_name": "佳醫",
+      "industry_category": "化學生技醫療",
+      "type": "twse",
+      "date": "2026-10-10"
+    },
+    {
+      "stock_id": "4735",
+      "stock_name": "豪展",
+      "industry_category": "生技醫療業",
+      "type": "tpex",
+      "date": "2026-10-10"
+    },
+    {
+      "stock_id": "4905",
+      "stock_name": "台聯電",
+      "industry_category": "生技醫療業",
+      "type": "tpex",
+      "date": "2026-10-10"
+    },
+    {
+      "stock_id": "4163",
+      "stock_name": "鐿鈦",
+      "industry_category": "生技醫療業",
+      "type": "tpex",
+      "date": "2026-10-10"
+    }
+  ],
+  "selected_official_roster_rows": [
+    {
+      "出表日期": "1151008",
+      "公司代號": "9103",
+      "公司名稱": "美德向邦醫療國際股份有限公司",
+      "公司簡稱": "美德醫療-DR",
+      "外國企業註冊地國": "BM 百慕達群島                                                  ",
+      "產業別": "91",
+      "住址": "台北市信義區松高路9號11樓",
+      "營利事業統一編號": "00000000",
+      "董事長": "楊克誠",
+      "總經理": "楊威遠",
+      "發言人": "林逸清",
+      "發言人職稱": "財務長",
+      "代理發言人": "楊宛蒨",
+      "總機電話": "02-27392222",
+      "成立日期": "19971126",
+      "上市日期": "20021213",
+      "普通股每股面額": "美金0.05元",
+      "實收資本額": "827042000",
+      "私募股數": "0",
+      "特別股": "0",
+      "編制財務報表類型": "1",
+      "股票過戶機構": "元大證券股務代理部",
+      "過戶電話": "(02)2586-5859",
+      "過戶地址": "(106)臺北市大安區敦化南路2段67號地下一樓",
+      "簽證會計師事務所": "Baker Tilly TFW LLP",
+      "簽證會計師1": "王建源",
+      "簽證會計師2": "-",
+      "英文簡稱": "MEDTECS",
+      "英文通訊地址": "11F,NO.9,Songgao Road,Xinyi District,Taipei CITY 11073,TaiwanTaipei Taiwan",
+      "傳真機號碼": "(02)2729-8055",
+      "電子郵件信箱": "investor.relations@medtecs.com",
+      "網址": "www.medtecs.com",
+      "已發行普通股數或TDR原股發行股數": "549411240"
+    }
+  ],
+  "native_quote_research": [
+    {
+      "ticker": "2352.TW",
+      "duration_seconds": 0.49020012468099594,
+      "sdk_fields": {
+        "symbol": "2352.TW",
+        "quoteType": "EQUITY",
+        "industry": "Computer Hardware",
+        "sector": "Technology",
+        "currency": "TWD",
+        "financialCurrency": "TWD",
+        "grossMargins": 0.16976,
+        "operatingMargins": 0.012359999,
+        "profitMargins": 0.0058099995,
+        "returnOnEquity": 0.02876,
+        "trailingPE": 36.602566,
+        "priceToBook": 1.1340616,
+        "priceToSalesTrailing12Months": 0.2159376,
+        "totalRevenue": 208965287936,
+        "totalAssets": null
+      },
+      "fine_industry_status": "business_industry_mismatch",
+      "current_master_rows": [
+        {
+          "stock_id": "2352",
+          "stock_name": "佳世達",
+          "industry_category": "電腦及週邊設備業",
+          "type": "twse",
+          "date": "2026-10-10"
+        },
+        {
+          "stock_id": "2352",
+          "stock_name": "佳世達",
+          "industry_category": "電子工業",
+          "type": "twse",
+          "date": "2026-10-10"
+        }
+      ],
+      "http_and_sdk_cache_status_not_observed": true
+    },
+    {
+      "ticker": "4104.TW",
+      "duration_seconds": 0.49425991578027606,
+      "sdk_fields": {
+        "symbol": "4104.TW",
+        "quoteType": "EQUITY",
+        "industry": "Medical Distribution",
+        "sector": "Healthcare",
+        "currency": "TWD",
+        "financialCurrency": "TWD",
+        "grossMargins": 0.21388,
+        "operatingMargins": 0.08109,
+        "profitMargins": 0.09721,
+        "returnOnEquity": 0.086160004,
+        "trailingPE": 14.634146,
+        "priceToBook": 1.3820108,
+        "priceToSalesTrailing12Months": 1.4739455,
+        "totalRevenue": 9201464320,
+        "totalAssets": null
+      },
+      "fine_industry_status": "business_industry_mismatch",
+      "current_master_rows": [
+        {
+          "stock_id": "4104",
+          "stock_name": "佳醫",
+          "industry_category": "生技醫療業",
+          "type": "twse",
+          "date": "2026-10-10"
+        },
+        {
+          "stock_id": "4104",
+          "stock_name": "佳醫",
+          "industry_category": "化學生技醫療",
+          "type": "twse",
+          "date": "2026-10-10"
+        }
+      ],
+      "http_and_sdk_cache_status_not_observed": true
+    },
+    {
+      "ticker": "4107.TWO",
+      "duration_seconds": 0.5183863751590252,
+      "sdk_fields": {
+        "symbol": "4107.TWO",
+        "quoteType": "EQUITY",
+        "industry": "Medical Instruments & Supplies",
+        "sector": "Healthcare",
+        "currency": "TWD",
+        "financialCurrency": "TWD",
+        "grossMargins": 0.45151,
+        "operatingMargins": 0.33346,
+        "profitMargins": 0.26539,
+        "returnOnEquity": 0.1729,
+        "trailingPE": 12.92798,
+        "priceToBook": 2.1507277,
+        "priceToSalesTrailing12Months": 3.416435,
+        "totalRevenue": 2221067008,
+        "totalAssets": null
+      },
+      "fine_industry_status": "business_industry_matched",
+      "current_master_rows": [
+        {
+          "stock_id": "4107",
+          "stock_name": "邦特",
+          "industry_category": "生技醫療業",
+          "type": "tpex",
+          "date": "2026-10-10"
+        }
+      ],
+      "http_and_sdk_cache_status_not_observed": true,
+      "same_annual_asset_turnover": {
+        "value": 0.4583,
+        "observed_at": "2025-12-31"
+      }
+    },
+    {
+      "ticker": "4116.TWO",
+      "duration_seconds": 0.5164893749170005,
+      "sdk_fields": {
+        "symbol": "4116.TWO",
+        "quoteType": "EQUITY",
+        "industry": "Medical Instruments & Supplies",
+        "sector": "Healthcare",
+        "currency": "TWD",
+        "financialCurrency": "TWD",
+        "grossMargins": 0.32471,
+        "operatingMargins": 0.06283,
+        "profitMargins": 0.02161,
+        "returnOnEquity": 0.12953,
+        "trailingPE": 15.171103,
+        "priceToBook": 1.612838,
+        "priceToSalesTrailing12Months": 0.32658058,
+        "totalRevenue": 5444853248,
+        "totalAssets": null
+      },
+      "fine_industry_status": "business_industry_matched",
+      "current_master_rows": [
+        {
+          "stock_id": "4116",
+          "stock_name": "明基醫",
+          "industry_category": "生技醫療業",
+          "type": "tpex",
+          "date": "2026-10-10"
+        }
+      ],
+      "http_and_sdk_cache_status_not_observed": true,
+      "same_annual_asset_turnover": {
+        "value": 0.9639,
+        "observed_at": "2025-12-31"
+      }
+    },
+    {
+      "ticker": "4126.TWO",
+      "duration_seconds": 0.518023082986474,
+      "sdk_fields": {
+        "symbol": "4126.TWO",
+        "quoteType": "EQUITY",
+        "industry": "Medical Instruments & Supplies",
+        "sector": "Healthcare",
+        "currency": "TWD",
+        "financialCurrency": "TWD",
+        "grossMargins": 0.30513,
+        "operatingMargins": 0.22379999,
+        "profitMargins": 0.17938,
+        "returnOnEquity": 0.15505,
+        "trailingPE": 13.02521,
+        "priceToBook": 1.9697547,
+        "priceToSalesTrailing12Months": 2.3247511,
+        "totalRevenue": 2420259072,
+        "totalAssets": null
+      },
+      "fine_industry_status": "business_industry_matched",
+      "current_master_rows": [
+        {
+          "stock_id": "4126",
+          "stock_name": "太醫",
+          "industry_category": "生技醫療業",
+          "type": "tpex",
+          "date": "2026-10-10"
+        }
+      ],
+      "http_and_sdk_cache_status_not_observed": true,
+      "same_annual_asset_turnover": {
+        "value": 0.6139,
+        "observed_at": "2025-12-31"
+      }
+    },
+    {
+      "ticker": "4163.TWO",
+      "duration_seconds": 0.2593856658786535,
+      "sdk_fields": {
+        "symbol": "4163.TWO",
+        "quoteType": "EQUITY",
+        "industry": "Tools & Accessories",
+        "sector": "Industrials",
+        "currency": "TWD",
+        "financialCurrency": "TWD",
+        "grossMargins": 0.43374002,
+        "operatingMargins": 0.12807,
+        "profitMargins": 0.119890004,
+        "returnOnEquity": 0.1099,
+        "trailingPE": 22.359735,
+        "priceToBook": 2.5399265,
+        "priceToSalesTrailing12Months": 2.7594497,
+        "totalRevenue": 2488352000,
+        "totalAssets": null
+      },
+      "fine_industry_status": "business_industry_mismatch",
+      "current_master_rows": [
+        {
+          "stock_id": "4163",
+          "stock_name": "鐿鈦",
+          "industry_category": "生技醫療業",
+          "type": "tpex",
+          "date": "2026-10-10"
+        }
+      ],
+      "http_and_sdk_cache_status_not_observed": true
+    },
+    {
+      "ticker": "4735.TWO",
+      "duration_seconds": 0.28444041637703776,
+      "sdk_fields": {
+        "symbol": "4735.TWO",
+        "quoteType": "EQUITY",
+        "industry": "Medical Devices",
+        "sector": "Healthcare",
+        "currency": "TWD",
+        "financialCurrency": "TWD",
+        "grossMargins": 0.31554002,
+        "operatingMargins": 0.10373,
+        "profitMargins": 0.23802,
+        "returnOnEquity": 0.22635001,
+        "trailingPE": 6.3416667,
+        "priceToBook": 1.2959809,
+        "priceToSalesTrailing12Months": 1.5064046,
+        "totalRevenue": 972609984,
+        "totalAssets": null
+      },
+      "fine_industry_status": "business_industry_matched",
+      "current_master_rows": [
+        {
+          "stock_id": "4735",
+          "stock_name": "豪展",
+          "industry_category": "生技醫療業",
+          "type": "tpex",
+          "date": "2026-10-10"
+        }
+      ],
+      "http_and_sdk_cache_status_not_observed": true,
+      "same_annual_asset_turnover": {
+        "value": 0.6912,
+        "observed_at": "2025-12-31"
+      }
+    },
+    {
+      "ticker": "4905.TWO",
+      "duration_seconds": 0.23559041693806648,
+      "sdk_fields": {
+        "symbol": "4905.TWO",
+        "quoteType": "EQUITY",
+        "industry": "Communication Equipment",
+        "sector": "Technology",
+        "currency": "TWD",
+        "financialCurrency": "TWD",
+        "grossMargins": 0.26211,
+        "operatingMargins": -0.02448,
+        "profitMargins": 0.43218,
+        "returnOnEquity": 0.12616,
+        "trailingPE": 7.2181673,
+        "priceToBook": 0.83517885,
+        "priceToSalesTrailing12Months": 3.1095963,
+        "totalRevenue": 837436992,
+        "totalAssets": null
+      },
+      "fine_industry_status": "business_industry_mismatch",
+      "current_master_rows": [
+        {
+          "stock_id": "4905",
+          "stock_name": "台聯電",
+          "industry_category": "生技醫療業",
+          "type": "tpex",
+          "date": "2026-10-10"
+        }
+      ],
+      "http_and_sdk_cache_status_not_observed": true
+    },
+    {
+      "ticker": "6504.TW",
+      "duration_seconds": 0.2621482922695577,
+      "sdk_fields": {
+        "symbol": "6504.TW",
+        "quoteType": "EQUITY",
+        "industry": "Household & Personal Products",
+        "sector": "Consumer Defensive",
+        "currency": "TWD",
+        "financialCurrency": "TWD",
+        "grossMargins": 0.13496,
+        "operatingMargins": 0.01859,
+        "profitMargins": 0.01702,
+        "returnOnEquity": 0.03449,
+        "trailingPE": 26.73077,
+        "priceToBook": 0.87189245,
+        "priceToSalesTrailing12Months": 0.45524275,
+        "totalRevenue": 6650122752,
+        "totalAssets": null
+      },
+      "fine_industry_status": "business_industry_mismatch",
+      "current_master_rows": [
+        {
+          "stock_id": "6504",
+          "stock_name": "南六",
+          "industry_category": "其他",
+          "type": "twse",
+          "date": "2026-10-10"
+        }
+      ],
+      "http_and_sdk_cache_status_not_observed": true
+    },
+    {
+      "ticker": "6730.TWO",
+      "duration_seconds": 0.24744104221463203,
+      "sdk_fields": {
+        "symbol": "6730.TWO",
+        "quoteType": "EQUITY",
+        "industry": "Medical Instruments & Supplies",
+        "sector": "Healthcare",
+        "currency": "TWD",
+        "financialCurrency": "TWD",
+        "grossMargins": 0.46552,
+        "operatingMargins": 0.1491,
+        "profitMargins": 0.13951999,
+        "returnOnEquity": 0.10406999,
+        "trailingPE": 16.666666,
+        "priceToBook": 1.6192346,
+        "priceToSalesTrailing12Months": 2.4329112,
+        "totalRevenue": 492345984,
+        "totalAssets": null
+      },
+      "fine_industry_status": "business_industry_matched",
+      "current_master_rows": [
+        {
+          "stock_id": "6730",
+          "stock_name": "常廣",
+          "industry_category": "生技醫療業",
+          "type": "tpex",
+          "date": "2026-10-10"
+        }
+      ],
+      "http_and_sdk_cache_status_not_observed": true,
+      "same_annual_asset_turnover": {
+        "value": 0.428,
+        "observed_at": "2025-12-31"
+      }
+    }
+  ],
+  "sdk_fields_not_raw_http_responses": true,
+  "selected_roster_not_complete_http_bytes": true
+}

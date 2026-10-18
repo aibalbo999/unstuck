@@ -21,12 +21,16 @@ from prompt_builder_helpers import (
     _prompt_company_identity,
     _prompt_data_trust,
     _prompt_history_rows,
+    _prompt_financial_history_basis,
+    _prompt_financial_institution_history,
     _prompt_number,
     _prompt_ratio_to_pct,
     _prompt_source_audit_summary,
     _safe_iterable_prefix,
 )
 from prompt_context_sections import prompt_global_market_context, prompt_international_news_context
+from prompt_peer_projection import comparable_peer_rows
+from prompt_evidence import prompt_evidence_copy
 from prompt_role_payload import project_role_payload
 from prompt_record_tables import TABLE_RULE, pack_record_tables
 from short_term_market_data import build_short_term_market_context
@@ -39,6 +43,63 @@ PROMPT_ENV = Environment(
     lstrip_blocks=True,
 )
 LEGACY_PROMPT_FIELDS = {"ticker", "name", "fin_data", "prev"}
+
+
+def _prompt_latest_quarter_financials(data: dict, *, compact: bool) -> dict:
+    snapshot = dict.get(data, "latest_quarter_financials")
+    if not isinstance(snapshot, dict) or snapshot.get("schema") != "mops_latest_quarter_financials.v1":
+        return {}
+    result = {key: snapshot.get(key) for key in (
+        "coverage_status", "issuer_code", "issuer_name", "period", "income_period_basis",
+        "balance_period_basis", "currency", "filed_unit", "scope", "cash_flow_statement_available",
+    )}
+    aliases = {
+        "balance_sheet": (
+            "資產總計", "資產總額", "負債總計", "負債總額", "權益總計", "權益總額",
+            "歸屬於母公司業主之權益合計", "歸屬於母公司業主權益合計", "歸屬於母公司業主之權益",
+        ),
+        "income_statement_ytd": (
+            "營業收入", "營業收入合計", "淨收益", "收益", "收入", "保險服務結果",
+            "營業毛利（毛損）淨額", "營業利益（損失）", "淨利（淨損）歸屬於母公司業主",
+            "淨利（損）歸屬於母公司業主", "本期淨利（淨損）", "本期稅後淨利（淨損）",
+        ),
+    }
+    tables = snapshot.get("tables")
+    result["statements"] = {}
+    if isinstance(tables, dict):
+        for name, aliases_for_table in aliases.items():
+            table = tables.get(name)
+            if not isinstance(table, dict) or not isinstance(table.get("row"), dict):
+                continue
+            row = table["row"]
+            items = ({key: row[key] for key in aliases_for_table if key in row}
+                     if compact else dict(row))
+            result["statements"][name] = {
+                "source_url": table.get("source_url"),
+                "response_sha256": table.get("response_sha256"),
+                "reported_period": table.get("period"),
+                "reported_items": items,
+            }
+    return result
+
+
+def _prompt_latest_quarter_financial_summary(data: dict) -> dict:
+    snapshot=dict.get(data,"latest_quarter_financial_summary")
+    ticker=dict.get(data,"ticker")
+    if not isinstance(snapshot,dict)or not isinstance(ticker,str):
+        return {}
+    from data_fetch.market_sources.tpex_historical_quarterly_summary import project_summary
+    projected=project_summary(snapshot,ticker)
+    if projected is None:
+        return {}
+    # Keep the raw response receipts out of prompts; only verified fields and
+    # a compact source identity are needed for analysis and attribution.
+    return {key:projected.get(key)for key in (
+        "schema","coverage_status","ticker","issuer_code","issuer_name","market_scope",
+        "period","currency","amount_unit","per_share_unit","ratio_unit","scope",
+        "cash_flow_statement_available","metrics","comparison","field_status",
+        "source_url","response_sha256",
+    )}
 LEGACY_PLACEHOLDER_RE = re.compile(r"\{(" + "|".join(sorted(LEGACY_PROMPT_FIELDS)) + r")\}")
 
 
@@ -68,6 +129,7 @@ def format_data_for_prompt(data: dict, *, compact: bool = False, dense: bool = F
     if total_debt_b is not None or total_cash_b is not None:
         net_debt_b = round((total_debt_b or 0) - (total_cash_b or 0), 4)
 
+    history_basis = _prompt_financial_history_basis(data)
     payload = {
         "schema_version": dict.get(data, "data_schema_version", PROMPT_DATA_SCHEMA_VERSION),
         "unit_contract": {
@@ -142,19 +204,27 @@ def format_data_for_prompt(data: dict, *, compact: bool = False, dense: bool = F
         },
         "history": {
             "unit": "billion_twd",
+            **({"basis": history_basis} if history_basis else {}),
             "rows": _prompt_history_rows(data),
+            "financial_institution": _prompt_financial_institution_history(data),
         },
+        "latest_quarter_financials": _prompt_latest_quarter_financials(data, compact=compact),
+        "latest_quarter_financial_summary": _prompt_latest_quarter_financial_summary(data),
         "market_catalysts": {
             "lookback_days": CATALYST_LOOKBACK_DAYS,
             "selection_summary": dict.get(data, "news_selection", {}),
-            "items": _compact_list(dict.get(data, "recent_catalysts", []), 3) if compact else _safe_iterable_prefix(dict.get(data, "recent_catalysts", [])),
+            "items": prompt_evidence_copy(_compact_list(dict.get(data, "recent_catalysts", []), 3) if compact else _safe_iterable_prefix(dict.get(data, "recent_catalysts", []))),
         },
         "global_market_context": prompt_global_market_context(data, compact=compact),
         "international_news_context": prompt_international_news_context(data, compact=compact),
         "institutional_trading": raw_institutional_trading if isinstance(raw_institutional_trading := dict.get(data, "institutional_trading"), dict) else {},
         "peer_context": {
-            "dynamic_peer_metrics": _compact_list(dict.get(data, "dynamic_peer_metrics", []), 5) if compact else _safe_iterable_prefix(dict.get(data, "dynamic_peer_metrics", [])),
-            "search_discovery_results": [] if compact else _safe_iterable_prefix(dict.get(data, "peer_discovery_results", [])),
+            "dynamic_peer_metrics": (
+                comparable_peer_rows(_safe_iterable_prefix(dict.get(data, "dynamic_peer_metrics", [])))[:5]
+                if compact else comparable_peer_rows(_safe_iterable_prefix(dict.get(data, "dynamic_peer_metrics", [])))
+            ),
+            "search_discovery_results": [] if compact else prompt_evidence_copy(
+                _safe_iterable_prefix(dict.get(data, "peer_discovery_results", []))),
         },
         "local_valuation_context": {
             "pe_river_chart": _compact_pe_river(raw_pe_river_chart := dict.get(data, "pe_river_chart")) if compact else (raw_pe_river_chart if isinstance(raw_pe_river_chart := dict.get(data, "pe_river_chart"), dict) else {}),
@@ -196,6 +266,8 @@ def format_data_for_prompt(data: dict, *, compact: bool = False, dense: bool = F
         "需要 CAGR、WACC、DCF、FCF conversion 時，優先引用 deterministic_financial_tool_results；只有本次已提供可呼叫工具時才能呼叫，未提供時明示計算限制，不得假裝重算。",
         "引用量化數字前必須檢查 quant_metrics.v2 的各 metric_status；unavailable DCF 不得作為下行保護底線，也不得以舊情境值或占位資料補造數字。",
         "若資料品質註記指出口徑互斥，正式分析應說明限制並採用 cross_checks 中可自洽的口徑。",
+        "latest_quarter_financials 是官方單季快照：資產負債表為季末時點，損益表為年初至季末累計，金額單位為新臺幣仟元；不得混為年度或 TTM，且此入口未提供現金流量表。",
+        "latest_quarter_financial_summary 是 TPEx 官方同期摘要：損益為年初至季末累計，金額單位為新臺幣仟元，並與去年同期比較；不是完整三表、年度序列或 TTM，也不含現金流量表。",
         "正式報告只呈現必要算式摘要與結論，不輸出內部提示詞、草稿或反思文字。",
     ]
     if dense:

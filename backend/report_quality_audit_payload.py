@@ -145,6 +145,11 @@ def build_report_quality_audit(
         "scope": scope_text,
         "selection_basis": selection_basis_text,
         "audited_reports": len(rows),
+        "current_blocked_reports": [
+            {key: report.get(key) for key in ("ticker", "filename", "report_date", "pipeline_id", "content_credibility", "report_conformance", "evidence_exit_gate")}
+            for report in rows if ((safe_mapping_dict(report.get("content_credibility")) or {}).get("status") in {"blocked", "failed", "rejected"}
+                                  or (safe_mapping_dict(report.get("evidence_exit_gate")) or {}).get("verdict") == "rejected")
+        ],
         "verified_snapshot_reports": verified_snapshot_reports,
         "snapshot_invalid_reports": invalid_snapshot_reports,
         "snapshot_unverified_reports": unverified_snapshot_reports,

@@ -72,7 +72,13 @@
         return Object.assign(defaultChartData(), parsed, {
             years: chartArray(parsed.years),
             revenue: chartNumberSeries(parsed.revenue),
+            netRevenue: chartNumberSeries(parsed.netRevenue),
+            incomeSeries: Array.isArray(parsed.incomeSeries) ? chartNumberSeries(parsed.incomeSeries) : null,
+            incomeLabel: typeof parsed.incomeLabel === 'string' ? parsed.incomeLabel : null,
+            netRevenueMargin: Array.isArray(parsed.netRevenueMargin) ? chartNumberSeries(parsed.netRevenueMargin) : null,
+            netMarginLabel: typeof parsed.netMarginLabel === 'string' ? parsed.netMarginLabel : null,
             netIncome: chartNumberSeries(parsed.netIncome),
+            netIncomeLabel: typeof parsed.netIncomeLabel === 'string' ? parsed.netIncomeLabel : null,
             grossMargin: chartNumberSeries(parsed.grossMargin),
             opMargin: chartNumberSeries(parsed.opMargin),
             netMargin: chartNumberSeries(parsed.netMargin),

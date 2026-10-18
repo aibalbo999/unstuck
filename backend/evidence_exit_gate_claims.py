@@ -84,6 +84,8 @@ def extract_numeric_claims(markdown: str) -> list[dict[str, Any]]:
     claims: list[dict[str, Any]] = []
     seen: set[tuple[str, float, int]] = set()
     in_code = False
+    table_headers = []
+    from financial_money_claims import is_unit_definition_number
     for line_number, raw_line in enumerate((lines := str(markdown or "").splitlines()), start=1):
         line = raw_line.strip()
         if line.startswith("```"):
@@ -91,13 +93,29 @@ def extract_numeric_claims(markdown: str) -> list[dict[str, Any]]:
             continue
         if in_code or not line or line.startswith("#"):
             continue
+        if line.startswith('|'):
+            cells = [cell.strip().strip('*') for cell in line.strip('|').split('|')]
+            if cells and not any(re.search(r'\d', cell) for cell in cells) and not all(re.fullmatch(r'[: -]+', cell) for cell in cells):
+                table_headers = cells
+        else:
+            table_headers = []
         series_matches = list(_DATE_SERIES_RE.finditer(line)) if "觀察近三個月價格" in line else []
         for match in list(_KV_RE.finditer(line)) + list(_TABLE_CELL_RE.finditer(line)):
+            if is_unit_definition_number(line, *match.span('num')):
+                continue
             if is_non_claim_match(line, match, table_cell=match.re is _TABLE_CELL_RE):
                 continue
             label = technical_assignment_label(_clean_label(match.group("label")))
             horizon_prefix = re.search(r"(?P<horizon>\d+)\s*[*_`]*$", line[:match.start("label")])
             label = f"{horizon_prefix.group('horizon')}{label}" if horizon_prefix and label.startswith(("個月", "月")) else label
+            scenario_projection = False
+            if match.re is _TABLE_CELL_RE and table_headers:
+                column = line[:match.start('num')].count('|') - 1
+                if 0 <= column < len(table_headers):
+                    header = table_headers[column]
+                    if re.search(r'目標|估值|價值|合理股價|target|valuation', header, re.I):
+                        label = header
+                        scenario_projection = bool(re.search(r'熊市|牛市|基本|保守|樂觀|悲觀|基準', line))
             number, unit = _claim_value(match, label, line)
             metadata = score_metadata(label, unit, match.group("num"), line[match.end("num"):])
             if metadata is None and match.groupdict().get("score_denominator") is not None:
@@ -118,13 +136,14 @@ def extract_numeric_claims(markdown: str) -> list[dict[str, Any]]:
                 continue
             seen.add(key)
             claims.append({
+                **({"scenario_projection": True} if scenario_projection else {}),
                 "id": len(claims) + 1,
                 "label": label,
                 "reported_value": number,
                 **(metadata or {"claim_type": "financial"}),
                 "unit": unit,
                 "line_number": line_number,
-                "raw_text": line[max(0, match.start("num") - 100):match.end() + 60] if re.fullmatch(r"Signal|ATR(?:_?\d+)?", label, re.I) else line if ("rketcontext[" in label and "change" in label) or "觀察近三個月價格" in line else line[:160],
+                "raw_text": line[max(0, match.start("num") - 100):match.end() + 60] if re.fullmatch(r"Signal|ATR(?:_?\d+)?", label, re.I) else line if ("rketcontext[" in label and "change" in label) or "觀察近三個月價格" in line or re.match(r"^\s*\|\s*[*_`]*最終投資建議", line) else line[:160],
                 **({"technical_context_text": line} if re.search(r"SMA|EMA|均線|移動平均線|MACD|histogram|Signal|ATR", line, re.I) else {}),
                 **({"series_context_text": "\n".join(lines[max(0, line_number - 20):line_number - 1])} if re.fullmatch(r"(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)\s+\d{1,2}", label, re.IGNORECASE) else {"context_text": "\n".join(lines[max(0, line_number - 3):line_number - 1])} if line_number > 1 else {}),
             })
@@ -150,7 +169,8 @@ def extract_numeric_claims(markdown: str) -> list[dict[str, Any]]:
             claims.append({"id": len(claims) + 1, "label": "Previous", "reported_value": number, "unit": "", "line_number": line_number, "raw_text": line[:160]})
     for claim in claims:
         claim.setdefault("claim_type", "financial")
-    return claims
+    from evidence_financial_amounts import extract_financial_amounts
+    return extract_financial_amounts(markdown, claims)
 
 
 def _claim_value(match: re.Match[str], label: str, line: str) -> tuple[float | None, str]:

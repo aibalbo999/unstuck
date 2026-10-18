@@ -61,10 +61,10 @@ class FakeStock:
             "Ex-Dividend Date": pd.Timestamp("2026-08-01"),
         }
 
-    def history(self, period="1y"):
+    def history(self, period="1y", *, auto_adjust=True, end=None):
         if period == "5y":
             return pd.DataFrame(
-                {"Close": [50.0, 70.0, 90.0, 100.0, 105.0, 110.0, 121.0]},
+                {"Close": [50.0, 70.0, 90.0, 100.0, 105.0, 110.0, 121.0], "Adj Close": [50.0, 70.0, 90.0, 100.0, 105.0, 110.0, 121.0]},
                 index=pd.to_datetime([
                     "2021-07-01",
                     "2023-07-01",
@@ -168,7 +168,7 @@ class FakeMarketProxy:
     def __init__(self, closes):
         self._closes = closes
 
-    def history(self, period="5d"):
+    def history(self, period="5d", *, auto_adjust=True):
         return pd.DataFrame(
             {"Close": self._closes},
             index=pd.to_datetime(["2026-06-08", "2026-06-09", "2026-06-10"]),
@@ -805,11 +805,11 @@ def test_daily_provider_evidence_survives_cache_state_and_real_mode_d_prompt(mon
     original_history = FakeStock.history
     frame = pd.DataFrame(
         {"Open": [321.9876] * 80, "High": [323.9876] * 80, "Low": [319.9876] * 80,
-         "Close": [321.9876] * 80, "Volume": [123456.0] * 80},
+         "Close": [321.9876] * 80, "Adj Close": [321.9876] * 80, "Volume": [123456.0] * 80},
         index=pd.bdate_range(end=date.today(), periods=80),
     )
 
-    def history(stock, period="1y"):
+    def history(stock, period="1y", *, auto_adjust=True, end=None):
         calls.append(period)
         return frame if period == "5y" else original_history(stock, period)
 
@@ -846,14 +846,14 @@ def test_us_fixture_has_no_monthly_revenue_without_finmind_call(monkeypatch):
     monthly_entries = [entry for entry in data["source_audit"] if entry["source"] == "monthly_revenue"]
     assert data["recent_monthly_revenue"] == []
     assert monthly_entries
-    assert monthly_entries[-1]["status"] == "unavailable"
+    assert monthly_entries[-1]["status"] == "not_applicable"
 
 
 def test_async_fixture_records_google_and_fmp_failures(monkeypatch):
     def fake_fetch_stock_data(ticker, skip_optional_http=False):
         return {
             "data_schema_version": financial_data.DATA_SCHEMA_VERSION,
-            "ticker": "2330.TW",
+            "ticker": "AAPL",
             "company_name": "Fixture Corp",
             "company_identity": {},
             "sector": "Technology",
@@ -882,7 +882,7 @@ def test_async_fixture_records_google_and_fmp_failures(monkeypatch):
     monkeypatch.setattr(cache_helpers, "set_cache_json", lambda *args: None)
     monkeypatch.setattr(financial_data.time_module, "time", lambda: 1_780_800_200.0)
 
-    data = asyncio.run(financial_data.async_fetch_stock_data("2330"))
+    data = asyncio.run(financial_data.async_fetch_stock_data("AAPL"))
 
     errors = [
         entry for entry in data["source_audit"]

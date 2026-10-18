@@ -28,22 +28,51 @@ from evidence_exit_gate_claims import (
     extract_numeric_claims,
 )
 
+_EXCLUDED_SNAPSHOT_PATH = re.compile("|".join(re.escape(marker) for marker in
+    (*_NORMALIZED_SNAPSHOT_METADATA_PATH_MARKERS, *_NORMALIZED_CONFIDENCE_METADATA_PATH_MARKERS)))
+
+
+_SNAPSHOT_DATE_PATH = re.compile(r'(?:^|\.)(?:checked_at|retrieved_at|fetched_at|generated_at|updated_at|as_of|date|year|years|timestamp)(?:$|\.|\[)')
+
+
+class _InvocationValues(list):
+    """Path matches reused only during one evaluation, never across snapshots."""
+    def __init__(self):
+        super().__init__()
+        self.path_matches = {}
+
+
+from evidence_claim_boundaries import with_match_normalization_cache
+
+
+@with_match_normalization_cache
 def evaluate_report_evidence(
     markdown: str,
     snapshot: dict[str, Any],
     *,
-    sample_ratio: float = 0.15,
+    sample_ratio: float = 1.0,
     min_sample: int = 3,
-    max_sample: int = 30,
+    max_sample: int | None = None,
     tolerance_pct: float = 1.0,
     seed: int = 17,
 ) -> dict[str, Any]:
-    """Sample report numeric claims and verify them against snapshot values."""
-    snapshot_values = []
+    """Verify every extracted numeric claim by default; explicit sampling is diagnostic."""
+    markdown = re.sub(r"<!-- evidence-ledger:start -->.*?<!-- evidence-ledger:end -->", "", markdown, flags=re.S)
+    snapshot_values = _InvocationValues()
     normalized_snapshot_paths = []
-    for item in flatten_snapshot_numbers(snapshot):
-        normalized_path = _normalize_match_text(item.get("path"))
-        if _is_eligible_snapshot_value(item, normalized_path=normalized_path):
+    path_normalizations = {}
+    path_eligibility = {}
+    for item in flatten_snapshot_numbers(snapshot, eligible_only=True, _normalized_paths=path_normalizations, _eligible_paths=path_eligibility):
+        path = item.get("path")
+        normalized_path = path_normalizations.get(path)
+        if normalized_path is None:
+            normalized_path = _normalize_match_text(path)
+            path_normalizations[path] = normalized_path
+        eligible = path_eligibility.get(path)
+        if eligible is None:
+            eligible = _is_eligible_snapshot_value(item, normalized_path=normalized_path)
+            path_eligibility[path] = eligible
+        if eligible:
             snapshot_values.append(item)
             normalized_snapshot_paths.append(normalized_path)
     price_history_months = tuple(sorted({match.group(1) for item in snapshot_values if (match := re.search(r"price_history\[(20\d{2}-\d{2})-\d{2}\]", str(item.get("path") or "")))}))
@@ -63,12 +92,19 @@ def evaluate_report_evidence(
     claims = financial_and_score_claims
     metadata_claims = [public_metadata_claim(claim) for claim in claims if claim.get("claim_type") == "analysis_score"]
     claims = [claim for claim in claims if claim.get("claim_type") != "analysis_score"]
-    sample = sample_numeric_claims(claims, sample_ratio=sample_ratio, min_sample=min_sample, max_sample=max_sample, seed=seed)
+    sample = sample_numeric_claims(claims, sample_ratio=sample_ratio, min_sample=min_sample, max_sample=len(claims) if max_sample is None else max_sample, seed=seed)
+    from evidence_financial_amounts import financial_comparison_snapshot
+    financial_snapshot = financial_comparison_snapshot(snapshot) if any(claim.get('financial_amount') for claim in sample) else {}
     checked = [
-        _check_claim(claim, snapshot_values, tolerance_pct=tolerance_pct,
-                     normalized_paths=normalized_snapshot_paths)
+        _check_financial_or_other_claim(claim, financial_snapshot, snapshot_values,
+                                       tolerance_pct=tolerance_pct, normalized_paths=normalized_snapshot_paths)
         for claim in sample
     ]
+    from evidence_derived_claims import derived_pe_claims
+    derived = derived_pe_claims(markdown, snapshot)
+    derived = [{"id": len(claims) + index + 1, **item} for index, item in enumerate(derived)]
+    claims.extend(derived)
+    checked.extend(derived)
     failed_count = sum(1 for item in checked if item["status"] == "mismatch")
     verified_count = sum(1 for item in checked if item["status"] == "verified"); unverifiable_count = sum(1 for item in checked if item["status"] == "unverifiable"); unverifiable_reason_counts = {reason: sum(1 for item in checked if item["status"] == "unverifiable" and item["verification_reason_code"] == reason) for reason in {item["verification_reason_code"] for item in checked if item["status"] == "unverifiable"}}
     if not checked:
@@ -81,15 +117,20 @@ def evaluate_report_evidence(
             verdict = "approved"
             summary = "抽樣數字均可在資料快照中找到對應值。"
         else:
-            failure_rate = failed_count / len(comparable)
-            if failure_rate >= 0.5:
+            if failed_count:
                 verdict = "rejected"
-                summary = "超過半數可比對抽樣數字無法對上資料快照。"
+                summary = "至少一項可比對抽樣數字與資料快照矛盾，須修正後發布。"
             else:
                 verdict = "caution"
                 summary = "部分抽樣數字無法對上資料快照，需人工確認。"
             if unverifiable_count:
                 summary += "另有數字缺少同語意資料路徑。"
+    coverage_complete = len(checked) == len(claims)
+    if not coverage_complete:
+        if verdict == "approved":
+            verdict = "caution"
+        summary += "未逐項核對全部可抽取主張，不得視為完整通過。"
+    summary += f"逐項核對 {len(checked)}/{len(claims)} 筆可抽取數字；僅核對保存快照一致性，不代表來源獨立真實性或預測有效。"
     metadata_invalid = sum(item["status"] == "invalid" for item in metadata_claims)
     metadata_unverifiable = sum(item["status"] == "unverifiable" for item in metadata_claims)
     if metadata_invalid or metadata_unverifiable:
@@ -107,8 +148,52 @@ def evaluate_report_evidence(
             summary += "需確認：" + "、".join(reasons) + "。"
     if policy_claims:
         summary += f"另核對 {len(policy_claims)} 筆研究等待政策值，不計入財務證據，也不代表實際持倉。"
+    source_admission=None
+    context=snapshot.get("rerun_context") or {}
+    context=context if isinstance(context,dict) else {}
+    parsed=context.get("parsed") or {}
+    parsed=parsed if isinstance(parsed,dict) else {}
+    oos=snapshot.get("oos_evaluation_inputs")
+    oos=oos if isinstance(oos,dict) else {}
+    setup=parsed.get("trade_setup") or oos.get("trade_setup")
+    applicable=isinstance(data,dict) and str(data.get("ticker") or "").endswith((".TW",".TWO"))
+    if isinstance(data,dict) and (applicable or isinstance(setup,dict)):
+        setup=setup if isinstance(setup,dict) else {}
+        from report_source_admission import report_source_admission,admission_reason_label
+        source_admission=report_source_admission(data,setup)
+        from trade_price_reference import snapshot_price_reference_checks
+        price_checks = snapshot_price_reference_checks(snapshot)
+        source_admission["price_reference_checks"] = price_checks
+        source_admission["blockers"].extend(reason for check in price_checks if check["status"] == "mismatch" for reason in check["reason_codes"] if reason.endswith("_mismatch"))
+        unknown_price_reasons = [reason for check in price_checks if check["status"] == "unverifiable" for reason in check["reason_codes"]]
+        if unknown_price_reasons:
+            source_admission["source_warnings"].extend(unknown_price_reasons)
+            source_admission["source_eligible"] = False
+            source_admission["eligible"] = False
+        if source_admission["blockers"]:
+            source_admission["eligible"] = False
+            verdict="rejected"
+            summary += " 來源／可執行價位門檻未通過：" + "；".join(admission_reason_label(reason) for reason in source_admission["blockers"]) + "；保留原分析，不可當作已查驗候選。"
+        elif applicable and source_admission["source_eligible"] is False:
+            if verdict=="approved":verdict="caution"
+            summary += " 來源尚未核驗：" + "；".join(admission_reason_label(reason) for reason in source_admission["source_warnings"]) + "；數字一致不代表來源已驗證，不是下單許可。"
+    from technical_reasoning import technical_reasoning_checks, histogram_data_from_snapshot
+    reasoning_checks = technical_reasoning_checks(markdown, histogram_data_from_snapshot(snapshot))
+    if any(item["status"] == "mismatch" for item in reasoning_checks):
+        verdict = "rejected"
+        summary += " 技術敘述與同一分析輸入窗的指標關係矛盾，詳見逐項檢核。"
+    elif any(item["status"] == "unverifiable" for item in reasoning_checks):
+        if verdict == "approved":
+            verdict = "caution"
+        summary += " MACD柱變化缺少可比的兩日計算依據，查核尚未完成。"
     return {
+        "technical_reasoning_checks": reasoning_checks,
+        "technical_reasoning_coverage": "explicit current histogram magnitude and named SMA relations;not all prose reasoning",
+        "source_admission":source_admission,
         "schema_version": 2,
+        "coverage_policy": "all_extracted_numeric_claims" if coverage_complete else "diagnostic_sample",
+        "coverage_complete": coverage_complete,
+        "unchecked_count": len(claims) - len(checked),
         "policy_claim_count": len(policy_claims),
         "policy_checked_count": len(policy_claims),
         "policy_claims": policy_claims,
@@ -147,10 +232,54 @@ def sample_numeric_claims(
         others = [item for item in claims if item not in priority]
         sampled = priority + Random(seed).sample(others, sample_size - len(priority))
     return sorted(sampled, key=lambda item: int(item.get("line_number") or 0))
-def flatten_snapshot_numbers(snapshot: Any) -> list[dict[str, Any]]:
+def flatten_snapshot_numbers(snapshot: Any, *, eligible_only: bool = False, _normalized_paths: dict | None = None, _eligible_paths: dict | None = None) -> list[dict[str, Any]]:
     """Collect numeric values from a sanitized snapshot."""
     values: list[dict[str, Any]] = []
-    def walk(value: Any, path: str) -> None:
+    path_normalizations = _normalized_paths if _normalized_paths is not None else {}
+    path_eligibility = _eligible_paths if _eligible_paths is not None else {}
+    def normalized(path):
+        if path not in path_normalizations:
+            path_normalizations[path] = _normalize_match_text(path)
+        return path_normalizations[path]
+    date_components = {"checked_at", "retrieved_at", "fetched_at", "generated_at", "updated_at", "as_of", "date", "year", "years", "timestamp"}
+    marker_tail = max(map(len, (*_NORMALIZED_SNAPSHOT_METADATA_PATH_MARKERS, *_NORMALIZED_CONFIDENCE_METADATA_PATH_MARKERS)), default=1) - 1
+    component_info = {}
+    suffix_eligibility = {}
+    normalized_components = {}
+    def plain_component(component):
+        if component not in component_info:
+            component_info[component] = bool(re.fullmatch(r"[0-9A-Za-z_\u4e00-\u9fff]+", component))
+        return component_info[component]
+    def walk(value: Any, path: str, parent_path=None, component=None, indexed=False) -> None:
+        if (value is None or isinstance(value, bool)) and path != COVER_STOP_PATH:
+            return
+        # These excluded metadata prefixes stay excluded for every descendant.
+        # The public default still returns the complete legacy flattened list.
+        if eligible_only and path:
+            eligible = path_eligibility.get(path)
+            if eligible is None:
+                # An admitted parent has no excluded marker in its prefix.
+                # For a plain child, only a boundary-spanning suffix can add
+                # one. Complex keys retain the original full-path predicate.
+                if (parent_path is not None and parent_path in path_normalizations
+                        and component is not None and plain_component(component)):
+                    if component not in normalized_components:
+                        normalized_components[component] = _normalize_match_text(component)
+                    child_normalized = normalized_components[component]
+                    parent_normalized = path_normalizations[parent_path]
+                    path_normalizations[path] = parent_normalized + child_normalized
+                    date_eligible = indexed or component not in date_components
+                    suffix = parent_normalized[-marker_tail:] + child_normalized
+                    key = (suffix, date_eligible)
+                    if key not in suffix_eligibility:
+                        suffix_eligibility[key] = _is_eligible_snapshot_value(
+                            {"path": path}, normalized_path=suffix, _date_component_eligible=date_eligible)
+                    eligible = suffix_eligibility[key]
+                else:
+                    eligible = _is_eligible_snapshot_value({"path": path}, normalized_path=normalized(path))
+                path_eligibility[path] = eligible
+            if not eligible:
+                return
         if path == COVER_STOP_PATH:
             number = saved_cover_stop_number(value, snapshot)
             if number is not None:
@@ -164,7 +293,7 @@ def flatten_snapshot_numbers(snapshot: Any) -> list[dict[str, Any]]:
             return
         if isinstance(value, str):
             matches = list(_NUMBER_IN_STRING_RE.finditer(value))
-            path_text = _normalize_match_text(path)
+            path_text = normalized(path)
             if any(marker in path_text for marker in _NORMALIZED_CANONICAL_STRING_PATH_MARKERS):
                 if _normalize_match_text("target_price") in path_text:
                     value = _HORIZON_PREFIX_RE.sub(" ", value, count=1)
@@ -189,7 +318,7 @@ def flatten_snapshot_numbers(snapshot: Any) -> list[dict[str, Any]]:
                 values.extend({"path": f"{path}[month={month}].{kind}", "value": (min if kind == "low" else max)(price for _, date, price in points if date[:7] == month)} for month in {date[:7] for _, date, _ in points} for kind in ("low", "high"))
                 return
             for key, item in value.items():
-                walk(item, f"{path}.{key}" if path else str(key))
+                walk(item, f"{path}.{key}" if path else str(key), path, str(key))
             return
         if isinstance(value, list):
             if path == "data.daily_market_data.bars":
@@ -205,11 +334,23 @@ def flatten_snapshot_numbers(snapshot: Any) -> list[dict[str, Any]]:
                 if path.endswith("global_market_context.items") and isinstance(item, dict) and (symbol := _normalize_match_text(item.get("symbol") or item.get("label"))):
                     for key, child in item.items(): walk(child, f"{path}[{symbol}].{key}")
                     continue
-                walk(item, f"{path}[{item.get('date')}]" if path.endswith("daily_total_net_buy_last_10") and isinstance(item, dict) and item.get("date") else f"{path}[{index}]")
+                if path.endswith("daily_total_net_buy_last_10") and isinstance(item, dict) and item.get("date"):
+                    walk(item, f"{path}[{item.get('date')}]")
+                else:
+                    walk(item, f"{path}[{index}]", path, str(index), True)
     walk(snapshot, "")
     return values
+def _check_financial_or_other_claim(claim, snapshot, snapshot_values, **kwargs):
+    from evidence_financial_amounts import check_financial_amount
+    financial = check_financial_amount(claim, snapshot, kwargs['tolerance_pct'])
+    return financial if financial is not None else _check_claim(claim, snapshot_values, **kwargs)
+
+
 def _check_claim(claim: dict[str, Any], snapshot_values: list[dict[str, Any]], *,
                  tolerance_pct: float, normalized_paths: list[str] | None = None) -> dict[str, Any]:
+    if claim.get('scenario_projection'):
+        return {**claim, 'status': 'unverifiable', 'verification_reason_code': 'scenario_target_not_observed_fact',
+                'verification_scope': 'model_scenario', 'candidate_count': 0}
     reported = float(claim.get("reported_value") or 0)
     path_markers = _path_markers_for_claim(claim)
     raw_claim_text = str(claim.get("raw_text") or "")
@@ -222,13 +363,21 @@ def _check_claim(claim: dict[str, Any], snapshot_values: list[dict[str, Any]], *
     candidate_values = _relevant_snapshot_values(claim, snapshot_values, normalized_paths=normalized_paths)
     if path_markers and path_markers[0].startswith("rerun_context.parsed.recommendation.") and not candidate_values:
         path_markers = ()
-    best = _best_match(reported, candidate_values)
-    if not path_markers or not candidate_values: status = "unverifiable"
+    # Agent plans are saved for reproducibility, not independent factual evidence.
+    generated_candidates = [item for item in candidate_values if str(item.get("path") or "").startswith("rerun_context.")]
+    candidate_values = [item for item in candidate_values if not str(item.get("path") or "").startswith("rerun_context.")]
+    analysis_only = bool(generated_candidates) and not candidate_values
+    best = _best_match(reported, candidate_values or generated_candidates)
+    if analysis_only:
+        status = "mismatch" if best and best["diff_pct"] > tolerance_pct else "unverifiable"
+    elif not path_markers or not candidate_values: status = "unverifiable"
     elif best and best["diff_pct"] <= tolerance_pct:
         status = "verified"
     else:
         status = "mismatch"
-    if news_boundary and not path_markers:
+    if analysis_only:
+        verification_reason_code = "generated_analysis_value_mismatch" if status == "mismatch" else "generated_analysis_not_independent_evidence"
+    elif news_boundary and not path_markers:
         verification_reason_code = "news_source_not_canonical"
     elif research_boundary and not candidate_values:
         verification_reason_code = "research_source_not_canonical"
@@ -259,6 +408,7 @@ def _check_claim(claim: dict[str, Any], snapshot_values: list[dict[str, Any]], *
     return {
         **{key: value for key, value in claim.items() if key not in {"context_text", "series_context_text", "technical_context_text", "_price_history_months", "_legacy_conclusion_context_missing", "_technical_as_of", "_technical_default_atr14"}},
         "status": status, "verification_reason_code": verification_reason_code, "candidate_count": len(candidate_values),
+        "verification_scope": "saved_analysis_consistency" if analysis_only else "snapshot_fact_consistency",
         "matched_path": best.get("path") if best else "",
         "matched_value": best.get("value") if best else None,
         "diff_pct": round(best.get("diff_pct", 0.0), 4) if best else None,
@@ -275,6 +425,18 @@ def _convert_snapshot_value_for_claim(claim: dict[str, Any], item: dict[str, Any
     return item
 
 
+def _semantic_marker_matches(path, marker):
+    # Revenue is a financial field, not any key containing the letters sales.
+    if marker in {'revenue', 'monthly_revenue', 'sales'}:
+        if any(token in path.lower() for token in ('chip_data', 'institutional_trading', 'borrowed_short', 'margin_short')):
+            return False
+        components = re.findall(r'[A-Za-z_][A-Za-z_0-9]*', path.lower())
+        if marker == 'sales':
+            return any(key in {'sales', 'net_sales', 'total_sales', 'sales_revenue'} for key in components)
+        return any(key == marker or key.startswith(marker + '_') or key.endswith('_' + marker) for key in components)
+    return _normalize_match_text(marker) in _normalize_match_text(path)
+
+
 def _relevant_snapshot_values(claim: dict[str, Any], snapshot_values: list[dict[str, Any]], *,
                               normalized_paths: list[str] | None = None) -> list[dict[str, Any]]:
     path_markers = _path_markers_for_claim(claim)
@@ -284,11 +446,43 @@ def _relevant_snapshot_values(claim: dict[str, Any], snapshot_values: list[dict[
     normalized_markers = tuple(_normalize_match_text(marker) for marker in path_markers)
     if normalized_paths is None:
         normalized_paths = [_normalize_match_text(item.get("path")) for item in snapshot_values]
-    return [
-        _convert_snapshot_value_for_claim(claim, item, path_markers)
-        for item, normalized_path in zip(snapshot_values, normalized_paths)
-        if any(marker in normalized_path for marker in normalized_markers)
-    ]
-def _is_eligible_snapshot_value(item: dict[str, Any], *, normalized_path: str | None = None) -> bool:
+    cache = getattr(snapshot_values, "path_matches", None)
+    key = tuple(path_markers)
+    matched = cache.get(key) if cache is not None else None
+    if matched is None:
+        pairs = tuple(zip(path_markers, normalized_markers))
+        special = tuple((marker, normalized) for marker, normalized in pairs if marker in {'revenue', 'monthly_revenue', 'sales'})
+        simple = tuple(normalized for marker, normalized in pairs if marker not in {'revenue', 'monthly_revenue', 'sales'})
+        # Common marker sets contain only literal substrings. Avoid regex and
+        # empty-generator dispatch millions of times, preserving item order.
+        if not special and len(simple) == 1:
+            marker = simple[0]
+            matched = [item for item, path in zip(snapshot_values, normalized_paths) if marker in path]
+        elif not special and len(simple) == 2:
+            first, second = simple
+            matched = [item for item, path in zip(snapshot_values, normalized_paths)
+                       if first in path or second in path]
+        elif not special and len(simple) == 3:
+            first, second, third = simple
+            matched = [item for item, path in zip(snapshot_values, normalized_paths)
+                       if first in path or second in path or third in path]
+        else:
+            pattern = re.compile("|".join(re.escape(marker) for marker in simple)) if simple else None
+            if special:
+                matched = [item for item, normalized_path in zip(snapshot_values, normalized_paths)
+                           if (pattern is not None and pattern.search(normalized_path)) or
+                              any(normalized in normalized_path and _semantic_marker_matches(str(item.get('path') or ''), marker)
+                                  for marker, normalized in special)]
+            else:
+                matched = [item for item, path in zip(snapshot_values, normalized_paths) if pattern.search(path)]
+        if cache is not None:
+            cache[key] = matched
+    # Units and transformations remain claim-specific; only path selection is reused.
+    return [_convert_snapshot_value_for_claim(claim, item, path_markers) for item in matched]
+def _is_eligible_snapshot_value(item: dict[str, Any], *, normalized_path: str | None = None, _date_component_eligible: bool | None = None) -> bool:
+    # Acquisition dates and financial period labels are context, never money
+    # evidence just because their parent path includes a financial metric.
+    if _date_component_eligible is False or (_date_component_eligible is None and _SNAPSHOT_DATE_PATH.search(str(item.get('path') or ''))):
+        return False
     path = normalized_path if normalized_path is not None else _normalize_match_text(item.get("path"))
-    return not any(marker in path for marker in _NORMALIZED_SNAPSHOT_METADATA_PATH_MARKERS) and not any(marker in path for marker in _NORMALIZED_CONFIDENCE_METADATA_PATH_MARKERS)
+    return _EXCLUDED_SNAPSHOT_PATH.search(path) is None

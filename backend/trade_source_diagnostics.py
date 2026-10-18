@@ -43,7 +43,7 @@ def candidate_fingerprint(output):
 def source_rejection_diagnostics(payload, manifest, reasons, normalized_input, *, data=None):
     from trade_source_contract import REF_FIELDS, reference_is_evidence, resolve_reference
     from institutional_evidence import institutional_evidence_diagnostics
-    from trade_catalog_evidence import institutional_catalyst_has_numeric_claim, news_catalyst_supported
+    from trade_catalog_evidence import institutional_catalyst_has_numeric_claim, news_catalyst_supported, ownership_trend_clauses
     from trade_catalyst_claims import catalyst_observation_text
 
     from structured_output_normalizer import normalize_structured_output
@@ -73,6 +73,13 @@ def source_rejection_diagnostics(payload, manifest, reasons, normalized_input, *
                            'admissible_for_field': bool(manifest.get('visible')) and reference_is_evidence(catalog, ref, 'catalyst_source_refs'),
                            'catalog_value': _preview(resolve_reference(catalog, ref))})
     canonical = canonical_catalog(catalog)
+    observed_scope = []
+    observed_text = payload.get('observed_signal')
+    if ('observed_catalyst_evidence_scope_mismatch' in reasons
+            and isinstance(observed_text, str)
+            and any('.ownership_evidence.records[' in ref for ref in semantic_refs.get('observed_source_refs', []))
+            and ownership_trend_clauses(observed_text)):
+        observed_scope.append('ownership_trend_from_point_in_time')
     claim_refs = [r for r in refs['catalyst_source_refs'] if '.institutional_evidence.records[' in r]
     claims = institutional_evidence_diagnostics(observation, canonical, allowed_paths=claim_refs)[:6]
     for claim in claims:
@@ -107,7 +114,8 @@ def source_rejection_diagnostics(payload, manifest, reasons, normalized_input, *
             'original_refs': refs, 'refs_truncated': any(isinstance(payload.get(k), list) and
                 (len(payload[k]) > 8 or any(isinstance(r, str) and len(r) > 256 for r in payload[k])) for k in REF_FIELDS),
             'reasons': list(dict.fromkeys(reasons)), 'reference_checks': fields,
-            'scope_requirements': scope, 'institutional_claims': claims, 'news_claims': news}
+            'scope_requirements': scope, 'observed_scope_requirements': observed_scope,
+            'institutional_claims': claims, 'news_claims': news}
 
 
 def source_repair_feedback(assessment, manifest, output=None):
@@ -121,4 +129,8 @@ def source_repair_feedback(assessment, manifest, output=None):
                   'available_population_sources 是可用範圍，不可按相似數字更换主體/期間。'
                   '先修正每一個越界主張，再由完整 gate 重新判定。\n'
                   + json.dumps(receipt, ensure_ascii=False, separators=(',', ':')))
+        if 'ownership_trend_from_point_in_time' in receipt.get('observed_scope_requirements', []):
+            detail += ('\n單一日期的大戶／散戶持股比例只能支持該日數值；'
+                       '移除持股趨勢句，不得聲稱已連續兩週減少或增加。'
+                       '若保留比例，須引用同日期、同門檻的 ownership_evidence record。')
     return detail + source_guidance_text(manifest.get('catalog', {}))

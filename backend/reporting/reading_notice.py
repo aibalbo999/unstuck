@@ -12,10 +12,16 @@ def build_report_reading_notice_html(context: dict) -> str:
     """Build a prominent, deterministic usage notice for the HTML report."""
     values = build_report_reading_notice_values(context)
     completeness = assess_report_analysis_completeness(context)
+    derived = [item for item in (context.get("evidence_exit_gate") or {}).get("sampled_claims", []) if item.get("claim_type") == "derived_calculation" and item.get("status") == "mismatch"]
+    if derived:
+        values["checks"].append(("算式與期間", "發現衍生算式或年度／TTM 期間矛盾，原敘述保留供查核，不可引用該估值結論"))
     checks_html = "".join(
         f'<li><span>{escape(label)}</span><strong>{escape(value)}</strong></li>'
         for label, value in values["checks"]
     )
+    from report_publication_identity import replay_notice, publication_identity
+    notice = replay_notice(context)
+    replay_html = f'<p class="report-reading-notice-note" data-publication-kind="{escape(publication_identity(context)["kind"])}">{escape(notice)}</p>' if notice else ""
     return f"""
         <section class="report-reading-notice report-reading-notice-{escape(values['state'])}" aria-labelledby="report-reading-notice-title">
             <div class="report-reading-notice-head">
@@ -25,6 +31,7 @@ def build_report_reading_notice_html(context: dict) -> str:
                 </div>
                 <span class="report-reading-notice-status">{escape(values['state_label'])}</span>
             </div>
+            {replay_html}
             <p>本報告提供研究摘要、資料整理與情境分析，不是即時下單訊號，也不保證未來報酬。</p>
             <ul class="report-reading-notice-checks">{checks_html}</ul>
             <p class="report-reading-notice-note" data-analysis-completeness="{escape(completeness['status'])}"><strong>分析完整度：{escape(completeness['label'])}</strong> — {escape(completeness['summary'])}</p>
@@ -41,9 +48,12 @@ def build_report_reading_notice_markdown(context: dict) -> str:
         f"- **{label}:** {value}"
         for label, value in values["checks"]
     )
+    from report_publication_identity import replay_notice, publication_identity
+    notice = replay_notice(context)
     return "\n".join(
         [
             "## 報告使用範圍與判讀限制",
+            notice,
             "",
             f"- **品質 gate 狀態:** {values['state_label']}",
             "- **報告用途:** 本報告提供研究摘要、資料整理與情境分析，不是即時下單訊號，也不保證未來報酬。",

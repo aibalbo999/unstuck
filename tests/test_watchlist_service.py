@@ -162,6 +162,7 @@ def _write_snapshot(output_dir: Path, filename: str, *, needs_rerun: bool):
 
 
 def test_watchlist_due_items_enqueue_and_mark_run(monkeypatch, tmp_path):
+    monkeypatch.setattr(watchlist_service.time, 'sleep', lambda _seconds: None)
     monkeypatch.setattr(watchlist_service, "WATCHLIST_PATH", tmp_path / "watchlist.json")
     watchlist_service.upsert_watchlist_item({
         "ticker": "2308.TW",
@@ -213,7 +214,7 @@ def test_watchlist_batches_route_to_watchlist_queue_when_supported(monkeypatch, 
     assert calls == [("analysis:job-2308.TW-v2", "job-2308.TW-v2", "2308.TW", "v2", "watchlist")]
 
 
-def test_watchlist_claim_due_items_marks_slot_before_enqueue(monkeypatch, tmp_path):
+def test_watchlist_claim_due_items_leases_without_acknowledging_enqueue(monkeypatch, tmp_path):
     monkeypatch.setattr(watchlist_service, "WATCHLIST_PATH", tmp_path / "watchlist.json")
     watchlist_service.reset_watchlist_store_for_tests()
     watchlist_service.upsert_watchlist_item({
@@ -231,7 +232,8 @@ def test_watchlist_claim_due_items_marks_slot_before_enqueue(monkeypatch, tmp_pa
     assert first_claim[0]["due_slot"] == "pre_market"
     assert first_claim[0]["due_date"] == "2026-06-08"
     assert second_claim == []
-    assert watchlist_service.due_watchlist_items(now) == []
+    assert len(watchlist_service.due_watchlist_items(now)) == 1
+    assert watchlist_service.list_watchlist()["items"][0]["last_run_dates"] == {}
 
 
 def test_watchlist_store_uses_sqlite_and_preserves_run_dates(monkeypatch, tmp_path):
@@ -549,6 +551,10 @@ def test_watchlist_report_alert_lookup_skips_repeated_metadata_sync(monkeypatch,
 
 
 def test_watchlist_trigger_monitor_queues_matched_event_once(monkeypatch, tmp_path):
+    from types import SimpleNamespace
+    async def no_pacing_wait(_seconds):
+        return None
+    monkeypatch.setattr(watchlist_service, 'asyncio', SimpleNamespace(sleep=no_pacing_wait))
     monkeypatch.setattr(watchlist_service, "WATCHLIST_PATH", tmp_path / "watchlist.json")
     watchlist_service.reset_watchlist_store_for_tests()
     watchlist_service.upsert_watchlist_item({
@@ -595,6 +601,10 @@ def test_watchlist_trigger_monitor_queues_matched_event_once(monkeypatch, tmp_pa
 
 
 def test_watchlist_trigger_monitor_does_not_enqueue_legacy_false_match(monkeypatch, tmp_path):
+    from types import SimpleNamespace
+    async def no_pacing_wait(_seconds):
+        return None
+    monkeypatch.setattr(watchlist_service, 'asyncio', SimpleNamespace(sleep=no_pacing_wait))
     monkeypatch.setattr(watchlist_service, "WATCHLIST_PATH", tmp_path / "watchlist.json")
     watchlist_service.reset_watchlist_store_for_tests()
     watchlist_service.upsert_watchlist_item({

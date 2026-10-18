@@ -17,10 +17,11 @@ from shared_provider_cache import shared_fetch
 from source_pdf_reader import extract_pdf_pages
 
 PROVIDER = 'MYSON official conference presentation'
-PARSER_VERSION = 'myson-conference-content-v1'
+PARSER_VERSION = 'myson-conference-content-v2'
 GUARD_KEY = scope_key(PROVIDER, endpoint='www.myson.com.tw')
-COVERAGE_NOTE = '公司法說簡報原文，並非法說逐字稿或獨立查證；圖像、表格閱讀順序及未抽出的頁面仍有內容限制。'
+COVERAGE_NOTE = '公司法說簡報原文與同場官方影音入口，並非逐字稿或獨立查證；影音尚未讀取，圖像、表格閱讀順序及未抽出的頁面仍有內容限制。'
 AGGREGATE_MESSAGE = 'optional 外部來源法說簡報取得結果；各次實際請求另列來源觀測。'
+VIDEO_URL = re.compile(r'https://(?:youtu\.be/[A-Za-z0-9_-]{11}|www\.youtube\.com/watch\?v=[A-Za-z0-9_-]{11})')
 
 
 def supports_company(ticker: str) -> bool:
@@ -36,12 +37,14 @@ def select_presentation(raw: bytes, *, today: date | None = None) -> dict | None
     if '世紀民生科技股份有限公司' not in soup.get_text():
         raise ValueError('Issuer identity absent from index')
     today = today or datetime.now(ZoneInfo('Asia/Taipei')).date()
-    candidates = {}
+    candidates, videos = {}, {}
     for anchor in soup.find_all('a', href=True):
         title = re.sub(r'\s+', '', anchor.get_text())
-        match = re.fullmatch(r'(\d{3})(\d{2})(\d{2})世紀民生法說會簡報', title)
         url = anchor['href']
-        if not match or not isinstance(url, str) or not PDF_URL.fullmatch(url):
+        presentation = re.fullmatch(r'(\d{3})(\d{2})(\d{2})世紀民生法說會簡報', title)
+        video = re.fullmatch(r'(\d{3})(\d{2})(\d{2})世紀民生法說會影音檔', title)
+        match = presentation or video
+        if not match or not isinstance(url, str):
             continue
         try:
             event_date = date(int(match[1]) + 1911, int(match[2]), int(match[3]))
@@ -49,14 +52,20 @@ def select_presentation(raw: bytes, *, today: date | None = None) -> dict | None
             continue
         if event_date > today:
             continue
-        candidates[(event_date, url)] = {'event_date': event_date.isoformat(), 'url': url, 'title': title}
+        if presentation and PDF_URL.fullmatch(url):
+            candidates[(event_date, url)] = {'event_date': event_date.isoformat(), 'url': url, 'title': title}
+        elif video and VIDEO_URL.fullmatch(url):
+            videos.setdefault(event_date, set()).add(url)
     if not candidates:
         return None
     latest = max(key[0] for key in candidates)
     rows = [row for (event, _), row in candidates.items() if event == latest]
     if len(rows) != 1:
         raise ValueError('Ambiguous latest presentation')
-    return rows[0]
+    selected = rows[0]
+    if len(videos.get(latest, ())) == 1:
+        selected['video_url'] = next(iter(videos[latest]))
+    return selected
 
 
 def _guard():
@@ -168,9 +177,13 @@ def _fetch(ticker):
             if key in extracted:
                 document[key] = deepcopy(extracted[key])
         coverage = 'partial'
+        materials = [{'url': selected['url'], 'kind': 'presentation'}]
+        if selected.get('video_url'):
+            materials.append({'url': selected['video_url'], 'kind': 'official_video_link',
+                              'content_retrieved': False, 'transcript_available': False})
         context = {'ticker': str(ticker).upper(), 'date': selected['event_date'], 'period': selected['event_date'],
             'title': selected['title'], 'summary': '', 'transcript_excerpt': '', 'transcript_available': False,
-            'source': PROVIDER, 'source_url': INDEX_URL, 'materials': [{'url': selected['url'], 'kind': 'presentation'}],
+            'source': PROVIDER, 'source_url': INDEX_URL, 'materials': materials,
             'documents': [document], 'coverage_status': coverage, 'coverage_notes': [COVERAGE_NOTE], 'fetched_at_epoch': at}
         return {'context': context, 'diagnostic': {'actual_provider': PROVIDER, 'coverage_status': coverage,
             'component_statuses': components, 'fetched_at_epoch': at, 'message': AGGREGATE_MESSAGE, 'record_count': 1}}

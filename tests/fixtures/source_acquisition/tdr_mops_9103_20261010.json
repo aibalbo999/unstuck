@@ -1,0 +1,308 @@
+{
+  "fixture_scope": "Five complete native JSON originals plus one selected current official issuer row; selected row is a unit fixture, not a complete market roster.",
+  "selected_master": [
+    {
+      "出表日期": "1151008",
+      "公司代號": "9103",
+      "公司名稱": "美德向邦醫療國際股份有限公司",
+      "公司簡稱": "美德醫療-DR",
+      "外國企業註冊地國": "BM 百慕達群島                                                  ",
+      "產業別": "91",
+      "住址": "台北市信義區松高路9號11樓",
+      "營利事業統一編號": "00000000",
+      "董事長": "楊克誠",
+      "總經理": "楊威遠",
+      "發言人": "林逸清",
+      "發言人職稱": "財務長",
+      "代理發言人": "楊宛蒨",
+      "總機電話": "02-27392222",
+      "成立日期": "19971126",
+      "上市日期": "20021213",
+      "普通股每股面額": "美金0.05元",
+      "實收資本額": "827042000",
+      "私募股數": "0",
+      "特別股": "0",
+      "編制財務報表類型": "1",
+      "股票過戶機構": "元大證券股務代理部",
+      "過戶電話": "(02)2586-5859",
+      "過戶地址": "(106)臺北市大安區敦化南路2段67號地下一樓",
+      "簽證會計師事務所": "Baker Tilly TFW LLP",
+      "簽證會計師1": "王建源",
+      "簽證會計師2": "-",
+      "英文簡稱": "MEDTECS",
+      "英文通訊地址": "11F,NO.9,Songgao Road,Xinyi District,Taipei CITY 11073,TaiwanTaipei Taiwan",
+      "傳真機號碼": "(02)2729-8055",
+      "電子郵件信箱": "investor.relations@medtecs.com",
+      "網址": "www.medtecs.com",
+      "已發行普通股數或TDR原股發行股數": "549411240"
+    }
+  ],
+  "iih": {
+    "info": {
+      "status": "error",
+      "message": "查無相關資料！"
+    },
+    "news": [],
+    "fina": [],
+    "conference": []
+  },
+  "october": {
+    "code": 200,
+    "message": "查詢成功",
+    "result": {
+      "marketName": "上市公司",
+      "companyId": "9103",
+      "tradingUrl": "https://mopsov.twse.com.tw/mops/web/ajax_t211sb05?parameters=cd311393fac67115f8379c750f125940b2d16845696d6477ff68993ecb8ef4e41ac0acc2404d43cb0735ee58c4dce607ecae32a4d750adfbee83ed57b77e0680",
+      "financialUrl": "https://mopsov.twse.com.tw/mops/web/ajax_t211sb01?parameters=e690b3284cd564a0f33d6ce29ffcce7c32c3bd14c877358b6b9f83ffdc2ae107203a9567d107a859b4760c2eeddf0e83697c3035aecb928c4d5d6cd05f86cceb",
+      "data": [
+        [
+          "9103",
+          "美德醫療-DR",
+          "115/10/09",
+          "17:41:18",
+          "MKH GLOVE (CAMBODIA) CO., LTD. 股份處分事項完成-中文版",
+          {
+            "apiName": "t59sb01_detail",
+            "parameters": {
+              "marketKind": "sii",
+              "companyId": "9103",
+              "serialNumber": "1",
+              "enterDate": "1151009"
+            }
+          }
+        ],
+        [
+          "9103",
+          "美德醫療-DR",
+          "115/10/09",
+          "17:41:34",
+          "MKH GLOVE (CAMBODIA) CO., LTD. 股份處分事項完成-英文版",
+          {
+            "apiName": "t59sb01_detail",
+            "parameters": {
+              "marketKind": "sii",
+              "companyId": "9103",
+              "serialNumber": "2",
+              "enterDate": "1151009"
+            }
+          }
+        ]
+      ],
+      "titles": [
+        {
+          "sub": [],
+          "main": "公司代號"
+        },
+        {
+          "sub": [],
+          "main": "公司名稱"
+        },
+        {
+          "sub": [],
+          "main": "發言日期"
+        },
+        {
+          "sub": [],
+          "main": "發言時間"
+        },
+        {
+          "sub": [],
+          "main": "主旨"
+        },
+        {
+          "sub": [],
+          "main": "詳細資料"
+        }
+      ],
+      "companyAbbreviation": "美德醫療-DR"
+    },
+    "datetime": "115/10/10 17:30:12"
+  },
+  "september": {
+    "code": 200,
+    "message": "查詢成功",
+    "result": {
+      "marketName": "上市公司",
+      "companyId": "9103",
+      "tradingUrl": "https://mopsov.twse.com.tw/mops/web/ajax_t211sb05?parameters=cd311393fac67115f8379c750f125940b2d16845696d6477ff68993ecb8ef4e41ac0acc2404d43cb0735ee58c4dce607ecae32a4d750adfbee83ed57b77e0680",
+      "financialUrl": "https://mopsov.twse.com.tw/mops/web/ajax_t211sb01?parameters=e690b3284cd564a0f33d6ce29ffcce7c32c3bd14c877358b6b9f83ffdc2ae107203a9567d107a859b4760c2eeddf0e83697c3035aecb928c4d5d6cd05f86cceb",
+      "data": [
+        [
+          "9103",
+          "美德醫療-DR",
+          "115/09/24",
+          "15:09:37",
+          "因本公司有價證券於集中交易市場達公布注意交易資訊標準，故公布原上市地已公開之財務資訊，以利投資人區別瞭解。",
+          {
+            "apiName": "t59sb01_detail",
+            "parameters": {
+              "marketKind": "sii",
+              "companyId": "9103",
+              "serialNumber": "1",
+              "enterDate": "1150924"
+            }
+          }
+        ]
+      ],
+      "titles": [
+        {
+          "sub": [],
+          "main": "公司代號"
+        },
+        {
+          "sub": [],
+          "main": "公司名稱"
+        },
+        {
+          "sub": [],
+          "main": "發言日期"
+        },
+        {
+          "sub": [],
+          "main": "發言時間"
+        },
+        {
+          "sub": [],
+          "main": "主旨"
+        },
+        {
+          "sub": [],
+          "main": "詳細資料"
+        }
+      ],
+      "companyAbbreviation": "美德醫療-DR"
+    },
+    "datetime": "115/10/10 17:39:11"
+  },
+  "disposal": {
+    "code": 200,
+    "message": "查詢成功",
+    "result": {
+      "marketName": "上市公司",
+      "companyId": "9103",
+      "data": [
+        [
+          "9103",
+          1,
+          "民國115年10月9日",
+          "美德向邦醫療國際股份有限公司",
+          "MKH GLOVE (CAMBODIA) CO., LTD. 股份處分事項完成-中文版",
+          "第五條第28款",
+          "發生事由:\n美德向邦醫療國際股份有限公司於民國115年10月9日在新加坡交易所刊發有關MKH GLOVE (CAMBODIA) CO., LTD. 股份處分事項完成-中文版，內容請詳其他處附加檔。",
+          {
+            "fileName": "9103_2026100901_FIM",
+            "url": "https://mopsov.twse.com.tw/nas/t59/t59sa01/9103_2026100901_FIM.pdf"
+          }
+        ]
+      ],
+      "footer": [],
+      "header": {
+        "note": [],
+        "subTitle": [],
+        "mainTitle": [
+          "外國發行人重大訊息"
+        ]
+      },
+      "titles": [
+        {
+          "sub": [],
+          "main": "公司代號"
+        },
+        {
+          "sub": [],
+          "main": "公告序號"
+        },
+        {
+          "sub": [],
+          "main": "事實發生日"
+        },
+        {
+          "sub": [],
+          "main": "公司名稱"
+        },
+        {
+          "sub": [],
+          "main": "主旨"
+        },
+        {
+          "sub": [],
+          "main": "符合條款"
+        },
+        {
+          "sub": [],
+          "main": "發生依外國發行人所屬國及上市地國法令規定應即申報之重大情事"
+        },
+        {
+          "sub": [],
+          "main": "其他"
+        }
+      ],
+      "companyAbbreviation": "美德醫療-DR"
+    },
+    "datetime": "115/10/10 17:30:12"
+  },
+  "financial": {
+    "code": 200,
+    "message": "查詢成功",
+    "result": {
+      "marketName": "上市公司",
+      "companyId": "9103",
+      "data": [
+        [
+          "9103",
+          1,
+          "民國115年9月24日",
+          "美德向邦醫療國際股份有限公司",
+          "因本公司有價證券於集中交易市場達公布注意交易資訊標準，故公布原上市地已公開之財務資訊，以利投資人區別瞭解。",
+          "第五條第28款",
+          "發生事由：\n因本公司有價證券於集中交易市場達公布注意交易資訊標準，故公布原上市地已公開之財務資訊，以利投資人區別瞭解。\n\n單位：仟美元\n-----------           最近一季          最近半年       　   最近一年\n科目                 2026年上半年      2025年上半年          2025年\n------------\n營業收入　              42,315          36,438             78,966\n稅前淨利　               475             243               -5,144\n本期淨利　               465             180               -4,760\n每股盈餘(單位：分美元)    0.085           0.033              -0.874\n\n本公司無「臺灣證券交易所股份有限公司對有價證券上市公司重大訊息之查證暨公開處理程序」第5條第1項所列重大訊息之情事。\n\n註：若係因「有價證券於集中市場達公布注意交易資訊標準」，依第28款公布相關財務業務資訊，請增加以下說明：\n完整財務資訊請至公開資訊觀測站查閱，路徑如下：\n(1)歷史損益(會計師查核/核閱數)：投資專區>臺灣存託憑證專區>個別公司資訊，點選「存託憑證代號」項下代號，再點選「簡明財務報表」/「採用IFRS後-合併綜合損益表」查詢\n(2)歷史每月營業收入(自願性公告)：營運概況>每月營收>採用IFRSs後之月營業收入資訊",
+          ""
+        ]
+      ],
+      "footer": [],
+      "header": {
+        "note": [],
+        "subTitle": [],
+        "mainTitle": [
+          "外國發行人重大訊息"
+        ]
+      },
+      "titles": [
+        {
+          "sub": [],
+          "main": "公司代號"
+        },
+        {
+          "sub": [],
+          "main": "公告序號"
+        },
+        {
+          "sub": [],
+          "main": "事實發生日"
+        },
+        {
+          "sub": [],
+          "main": "公司名稱"
+        },
+        {
+          "sub": [],
+          "main": "主旨"
+        },
+        {
+          "sub": [],
+          "main": "符合條款"
+        },
+        {
+          "sub": [],
+          "main": "發生依外國發行人所屬國及上市地國法令規定應即申報之重大情事"
+        },
+        {
+          "sub": [],
+          "main": "其他"
+        }
+      ],
+      "companyAbbreviation": "美德醫療-DR"
+    },
+    "datetime": "115/10/10 17:39:11"
+  }
+}

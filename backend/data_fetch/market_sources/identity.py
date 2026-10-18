@@ -18,6 +18,9 @@ TAIWAN_BROAD_INDUSTRY_CATEGORIES = {
 }
 
 TAIWAN_IDENTITY_OVERRIDES = {
+    "5314": {
+        "legal_name": "世紀民生科技股份有限公司",
+    },
     "1623": {
         "official_name": "大東電",
         "legal_name": "大東電業廠股份有限公司",

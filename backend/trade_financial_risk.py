@@ -5,8 +5,9 @@ from __future__ import annotations
 import math
 
 
-NEGATIVE_FCF_WARNING = "注意：自由現金流為負，短線財務壓力升高"
-FINANCIAL_RISK_POLICY_VERSION = "negative-fcf:v2"
+LEGACY_NEGATIVE_FCF_WARNING = "注意：自由現金流為負，短線財務壓力升高"
+NEGATIVE_FCF_WARNING = "資料限制：即期FCF期間、合併口徑與完整CapEx未核實，不得視為已確認財務壓力"
+FINANCIAL_RISK_POLICY_VERSION = "negative-fcf:v4"
 
 
 def negative_fcf_value(data):
@@ -30,11 +31,20 @@ def enforce_trade_financial_risk(structured: dict, data: dict) -> dict:
     """
     value = negative_fcf_value(data)
     if value is None:
+        # A restored draft may contain our old deterministic flag after data refresh.
+        # Remove only that unsupported derived flag; retain all other risk and prices.
+        flags = structured.get("financial_risk_flags")
+        if isinstance(flags, list) and any(flag in flags for flag in (NEGATIVE_FCF_WARNING, LEGACY_NEGATIVE_FCF_WARNING)):
+            result = {**structured, "financial_risk_flags": [flag for flag in flags if flag not in (NEGATIVE_FCF_WARNING, LEGACY_NEGATIVE_FCF_WARNING)]}
+            assessment = result.get("financial_risk_assessment")
+            if isinstance(assessment, dict) and assessment.get("reason") == "negative_free_cash_flow":
+                result.pop("financial_risk_assessment", None)
+            return result
         return structured
     from trade_catalyst_claims import split_exact_policy_suffix
     catalyst, _ = split_exact_policy_suffix(structured.get("core_catalyst"))
     flags = structured.get("financial_risk_flags")
-    flags = [flag for flag in flags if isinstance(flag, str)] if isinstance(flags, list) else []
+    flags = [flag for flag in flags if isinstance(flag, str) and flag != LEGACY_NEGATIVE_FCF_WARNING] if isinstance(flags, list) else []
     flags = list(dict.fromkeys([*flags, NEGATIVE_FCF_WARNING]))
     return {**structured, "risk_level": "High", "core_catalyst": catalyst,
             "financial_risk_flags": flags,

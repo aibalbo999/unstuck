@@ -154,6 +154,22 @@ class RQTaskQueue:
             failure_ttl=7 * 24 * 60 * 60,
         )
 
+    def enqueue_once(self, task_id: str, fn, *args, queue_name: str | None = None, **kwargs):
+        from rq import Retry
+        from task_queue_rq_idempotency import enqueue_once
+        queue = self._queue_for_task(task_id, queue_name=queue_name)
+        return enqueue_once(queue, task_id, fn, args, kwargs,
+            retry=Retry(max=RQ_JOB_MAX_RETRIES, interval=list(RQ_JOB_RETRY_INTERVALS)),
+            timeout=RQ_JOB_TIMEOUT_SECONDS)
+
+    def dispatch_receipt(self, task_id: str):
+        from task_queue_rq_idempotency import dispatch_receipt
+        for queue in self.queues.values():
+            receipt = dispatch_receipt(queue, task_id)
+            if receipt is not None:
+                return receipt
+        return None
+
     def cancel(self, task_id: str) -> bool:
         job = None
         for queue in self.queues.values():

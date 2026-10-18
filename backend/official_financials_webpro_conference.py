@@ -10,15 +10,16 @@ import time
 from urllib.parse import urlsplit
 from zoneinfo import ZoneInfo
 
-from external_http_client import sync_post
+from external_http_client import sync_get
 from search_provider_runtime import SourceResponseError, cooldown_state, record_observation, remember_failure, scope_key, observe_http_response
 from shared_provider_cache import shared_fetch
 
 PROVIDER = 'TWSE WebPro conference metadata'
 INDEX_URL = 'https://webpro.twse.com.tw/WebPortal/vod/101/?categoryId=170'
-LIST_URL = 'https://webpro.twse.com.tw/WebPortal/service/vodChannel/categoryMaterialList'
-PARSER_VERSION = 'webpro-conference-metadata-v3'
-SELECTION_POLICY = 'latest_eligible_category_v2'
+LIST_URL = 'https://webpro.twse.com.tw/WebPortal/service/v2/videoHome/categoryMaterialList/'
+PARSER_VERSION = 'webpro-conference-metadata-v5'
+SELECTION_POLICY = 'latest_eligible_category_v3'
+PAGE_SIZE = 100
 COVERAGE_NOTE = '僅取得 WebPro 法說會索引的日期與連結；未取得簡報、影音內容或逐字稿，來源涵蓋不完整。'
 COOLDOWN_KEY = scope_key(PROVIDER, endpoint='conference_index')
 
@@ -34,7 +35,7 @@ def fetch_webpro_conference_context(ticker: str, *, diagnostics: dict | None = N
     if not symbol:
         return {}
     from cache_store import get_cache_json, set_cache_json
-    context_key = f'webpro-conference-context:v2:{symbol}'
+    context_key = f'webpro-conference-context:v4:{symbol}'
     try:
         cached = get_cache_json(context_key)
     except Exception:
@@ -180,10 +181,11 @@ def _fetch_index(symbol: str, category_id: int = 170) -> dict:
     response = None
     observe_http_response(None)
     try:
-        response = sync_post(LIST_URL, data={
-            'categoryId': str(category_id), 'vodChannelId': '101', 'returnType': 'json', 'platform': 'web',
-            'pageNumber': '1', 'pagingSize': '3', 'order': 'eventDate', 'sortOrder': 'desc',
-            'stockCodeOrCompanyName': symbol,
+        response = sync_get(LIST_URL, params={
+            'companyCode': symbol, 'pagingSize': str(PAGE_SIZE), 'order': 'eventDate',
+            # This hint is ignored by the official endpoint, which returns all
+            # company categories. Keep exact category filtering local below.
+            'categoryId': str(category_id),
         }, timeout=(5, 15), provider=PROVIDER)
         observe_http_response(response)
         response.raise_for_status()
@@ -234,17 +236,21 @@ def _parse_index(payload: dict, symbol: str, category_id: int = 170, *, diagnost
         raise ValueError('Inconsistent WebPro paging')
     today = datetime.now(ZoneInfo('Asia/Taipei')).date()
     events, rejected, seen = [], [], set()
+    scoped_raw_count = 0
     for row in rows:
         if not isinstance(row, dict) or not isinstance(row.get('agentUserName'), str):
             raise ValueError('Unknown WebPro row')
         if row['agentUserName'].strip() != symbol:
             continue
+        if type(row.get('categoryId')) is not int:
+            raise ValueError('Missing WebPro row category')
+        if row['categoryId'] != category_id:
+            continue
+        scoped_raw_count += 1
         if type(row.get('isValid')) is not bool:
             raise ValueError('Missing WebPro row validity')
         if not row['isValid']:
             continue
-        if row.get('categoryId') != category_id:
-            raise ValueError('Unexpected WebPro category')
         raw_date = str(row.get('eventDate') or '')
         if not re.fullmatch(r'\d{4}-\d{2}-\d{2} 00:00:00(?:\.0)?', raw_date):
             raise ValueError('Unknown event date')
@@ -263,7 +269,7 @@ def _parse_index(payload: dict, symbol: str, category_id: int = 170, *, diagnost
                        'company_name': str(row.get('agentSimpleName') or '')[:120],
                        'event_id': str(row.get('guid') or '')[:120]})
     if diagnostics is not None:
-        diagnostics.update(raw_count=len(rows), usable_count=len(events), rejected_count=len(rejected),
+        diagnostics.update(raw_count=scoped_raw_count, usable_count=len(events), rejected_count=len(rejected),
                            rejected_reason_counts=dict(Counter(item['reason'] for item in rejected)))
         if rejected:
             diagnostics.update(quality_status='partial_row_rejection', source_record_archive=rejected)

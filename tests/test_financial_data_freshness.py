@@ -244,7 +244,7 @@ def test_async_fetch_skips_fresh_optional_sources(monkeypatch):
             "company_identity": {},
             "sector": "Technology",
             "industry": "Semiconductor",
-            "recent_catalysts": [{"title": "Cached headline", "date": "1970-01-01T00:03:10+00:00"}],
+            "recent_catalysts": [{"title": "台積電 Cached headline", "date": "1970-01-01T00:03:10+00:00", "source": "Fixture news", "url": "https://example.test/2330/news"}],
             "peer_discovery_results": [{"title": "Cached peer"}],
             "source_freshness": source_freshness,
             "_cache_hit": True,
@@ -263,6 +263,6 @@ def test_async_fetch_skips_fresh_optional_sources(monkeypatch):
 
     data = asyncio.run(financial_data.async_fetch_stock_data("2330"))
 
-    assert data["recent_catalysts"][0]["title"] == "Cached headline"
+    assert data["recent_catalysts"][0]["title"] == "台積電 Cached headline"
     assert data["peer_discovery_results"][0]["title"] == "Cached peer"
     assert cached_writes

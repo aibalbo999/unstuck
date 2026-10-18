@@ -2,14 +2,14 @@
     const SOURCE_LABELS = {
         search_upstream: '搜尋供應商',
         earnings_call: '法說會資料', sec_edgar: '美國申報文件', social_sentiment: '社群討論', taiwan_open_data: '台灣開放資料', twse_official: '交易所資料', market_data: '股價與基本資料', financial_statements: '財報資料', recent_catalysts: '新聞與事件',
-        global_market_context: '全球市場脈絡', international_news_context: '國際新聞脈絡', macro_indicators: 'FRED 總經指標', chip_data: '深度籌碼', alternative_data: '另類數據', peer_discovery: '同業比較',
+        global_market_context: '全球市場脈絡', international_news_context: '國際新聞脈絡', macro_indicators: 'FRED 總經指標', chip_data: '深度籌碼', alternative_data: '另類數據', annual_workforce: '年度人力揭露', esg_occupational_safety: '職安衛／ESG 揭露', peer_discovery: '同業比較',
         monthly_revenue: '月營收', institutional_trading: '法人籌碼', dynamic_peer_metrics: '同業指標', pe_river_chart: '估值區間'
     };
     const SOURCE_IMPACT = {
         market_data: '影響目前股價、估值與報告起點', financial_statements: '影響營收、獲利與財務比率',
         recent_catalysts: '補充資料，影響近期題材與風險事件', global_market_context: '補充資料，影響總經、匯率、利率與美股風險偏好判讀',
         international_news_context: '補充資料，影響國際重大新聞與供應鏈事件判讀', macro_indicators: '補充資料，只供總經策略師使用', chip_data: '補充資料，供量化交易員與法證籌碼追蹤使用', alternative_data: '補充資料，供成長預測與財務排雷交叉驗證使用', peer_discovery: '補充資料，影響同業比較與估值參照',
-        monthly_revenue: '影響台股月營收判讀', institutional_trading: '影響法人籌碼判讀',
+        annual_workforce: '補充年度薪酬與人力結構；不代表目前徵才職缺', esg_occupational_safety: '補充公司年度職災與火災申報；不代表即時事故狀態', monthly_revenue: '影響台股月營收判讀', institutional_trading: '影響法人籌碼判讀',
         dynamic_peer_metrics: '影響同業財務與估值指標', pe_river_chart: '影響本益比區間參考'
     };
     const CORE_ANALYSIS_SOURCES = new Set(['market_data', 'financial_statements', 'monthly_revenue', 'institutional_trading', 'twse_official', 'dynamic_peer_metrics', 'pe_river_chart']);

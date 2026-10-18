@@ -169,8 +169,9 @@ def test_issuer_failure_then_mops_success_retains_failed_component_and_correct_p
         assert flow.store[flow.content.GUARD_KEY]['retry_at'] >= time.time()+3590
 
 
-def test_issuer_mops_webpro_failure_summary_never_adds_a_fourth_attempt(flow,monkeypatch):
+def test_issuer_mops_infohub_failure_summary_replaces_webpro_within_budget(flow,monkeypatch):
     from search_provider_runtime import SourceResponseError, record_observation
+    from data_fetch.market_sources import tpex_infohub
     def issuer_error(argv,*args,**kwargs):
         flow.calls.append(argv[-1])
         return {'body':b'refused','headers':b'HTTP/2 403\r\n','metadata':b'{}','process_started':True},0,None
@@ -184,14 +185,22 @@ def test_issuer_mops_webpro_failure_summary_never_adds_a_fourth_attempt(flow,mon
             raise error
         return call
     monkeypatch.setattr(flow.official,'fetch_mops_investor_conference_events',failure('MOPS investor conference'))
-    monkeypatch.setattr(flow.webpro,'fetch_webpro_conference_context',failure('TWSE WebPro'))
+    # TPEx InfoHub replaces the generic WebPro attempt for OTC tickers; keep
+    # this SLA boundary test offline while preserving the existing request budget.
+    monkeypatch.setattr(tpex_infohub,'fetch_tpex_infohub_earnings_call',
+                        lambda *_a,**_k: ({},{'status':'error','error_kind':'access_denied',
+                                           'actual_provider':tpex_infohub.PROVIDER,
+                                           'http_request_sent':False}))
+    monkeypatch.setattr(flow.webpro,'fetch_webpro_conference_context',
+                        lambda *_a,**_k: pytest.fail('TPEx InfoHub replaces WebPro for OTC tickers'))
     result=flow.fetch();primary=audit(result);rows,summary=rows_and_summary()
     assert len(flow.calls)==1 and not result.data.get('earnings_call')
-    assert primary['status']=='error' and primary['message'].startswith('optional 外部來源')
+    assert primary['status']=='degraded_enrichment'
+    assert primary['message'].startswith('optional 外部來源法說簡報')
     assert primary['component_statuses']['issuer_content']['error_kind']=='access_denied'
-    assert {'MOPS','WebPro'} <= primary['component_statuses']['official_index']['component_statuses'].keys()
+    assert 'TPEx_InfoHub' in primary['component_statuses']['official_index']['component_statuses']
     assert len(rows)==5 and summary['aggregate_count']==2
-    assert (summary['http_attempt_count'],summary['fetch_attempts'],summary['failed_count'],summary['fetched_count'])==(3,3,3,0)
+    assert (summary['http_attempt_count'],summary['fetch_attempts'],summary['failed_count'],summary['fetched_count'])==(2,2,2,0)
 
 
 def test_lost_lease_after_index_never_sends_pdf_or_publishes_fresh_cache(flow,monkeypatch):
@@ -208,7 +217,10 @@ def test_lost_lease_after_index_never_sends_pdf_or_publishes_fresh_cache(flow,mo
     assert error.value.error_kind=='lease_lost' and len(flow.calls)==1
     assert flow.content.GUARD_KEY not in flow.store
     cached=[row for key,row in flow.store.items() if key.startswith('shared_provider:')]
-    assert len(cached)==1 and 'value' not in cached[0] and 'fresh_until_epoch' not in cached[0]
+    assert len(cached)==1 and 'value' not in cached[0]
+    assert cached[0].get('fresh_until_epoch',0) <= time.time()
+    with pytest.raises(SourceResponseError):flow.content.fetch_company_conference('5314.TWO')
+    assert len(flow.calls)==1  # A retained error must not publish data or resend HTTP.
     rows,summary=rows_and_summary()
     assert len(rows)==1 and summary['http_attempt_count']==1 and summary['fetched_count']==0
 

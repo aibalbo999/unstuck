@@ -1,6 +1,6 @@
 (function () {
-    const states = {running: '執行中', waiting_retry: '等待重試', queued: '排隊中', completed: '已完成', terminal_quality: '品質檢查未通過，已停止', failed: '已失敗', cancelled: '已取消', unknown: '狀態未知'};
-    const reasons = {registry_unknown: '佇列狀態未知', registry_missing: '找不到佇列紀錄，需核對', registry_conflict: '工作與佇列狀態不一致，需核對', worker_heartbeat_stale: 'Worker 心跳過久，需核對', cooldown: '冷卻中', retry_due: '已到重試時間，等待排程器', retry_queued: '重試已進入佇列'};
+    const states = {running: '執行中', waiting_retry: '等待重試', queued: '排隊中', completed: '已完成', partial: '分析未完整，待有限復驗', terminal_quality: '品質檢查未通過，已停止', failed: '已失敗', cancelled: '已取消', unknown: '狀態未知'};
+    const reasons = {required_agent_output_incomplete: '必要角色輸出截斷或內容缺漏；停止自動重試', registry_unknown: '佇列狀態未知', registry_missing: '找不到佇列紀錄，需核對', registry_conflict: '工作與佇列狀態不一致，需核對', worker_heartbeat_stale: 'Worker 心跳過久，需核對', cooldown: '冷卻中', retry_due: '已到重試時間，等待排程器', retry_queued: '重試已進入佇列'};
     function identity(job) {
         const pipeline = String(job.pipeline_id || '');
         if (!pipeline.startsWith('rerun:')) {

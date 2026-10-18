@@ -662,8 +662,8 @@ def test_evidence_gate_matches_recommendation_prefix_horizon_with_context():
     )
 
     claim = result["sampled_claims"][0]
-    assert result["verdict"] == "approved"
-    assert claim["status"] == "verified"
+    assert result["verdict"] == "caution"
+    assert claim["status"] == "unverifiable"
     assert claim["matched_path"] == "rerun_context.parsed.recommendation.短期目標（3個月）"
 
 
@@ -1150,7 +1150,7 @@ def test_evidence_gate_binds_descriptive_target_label_to_structured_target_only(
     )
 
     claim = result["sampled_claims"][0]
-    assert claim["status"] == "verified"
+    assert claim["status"] == "unverifiable"
     assert claim["matched_path"] == "rerun_context.structured_outputs.24.target_price"
     assert claim["matched_value"] == 43.75
 
@@ -1378,7 +1378,7 @@ def test_evidence_gate_skips_horizon_prefix_in_structured_target_text():
     result = evaluate_report_evidence(markdown, snapshot, sample_ratio=1.0)
 
     claim = result["sampled_claims"][0]
-    assert claim["status"] == "verified"
+    assert claim["status"] == "unverifiable"
     assert claim["matched_value"] == 298.5
 
 
@@ -1452,7 +1452,7 @@ def test_evidence_claims_ignore_numeric_currency_table_cells_as_labels():
 
     assert not any(claim["label"] == "NT$464 億" for claim in claims)
     value_cell_claims = extract_numeric_claims("| 營收 | NT$464 億 |")
-    assert value_cell_claims == [
+    assert [{key: claim[key] for key in ('id', 'claim_type', 'label', 'reported_value', 'unit', 'line_number', 'raw_text')} for claim in value_cell_claims] == [
         {
             "id": 1,
             "claim_type": "financial",
@@ -1520,8 +1520,8 @@ def test_evidence_gate_matches_stop_loss_claims_to_structured_output():
         min_sample=1,
     )
 
-    assert result["verdict"] == "approved"
-    assert result["unverifiable_count"] == 0
+    assert result["verdict"] == "caution"
+    assert result["unverifiable_count"] == 1
     assert result["sampled_claims"][0]["matched_path"] == "rerun_context.structured_outputs.24.stop_loss"
 
 
@@ -1544,8 +1544,8 @@ def test_evidence_gate_matches_trade_support_and_resistance_to_structured_output
         min_sample=2,
     )
 
-    assert result["verdict"] == "approved"
-    assert result["unverifiable_count"] == 0
+    assert result["verdict"] == "caution"
+    assert result["unverifiable_count"] == 2
     assert {
         claim["matched_path"] for claim in result["sampled_claims"]
     } == {
@@ -4085,7 +4085,7 @@ def test_evidence_gate_matches_horizon_targets_to_persisted_recommendation_keys(
         min_sample=4,
     )
 
-    assert result["verdict"] == "approved"
+    assert result["verdict"] == "caution"
     assert [claim["matched_path"] for claim in result["sampled_claims"]] == [
         "rerun_context.parsed.recommendation.短期目標（3個月）",
         "rerun_context.parsed.recommendation.中期目標（6個月）",
@@ -5216,8 +5216,8 @@ def test_evidence_gate_matches_week_target_to_v4_trade_setup_target():
         min_sample=1,
     )
 
-    assert result["verdict"] == "approved"
-    assert result["sampled_claims"][0]["status"] == "verified"
+    assert result["verdict"] == "caution"
+    assert result["sampled_claims"][0]["status"] == "unverifiable"
     assert result["sampled_claims"][0]["matched_path"] == "rerun_context.structured_outputs.24.target_price"
 
 
@@ -5295,7 +5295,7 @@ def test_evidence_gate_prefers_scenario_price_over_pe_text_in_table_rows():
     result = evaluate_report_evidence(markdown, snapshot, sample_ratio=1.0)
 
     claim = result["sampled_claims"][0]
-    assert claim["status"] == "verified"
+    assert claim["status"] == "unverifiable"
     assert claim["matched_path"] == "rerun_context.parsed.price_targets.bear"
 
 
@@ -5363,7 +5363,10 @@ def test_report_renderer_attaches_evidence_exit_gate_to_snapshot_and_metadata(mo
         )
     )
 
-    assert bundle.metadata["evidence_exit_gate"]["verdict"] == "approved"
-    assert bundle.data_snapshot["evidence_exit_gate"]["verdict"] == "approved"
-    assert "Evidence gate：approved" in bundle.html
-    assert "**Evidence gate:** approved" in bundle.markdown
+    # Taiwan source admission also applies without a trade setup: numerical
+    # consistency cannot approve a report lacking raw official evidence.
+    assert bundle.metadata["evidence_exit_gate"]["verdict"] == "caution"
+    assert bundle.data_snapshot["evidence_exit_gate"]["verdict"] == "caution"
+    assert bundle.metadata["evidence_exit_gate"]["source_admission"]["source_eligible"] is False
+    assert "Evidence gate：caution" in bundle.html
+    assert "**Evidence gate:** caution" in bundle.markdown

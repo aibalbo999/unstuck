@@ -93,6 +93,16 @@ def build_short_term_market_context(data: dict, *, as_of=None, compact=False) ->
     raw_daily = raw_daily if isinstance(raw_daily, dict) else {}
     daily = normalize_daily_market_data(raw_daily.get("bars"), as_of=as_of, source=raw_daily.get("source"),
                                         volume_unit=raw_daily.get("volume_unit"))
+    from copy import deepcopy
+    from market_price_reconciliation import reconcile
+    for key in ("price_adjustment_basis", "price_basis_contract", "volume_basis", "retrieved_at", "history_query", "session_recovery", "provider_raw_observation", "official_observation"):
+        if key in raw_daily:
+            value=raw_daily[key]
+            if key in ("provider_raw_observation", "official_observation") and isinstance(value,dict):
+                observation_day=parse_market_date(value.get("date"))
+                if observation_day and observation_day>as_of:continue
+            daily[key]=deepcopy(value)
+    daily["price_reconciliation"]=reconcile(daily)
     indicators = calculate_technical_indicators(daily)
     displayed = daily["bars"][-(5 if compact else 20):]
     return {

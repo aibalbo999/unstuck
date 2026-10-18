@@ -197,6 +197,8 @@ def parse_structured_data(context: AnalysisContext) -> dict:
                 "catalyst_source_refs",
             )
         }
+        if "price_level_evidence" in structured_outputs[trade_setup_agent]:
+            parsed["trade_setup"]["price_level_evidence"] = structured_outputs[trade_setup_agent]["price_level_evidence"]
         if "transaction_cost" in structured_outputs[trade_setup_agent]:
             parsed["trade_setup"]["transaction_cost"] = structured_outputs[trade_setup_agent]["transaction_cost"]
         from trade_catalyst_semantics import normalize_trade_catalyst_fields

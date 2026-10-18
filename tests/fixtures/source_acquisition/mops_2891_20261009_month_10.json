@@ -1,0 +1,70 @@
+{
+  "code": 200,
+  "message": "查詢成功",
+  "result": {
+    "marketName": "上市公司",
+    "companyId": "2891",
+    "companyAbbreviation": "中信金",
+    "titles": [
+      {
+        "main": "公司代號",
+        "sub": []
+      },
+      {
+        "main": "公司名稱",
+        "sub": []
+      },
+      {
+        "main": "發言日期",
+        "sub": []
+      },
+      {
+        "main": "發言時間",
+        "sub": []
+      },
+      {
+        "main": "主旨",
+        "sub": []
+      },
+      {
+        "main": "詳細資料",
+        "sub": []
+      }
+    ],
+    "data": [
+      [
+        "2891",
+        "中信金",
+        "115/10/04",
+        "18:04:41",
+        "代子公司The Tokyo Star Bank, Limited公告董事辭世",
+        {
+          "apiName": "t05st01_detail",
+          "parameters": {
+            "companyId": "2891",
+            "marketKind": "sii",
+            "enterDate": "1151004",
+            "serialNumber": "1"
+          }
+        }
+      ],
+      [
+        "2891",
+        "中信金",
+        "115/10/06",
+        "17:48:06",
+        "代台灣人壽公告核准投資\r\nBrookfield Infrastructure Fund VI-A, L.P.",
+        {
+          "apiName": "t05st01_detail",
+          "parameters": {
+            "companyId": "2891",
+            "marketKind": "sii",
+            "enterDate": "1151006",
+            "serialNumber": "1"
+          }
+        }
+      ]
+    ]
+  },
+  "datetime": "115/10/09 13:19:46"
+}

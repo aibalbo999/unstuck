@@ -9,7 +9,7 @@ from structured_output_runtime import process_agent_response
 from test_trade_source_completion import setup_payload
 
 
-WARNING = "注意：自由現金流為負，短線財務壓力升高"
+from trade_financial_risk import NEGATIVE_FCF_WARNING as WARNING, LEGACY_NEGATIVE_FCF_WARNING
 
 
 def context(value):
@@ -29,6 +29,7 @@ def test_negative_fcf_escalates_risk_without_changing_price_or_source_evidence(v
     assert actual["risk_level"] == "High"
     assert WARNING not in actual["core_catalyst"] and WARNING in actual["financial_risk_flags"] and WARNING in text
     assert "TTM" not in actual["core_catalyst"]
+    assert LEGACY_NEGATIVE_FCF_WARNING not in text
     for field in ("trade_direction", "entry_zone", "target_price", "stop_loss",
                   "support_source_refs", "resistance_source_refs", "catalyst_source_refs"):
         assert actual[field] == payload[field]
@@ -71,3 +72,15 @@ def test_financial_guard_does_not_authorize_fake_sources_or_incomplete_generatio
     process_agent_response(24, json.dumps(payload), ctx,
                            completion_diagnostics={"finish_reasons": ["MAX_TOKENS"]})
     assert not ctx["structured_outputs"].get(24)
+
+
+@pytest.mark.parametrize("raw", [42_195_222_528, None, 0])
+def test_restored_negative_flag_is_removed_when_current_input_no_longer_supports_it(raw):
+    from trade_financial_risk import enforce_trade_financial_risk, NEGATIVE_FCF_WARNING
+    saved = {"risk_level": "High", "trade_direction": "Neutral", "financial_risk_flags": [NEGATIVE_FCF_WARNING], "financial_risk_assessment": {"reason": "negative_free_cash_flow", "value": -1}, "entry_zone": "N/A"}
+    before = copy.deepcopy(saved)
+    actual = enforce_trade_financial_risk(saved, {"free_cash_flow_raw": raw})
+    assert actual["financial_risk_flags"] == []
+    assert "financial_risk_assessment" not in actual
+    assert actual["risk_level"] == "High" and actual["trade_direction"] == "Neutral"
+    assert saved == before

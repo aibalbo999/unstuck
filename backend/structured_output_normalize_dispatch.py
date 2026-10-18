@@ -206,6 +206,8 @@ def normalize_structured_output(agent_num: int, payload: Any) -> Optional[dict]:
             "resistance_source_refs": list(payload.get("resistance_source_refs") or [])[:6],
             "catalyst_source_refs": list(payload.get("catalyst_source_refs") or [])[:6],
         }
+        if "price_level_evidence" in raw_payload:
+            trade_setup["price_level_evidence"] = list(raw_payload.get("price_level_evidence") or [])
         if "analysis_markdown" in raw_payload or "analysis_markdown" in payload:
             trade_setup["analysis_markdown"] = _normalized_analysis_markdown(raw_payload, payload)
         if "transaction_cost" in raw_payload:

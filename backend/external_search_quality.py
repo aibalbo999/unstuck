@@ -7,7 +7,7 @@ import re
 from urllib.parse import urlparse
 
 from config import SEARCH_MIN_UNIQUE_SOURCES, SEARCH_PROVIDER_EXPANSION_MIN_RESULTS
-from external_search_payloads import dedupe_results
+from external_search_payloads import dedupe_results, result_dedupe_identity
 from external_search_types import SearchResult
 from news_freshness_policy import news_cutoff, publisher_identity
 from news_record_utils import canonical_link, parse_news_datetime
@@ -72,6 +72,7 @@ def select_quality_results(
     require_recent: bool = False,
     cutoff=None,
     company_context: dict | None = None,
+    verified_event_identity=None,
 ) -> list[SearchResult]:
     if int(limit) <= 0:
         return []
@@ -80,7 +81,8 @@ def select_quality_results(
     if company_context is not None:
         from source_content_selection import issuer_match
         records = [r for r in records if issuer_match({"title":r.title,"snippet":r.snippet}, company_context)]
-    deduped = dedupe_results(records, limit=max(len(records), int(limit)))
+    deduped = dedupe_results(records, limit=max(len(records), int(limit)),
+                            verified_event_identity=verified_event_identity)
     if len(deduped) <= 1:
         return deduped[:limit]
 
@@ -101,13 +103,13 @@ def select_quality_results(
         if source_key in seen_sources:
             continue
         selected.append(record)
-        selected_ids.add((record.link.strip().lower(), record.title.strip().lower()))
+        selected_ids.add(result_dedupe_identity(record, verified_event_identity))
         seen_sources.add(source_key)
         if len(selected) >= limit:
             return selected
 
     for record in quality_first:
-        record_id = (record.link.strip().lower(), record.title.strip().lower())
+        record_id = result_dedupe_identity(record, verified_event_identity)
         if record_id in selected_ids:
             continue
         selected.append(record)
@@ -127,6 +129,10 @@ def _recent_results(records: list[SearchResult], *, lookback_days: int, cutoff=N
 
 def result_source_key(record: SearchResult) -> str:
     host = (urlparse(canonical_link(record.link)).hostname or "").lower().removeprefix("www.")
+    if (host in {'ec.ltn.com.tw', 'stock.ltn.com.tw', 'news.ltn.com.tw'}
+            or (host in {'news.google.com', 'google.com', 'search.yahoo.com'}
+                and record.source.strip() in {'自由財經', '自由時報', '自由時報電子報'})):
+        return 'ltn.com.tw'
     if host and host not in {"news.google.com", "google.com", "search.yahoo.com"}:
         return host
     return publisher_identity({"link": record.link, "source": record.source})[1]

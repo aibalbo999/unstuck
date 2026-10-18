@@ -146,6 +146,11 @@ def build_decision_tracking(
     """Build a compact decision-performance snapshot for list/report APIs."""
     recommendation = recommendation if isinstance(recommendation, dict) else {}
     snapshot = snapshot if isinstance(snapshot, dict) else _read_snapshot(data_snapshot_path)
+    from report_publication_identity import publication_identity, replay_notice
+    identity = publication_identity(snapshot)
+    if not identity["prediction_eligible"]:
+        return {"status": "excluded_incomplete" if identity["kind"] == "partial_analysis" else "excluded_validation" if identity["kind"] == "saved_data_repair_validation" else "excluded_replay", "prediction_eligible": False, "return_pct": None,
+                "summary": replay_notice(snapshot), "publication_identity": identity}
     initial_price = parse_optional_price(recommendation.get("current_price"))
     latest_price = _snapshot_current_price(snapshot)
     if latest_price is None:
@@ -207,6 +212,16 @@ def build_decision_freshness(
             "message": "尚無資料快照，無法判斷投資結論是否仍對應最新資料。",
         }
 
+    from report_publication_identity import publication_identity, replay_notice
+    identity = publication_identity(snapshot)
+    if not identity["prediction_eligible"]:
+        return {"status": identity["kind"], "requires_rerun": False,
+                "conclusion_generated_at": identity["analysis_generated_at"],
+                "publication_generated_at": identity["published_at"],
+                "data_snapshot_generated_at": snapshot.get("generated_at", ""),
+                "snapshot_refreshed_at": snapshot.get("snapshot_refreshed_at", ""),
+                "requires_rerun_reason": "", "prediction_eligible": False,
+                "message": replay_notice(snapshot)}
     stale = safe_bool(snapshot.get("refreshed_without_analysis_rerun"))
     data_snapshot_generated_at = str(snapshot.get("generated_at") or "")
     conclusion_generated_at = str(

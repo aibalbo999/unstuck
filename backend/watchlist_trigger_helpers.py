@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import re
+from calendar import monthrange
 from datetime import date, datetime
 from typing import Any
 
@@ -102,6 +103,50 @@ def flatten_text(value: Any) -> str:
     if isinstance(value, list):
         return " ".join(flatten_text(item) for item in value)
     return str(value or "")
+
+
+def monthly_revenue_below_threshold(condition: object) -> int | None:
+    """Recognize only a complete, literal monthly-revenue condition."""
+    match = re.fullmatch(r"月營收低於([1-9]\d{0,5})(億|萬)元", str(condition or "").strip())
+    if match is None:
+        return None
+    return int(match.group(1)) * (100_000_000 if match.group(2) == "億" else 10_000)
+
+
+def latest_monthly_revenue_observation(rows: object, evaluation_date: str) -> tuple[dict | None, str]:
+    """Use one current, dated FinMind display value without guessing missing months."""
+    day = parse_iso_date(evaluation_date)
+    if day is None or not isinstance(rows, list) or not rows:
+        return None, "missing_monthly_revenue"
+    observations = {}
+    for row in rows:
+        match = re.fullmatch(r"\s*(\d{4})年(\d{1,2})月:\s*NT\$([0-9]+\.\d{2})(億|萬)\s*", str(row))
+        if match is None:
+            return None, "unrecognized_monthly_revenue"
+        year, month = int(match.group(1)), int(match.group(2))
+        try:
+            period = date(year, month, 1)
+        except ValueError:
+            return None, "invalid_monthly_revenue_period"
+        scale = 100_000_000 if match.group(4) == "億" else 10_000
+        displayed_twd = round(float(match.group(3)) * scale)
+        precision_twd = scale // 100
+        prior = observations.setdefault(period, (displayed_twd, precision_twd))
+        if prior != (displayed_twd, precision_twd):
+            return None, "conflicting_monthly_revenue"
+    period = max(observations)
+    month_end = date(period.year, period.month, monthrange(period.year, period.month)[1])
+    age_days = (day - month_end).days
+    if not 0 <= age_days <= 45:
+        return None, "stale_or_future_monthly_revenue"
+    displayed_twd, precision_twd = observations[period]
+    return {
+        "observed_month": period.strftime("%Y-%m"),
+        "revenue_twd": displayed_twd,
+        "possible_upper_twd": displayed_twd + precision_twd / 2,
+        "display_precision_twd": precision_twd,
+        "age_days_from_month_end": age_days,
+    }, "current"
 
 
 def parse_revenue_value(value: object) -> float | None:

@@ -1,0 +1,4657 @@
+{
+  "verification_date": "2026-10-18",
+  "base_commit": "636003e1a186f4787c7ed073a943eea966d7a3a8",
+  "scope": "Free-source acquisition, report evidence validation, model completion and bounded runtime reads",
+  "test_summary": "6779 passed, 145 warnings, 75 subtests passed in 466.24s (0:07:46)",
+  "test_targets": [
+    "tests/test_acer_issuer_news.py",
+    "tests/test_agent24_state_reference_capacity.py",
+    "tests/test_agent_context_providers.py",
+    "tests/test_alternative_data_fetcher.py",
+    "tests/test_alternative_search_providers.py",
+    "tests/test_alternative_source_presence.py",
+    "tests/test_analysis_job_checkpoint_input.py",
+    "tests/test_annual_cached_coverage.py",
+    "tests/test_annual_component_completeness.py",
+    "tests/test_annual_disclosure_refresh_scheduler.py",
+    "tests/test_annual_occupational_safety.py",
+    "tests/test_annual_workforce_source.py",
+    "tests/test_audit_rules.py",
+    "tests/test_audit_trade_sources.py",
+    "tests/test_auras_conference.py",
+    "tests/test_auras_conference_transport.py",
+    "tests/test_auras_monthly_history.py",
+    "tests/test_bound_brand_fallback_query.py",
+    "tests/test_broker_history_projection.py",
+    "tests/test_broker_news_subject_role.py",
+    "tests/test_cached_optional_recovery.py",
+    "tests/test_catalyst_search_fallback_plan.py",
+    "tests/test_cathay_official_careers.py",
+    "tests/test_cathay_official_conference.py",
+    "tests/test_chipmos_issuer_news.py",
+    "tests/test_chipmos_transcript_pdf_reader.py",
+    "tests/test_chroma_issuer_news.py",
+    "tests/test_cht_issuer_news.py",
+    "tests/test_cmoney_qualified_names.py",
+    "tests/test_cmoney_referenced_originals.py",
+    "tests/test_cmoney_stock_context.py",
+    "tests/test_cmoney_stock_posts.py",
+    "tests/test_company_conference_content.py",
+    "tests/test_company_conference_contract.py",
+    "tests/test_company_news_acquisition.py",
+    "tests/test_conference_metadata_recovery.py",
+    "tests/test_construction_cohort_transport.py",
+    "tests/test_content_credibility.py",
+    "tests/test_content_credibility_projection.py",
+    "tests/test_coplus_verified_news_name.py",
+    "tests/test_cross_mode_evidence_contract.py",
+    "tests/test_ctbc_official_careers.py",
+    "tests/test_daily_read_timing.py",
+    "tests/test_data_fetch_fixtures.py",
+    "tests/test_data_trust.py",
+    "tests/test_decision_tracking_workflow.py",
+    "tests/test_delta_conference.py",
+    "tests/test_delta_scheduled_index.py",
+    "tests/test_eclat_conference.py",
+    "tests/test_eink_issuer_news.py",
+    "tests/test_esun_issuer_news.py",
+    "tests/test_evidence_claim_types.py",
+    "tests/test_evidence_exit_gate.py",
+    "tests/test_evidence_exit_gate_daily_ohlc.py",
+    "tests/test_evidence_exit_gate_technical.py",
+    "tests/test_evidence_financial_amounts.py",
+    "tests/test_evidence_independent_source.py",
+    "tests/test_evidence_literal_path_matching.py",
+    "tests/test_evidence_monthly_amounts.py",
+    "tests/test_evidence_normalization_cache.py",
+    "tests/test_evidence_timestamp_boundaries.py",
+    "tests/test_evidence_today_regressions.py",
+    "tests/test_external_context_providers.py",
+    "tests/test_external_data_client.py",
+    "tests/test_feib_verified_news_name.py",
+    "tests/test_financial_data_freshness.py",
+    "tests/test_financial_institution_history_projection.py",
+    "tests/test_financial_policy_admission_order.py",
+    "tests/test_financial_statement_observation.py",
+    "tests/test_finmind_financial_transport.py",
+    "tests/test_finmind_news_daily_recovery.py",
+    "tests/test_finmind_overview_recovery.py",
+    "tests/test_finmind_overview_review.py",
+    "tests/test_finmind_sdk_quota_retry.py",
+    "tests/test_free_news_evidence_capacity.py",
+    "tests/test_free_news_quality_fallback.py",
+    "tests/test_full_evidence_coverage.py",
+    "tests/test_gogolook_verified_news_name.py",
+    "tests/test_guc_conference.py",
+    "tests/test_guc_conference_transport.py",
+    "tests/test_guc_issuer_news.py",
+    "tests/test_honhai_conference.py",
+    "tests/test_honhai_conference_acquisition.py",
+    "tests/test_honhai_conference_prompt.py",
+    "tests/test_honhai_conference_storage.py",
+    "tests/test_honhai_conference_transport.py",
+    "tests/test_indexed_non_article_news.py",
+    "tests/test_institutional_claim_lineage.py",
+    "tests/test_institutional_daily_category_evidence.py",
+    "tests/test_institutional_explicit_daily_pair.py",
+    "tests/test_institutional_full_window_recovery.py",
+    "tests/test_institutional_provider_recovery.py",
+    "tests/test_institutional_summary_consistency.py",
+    "tests/test_insurer_standalone_history_projection.py",
+    "tests/test_irengage_conference.py",
+    "tests/test_issuer_news.py",
+    "tests/test_issuer_news_component_refresh.py",
+    "tests/test_issuer_news_integration.py",
+    "tests/test_issuer_news_shared_roster.py",
+    "tests/test_issuer_news_transport.py",
+    "tests/test_issuer_search_anchor.py",
+    "tests/test_jentech_fallback_routing.py",
+    "tests/test_jentech_transport_null_content_type.py",
+    "tests/test_kgi_careers_transport.py",
+    "tests/test_kgi_official_careers.py",
+    "tests/test_kingslide_conference.py",
+    "tests/test_kingslide_conference_transport.py",
+    "tests/test_large_response_evidence.py",
+    "tests/test_ltn_catalyst_fallback.py",
+    "tests/test_ltn_official_identity_and_relative_dates.py",
+    "tests/test_ltn_stock_news.py",
+    "tests/test_market_price_reconciliation.py",
+    "tests/test_medtecs_medical_peer_recovery.py",
+    "tests/test_medtecs_published_discovery_integration.py",
+    "tests/test_memo_output_completion.py",
+    "tests/test_moneydj_cohort_transport.py",
+    "tests/test_moneydj_published_peer_cohort.py",
+    "tests/test_monthly_revenue_shared_cache.py",
+    "tests/test_monthly_revenue_values.py",
+    "tests/test_mops_complete_first_comparative.py",
+    "tests/test_mops_conference_same_day.py",
+    "tests/test_mops_conference_source_reuse.py",
+    "tests/test_mops_json_company_history.py",
+    "tests/test_mops_opening_balance_layout.py",
+    "tests/test_mops_published_materials.py",
+    "tests/test_multi_issuer_announcement_refresh.py",
+    "tests/test_nanya_mops_pipeline.py",
+    "tests/test_nanya_mops_presentation.py",
+    "tests/test_nanya_mops_transport.py",
+    "tests/test_news_name_only_fallback.py",
+    "tests/test_news_refresh_staleness.py",
+    "tests/test_news_role_projection.py",
+    "tests/test_news_wrapper_dedup.py",
+    "tests/test_normal_annual_cache_boundaries.py",
+    "tests/test_normal_annual_source_reuse.py",
+    "tests/test_official_airline_peer_cohort.py",
+    "tests/test_official_announcement_independent_review.py",
+    "tests/test_official_announcement_source_refresh.py",
+    "tests/test_official_broker_cohort.py",
+    "tests/test_official_broker_financial_xbrl.py",
+    "tests/test_official_company_legal_name.py",
+    "tests/test_official_construction_peer_cohort.py",
+    "tests/test_official_convenience_peer_cohort.py",
+    "tests/test_official_financial_gap_cache.py",
+    "tests/test_official_financial_institution_xbrl.py",
+    "tests/test_official_financials.py",
+    "tests/test_official_food_processing_peer_cohort.py",
+    "tests/test_official_institutional_verification.py",
+    "tests/test_official_insurer_individual_xbrl.py",
+    "tests/test_official_monthly_revenue.py",
+    "tests/test_official_mopsfin_financial.py",
+    "tests/test_official_peer_valuation.py",
+    "tests/test_official_quarterly_financials.py",
+    "tests/test_official_segment_discovery.py",
+    "tests/test_official_short_annual_index_gap.py",
+    "tests/test_official_short_name_reconciliation.py",
+    "tests/test_official_source_recovery.py",
+    "tests/test_official_steel_wire_peer_cohort.py",
+    "tests/test_official_thermal_peer_cohort.py",
+    "tests/test_official_underwriter_peer_cohort.py",
+    "tests/test_official_xbrl_financial.py",
+    "tests/test_ordinary_individual_scope.py",
+    "tests/test_peer_acquisition_recovery.py",
+    "tests/test_peer_prompt_exclusion.py",
+    "tests/test_pending_announcement_source_refresh.py",
+    "tests/test_performance_read_executor.py",
+    "tests/test_promate_conference.py",
+    "tests/test_promate_conference_transport.py",
+    "tests/test_prompt_context_routing.py",
+    "tests/test_provider_acquisition.py",
+    "tests/test_provider_observation_details.py",
+    "tests/test_provider_workflow.py",
+    "tests/test_psc_careers_transport.py",
+    "tests/test_psc_conference.py",
+    "tests/test_psc_conference_transport.py",
+    "tests/test_psc_official_careers.py",
+    "tests/test_ptt_body_evidence.py",
+    "tests/test_ptt_stock_search.py",
+    "tests/test_realtek_issuer_news.py",
+    "tests/test_recent_google_query_window.py",
+    "tests/test_registered_issuer_articles.py",
+    "tests/test_report_alternative_source_refresh.py",
+    "tests/test_report_artifacts.py",
+    "tests/test_report_bundle_failure_recovery.py",
+    "tests/test_report_bundle_retention.py",
+    "tests/test_report_conformance.py",
+    "tests/test_report_data_trust.py",
+    "tests/test_report_evidence_review.py",
+    "tests/test_report_fcf_period_reference.py",
+    "tests/test_report_institutional_scopes.py",
+    "tests/test_report_preview.py",
+    "tests/test_report_quality_audit.py",
+    "tests/test_report_quality_evidence_frontend.py",
+    "tests/test_report_reader.py",
+    "tests/test_report_recent_catalyst_source_refresh.py",
+    "tests/test_report_refresh_acquisition_audit.py",
+    "tests/test_report_refresh_incremental.py",
+    "tests/test_report_source_refresh.py",
+    "tests/test_request_projection_reuse.py",
+    "tests/test_rq_real_pipeline_dispatch.py",
+    "tests/test_runtime_paths.py",
+    "tests/test_saved_data_repair_validation.py",
+    "tests/test_schedule_enqueue_fault_evidence.py",
+    "tests/test_search_catalyst_queries.py",
+    "tests/test_search_news_role_boundaries.py",
+    "tests/test_search_provider_recovery.py",
+    "tests/test_seec_conference.py",
+    "tests/test_seec_conference_transport.py",
+    "tests/test_seec_pdf_header_whitespace.py",
+    "tests/test_settings_env_loading.py",
+    "tests/test_sgx_issuer_news.py",
+    "tests/test_shared_cache_corruption.py",
+    "tests/test_shared_provider_cache.py",
+    "tests/test_short_term_market_data.py",
+    "tests/test_sma_alignment_contract.py",
+    "tests/test_social_query_precision.py",
+    "tests/test_source_admission_observation.py",
+    "tests/test_source_approval_without_trade_setup.py",
+    "tests/test_source_content_selection.py",
+    "tests/test_source_documents_integration.py",
+    "tests/test_source_pdf_exit_accounting.py",
+    "tests/test_source_pdf_reader.py",
+    "tests/test_source_pdf_verified_symbols.py",
+    "tests/test_source_pptx_reader.py",
+    "tests/test_static_history_filters.py::test_candidate_next_actions_assets_use_shared_cache_buster",
+    "tests/test_stock_snapshot_acquisition_audit.py",
+    "tests/test_storage_inventory.py",
+    "tests/test_strategy_evaluator.py",
+    "tests/test_structured_output_models.py",
+    "tests/test_sync_enrichment_source_plan.py",
+    "tests/test_system_chain_isolated.py",
+    "tests/test_systex_conference_index.py",
+    "tests/test_taiwanjobs_company_jobs.py",
+    "tests/test_taiwanjobs_fcfc_name_reconciliation.py",
+    "tests/test_taiwanjobs_regional_jobs.py",
+    "tests/test_tcc_issuer_news.py",
+    "tests/test_tcfhc_conference.py",
+    "tests/test_tcfhc_conference_transport.py",
+    "tests/test_tcfhc_review_boundaries.py",
+    "tests/test_tdr_mops_boundaries.py",
+    "tests/test_tdr_mops_component_boundaries.py",
+    "tests/test_tdr_mops_component_refresh.py",
+    "tests/test_tdr_mops_history.py",
+    "tests/test_thermal_peer_source_refresh.py",
+    "tests/test_thermal_sync_enrichment.py",
+    "tests/test_tpex_company_history.py",
+    "tests/test_tpex_historical_quarterly_summary.py",
+    "tests/test_tpex_infohub.py",
+    "tests/test_tpex_openapi_institutional.py",
+    "tests/test_tpex_session_observation.py",
+    "tests/test_tracking_latest_selection.py",
+    "tests/test_tracking_read_executor.py",
+    "tests/test_tracking_refresh_workflow.py",
+    "tests/test_trade_catalog_expansion.py",
+    "tests/test_trade_catalyst_semantics.py",
+    "tests/test_trade_financial_risk_guard.py",
+    "tests/test_trade_price_grid.py",
+    "tests/test_trade_source_completion.py",
+    "tests/test_trade_source_precise_guidance.py",
+    "tests/test_trade_source_schema_scope.py",
+    "tests/test_two_week_daily_eligibility.py",
+    "tests/test_twse_announcement_connect_budget.py",
+    "tests/test_twse_announcement_progress.py",
+    "tests/test_twse_announcement_recovery_integration.py",
+    "tests/test_twse_company_history.py",
+    "tests/test_twse_etf_official_evidence.py",
+    "tests/test_twse_history_transport.py",
+    "tests/test_twse_iih_conference_notice.py",
+    "tests/test_twse_json_history.py",
+    "tests/test_twse_market_notice_independent_review.py",
+    "tests/test_twse_market_trading_notices.py",
+    "tests/test_twse_monthly_history.py",
+    "tests/test_twse_notice_clause_markup.py",
+    "tests/test_twse_notice_risk_clause_markup.py",
+    "tests/test_twse_trading_notices.py",
+    "tests/test_txc_conference.py",
+    "tests/test_txc_conference_acquisition.py",
+    "tests/test_txc_conference_pipeline.py",
+    "tests/test_txc_conference_transport.py",
+    "tests/test_txc_issuer_news.py",
+    "tests/test_txc_pdf_symbols.py",
+    "tests/test_uk_conference.py",
+    "tests/test_uk_conference_acquisition.py",
+    "tests/test_uk_conference_pipeline.py",
+    "tests/test_uk_conference_transport.py",
+    "tests/test_unitech_conference_transport.py",
+    "tests/test_v4_observation_gate.py",
+    "tests/test_v4_trade_basis_gate.py",
+    "tests/test_ventec_issuer_republication.py",
+    "tests/test_watchlist_batch_shutdown.py",
+    "tests/test_watchlist_dispatch_recovery.py",
+    "tests/test_watchlist_radar_data.py",
+    "tests/test_watchlist_service.py",
+    "tests/test_watchlist_triggers.py",
+    "tests/test_webpro_conference_categories.py",
+    "tests/test_webpro_conference_fallback.py",
+    "tests/test_webpro_empty_month_recovery.py",
+    "tests/test_webpro_latest_category.py",
+    "tests/test_webpro_row_recovery.py",
+    "tests/test_wiwynn_issuer_news.py",
+    "tests/test_worker_main.py",
+    "tests/test_workforce_partial_facts.py",
+    "tests/test_yahoo_published_peer_ranking.py",
+    "tests/test_yahoo_stock_comments.py",
+    "tests/test_yahoo_taiwan_news.py",
+    "tests/test_yahoo_taiwan_transport.py",
+    "tests/test_yulon_group_articles.py"
+  ],
+  "files": [
+    {
+      "path": "backend/.env.example",
+      "sha256": "3a0830342cb7c8b657000e6c9244dd6fd74285f9225b2df119f0d1deea55f57d"
+    },
+    {
+      "path": "backend/agent_runtime/deterministic_fallback_trade_evidence.py",
+      "sha256": "0c951e696655965a3f4f30600dcbc16fead512efa5eb4f7c44b41445216d4454"
+    },
+    {
+      "path": "backend/agent_runtime/generation_config.py",
+      "sha256": "67dfbcebf4fe567d0687c5e655c7e94560146ae2465e481aefd1a7f290d46678"
+    },
+    {
+      "path": "backend/agent_runtime/llm_calls.py",
+      "sha256": "c7cbbf523c2bd32ac45f1b7894146dbb5954724c6aca570e261e55ba4e0c1dc6"
+    },
+    {
+      "path": "backend/agent_runtime/prompt_routing_policy.py",
+      "sha256": "2a1fd4b0311b182d07c65638fa38c7c68336c358767a29a722e32d4ece738762"
+    },
+    {
+      "path": "backend/agent_runtime/prompting.py",
+      "sha256": "1d12b69f5409e9980a62f85b8ea3b2d11c82d03ebc818a65536beb9b7ada4c46"
+    },
+    {
+      "path": "backend/agent_runtime/quality_gates.py",
+      "sha256": "21f9291e3eefd545d9bad8d3c1b65392adc149f16f3aab96e326537dafc239b5"
+    },
+    {
+      "path": "backend/agent_runtime/step_cache.py",
+      "sha256": "ebc474e68ea219b5bca094b1cf30bd4467aa0891471480b6b314102ff64e61c2"
+    },
+    {
+      "path": "backend/allis_presentation_pdf_reader.py",
+      "sha256": "ebf4cb4710301e820aaeb8b9fe55b28c2519d829be82d8d45d51129eebad817d"
+    },
+    {
+      "path": "backend/allis_presentation_pdf_worker.py",
+      "sha256": "c7e0e53a406be6a52f3a3c7fd1c7a1b24a6e92c7e46e392b5965689ee7575308"
+    },
+    {
+      "path": "backend/alternative_data_fetcher.py",
+      "sha256": "7e4a85832581ee68bdd15446250960eb34a93312dd488ff9ec6449d02e36d0d1"
+    },
+    {
+      "path": "backend/alternative_source_refresh.py",
+      "sha256": "b67874962ea88619d21a4b71c99e9f7a0ebc6dd2c7375871818aff0078b0373f"
+    },
+    {
+      "path": "backend/analysis_job_checkpoint.py",
+      "sha256": "1d55f05df70a2638a3e29254b88938b452b3d2ee68c5531adfccfe6cf3326cfb"
+    },
+    {
+      "path": "backend/analysis_job_execution_state.py",
+      "sha256": "f58aa37200c220721f9c57d19f87fe3a643f065ae95630ee50879be7a779691c"
+    },
+    {
+      "path": "backend/analysis_job_service.py",
+      "sha256": "c39629392b9df464f5d2f7d7dc0278f7e450af043611429560d9c85f1f014868"
+    },
+    {
+      "path": "backend/analysis_jobs.py",
+      "sha256": "88fa51c5d73ace81872aa7f6960ce9df806fa8668e14fa3a7ab0f7d5a405ee06"
+    },
+    {
+      "path": "backend/annual_disclosure_refresh_scheduler.py",
+      "sha256": "556c30b0edee5ae56635bb146a8f155022f617c4b16d35191c6f5dcc4ce7e6c1"
+    },
+    {
+      "path": "backend/annual_financial_source_refresh.py",
+      "sha256": "32a96195e9aa4f5234732a4cc314d3670cbb9ffa2f4013d6b8327802af285fc4"
+    },
+    {
+      "path": "backend/api.py",
+      "sha256": "d9e334cfb97bc2a57e4a83508a42ebba7caaa7332ec9965e4e2a7d4be8642bf7"
+    },
+    {
+      "path": "backend/api_routes/decision_tracking.py",
+      "sha256": "8a32e75974e56e27c91d1ddd9ff5c6b4d63944340cd5dc71389df1d55e85939c"
+    },
+    {
+      "path": "backend/api_routes/performance.py",
+      "sha256": "0c4730a38cd88532666a50ea03b7f7689a3c8dc8a875f37cc3be96c83290a8e8"
+    },
+    {
+      "path": "backend/api_routes/reports.py",
+      "sha256": "d35f66c7de90de8de8b23fc0c31c3bf89596054d65948042a2feb5bffd72e5ad"
+    },
+    {
+      "path": "backend/api_routes/stock_snapshot.py",
+      "sha256": "a08a6d5328c58cf45c4f5e090603a6661da107d1a202bf692194c1703687a922"
+    },
+    {
+      "path": "backend/api_routes/watchlist.py",
+      "sha256": "07658640873a6214fec50d33d4ff4cfe8d7503f99bc2478edc065239b4c72f5e"
+    },
+    {
+      "path": "backend/backtest_price_comparability.py",
+      "sha256": "99dcffb8a9b982949f02cf4b99d32d246a0e6136953423a7a103b4b7ea1411a6"
+    },
+    {
+      "path": "backend/backtest_session_contract.py",
+      "sha256": "100d93d22fc3f8c96971c64b78885392ffbcc7cf8aae9b9137aa4cb2b3182ee3"
+    },
+    {
+      "path": "backend/cal_annual_pdf_reader.py",
+      "sha256": "49903ac60034e882266a521dbe4d84fca8f4702e82bf58b9820e8bebdcd470c3"
+    },
+    {
+      "path": "backend/cal_annual_pdf_worker.py",
+      "sha256": "186f41d807e9bb17a6f93992295526e05e0d0ae2458b937d03cb2343efef9336"
+    },
+    {
+      "path": "backend/chipmos_transcript_pdf_reader.py",
+      "sha256": "9e60917074c9beb459785dad49371357458372b0bfdf00cd179ddfd01b1f2367"
+    },
+    {
+      "path": "backend/chipmos_transcript_pdf_worker.py",
+      "sha256": "22294df49ea582b69559cc34574a010b4a18bb7b3d990ff03e34fb75dee487a9"
+    },
+    {
+      "path": "backend/company_conference_content.py",
+      "sha256": "b6daba64ee78d7221a80ecb5047e19b3dd3cd2a0f5390d73e7c4ef046b4d867c"
+    },
+    {
+      "path": "backend/company_news_queries.py",
+      "sha256": "fb6adbaabe63f777ccb9ac651578fa15ffa96fc3d512e8275d4a73f64769bea5"
+    },
+    {
+      "path": "backend/conference_historical_evidence.py",
+      "sha256": "aae11cad38f7883b8fbf36f0796f4da8f4cb6dca77b2a4c53ff126cc70e354d8"
+    },
+    {
+      "path": "backend/conference_presentation_prompt.py",
+      "sha256": "1838f6580391dfbdb841faec0f158bba6783dff231d123d89d354058c8f519d9"
+    },
+    {
+      "path": "backend/conference_transcript_prompt.py",
+      "sha256": "297e08f7d504a185f7a204a19c0188949d21097595da144f51d85b93d183eeb8"
+    },
+    {
+      "path": "backend/csc_presentation_pdf_reader.py",
+      "sha256": "f72fb9011eaed2f2a0d8b8d297d7e8fabeba201f1b56a9c19a03a20ab7d26541"
+    },
+    {
+      "path": "backend/csc_presentation_pdf_worker.py",
+      "sha256": "3b9a2824a09fbfd371e953ef7040e530f00e4c796eebe87a53ef203d1b407e7f"
+    },
+    {
+      "path": "backend/daily_read_timing.py",
+      "sha256": "d4ef079fd0857ace7c48978c83511b2449c8a6b0b817c6e1fc9d68fb14e7aed7"
+    },
+    {
+      "path": "backend/data_fetch/agent_context_providers.py",
+      "sha256": "02b87ec908d64979869d983112a31ac0baec8a96a2759dbb2da79e8ddccb3277"
+    },
+    {
+      "path": "backend/data_fetch/annual_financial_source_provider.py",
+      "sha256": "cc6f914f4964437f30f47627c3a4407f1097e9ed02d2c687923c8954176b6e59"
+    },
+    {
+      "path": "backend/data_fetch/annual_history_cache_freshness.py",
+      "sha256": "1dd8e3fb74683ea744677f8e2d575c68bc98ce76a89f9463f5e3fe837d8cdd49"
+    },
+    {
+      "path": "backend/data_fetch/annual_occupational_safety.py",
+      "sha256": "ab0d979f6cf5239e12b0be7b672f36834961bbb18edce1d2c91e83f6913ac6fe"
+    },
+    {
+      "path": "backend/data_fetch/annual_workforce_provider.py",
+      "sha256": "50ba5da338bfa42db1e26db48d07eabad6876fc538cc8f6867f416a7e715a764"
+    },
+    {
+      "path": "backend/data_fetch/cache_helpers.py",
+      "sha256": "36e3ee290422bff1fdff76723814ba68ee75c3a130d16c7d2cc2e8e62f157702"
+    },
+    {
+      "path": "backend/data_fetch/cached_institutional_recovery.py",
+      "sha256": "8de93f7c80b9c9ac7e4d9f710a009ce61b04335a0c12eae67aaf7e6fe1b29d0d"
+    },
+    {
+      "path": "backend/data_fetch/catalyst_search_plan.py",
+      "sha256": "ebdf86721ca22b7d56aaf531c2138b0544001ebd302e5fa4dd80e577c23b8855"
+    },
+    {
+      "path": "backend/data_fetch/constants.py",
+      "sha256": "721055238caaa8cf0aa0687845d75cba3499e55fb89e8c4529143da1d11a4caa"
+    },
+    {
+      "path": "backend/data_fetch/context_provider_cache.py",
+      "sha256": "1e255d3937a6170aad5c77a688d66df95c918cb6fa6d10170a24568571f2a4e4"
+    },
+    {
+      "path": "backend/data_fetch/earnings_call_fetcher.py",
+      "sha256": "dc9ece12db465486136fc127f10d18a989951dd8d6fd155d75abc23c633bb6e0"
+    },
+    {
+      "path": "backend/data_fetch/enrichment_merge.py",
+      "sha256": "6962723271633ae540fd6f0805a957cc9178dae55c084aa0396a44299eb4c4d9"
+    },
+    {
+      "path": "backend/data_fetch/enrichment_providers.py",
+      "sha256": "b2b419b512d7b3ca5e0931bfaef7c69861f929bdcdc5245855cec93de10a5be2"
+    },
+    {
+      "path": "backend/data_fetch/enrichment_search_providers.py",
+      "sha256": "e6f82d3cf4e1e54cb250d27129659e7654c24fc1c6ba312921559386894e6f82"
+    },
+    {
+      "path": "backend/data_fetch/financial_history_basis.py",
+      "sha256": "44992eeec0f3e7883e29c1f51019a082f118f9a04eac68eaa5f6c8ccebb63aa8"
+    },
+    {
+      "path": "backend/data_fetch/institutional_provider.py",
+      "sha256": "c9493fc4f229738485500252abe61567e4cde4b0cb98dcbe550e4522c303bcdc"
+    },
+    {
+      "path": "backend/data_fetch/issuer_news_provider.py",
+      "sha256": "512a2f74e3914833231b8e7053f7a790594ac13dfb1f0390f8fca6c1375a3b27"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/acer_issuer_news.py",
+      "sha256": "63c4437168eccca71ea5a859b1a21d7730a4d6436c150a459b46b2591548a557"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/allis_conference.py",
+      "sha256": "bddc7070e196f75a4235494938a91d2b1832065223bd68e8fc6829b2bf7b8be7"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/allis_conference_transport.py",
+      "sha256": "f2a8dc9d2429a3f0da5ca78f2aefd2f78ef36f4d84b1ea635c2316af83dff0e0"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/annual_filing_index_gap.py",
+      "sha256": "530cd78450a61328b88f46a635c71532ff0c6dfcfd6194bf54fc923917b4d55b"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/annual_issuer_master.py",
+      "sha256": "42bfe25f3e0050d02e217183c3c3a9f34061493f5f186060e152a22406aee440"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/auras_conference.py",
+      "sha256": "5d4c298057eaef4c959c76065424822dd714f970f3a84c0a46d0e88eb69df182"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/auras_conference_transport.py",
+      "sha256": "023fa255af62aa37129404c8a15f974e196e6a7d50d18a2525ade1979eb6ea24"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/auras_monthly_history.py",
+      "sha256": "6b4211a10a6172d19d43ca164075ecbedd6d5491b8b7a6d56a2119dcebc8f1fe"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/broker_xbrl.py",
+      "sha256": "b167fabc360c1007107ba7e3d30965506e877a570e85f0b24ab73f573ea053c4"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/cal_annual_bridge.py",
+      "sha256": "c12c435862a5a6bfbb09f81e056cd7dab11bda70277c75367dfa6db1b5a1196f"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/cal_annual_transport.py",
+      "sha256": "159ffdf6ee3e5f9d8c565923f34efe80cd7d844770315cd9ac16f1f75368659a"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/cal_audited_cash.py",
+      "sha256": "86cb092fbfe1f30054651cb8e0beebceed7298d6d8a3db5c170a0af1978bceea"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/cal_ir_gzip.py",
+      "sha256": "5514051338b9ad370762c08c8715740e1e4ae5312a527e632944a839cf2d6544"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/cathay_careers.py",
+      "sha256": "07022b6979b5c53322a15bd07f6fa6737db7e27f6abb7556f45589cc9cdc320e"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/chb_conference.py",
+      "sha256": "185bfcfa3a5e15d09e56ca69dc178784f1dace6917f1abba2d127dbb8dcd39b5"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/chb_conference_transport.py",
+      "sha256": "88f47e8e7f01fa854e1388b357c959f20fb1313cfe0f108583881bf4b1c90edd"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/chipmos_conference.py",
+      "sha256": "60e27302d87a1f4f558713f568f77035cefb27776b3be20f36a54536b384867b"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/chipmos_conference_transport.py",
+      "sha256": "c3ef8d5b887c2e033d4811524aa63d3f4209aa50d82c431f6ccc092d22f35b2c"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/chipmos_issuer_news.py",
+      "sha256": "e8e6338a7977c6d9882b0d19db6cf7fa48973231158da30ae0063148b29bdf47"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/chroma_conference.py",
+      "sha256": "d5e5ec457a9ef3c3f8bbd93fc3189f61d936f54fd47eac8868c61a91e1d1329f"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/chroma_conference_transport.py",
+      "sha256": "eb79cd7829a6e590fafcffc99a0296068aa50c80cb2f8111a22da0e7e7a9a6f0"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/chroma_issuer_news.py",
+      "sha256": "d0c6ea504dc365d26c832f2417256aa8e3bff3aaa6fbfd654701a4f14e4888a7"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/cht_conference.py",
+      "sha256": "99f04176b93b1279455b7e41c2939d7b6c6cd33dcffcc6263a096f4381351589"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/cht_conference_transport.py",
+      "sha256": "d8d883780f0fdbb24f76460858332d713391f846e454ed4b18e105b7de44e8fa"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/cht_issuer_news.py",
+      "sha256": "ac3f5a10729292afab5e25a0207c26132e85e2bdf3b65c678112b762a8d0db0d"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/cmoney_stock_context.py",
+      "sha256": "16d52eead89d563d3f346d46d1db0aae243de1398e521c27a7908320b5bcf11b"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/cmoney_stock_posts.py",
+      "sha256": "77d028b82440ea7afd87ec5f93aa7f2a81d8873f97f3c951eaa710d1ef03bb53"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/conference_issuer_master.py",
+      "sha256": "4c9776f0a73602ff7bfe0d859d3a71fd76732bef9ad30ef026bc853cebc12e9b"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/construction_cohort_transport.py",
+      "sha256": "739a158d0f69b95c820707483cd2c996da821c0e18d91d216ce23174efe7d857"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/csc_conference.py",
+      "sha256": "8067d1c472369afc921a7fc9be94449472a1d82a5f8de3af227153ffa2f32ac4"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/csc_conference_transport.py",
+      "sha256": "8f68d790054fa5f0b0c8a952d8477cab3677f1e9e3c0817bcaea739ad62fba29"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/ctbc_careers.py",
+      "sha256": "f54eed6ec02864fdea872c30f006a7ca4baf96d2c00862c19b16721a597988a1"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/delta_conference.py",
+      "sha256": "fc62516cab0ec4a967c8e89972ad76253f94bc1b8e165919ec5227ffe3c94d2c"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/delta_conference_transport.py",
+      "sha256": "7baa5bad2214d9b43126d61f0a314be3f72308b6b2271a23d558839263407a62"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/eclat_conference.py",
+      "sha256": "3f7c220b516f852efe7eb38b9cdb68d2f859a1d2f43e4176d4d2a69b03e706b6"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/eclat_conference_transport.py",
+      "sha256": "01e5dbae1e5c132c577d66094e57ac145640f1bdf234e7d641d8a3828d3339ce"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/eikei_conference.py",
+      "sha256": "4fc4badb3bf461f893b92e984ba317553807746ce2849e0f9d5dc25d03312342"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/eikei_conference_transport.py",
+      "sha256": "37a376cafb6dcb88decaf543f3596336ad3fc5635161541effa5c13c33d58054"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/eink_issuer_news.py",
+      "sha256": "50c8e9282d2327c826c012c889db08598b402cdd9b5d75869aa3c9421e99437e"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/esun_issuer_news.py",
+      "sha256": "59aa20cbfc84a6164367833700274dd09e1132f2103d2f3a57bcc27b5430f359"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/feib_presentation_qualification.py",
+      "sha256": "073fc837ccf1502d34cced2ff661104ab689c4def88bff12421d7676838a39fc"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/financial_institution_xbrl.py",
+      "sha256": "5df724dfb11af1f66919c97c97901744264221debb6aadf8e8f62254956789ec"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/finmind_monthly_revenue.py",
+      "sha256": "700ff18e7c83cab76e8b09acea0042865a7dbc3a42c0b0f290427f35d3213098"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/finmind_news.py",
+      "sha256": "8261fd865c4e726ffe5f952a95b7fa68959367eba533424fbfb7f65672bab70e"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/finmind_news_transport.py",
+      "sha256": "7d759b388e6409b33b6f0e837b1c900468b584a927965f11ffffb5a8c0ed1184"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/fubon_conference.py",
+      "sha256": "7e1479ab5c11bc2564deb91eeb4df9178c902168e77f84ee9ebeb1f1be003a36"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/fubon_conference_transport.py",
+      "sha256": "439ba5ecd50c5ba64c1ca2473c74ec24ce8c3c2eee7a265c7adee9c9bd52730f"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/gce_conference.py",
+      "sha256": "13838b46e37a171a4ac7e2443f8f5559c45abfae7b3228a34c4df96a4f33a187"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/gce_conference_transport.py",
+      "sha256": "c2fb0181811c31b522c12e32f5142f26cf8d3b9563e24a47b7464b1e1b220f24"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/getac_conference.py",
+      "sha256": "c05e9e687cbd673baef5156448f2240888edf5658eb398e9819f06b01c558d15"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/getac_conference_transport.py",
+      "sha256": "8c8c1d206d66beefc41338deca2687ef9cd9e3c57f737f6057b05c10b734fd94"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/guc_conference.py",
+      "sha256": "2c991feebcdc4a98b0253fdaedefcd50a96661b7a72c82397d569523e3b053e1"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/guc_conference_transport.py",
+      "sha256": "1dbf3671840dc78e149079bc36a526d23165795b4e2dca5017ccf91de38dc358"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/guc_issuer_news.py",
+      "sha256": "e88bb5990d05b5970ca935c713ecb12c7ea888db5e52f6d8d5c7432befba90fb"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/hiwin_conference.py",
+      "sha256": "205be417ee29d8bfd4b1db1d8e49ac0ff789a9d87bcaaa8b43c5696d8b47f3d2"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/hiwin_conference_transport.py",
+      "sha256": "f35cddd4acda9cb9cef9e0c11fd2f99a30a0245c3d5dda2f5f2661c0de0c071d"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/honhai_conference.py",
+      "sha256": "f371cb77f46a845c3a066a802595ab8e5037693e757e762a6dbb5b6d2cbcc9b3"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/honhai_conference_transport.py",
+      "sha256": "3271f771ee82bf573972a38f82e133d6fd95aba6819f8dd4efbb2467d18e53aa"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/identity.py",
+      "sha256": "5d29a5a3420c21a8d3318bc930b9d54109e320e9c6224427e80dea7f44e866e0"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/innocare_conference.py",
+      "sha256": "d5234bf8dd85ff79d5108028448e1e74f690ce4f98949cf5c5abc3484e677cf7"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/innocare_conference_transport.py",
+      "sha256": "9bc78dede62ce0ddb9c708d8f03ec64cf0e7523d2546622e4cc0a9732ebcdfb8"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/insurer_xbrl.py",
+      "sha256": "4c1fdfc73534ef7cfb55b1a87ac6da3f12ae114d3ad54d171e30123f87a2ffe1"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/issuer_news.py",
+      "sha256": "7e0d0a28a9604a55d9065b882e06f42df52402f04b52db426f6f59518091c760"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/issuer_news_transport.py",
+      "sha256": "373e4d68b38c3a9ee95c7fb0ccb18956b51909e1121b821b4f4d3b8ed6fd9cc5"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/jentech_conference.py",
+      "sha256": "4d5262b0274399adf469bf79b7eca48b4c88d7b01fd7265a8557b0d745b7c91f"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/jentech_conference_transport.py",
+      "sha256": "8a7544b1b6b90f91e3194e0017d6723d225e6b434280d32de4ac83bc5c82935d"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/kgi_careers.py",
+      "sha256": "27d1650c09ff7eaec78b61ac17088f173e3509c5ad8d240c7df93c3dde3708c9"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/kgi_careers_transport.py",
+      "sha256": "d139cd429fbfed2ee00102ae59bbe7acdbdc6739ed4ff6ee03fab1588dd72005"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/kingslide_conference.py",
+      "sha256": "cec4a7f216017756dd79aa932e37bd8f25c8a74688e0ca1cfb2005d30b26434e"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/kingslide_conference_transport.py",
+      "sha256": "57e08ceef3a01cfc96fd06f7e83a9eab99d215fc92fe7b7e120c24add88853cc"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/kinik_conference.py",
+      "sha256": "d0d591c09c5e1b797c8a73cba65fbb8e498cac24a3bd4b04dd7a8be4a9a73a8b"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/kinik_conference_transport.py",
+      "sha256": "3690537eddc83832cbdda3f3944cd89db0288b5c2195a707ccfae0f756c77717"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/lienhwa_conference.py",
+      "sha256": "b19125eef3dc4095ca5f822b8bb3fadd7fe6ead0449eb9f852bdc749b3845077"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/lienhwa_conference_transport.py",
+      "sha256": "49df71401b110ccb418904cb998afe47de24aaaaeacdb98c0943a35e1f573cfd"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/ltn_stock_news.py",
+      "sha256": "d16d0fdf0e1141ed0541607d3fb49a0e343e1dc5cbfee3ce30bc5644b1d57b7b"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/macronix_conference.py",
+      "sha256": "4c8e2d29cf14eddcca12f50802ee700a9468f6237c8b34190408919a16f25c05"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/macronix_conference_transport.py",
+      "sha256": "021dec1484b4cf2d078163505a96a157831db4c4ef3b7d1147f48d5699928171"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/macronix_dynamic_presentation.py",
+      "sha256": "711fd21e592a7f1606ffcb74f3c74360a6bedfbe964b427daa15675f8ebc3e19"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/macronix_presentation_index.py",
+      "sha256": "7f2b41dc2984a424214d89f21559bd7b6978e05aada625ab775cbdee82a92466"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/macronix_presentation_semantics.py",
+      "sha256": "77175ab6f697f20ec3afd9f5ec8351da8d2d7d9cdcf17c7233008f9b5eb2054c"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/moneydj_cohort_transport.py",
+      "sha256": "b094aa05391519e73835f731b5439f37530773209fc012b35d865317389d5991"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/moneydj_medical_peer_cohort.py",
+      "sha256": "cfb871ac93add58bb05b23e8539b605889a221cb9fc47faf1958bf6ce732d243"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/moneydj_numeric_candidates.py",
+      "sha256": "4f476d009e2f820e09b3f0f06f29d6e918414310c12723b2f5eabc2a27a3fd1e"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/moneydj_peer_cohort.py",
+      "sha256": "08a2c0661dbe392bc1ffefc76cce8f09cc79ae9b7f8f058246cc6cc6d8618e8c"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/monthly_revenue_rows.py",
+      "sha256": "cbd5ca3357f86dcb393c59d2dd201904cb9c769862ea8cc086ba0b9b2e0149ca"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/mops_datacenter_shipping.py",
+      "sha256": "d2af4c9ea2e9677e38c5d36ae2e94c91cb3fc159d499541b99703473a55e7a3b"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/mops_json_company_history.py",
+      "sha256": "e5d39a6b971beba61e43b9a66e7ddd4cf6b350fde57ecd7689805b0ca52ed37c"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/mops_monthly_http_child.py",
+      "sha256": "472e10146a699dfd21fdacceedcff73580ee0f9e35da44a00a220917a42b881f"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/mops_otc_master.py",
+      "sha256": "e65d202caccab59b99d44cf53f359bdaada663dfb36247a12fb71cf845e8cf09"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/mops_presentation.py",
+      "sha256": "c9723856fe5adde3fb5e51f5dd1aa3a3e1c33352e82727018d8c123755654027"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/mops_public_annual.py",
+      "sha256": "39bb3883336389879d72aba5a38a997ed1d327b25fdd93b1e7f72d52aa25d3c9"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/mops_public_gap_cache.py",
+      "sha256": "c0871e3d8b707c676bd8f4327e62494cdd7d5fe55dd5e733c176d1862bc51b5e"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/mops_public_holding.py",
+      "sha256": "65fabbf76088c4626fb88089ceec895cead04f012d1383b83e936cca573ac6aa"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/myson_monthly_history.py",
+      "sha256": "8d86bf9ae0327508efdac4f62a55e046e6eccc975c95b48c8c85efc767a61cf7"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/nanya_mops_presentation.py",
+      "sha256": "18f889ac4b9a277bc642ce3f29dcb1f160539b16b701144856e4279aa762fa76"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/nanya_mops_transport.py",
+      "sha256": "049cb623e463cf96f4e11a25eff99ca1824d238885cb13e3ebd213523e3cec58"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/nanyapcb_conference.py",
+      "sha256": "a84186b5d3e60a5a45ce9108c4ecb919e4032d8dfa3095c29b1f0cfa2fd74955"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/nanyapcb_conference_transport.py",
+      "sha256": "a319f227b968f90eac9b518f5cc8e6c4d6c60719d27681200f87087c071c01cb"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/npc_conference.py",
+      "sha256": "7f3086d3388993fcfe1ab29422c84dc75f4d543e9aa2a96ce14233665b803b32"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/npc_conference_transport.py",
+      "sha256": "9d0bf98a8eea57021acb578d5b8c2359a85f51087483938bb77336be3a91e13b"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/official_airline_peer_cohort.py",
+      "sha256": "87f93e0e832d39bfb4f3c4415286baa912bc78149f8b02c3633b8649c23e4c37"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/official_broker_cohort.py",
+      "sha256": "ff744dadbfa6f1676acdf71c8dfba45007eb993b8451b9399bbae5f90bf6b7e8"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/official_company_legal_name.py",
+      "sha256": "a1a2ad97df191fc75f4995c9a6ba8e0ff9d02fe24e8749251e4de8224c9420b8"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/official_construction_peer_cohort.py",
+      "sha256": "6676693fe1420236ac90a8c21492fb148bb79c55e4456e06a633d1efef0bc176"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/official_convenience_peer_cohort.py",
+      "sha256": "3b922f0ac0070f29f886f32bf3f559fcb3f0721318b3bc41a87c5dd8a0c72687"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/official_food_processing_peer_cohort.py",
+      "sha256": "af20d9eb896c63a579076602ddf6e504fa51594d418441407b090def2f2157c8"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/official_issuer_master.py",
+      "sha256": "2c36d5d9d7d95f217a4436c2e00622ee04808ad091e3adb1173ff67692cefc02"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/official_issuer_master_json.py",
+      "sha256": "6dd38aea7461f9e620de6559a0480ef923e92a5dfb4e85d7bc090bcd4fa556bf"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/official_issuer_master_transport.py",
+      "sha256": "aeef2293e0b5f64e9771fe2d7fc265fccb738d40fe3f833734d7d9cec71377a5"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/official_monthly_revenue.py",
+      "sha256": "3279cbd3ffe0b3ffdae3a469ceacb008a45db96feb783e3bdbc93ee731d23d0d"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/official_monthly_transport.py",
+      "sha256": "2047f6994ff05d243652f410d867e6f213764b598855cb4d905729b9d3e13436"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/official_mopsfin_financial.py",
+      "sha256": "184650f401ceb844a7caa96dd1ed2c7084f1065899423e29681b6fb9693e956e"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/official_peer_valuation.py",
+      "sha256": "34677e02b778401fae437ba28d714bbf87b4982ff8fa002d0a858d98f321b6a6"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/official_quarterly_financial_transport.py",
+      "sha256": "4a7695de75b95377ce5ac46dbb14b037625842b8dd2cf5dc974d7f4536efc27c"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/official_quarterly_financials.py",
+      "sha256": "cca713a30b7474d6bb0be9aec81948bb6a75b3f96a94db026e1bf99c4c883401"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/official_segment_discovery.py",
+      "sha256": "5c0599dab1abd62cb90a8da645c211fc7aca6f156d1f9c2e586ffd9224d64435"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/official_steel_wire_peer_cohort.py",
+      "sha256": "abb40c83689cd187da10e8f429a413d26b758590e10707218d2a8a9653107464"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/official_thermal_peer_cohort.py",
+      "sha256": "49c7173a51caa57400302c9480cde1d0ad6f359c37cee09a5bf0afe7f3feb4d4"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/official_underwriter_peer_cohort.py",
+      "sha256": "e6549013ac612f40a0585d8dac428c556e1c1368f5143f2e304b4385dbb0447e"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/official_xbrl_financial.py",
+      "sha256": "8d8b31e311bbdf3841bb9f179543adf3461cc0845570e3b5cb0db41e18963ff7"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/ordinary_individual_annual.py",
+      "sha256": "5868d33fd7d8345992e03e5d548c8e0c83986b7784885ec8993fdc507a021b3b"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/pcsc_conference.py",
+      "sha256": "a57afeceed5c01a97ef2fab63350a40b5da0dec352ecefca46aed54da796657f"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/pcsc_conference_transport.py",
+      "sha256": "4003872e89d1718851b596e538edc6ccf511216fa42bc1a50b6acef41bc12cc4"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/peer_recovery.py",
+      "sha256": "c219f55de32c1745b91aadf9ec62a77fe72fc8a4253966e3dabe7c07b9603760"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/peers.py",
+      "sha256": "d32966677f7c2420cf95975192a1997b2396382d2761af11c3c5c439b993c40f"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/philjobnet_medtecs.py",
+      "sha256": "58c2de6b2583f1ccbeed3d18b4f5f8aafd4480926fc7c956b73a2d96bc7823d7"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/philjobnet_medtecs_transport.py",
+      "sha256": "b1cd0d81ee09c1bfd982ad8e229a53a2eec43ca96ac6a53fc5411b4a295d5782"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/promate_conference.py",
+      "sha256": "c195d9dc9c4a9505a13aec0e9705b349d86429e04c84a5e2ade12352d0ed5067"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/promate_conference_transport.py",
+      "sha256": "c96fa1b91ec685c379e3ddd6010691df25eb610296335ae2baa85c31fdc40de3"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/psc_careers.py",
+      "sha256": "1c9c26aa73b1b72d25970bd61e49e55c36ba2aafedc8402688b37686201de8ef"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/psc_careers_literals.py",
+      "sha256": "7a56ab1ea9dfb16d3ecc33efcae171035e5ea0ae8b5e168567663eef76a8dff7"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/psc_careers_transport.py",
+      "sha256": "32c1c82200bac82dd1546d5945dc373c0e563ade2f28ad69e4b81bd9b1448f39"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/psc_conference.py",
+      "sha256": "86d91f8d9307de3957a576600d762218123d256544476f623f3df81d27a7ddec"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/psc_conference_transport.py",
+      "sha256": "c47e15282b33f0f6bec05962a43808aa66bd1f71063d2b0d5fce6ab4c80a16d6"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/realtek_issuer_news.py",
+      "sha256": "c6418a497c1e6368fd30c0c2b9ad2a31bc1028b5debcbebc532a1a186eb869a1"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/registered_issuer_articles.py",
+      "sha256": "58197ebd1b86a4188ac117949b920e54b4d190eac260577014b500000a1b6df3"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/registered_issuer_master.py",
+      "sha256": "bdaad793fa06e12aa08759d037a07d29ee62a5a2b483c239321724ca71da9808"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/sanyang_news_bundle.py",
+      "sha256": "e7be6dbcc0dc6e0e8e8c45b1d239f8d2f10c517da42631af4d2dd5c907dd0dcc"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/seec_conference.py",
+      "sha256": "e0a076e8969e17bb0dfedc54261ac41679f7fdbd394f345e820bcbf2a32517f9"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/seec_conference_transport.py",
+      "sha256": "75f005d25e061e78a7e3c7007ebd5d01362461dad6332e249d31d9616632af78"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/sgx_issuer_news.py",
+      "sha256": "6491d3add4b6f7825ff54a9f9d760d52a8f8e5e887c1850206bf0d2843c70a97"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/sigurd_conference.py",
+      "sha256": "f494df803dd911356d45742d3f9d38edfffadc17a9d08ad29f35255dc83b0f1b"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/sigurd_conference_transport.py",
+      "sha256": "93588d53af504e82333b571efa7370455f2b53916cc0290b8e678a6e55ac1e8d"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/sinbon_conference.py",
+      "sha256": "0b6c1df7d305159df53379b4098d3858dc4f9ad1b551e677856c5024f3c54ccb"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/sinbon_conference_transport.py",
+      "sha256": "c2330c08a47e67c7711448af633b5923730238a893e034669550648c02fc0af8"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/sti_conference.py",
+      "sha256": "13732c9d6f44ca1f221ce46b9d8aff0b7ecb287a9c515f0f955fc2c6b58641cd"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/sti_conference_transport.py",
+      "sha256": "2f66eaaee58f7773841e6e8bf32fe32d2f6ba5bb4e76bf232a09bb8e5d85c444"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/sym_issuer_news.py",
+      "sha256": "3878af92cea11b3e84959343cf2dff5991a186cb7fddb7baf1fd5195c4087f35"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/sym_issuer_news_transport.py",
+      "sha256": "57e552e76f64b1ebc348b14aea4551ac388516220a0c32e946ae005ea0798cce"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/syntec_annual_bridge.py",
+      "sha256": "cec9ce5fcf3b647e6d9f5475c4b64f2d0eabe017ffdbed7fe927c3cc5b01a4f5"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/syntec_annual_transport.py",
+      "sha256": "961eb3cae1d5c1fe4bdd1eb5d496d5d71982aa478f664b43af81fac51900f94d"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/syntec_audited_book.py",
+      "sha256": "51b34f9c04f4d250bab817d54b751ccb14687a57c7ec8dc977a2631aff26f6be"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/taiwan.py",
+      "sha256": "b97a08ec6c2218abc370b0e6da40ae30f312b23676a93c06fa2192743570df0e"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/taiwanjobs_company_jobs.py",
+      "sha256": "0c64542c8e8b8559de05ad91f464fda2411aea19a0937ccd0c78c84f872ee4d1"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/tcc_issuer_news.py",
+      "sha256": "2d873f258e9c50c3273eed91830ca34ded2e09b8528d9cacf52ea5761e26c911"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/tcfhc_annual_financial.py",
+      "sha256": "f36b47c629c9d4fde87c824396b410e8274aa7c20c09fdb69220402faffd02b1"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/tcfhc_annual_transport.py",
+      "sha256": "e1e8a451a2919f7759e5bc02ed8bb2234967b44066a449ca503b68939f62a6b7"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/tcfhc_audited_financial.py",
+      "sha256": "22a3d3b5dac6e9774c67bf8c6f189c95162ac24851af700c9b8bba8773fe4ece"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/tcfhc_conference.py",
+      "sha256": "0b145d7b703f10657965fee62b068de4bd877c000249b4b78334ee2144861731"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/tcfhc_conference_transport.py",
+      "sha256": "764b2986f412aa5cf8845aa00e27c7403932241bf674377dc5f85863de89d121"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/tcfhc_issuer_news.py",
+      "sha256": "40fbbed227c963c69ccfb463180ed1581d8121b484e3b0322b717dfa48f232f1"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/tcfhc_qa_transport.py",
+      "sha256": "d1c07a35dbd0dcb3df143d63dd7e52312f177f2557b78c15050e9f14ef8978d9"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/tdr_mops_history.py",
+      "sha256": "a61efb43b825f6d7b4cc3ec3e6030c287414a9f2d77428a86365138d1878fd09"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/tecom_conference.py",
+      "sha256": "fd368039d9c3576a2dd0acf1e06b9f1498c8c5df3cddafa1014e91c6e00deb79"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/tecom_conference_transport.py",
+      "sha256": "ddba846657ef5fe2e9933d49ffc1d27c196b2c7db2a03fbeeb5b607ccbf0d2a7"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/tewc_conference.py",
+      "sha256": "e0701ebbacb302ae8f18df24d6c07528786892f3644cff8f8aea89a6dd2b281b"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/tewc_conference_transport.py",
+      "sha256": "befa4dd063ab876c029f96a7f525dea81dcd58baf4c5b5468f07619b9634a8a6"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/tpex_company_history.py",
+      "sha256": "5b2be6a285139546c533c780fc61d46ec4bcf4d7a5e009b22febc4e2fc60dafe"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/tpex_historical_quarterly_summary.py",
+      "sha256": "319ee5515b4cb3f2bffe10558874c3f9f6e885743c6f3f1799bbefe7e6aaca4a"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/tpex_infohub.py",
+      "sha256": "18bc72a3738fa3ef4995b4c4366a650c08f1bc539b71679dc85bce4159a57b47"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/trading_notice_transport.py",
+      "sha256": "43b02921b57947824d0a12c85dcebf2f9898e877a317daf900a9aaad3569a65e"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/twse_announcement_progress.py",
+      "sha256": "8e303197dbbc48628bfa7df98a4dca680af2060cd12328d9b83869dbaafb87ce"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/twse_company_history.py",
+      "sha256": "04a2e8cdb0e3b3ee885c56b60d6767c21701fc4af91e4306e3f0bc24bb0b00ef"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/twse_ezsearch_history.py",
+      "sha256": "f4510a8b3f674168e8f4c3e587724e214b372603f91933642dc4faac8ac86217"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/twse_history_transport.py",
+      "sha256": "0872feb674fa79a00ffa93de42d2d66fa0695416778312a55c97edf910c5682e"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/twse_iih_conference_notice.py",
+      "sha256": "d5757ee9a8137d0a1fb62c8de78006aba28a9f2adc9ace19785fc32f888abfa5"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/twse_json_history.py",
+      "sha256": "933862630b6efb6c06d2a31d17941703d16f2042e49d4eec4fbb050576ac1c03"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/twse_market_notice_transport.py",
+      "sha256": "1a16624ae92872e3245ac14b3c7a868b2860e9c4a1be9c78ac1d750c8a9f5b9a"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/twse_market_trading_notices.py",
+      "sha256": "0b759329a13544a851d1ddbf2abc45fddbe669f407bd92043fcd458980eca1a3"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/twse_monthly_history.py",
+      "sha256": "58e1fc9c038dd6df886380431e83a56bd452cf10705d2e25586a892c2297ba17"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/twse_security_identity.py",
+      "sha256": "f9f7f0ea5c481993276e1e4265bb6f008efeeec2f6a8dad22d7971046386eeaa"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/twse_trading_notices.py",
+      "sha256": "687e23a0ca9755d3925460b169c1d18033f8e926b47acc029faa136e33fed1c5"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/txc_conference.py",
+      "sha256": "9a505b24c8134978c76790094ce12e3b4a1901ed7ce5036d57ec6efc9f4fe48e"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/txc_conference_transport.py",
+      "sha256": "9500de3e237494d1c9b33b6ee94b9533fac0016cad9577f2a41ed2ff3a332161"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/txc_issuer_news.py",
+      "sha256": "a0e9892028a22648d497e86db645748dd8c6bc4b2eedcfd6b65a4d705edaa942"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/uk_conference.py",
+      "sha256": "fe2a0f73c0acb218284a20a16486297f6a1a68a891e15d9918d3de665db7176f"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/uk_conference_transport.py",
+      "sha256": "25b4a0cbd40bc7120ea49aba632694221a6b4ffdd1a27671b48457f8a1148acd"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/unitech_conference.py",
+      "sha256": "2c4ecde1b3e897e13fa8261bc9fd258d23a5319a76493196a0b65d8e7851bad9"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/unitech_conference_transport.py",
+      "sha256": "c4c74442dd2d61682c3c28c22c5f466a55deba5cc8a9afdf5d3ae1bdf5ab25a0"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/ventec_issuer_news.py",
+      "sha256": "b5ddf6c504b707692a88ac3a0dd1973932a63b7b4d0a1441e47a2eb29c67c65a"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/voltronic_conference.py",
+      "sha256": "bb015e814eec2f628d7217876a8d4b4fe82780594cec7d2eb3a51e9d25925d60"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/voltronic_conference_transport.py",
+      "sha256": "602f4de6971a91278f00a3ba6499b83b701249a40439cdc411f9f9316f5fc146"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/wahlee_conference.py",
+      "sha256": "c04dcf42859a9cadebe8cba4bf9623561fe0532e9baaf3e029a8c259fa59d214"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/wahlee_conference_transport.py",
+      "sha256": "54b934fe7a63dc57d349ff6cfb2e50c62af6a9c5b71ef62d60f505e28db75503"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/walsin_conference.py",
+      "sha256": "3de864e51c8f864525258e0b72ed233e522b132aac59edb100549988d2d8e5e8"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/walsin_conference_transport.py",
+      "sha256": "ed5abb6a6c93a9c654b15eeca84355a688b242c9fcf2dc450f6f0f4439b44892"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/winbond_conference.py",
+      "sha256": "c6b0d33a47cdc95302654d3f76889f58f594a071e4b3d54e85d988030c096b46"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/winbond_conference_transport.py",
+      "sha256": "001cd56e34f33cfb4633db4609089d0fae6cfa6ab23535186aa66bb7bd3e1deb"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/wiwynn_issuer_news.py",
+      "sha256": "8389174e01a9c772691a400886bab6f2e13cd42e2b456dfcb7285c7ea037937f"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/yahoo_peer_ranking.py",
+      "sha256": "f70f56def37076b16c38cecc1920d04717922d9c5c3e2c6ed317042e678eaaf4"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/yahoo_stock_comments.py",
+      "sha256": "8e8ebdb9810e16fca0a9d3cf3293ed1523c5a55a0459adbce1f42a451e58bb1e"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/yahoo_taiwan_news.py",
+      "sha256": "a31ec8681c071575ebd9a1652341c93edbb1d51f6b69f2c4e70d09278831bebb"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/yahoo_taiwan_transport.py",
+      "sha256": "a89812597b1cf0df98596c930a57c581b5814333b1845e1a9234cf5c4c1b59ba"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/yfinance_session_recovery.py",
+      "sha256": "f81446b7ef27f8b0f3814384d3dff49565e25ed2cf1dce88a66da9af0179c9c7"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/yulon_group_articles.py",
+      "sha256": "92dbcf4671ad542a5593653b669153db2fd8bfbb6814a6269bdfd4798c284ed7"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/zdt_conference.py",
+      "sha256": "9a51219f69d6502578a4210d0954092db54ae809e572e49dcc364989cc573c30"
+    },
+    {
+      "path": "backend/data_fetch/market_sources/zdt_conference_transport.py",
+      "sha256": "d9a2e3bc8cb9b182b0d38ddea873ece0b8eeeb43224a3ca553bcd37d4f5013cf"
+    },
+    {
+      "path": "backend/data_fetch/official_financial_gap_cache.py",
+      "sha256": "e1e0e96c662943c5607fb8fcfa7b3242431df65e48932d5da48a023678635b7e"
+    },
+    {
+      "path": "backend/data_fetch/optional_provider_plan.py",
+      "sha256": "6111b46906bff088a6bb9178dec148a9f4dde125795c9da8fc6006172c0b4678"
+    },
+    {
+      "path": "backend/data_fetch/provider_registry.py",
+      "sha256": "9540b6f058923d8b64d1df20a8192029bcaf63bd7fc5e16fd6e5f75a7775a7f6"
+    },
+    {
+      "path": "backend/data_fetch/radar.py",
+      "sha256": "c0238ef1f6e22ba3854558b62391bb9a82d667718cc3a71a9aeb5fe370cf72ad"
+    },
+    {
+      "path": "backend/data_fetch/security_identity_provider.py",
+      "sha256": "8e7f705014e4c4b235b50ab4b0dfe12316dfdda4ac1f46bcb68d41877fd9507c"
+    },
+    {
+      "path": "backend/data_fetch/service.py",
+      "sha256": "dbf2d4496137295edd22d652e7e9b03ea71713914b34ed0307bd7c09cf2f4ebe"
+    },
+    {
+      "path": "backend/data_fetch/taiwan_providers.py",
+      "sha256": "04a4f68d74292ece7a1aea6b86515d74963cae3b9295a049bfab3a2645fb098f"
+    },
+    {
+      "path": "backend/data_fetch/trading_notices_provider.py",
+      "sha256": "773111f744fa8c3bba20a142d2d9751471eb8de9c0ee8ce5dab0adbeebc55e27"
+    },
+    {
+      "path": "backend/data_fetch/types.py",
+      "sha256": "b3ef3423ffc0a38516512bb6bb7700cb02b59e64f4cfc9de8df5fca8bf0621d2"
+    },
+    {
+      "path": "backend/data_fetch/webpro_month_recovery.py",
+      "sha256": "2a9ed77c3a3e60c76ae73a75dd097a160efc7a5022af78d0207a03eeb88de019"
+    },
+    {
+      "path": "backend/data_fetch/workflow.py",
+      "sha256": "88fdd9a6df7cd027a5625dc680b4dfbb416c164ef440b0db49bac460e1a3f2f7"
+    },
+    {
+      "path": "backend/data_fetch/workflow_cache.py",
+      "sha256": "8fe1a0a8806d018de8f6be123dea7a6c0c4acde76429ecd38ebc4c446637d743"
+    },
+    {
+      "path": "backend/data_fetch/yfinance_cache_gate.py",
+      "sha256": "64d0b78fd017d85762a171a15f5f7c2da90bc4198e0edab1e0c376e5834e3404"
+    },
+    {
+      "path": "backend/data_fetch/yfinance_capital_notes.py",
+      "sha256": "2ae79e364dcca544abea47627fb22b4c2245be0076ada65ecd3d94307e2956ae"
+    },
+    {
+      "path": "backend/data_fetch/yfinance_core_context.py",
+      "sha256": "2c8a9ac73e3bab578f864f104d3d468c9a1bee9bb329fadcca2366ea6356124d"
+    },
+    {
+      "path": "backend/data_fetch/yfinance_core_fetch.py",
+      "sha256": "1e375359b11a17bdcd2f7a21987bdf18fedae0214a7dda81d9b18d92f37e333d"
+    },
+    {
+      "path": "backend/data_fetch/yfinance_derived.py",
+      "sha256": "17e1a8f033dc77790118b53b338b2983cee0a2d04cb0341f0bb164e4baff188e"
+    },
+    {
+      "path": "backend/data_fetch/yfinance_enrichment_extractors.py",
+      "sha256": "12cf849d123a40a6642e47ac3e47ee5f3c8e32c356177e280048b4ab57cb7d1c"
+    },
+    {
+      "path": "backend/data_fetch/yfinance_extractors.py",
+      "sha256": "d0d9b1a330e1d0447822e112dd6cdfa6eb9fb70555c75bab0ad0db1824a1abb9"
+    },
+    {
+      "path": "backend/data_fetch/yfinance_payload.py",
+      "sha256": "f4da4d9099a1b23df232266df0a689a68844b28364894c2a4d2e446662499e53"
+    },
+    {
+      "path": "backend/data_fetch/yfinance_snapshot.py",
+      "sha256": "3b300b979ad286a89d0076ac01bb61e229df56447efc48b79cb527c570869912"
+    },
+    {
+      "path": "backend/data_fetch/yfinance_sync_enrichment.py",
+      "sha256": "7831cf66de93ae99e29752cde2acc913c378236ba81c09e5840206ae88b74a03"
+    },
+    {
+      "path": "backend/data_freshness.py",
+      "sha256": "e0ea4992ed0e6eee2a8494464bc617f3b4247fb7591a0924a56eab0dd46994c8"
+    },
+    {
+      "path": "backend/data_freshness_policy.py",
+      "sha256": "bb3e49f1ea23edd9f8a82fd393307e15ebdd6d0b288f4bd89a64776ee8ff62d7"
+    },
+    {
+      "path": "backend/data_trust_audit.py",
+      "sha256": "e5394f217d3f2b87b5313e8480225c30ea673415f3a8a042ec851518ad5377c2"
+    },
+    {
+      "path": "backend/data_trust_constants.py",
+      "sha256": "89b2c7303426944f14f3eaea869692fa3a1c59f63e95931d62d75fa184d14bee"
+    },
+    {
+      "path": "backend/data_trust_snapshot.py",
+      "sha256": "2ac06cc77de6004d2ca3dc325ec2b34645803d68e6cf966a213e8d50d33a6c01"
+    },
+    {
+      "path": "backend/data_trust_snapshot_integrity.py",
+      "sha256": "ceacd10e6d3a74efd3cea5569d9c240df44b20f2564621c6f4070d8abe6f7a6d"
+    },
+    {
+      "path": "backend/decision_tracking.py",
+      "sha256": "9aa4c2036fa14b7ee0d12dd7ad49211bddb64f15518d0d8311e7725b31e891d4"
+    },
+    {
+      "path": "backend/decision_tracking_service.py",
+      "sha256": "e7ad6e3bf456a8418d9e4486a731b73f0d0c0836c918fc6a3e7b0467641c6c8a"
+    },
+    {
+      "path": "backend/evidence_claim_boundaries.py",
+      "sha256": "d793c3eeeb748a5f56bb8a7f9d16bc9ade04baf9c272fa07f09cb03019dd8093"
+    },
+    {
+      "path": "backend/evidence_derived_claims.py",
+      "sha256": "312280d7397c7fda3baaefdd384187f901ebf210df0d4fff03f2c426382e223b"
+    },
+    {
+      "path": "backend/evidence_exit_gate.py",
+      "sha256": "febdb49731c058c55976e5b0ea7d5fbb666acc6afa440e78875e8c87abdccade"
+    },
+    {
+      "path": "backend/evidence_exit_gate_claims.py",
+      "sha256": "68ef1384117a004c59b5f582d8d9ec4f76e89ef02b92ee05e016b37c1c53b0b4"
+    },
+    {
+      "path": "backend/evidence_financial_amounts.py",
+      "sha256": "046239ceb68e027a7a36533455802a923025f8bd9a0cbc793f3adc5d83303762"
+    },
+    {
+      "path": "backend/evidence_recommendation_claims.py",
+      "sha256": "2137358cb024fd45a0cb561537e0be2c1e880b9b4333a563ab917e2de04f3d0f"
+    },
+    {
+      "path": "backend/external_data_client.py",
+      "sha256": "4d4c06ab6c45d3448bcdc81ffe53298f3d839f8663d841113a37da1dd6be1ed5"
+    },
+    {
+      "path": "backend/external_search_payloads.py",
+      "sha256": "68f4688a2a478f89c59efc4995b66d0c68e9c3387fdbd60a58247062f060d254"
+    },
+    {
+      "path": "backend/external_search_provider_clients.py",
+      "sha256": "a18c06067c13d2b6bb7d122fb99d47056e2c851af5fc367d32da044583fd806a"
+    },
+    {
+      "path": "backend/external_search_providers.py",
+      "sha256": "76edea8a46f5785bf014a83a5603d874e965563a7f31a8cbb46ca24ff0345213"
+    },
+    {
+      "path": "backend/external_search_quality.py",
+      "sha256": "3bf21cc20a8d0afc9aa9048bee25f7a5ce9197f1c0ccbd88673814bf3221b741"
+    },
+    {
+      "path": "backend/final_output_completion.py",
+      "sha256": "7844d410c2613a24a65897ab6cd6d8d571283360fe949cefc2082d2e035d0903"
+    },
+    {
+      "path": "backend/financial_money_claims.py",
+      "sha256": "3be28d43b6d66c149ce76560756b8ab0709503e998da9f5255bded9717c7bd50"
+    },
+    {
+      "path": "backend/financial_tool_utils.py",
+      "sha256": "0695879fe3052a17bd6055034f4e876ba09324c9db08320a41e954356194acf4"
+    },
+    {
+      "path": "backend/financial_tools.py",
+      "sha256": "6b8c4cfc8753ef66080b9517d08439006e90f0864809e58ff8c414f4ef8e74bc"
+    },
+    {
+      "path": "backend/gce_presentation_pdf_reader.py",
+      "sha256": "ad8b651cc774a710b27b0e795add865eda35069897bc51ce8f04229914ce3eb1"
+    },
+    {
+      "path": "backend/gce_presentation_pdf_worker.py",
+      "sha256": "9605ba141b3f2781e7001d4ef87cc2b5073943518176ced959e2a461fec2d8f0"
+    },
+    {
+      "path": "backend/hiwin_presentation_pdf_reader.py",
+      "sha256": "e6ff25eaa4fde6af3f4e36ab95a5b3ec544567995e6feacd8eddc9814da8ea8e"
+    },
+    {
+      "path": "backend/hiwin_presentation_pdf_worker.py",
+      "sha256": "694f60c9e4ed52c51a7d7d84b16e63d505dc49c476a51bd6ab92ad06e8deed00"
+    },
+    {
+      "path": "backend/institutional_claim_lineage.py",
+      "sha256": "1329c4a166a60dda5ef49b7ed32be5cf7ffd659d6fbab67bc4f2af44e443d40f"
+    },
+    {
+      "path": "backend/institutional_daily_evidence.py",
+      "sha256": "921cc2978405de83487c89e0f0fcb2b5cb653469841c8494b84eb43009d077df"
+    },
+    {
+      "path": "backend/institutional_evidence.py",
+      "sha256": "5118b75c4ac70c5fcbbea1a7ed1996c1efecefef9fc72b90f8cdaf989405f716"
+    },
+    {
+      "path": "backend/institutional_evidence_date_pairs.py",
+      "sha256": "6cd8f232e66a3ad4e2470b26beac18f5d380dfffccc9d71a347a74c4552bcbd6"
+    },
+    {
+      "path": "backend/institutional_evidence_prompt.py",
+      "sha256": "4bfe7d5a13a9669b1dbd1d4c6fa9ce04b24a5d5ade8dbc8e81518234c38eb9a3"
+    },
+    {
+      "path": "backend/institutional_observations.py",
+      "sha256": "1869b77a1aa5e9d1cceb2f74e61ff9aae6f316501a71043a18bc197861d7f545"
+    },
+    {
+      "path": "backend/institutional_source_refresh.py",
+      "sha256": "68aa03497a78181e395c1e1ea1741327397a1af5fc3ac642f2f4485e42766c01"
+    },
+    {
+      "path": "backend/job_store.py",
+      "sha256": "f211901deb2de17949c4265334f2fea6316a068fc6659829181063e84af661be"
+    },
+    {
+      "path": "backend/kinik_presentation_pdf_reader.py",
+      "sha256": "ae95b58c3ddf09b577c353caf74416de81f20c8afb1a571e4779c3fb5703af53"
+    },
+    {
+      "path": "backend/kinik_presentation_pdf_worker.py",
+      "sha256": "af806394a7a8a107d1e22362d002855235c9b76b5aaec89cff9b163745dbd698"
+    },
+    {
+      "path": "backend/lienhwa_presentation_pdf_reader.py",
+      "sha256": "5a6fc189cc2ca91003c6fb1ab58205a80ae8a7375610138cf183c8f85408cc74"
+    },
+    {
+      "path": "backend/lienhwa_presentation_pdf_worker.py",
+      "sha256": "33bcd727f55fb69d39e68ea48a0d2696ecea6e2ee6a89efb060ea07abc2633f7"
+    },
+    {
+      "path": "backend/market_context_manifest.py",
+      "sha256": "ed3d5da6a652e979a29648f6f669087927bb37983ecad682280e622266464b65"
+    },
+    {
+      "path": "backend/market_price_history.py",
+      "sha256": "446fd94354bf3cf31b8badeaa855fb7b12355fc5bf3085948f2fc51b581e7c01"
+    },
+    {
+      "path": "backend/maturity_source_admission.py",
+      "sha256": "a935e058a12f64f2b5f67c6d4f018f41caed1afe17ed48f41817a12755df9e54"
+    },
+    {
+      "path": "backend/memo_output_completion.py",
+      "sha256": "fc226cadb2d8594daafad8fe6ac6a7e10efa8e6a643caf352e776720ba6aa726"
+    },
+    {
+      "path": "backend/mode_trade_backtest.py",
+      "sha256": "0860e47d0d2d49782590365a1a75f4603ffd48ff6994e05005266eab72dde83c"
+    },
+    {
+      "path": "backend/mops_body_cache.py",
+      "sha256": "7876d6daca04b8f994fc64103fa931ad34e39c72e046c012bf63cc7753055c91"
+    },
+    {
+      "path": "backend/mops_conference_cache.py",
+      "sha256": "c6d8d9d69faf214b6b0d997c887990daf580940e43bc5da9a1a92ab432d7b991"
+    },
+    {
+      "path": "backend/mops_material_originals.py",
+      "sha256": "b3614e6c81d2e2327ea4352c58786c1b9ba264e46632969af9a3c71af8bca099"
+    },
+    {
+      "path": "backend/mops_material_transport.py",
+      "sha256": "e26ac7c24345be265d4bcfa25d5bf7f4bfbbb87c64c27445a5fc83d923346930"
+    },
+    {
+      "path": "backend/mops_previous_year.py",
+      "sha256": "08bfa29a9d46c8404e298442815f901c6d03f640952c5e07aa04cd2e362aa8ca"
+    },
+    {
+      "path": "backend/mops_published_materials.py",
+      "sha256": "cb6192946ffc8e3b82b2a859d11bc298d22f1a4b4e84fcb7f59bc5ff125a5400"
+    },
+    {
+      "path": "backend/mops_qualified_role_pages.py",
+      "sha256": "7ec95e9d3ce1ac45b4cd08a2b2ef2348d5891555ea3d0e4f4f3a54c89a70715c"
+    },
+    {
+      "path": "backend/news_fetchers.py",
+      "sha256": "8d5781ff1900644da277179f3c8b26eee07b07d9a85f81eb28b5d8103f36ca30"
+    },
+    {
+      "path": "backend/news_freshness_policy.py",
+      "sha256": "3f2c5fdd45c18027ae02d95f8c78e3bd9f5e892af238691606f1ba74043f2495"
+    },
+    {
+      "path": "backend/news_source_roles.py",
+      "sha256": "428515cf9a4bda72cf80fa254d8384a4f063ca37001515e80af059e8e97bbe90"
+    },
+    {
+      "path": "backend/official_announcement_source_refresh.py",
+      "sha256": "5d6a127299f297dbbc4f39ba752c627600090da924b729b91be03474ad1b8ffb"
+    },
+    {
+      "path": "backend/official_cathay_conference.py",
+      "sha256": "661e679eadffd77d73aeb20b63105ce643e1fdfb3bcbce2130b1a49430a25676"
+    },
+    {
+      "path": "backend/official_event_identity.py",
+      "sha256": "52326619bca9a1592bdd7207591e24d1ac64793e1a29f58eabdc1dd26a2083c0"
+    },
+    {
+      "path": "backend/official_financials_irengage_conference.py",
+      "sha256": "14681293a2eb4ee0717050cd2062f57c4e518aef17d7999cec46d2a46458e683"
+    },
+    {
+      "path": "backend/official_financials_mops_conference.py",
+      "sha256": "a33ad667fd3ed18258ea628937079710c93e194bae1878e1900ff0d0c936e4b1"
+    },
+    {
+      "path": "backend/official_financials_webpro_conference.py",
+      "sha256": "65fca4a9fe0b66781557d583f6b0e8bd8cc063630a3e68b8efb4ff20dc6ec57c"
+    },
+    {
+      "path": "backend/official_institutional_source.py",
+      "sha256": "41a4085430ff3be99910c9772b4b4ec1df79154a694d3de223ad219d30774862"
+    },
+    {
+      "path": "backend/official_institutional_verification.py",
+      "sha256": "093eb52d2d5c01e3ea302d30b42fc3449ec1c134e87afe24347d4f9e36d2ca3b"
+    },
+    {
+      "path": "backend/pcsc_presentation_pdf_reader.py",
+      "sha256": "02a99d7b7e4318a0470fdb4674e8d71a4bb615a54fd8133774b8e148b238f9f6"
+    },
+    {
+      "path": "backend/pcsc_presentation_pdf_worker.py",
+      "sha256": "36df2cfc0b1ad0b4e503208f29469a8f4c78ca7c6bb5003e2e83f66bbf9d1e4e"
+    },
+    {
+      "path": "backend/performance_read_executor.py",
+      "sha256": "7fb8e42b1d7ebe67ad7235b894f9ba04dd667b9e9f5fff212cd4f7c1414613c1"
+    },
+    {
+      "path": "backend/prompt_builder.py",
+      "sha256": "2393d07f9dc5117d8fd0a878f6c48f64cb9ac2c96c2c8b25f37e45f4d94f96de"
+    },
+    {
+      "path": "backend/prompt_builder_helpers.py",
+      "sha256": "61754a4d819c129642850d7d5ff71f5147dedb8532b715bbfd97ecd3b13d3843"
+    },
+    {
+      "path": "backend/prompt_evidence.py",
+      "sha256": "827892c4aa1b3edffe06b27cff543711f83c12b82501fdfa13507607e4c67be4"
+    },
+    {
+      "path": "backend/prompt_peer_projection.py",
+      "sha256": "a21626dce19d257effa9d13e674ff821f511e4104ae218a3157566c595ecc0fb"
+    },
+    {
+      "path": "backend/prompt_source_audit.py",
+      "sha256": "399f3f0c11822a3f0bfd4d5ff0944e465844bda4f3f1bfd4c52c19b3c325fd33"
+    },
+    {
+      "path": "backend/prompts/runtime_rules.json",
+      "sha256": "4ccd8d4b80cd2ac95f3f436797406d26c6e1347eccc3d52fe32bdbee1ab4fb6e"
+    },
+    {
+      "path": "backend/provider_acquisition.py",
+      "sha256": "5b1617251b4fbae7b2fffb0751282330358ac7258348f502c9c28caf58b67518"
+    },
+    {
+      "path": "backend/provider_observation_details.py",
+      "sha256": "ec1e06c9e756b712860a5960e06ecb7c1eaa35d23871227ea51ed88de957ca7c"
+    },
+    {
+      "path": "backend/provider_quota_signals.py",
+      "sha256": "37a0fdb1d269b328751bb48f016f59f65609b6fcbb136d5830e60ab9515001da"
+    },
+    {
+      "path": "backend/provider_resilience.py",
+      "sha256": "ad1945fae17fd77cb3c67ae6ca75309132b398daa3796b32929d63307c28a557"
+    },
+    {
+      "path": "backend/provider_throttle.py",
+      "sha256": "f553e0b2a4109ba72f6fcfdea30b07d9babdbbd483aba5a3d10d11944df5b18c"
+    },
+    {
+      "path": "backend/ptt_stock_search.py",
+      "sha256": "84db2895ee319486da4f51c0f14e7143a0d0359de18f236ca67bacbcd20cd2b5"
+    },
+    {
+      "path": "backend/quant_input_contract.py",
+      "sha256": "e86cbafabdfdd113ad5909a1e916733a3cf33bd4ea1f5afcfca2c3dab7ef6736"
+    },
+    {
+      "path": "backend/recent_catalyst_source_refresh.py",
+      "sha256": "0940840fcfbc230d7cf075847d06721998f08dae2a521202e962134768a2299d"
+    },
+    {
+      "path": "backend/report_analysis_completeness.py",
+      "sha256": "af59d7d9067b0ad82a41167a97a9c13e8eae8f887580333ee86bc9ad59d3d0c2"
+    },
+    {
+      "path": "backend/report_annual_history_retention.py",
+      "sha256": "cfba5d221926f940e6480c78023263da1a4c38ffd92b677bb3124372458b88e0"
+    },
+    {
+      "path": "backend/report_conference_retention.py",
+      "sha256": "b0794643418cb090399a542965734ce6f4a0887661e81cd6894caa3935d59504"
+    },
+    {
+      "path": "backend/report_history_service.py",
+      "sha256": "4b3117befce39958ae0e7d26a82e6f262653e43e9eea28db8743988e97e1cbd2"
+    },
+    {
+      "path": "backend/report_index_rows.py",
+      "sha256": "2b013f157ebd329dfa1772ede4f0263cdf182a8c09c8af3b7d6d9eeb68ff1c0e"
+    },
+    {
+      "path": "backend/report_news_retention.py",
+      "sha256": "a03c47648128facac1852896446f72a6256e07a12ef416b228299e707ad78974"
+    },
+    {
+      "path": "backend/report_persistence.py",
+      "sha256": "4f40a75fdbc193c765111d994f0cd940cfb221a58a82dfbbeeb4076e20491e9b"
+    },
+    {
+      "path": "backend/report_publication_gate.py",
+      "sha256": "6207b6abb63caf503a6f786c7096d64c76e1fbd88b343848eaa9c1f8824c0a1f"
+    },
+    {
+      "path": "backend/report_publication_identity.py",
+      "sha256": "03373878edda1a3c6c6eb27c8b4925737fc8b37ddaed1fa3d3049dd8a4b290b3"
+    },
+    {
+      "path": "backend/report_quality_audit.py",
+      "sha256": "496d3d9ad31e1afa73752672630b30273df6fe3e2af430069d30a41bc241cdd9"
+    },
+    {
+      "path": "backend/report_quality_audit_payload.py",
+      "sha256": "2dd73e3f389ffb87d8ef8ade31e831457d3c52f948dd4cd228a30d37cbfd1c0e"
+    },
+    {
+      "path": "backend/report_quality_audit_rows.py",
+      "sha256": "8ce5c47f5db52afe8ae4d1b6d7c2fb376ae9a82b77743bdb7cebe46e48a2f4b4"
+    },
+    {
+      "path": "backend/report_refresh_diff.py",
+      "sha256": "4e25e3f7cc5c5a570f4ed325be974239496cb24f3ead5311bdf71722253f46f4"
+    },
+    {
+      "path": "backend/report_refresh_service.py",
+      "sha256": "4734e3b3d288fae7130f7bc4d68d4d2df2232750e0c1cb7731c7b1ea86122d81"
+    },
+    {
+      "path": "backend/report_security_identity_refresh.py",
+      "sha256": "884649da27620ca5741e55f418e8c5332e4f05b7f482272afa7f3674239fa9ef"
+    },
+    {
+      "path": "backend/report_source_admission.py",
+      "sha256": "19d25593982469f007ff777034c39beb2510bd774a4913d9ad58490eae5cb0ac"
+    },
+    {
+      "path": "backend/report_source_refresh.py",
+      "sha256": "0436d4e298251ec98440681888c75d91b881c416239219ea86a512fc5a4f124e"
+    },
+    {
+      "path": "backend/report_view_repair.py",
+      "sha256": "bb31cb816b5a1d1589ed7fb2d1e9e664369f82a24e89b34ef15d0d680bbe158d"
+    },
+    {
+      "path": "backend/reporting/analysis_overlays.py",
+      "sha256": "e84f542d49402dc65ceb42668af1a0d0093477b5451fa2e93513003622cf2bbf"
+    },
+    {
+      "path": "backend/reporting/content_credibility.py",
+      "sha256": "9b75ef9f3650ef07865810a9ff7a466047a526b430bf00fc1e4bb43dfab4e029"
+    },
+    {
+      "path": "backend/reporting/content_credibility_observations.py",
+      "sha256": "5eee37b9c9233a2df5ebf1c29193ff6890402029e62331298c9d4df4ff65c5ad"
+    },
+    {
+      "path": "backend/reporting/content_credibility_projection.py",
+      "sha256": "bf6468ab36569e2f6ffa88090596ff91497c915c06cf787a49812abb3e87a6c4"
+    },
+    {
+      "path": "backend/reporting/content_credibility_trade_basis.py",
+      "sha256": "93a4f266c9019359a211513c427bdec74614ca13e95d22bd0a80a6934a75d67f"
+    },
+    {
+      "path": "backend/reporting/evidence_exit_gate_projection.py",
+      "sha256": "02168cb04ff3e6a53095fddfd3e69042380609a618ab2d92348abbaa0f79971e"
+    },
+    {
+      "path": "backend/reporting/evidence_ledger_view.py",
+      "sha256": "aa063b0a5694ad828cd1477f48a07f9fd0639156f9698e53b52e436d910d8199"
+    },
+    {
+      "path": "backend/reporting/execution_summary.py",
+      "sha256": "ae22c07f74996df56f6008b82dd0651df58f0a37e925f0a8e2ed9a099c8045c7"
+    },
+    {
+      "path": "backend/reporting/html_chart_context.py",
+      "sha256": "24b4c01dd4c397e3bc11d2acbf526baea5ae96a5fccbf32c38b6b17431b6dd37"
+    },
+    {
+      "path": "backend/reporting/html_context.py",
+      "sha256": "8e0174f0a00b60b413760674732c677bdcb7a582b60611e3ea5ed115eaf8c3a3"
+    },
+    {
+      "path": "backend/reporting/institutional_lineage_view.py",
+      "sha256": "acb06c1c1196947e0280cf14e040174b67c5b7b8eb48505b102a1e12fcde35ce"
+    },
+    {
+      "path": "backend/reporting/legacy_valuation_display.py",
+      "sha256": "57385a730d3b157828abb67018b4be5cfebf701e887a3b31cab9294c574f96c1"
+    },
+    {
+      "path": "backend/reporting/mode_focus_context.py",
+      "sha256": "3c78f2b0ed65a43ff9b4a3e104b3cb05ebd9e9641a5282fdf07e289d9a7ade7d"
+    },
+    {
+      "path": "backend/reporting/reading_notice.py",
+      "sha256": "74f8aa9d24bbd7ca7ef481df1aa67cf103c490c193398758ed0c51a8f641c315"
+    },
+    {
+      "path": "backend/reporting/reading_notice_freshness.py",
+      "sha256": "58da4a0b9d281b177c2db71174ac4cd8e2c68f1baf784ab421f7e24e708e9145"
+    },
+    {
+      "path": "backend/reporting/reading_notice_values.py",
+      "sha256": "1d0999c25d8bcbab4047e4f91699975f58e1d0604975d3caa5cdc97ec724792c"
+    },
+    {
+      "path": "backend/reporting/renderer.py",
+      "sha256": "24412b3a7c9764d00e9f96a54917bc03b2e5b705a458bc36fc93f1afa8c51959"
+    },
+    {
+      "path": "backend/reporting/request_projection_reuse.py",
+      "sha256": "8e90bedc121746ddf33b18f10abfbf883e3aa70ee4e91724a256929c0196ae98"
+    },
+    {
+      "path": "backend/reporting/target_price_text.py",
+      "sha256": "1c00e82cae3b9da697aa421f4004fe0b525805f97a7a62abfd21f4b79007fb01"
+    },
+    {
+      "path": "backend/reporting/trade_observation_dates.py",
+      "sha256": "1dd6b8647243754391992cf90812e3ba1bbf08a72427290241c0434799e3e4a6"
+    },
+    {
+      "path": "backend/reporting/trade_price_grid.py",
+      "sha256": "19de83338c6dad98e79d65dc27ba5cc406eacf04b66a5b043d6621b4a97f90bf"
+    },
+    {
+      "path": "backend/requirements.lock",
+      "sha256": "2931c0e3d4dce8d8a6be8d0992fb7244bbadb131cc5c9773461abc8cd834523c"
+    },
+    {
+      "path": "backend/requirements.txt",
+      "sha256": "7e18ce435ae78b5902dc712413426320e285f1c99771c0432b40f316315f5fe7"
+    },
+    {
+      "path": "backend/search_provider_runtime.py",
+      "sha256": "a900eecbf799f3b334d7560cacddcf634ab9ce1b99995c27e57ab52db33e0c97"
+    },
+    {
+      "path": "backend/settings/providers.py",
+      "sha256": "01374046d2b19af15becca30c09d7b3ef524a338b8cd92af633375e7cd4c71b6"
+    },
+    {
+      "path": "backend/settings/storage.py",
+      "sha256": "a03f3dc138a1764f458c087194a4461052a800f6e49ca19a07d09cd36e77c056"
+    },
+    {
+      "path": "backend/shared_provider_cache.py",
+      "sha256": "a9aaf0bc0012efec335d1b4b293c2ec563e535a005b796e140c5445c833579fd"
+    },
+    {
+      "path": "backend/short_term_market_data.py",
+      "sha256": "6674d6d93496c6efd0cb0ac9c4d753885829f06726fa4de0075da418e6a39e1d"
+    },
+    {
+      "path": "backend/short_term_technical_indicators.py",
+      "sha256": "367e29b2c1e0ddd122ecac3bce7277825fd4ecd04df78196f1efe5c792f8c7ce"
+    },
+    {
+      "path": "backend/sigurd_presentation_pdf_reader.py",
+      "sha256": "a9125bfdcffb8f346aa9cd54db7a90b07df9581e49e8d5d6c2ada94498fdf1b9"
+    },
+    {
+      "path": "backend/sigurd_presentation_pdf_worker.py",
+      "sha256": "e26c7cf490d80983f955554d5e2e1d93ac065bd4b28f31be925b6894f7c0c0d4"
+    },
+    {
+      "path": "backend/source_applicability.py",
+      "sha256": "29be5dce539c0f0b6ed04b00037affabd2f1844a8a20e0b28730b0f603b39d1c"
+    },
+    {
+      "path": "backend/source_audit.py",
+      "sha256": "dac44133da5e8c224907491bcd8f0906bcdd5ec05930c0aca925f6a056fc6e50"
+    },
+    {
+      "path": "backend/source_content_selection.py",
+      "sha256": "2cf116e374a131027196ca5f42f9c47f6f15913c98b0ed42dd18c6d92f17578a"
+    },
+    {
+      "path": "backend/source_pdf_delta_ligatures.py",
+      "sha256": "510e4766167cec589084ab80fe3f27a04592bd00a5a04ae577154c389b0c7c82"
+    },
+    {
+      "path": "backend/source_pdf_header_whitespace.py",
+      "sha256": "7fae0bcaa02ef66c2b9a709f255aec1725b75476bf315fd4c14969fa6f25b7e6"
+    },
+    {
+      "path": "backend/source_pdf_npc_symbols.py",
+      "sha256": "938c1c577fb480d31d965ff14950d7b00b4d4326e57f061b7dfc4998f9a56c33"
+    },
+    {
+      "path": "backend/source_pdf_reader.py",
+      "sha256": "f51a383bd79b81f093b0a9710a376821232bb0b264c0ea8adf1f890e5419291e"
+    },
+    {
+      "path": "backend/source_pdf_symbols.py",
+      "sha256": "933bedbd6a5044101b5c8ac5f37c441440ebde16028fe51898695a87d3d170b8"
+    },
+    {
+      "path": "backend/source_pdf_txc_symbols.py",
+      "sha256": "42595da99143973c2507e7eca038a25519a9c3b76771ddc3c8034fa3cd21ef4c"
+    },
+    {
+      "path": "backend/source_pdf_worker.py",
+      "sha256": "516c7162df29adea632ace61acdf65024a75af695a2425ac389c1dd2ea84b7d3"
+    },
+    {
+      "path": "backend/source_pptx_reader.py",
+      "sha256": "4efb125e076fa3194446dc6d614d44907c0702f879d3f01418fbd49d66677198"
+    },
+    {
+      "path": "backend/source_pptx_worker.py",
+      "sha256": "09be7ca481e6a554fb0663c89efeb78e7a1b955e0a0b17f927ac524a78441829"
+    },
+    {
+      "path": "backend/state_memory.py",
+      "sha256": "eccc43b2ac41d346fa3e24f71109ab9e6608f8bc833f76adc16f5cffb486cb7c"
+    },
+    {
+      "path": "backend/static/index.html",
+      "sha256": "fc5c4bed4b829db7e90196a608417a791f4c614c302afadc0c9b1b849decb2b6"
+    },
+    {
+      "path": "backend/static/job_execution_labels.js",
+      "sha256": "267e737b4c04fa6366cc827196cf1edd913198dec5b84075e91a7cd81d39b398"
+    },
+    {
+      "path": "backend/static/operator_summary_panel.js",
+      "sha256": "8ff59006d929287fc5e3666947142d591a3ccdbfa9ea5712c260baf7c9ed52fd"
+    },
+    {
+      "path": "backend/static/provider_sla_helpers.js",
+      "sha256": "0a9a6325d33cee700dd22671718379452bc6add52173241151ff4ef0053fba0f"
+    },
+    {
+      "path": "backend/static/report_quality_evidence_freshness_helpers.js",
+      "sha256": "0800f75406ea8626f7d0e4658ce9f39d0cab3de074509848f1f4830e188f9567"
+    },
+    {
+      "path": "backend/static/report_quality_evidence_helpers.js",
+      "sha256": "906bc98ec41db06132b9282b5db7fa64b04017d6283085250c43ef88ff2f932f"
+    },
+    {
+      "path": "backend/sti_presentation_pdf_reader.py",
+      "sha256": "7ea8a231936d6e7fcf1a97fe837444518daa200adf06136e42d1497bd2daa6cd"
+    },
+    {
+      "path": "backend/sti_presentation_pdf_worker.py",
+      "sha256": "4cea76043a78a2f80874d25349bb2a1be7f1d57924d915bba96761ba703dd787"
+    },
+    {
+      "path": "backend/stock_snapshot/peers_valuation.py",
+      "sha256": "a8453ddbfc51eaf7322cf95c1f9da747460e36f6c4a9a17667704a555859de3e"
+    },
+    {
+      "path": "backend/strategy_evaluator.py",
+      "sha256": "274c6bc2e42317a2ba8f8d840ee1d2cf58bebf4e00e5e2d9bcf7f60f237c6259"
+    },
+    {
+      "path": "backend/structured_output_normalize_dispatch.py",
+      "sha256": "5608bbdef72d1c1f9cfe3bc01edebf48a8083dab36749583e1098dc215c8d85d"
+    },
+    {
+      "path": "backend/structured_output_normalizer_basic.py",
+      "sha256": "dd1342a69b68febf05a5ab34119a151d579eef74750f69c521e81f6360529f11"
+    },
+    {
+      "path": "backend/structured_output_parser.py",
+      "sha256": "2e467c1597d153abd6a1939055593fb24882103b3641f1272f1b170099d46b09"
+    },
+    {
+      "path": "backend/structured_output_risk_models.py",
+      "sha256": "675804f5482de218a443a5d91b1325c7a22645303131f3642621cc1083c0b787"
+    },
+    {
+      "path": "backend/structured_output_runtime.py",
+      "sha256": "f04abdd003977e2fb63ccede647fbd1f125a683760367c7385ec42a252af170a"
+    },
+    {
+      "path": "backend/syntec_annual_pdf_reader.py",
+      "sha256": "1c76d9713a3d37ba163bb3f40bc29660dcad8be7c3569b5a94a60b9a4a833a4f"
+    },
+    {
+      "path": "backend/syntec_annual_pdf_worker.py",
+      "sha256": "224c8050ebdd85c632f9cee6d3fb65399e9a7c7235eee5ac222fd419c04d929e"
+    },
+    {
+      "path": "backend/systex_conference_index.py",
+      "sha256": "8b12d1953e78659ae4931530009642a128470c2cd9407633e070524a8f9e3dc0"
+    },
+    {
+      "path": "backend/systex_conference_transport.py",
+      "sha256": "6ec502429edb455a95662e0a5957fb33cecc1ed1b28ecdb5f0356b47f1b7a3f3"
+    },
+    {
+      "path": "backend/task_queue.py",
+      "sha256": "3a7489557bbcffac6e8550b16c37826d1ad4c5a95a47f157a0ee8579f0619096"
+    },
+    {
+      "path": "backend/task_queue_rq_idempotency.py",
+      "sha256": "d27f074327e502df1ce9cb751bcb444159d6b24fbe05ac1c0d41ff189f691c8f"
+    },
+    {
+      "path": "backend/tcfhc_annual_pdf_reader.py",
+      "sha256": "c2f298b170f13416121cb31a2982a374748bbf0f8247d1834428ec9806f106f9"
+    },
+    {
+      "path": "backend/tcfhc_annual_pdf_worker.py",
+      "sha256": "122e2eeac37fae74389162b2d72d21b2c1e09773489cefb47d254bdb98e9fd0a"
+    },
+    {
+      "path": "backend/technical_reasoning.py",
+      "sha256": "9d77c8e50ad561ada7f9485ed5f96e7c58ca76454e870ceb4bad530d1f65ba06"
+    },
+    {
+      "path": "backend/templates/includes/charts/financial.html.j2",
+      "sha256": "a77f5634bbb925edd2af547bbacb88c839f183924caecc59e0e52b1beafd5c7f"
+    },
+    {
+      "path": "backend/templates/includes/charts/runtime.html.j2",
+      "sha256": "8276f6ee16d894a9e3c405780816b6119f70d20e53339c0ab94402bc04c03511"
+    },
+    {
+      "path": "backend/templates/includes/report_main.html.j2",
+      "sha256": "76a7e8d6de491cccdf17f40169d939d1864da885d59865812a53f5ba15dc676f"
+    },
+    {
+      "path": "backend/thermal_peer_source_refresh.py",
+      "sha256": "b0cf6326b73f2a79069f91c26d50b36db2cba2d5c827e0b2468c0397e90ed02b"
+    },
+    {
+      "path": "backend/tpex_openapi_institutional.py",
+      "sha256": "92db620be6f5c2ba8c73ff9c461752f45ac3de3bf49b213a8e6d5e1549bb9f30"
+    },
+    {
+      "path": "backend/tracking_latest_reports.py",
+      "sha256": "f8067ed6d7e586e407874644a2bb9d79d8e95398d351d08bf49aa40ac0536304"
+    },
+    {
+      "path": "backend/tracking_read_executor.py",
+      "sha256": "47f8f05c2b65913a33585361a2e45ac47c70261da64e2ea7120441f12a1d7357"
+    },
+    {
+      "path": "backend/trade_catalog_evidence.py",
+      "sha256": "929a6b05e5b9391fdd803084cb40bb20b708890465b91623ee9715d2ecc315d9"
+    },
+    {
+      "path": "backend/trade_catalyst_claims.py",
+      "sha256": "d0a4a719fc1cfe66c9144bdd9b540a384cf6bac7d6f96164e1039b03ce41b161"
+    },
+    {
+      "path": "backend/trade_catalyst_semantics.py",
+      "sha256": "42d25c2d2dc39cbfdb20ec8781498cebf4d6675458c2a90f6971a8fb83a7382d"
+    },
+    {
+      "path": "backend/trade_financial_risk.py",
+      "sha256": "a2597c3c192300059068e377426a5357c56204674a43d42fa59fd3cd06b60c62"
+    },
+    {
+      "path": "backend/trade_path_backtest.py",
+      "sha256": "37fecbdd13602f7b8cd53027a557ccac8eb332bc5e7424c55ccd58a048205c80"
+    },
+    {
+      "path": "backend/trade_price_reference.py",
+      "sha256": "6c2015d2f108f23d75ed15d8a5c2130a288bea56405323bb1f0a77bc27e29e16"
+    },
+    {
+      "path": "backend/trade_source_contract.py",
+      "sha256": "1eb30eb6ff3cd0978570089fee1d93bd02704dee8eb729bb2cce350827df91de"
+    },
+    {
+      "path": "backend/trade_source_diagnostics.py",
+      "sha256": "0889943945e818eef0b97dd2616c11051c8088e60229450e237e7f8dac711e13"
+    },
+    {
+      "path": "backend/trade_source_guidance.py",
+      "sha256": "38121b992cd73ad18b39a3e24c026459c2d6b209edde64c6e960af28b4d32712"
+    },
+    {
+      "path": "backend/two_week_market_eligibility.py",
+      "sha256": "2f7efceaa7af174225cf50e911a8b524e8345e3b6265e40eccabb13efc193136"
+    },
+    {
+      "path": "backend/watchlist_claim_store.py",
+      "sha256": "72d5d2700cf790fa7d97bdbbb00359911edaf498121c965902b503f2ee5f408b"
+    },
+    {
+      "path": "backend/watchlist_dispatch_service.py",
+      "sha256": "b00400f6f6cff797eb5d9b51431df9b63689d847dcee05946e68f8ca850f950b"
+    },
+    {
+      "path": "backend/watchlist_dispatch_store.py",
+      "sha256": "68d4b5a7d1267ba4cf5fa6060f1e4ad6361eecc424506e588da6123bb514a91d"
+    },
+    {
+      "path": "backend/watchlist_radar_data.py",
+      "sha256": "162a177cda92e16361a088cb603c359248e3729cfdb3264776db04f7cf4afebf"
+    },
+    {
+      "path": "backend/watchlist_scheduler.py",
+      "sha256": "ea48c7a50a4d9e57ab535e87130a83cc5255ceb75808fdce819eb3688a317bec"
+    },
+    {
+      "path": "backend/watchlist_service.py",
+      "sha256": "8b1f7aa1a323dac74671101d198ca726a654dc1117c61330deec3cdd3e8abf99"
+    },
+    {
+      "path": "backend/watchlist_store.py",
+      "sha256": "e4d68f9fd25451af738fdbbaae5c8e77c8a607c50bd1f4b6209f4ccc2312f95f"
+    },
+    {
+      "path": "backend/watchlist_trigger_helpers.py",
+      "sha256": "890d9c3abda63249a95ef5b24a7c2c211293cf7d367c66f57b097597b1db94b7"
+    },
+    {
+      "path": "backend/watchlist_triggers.py",
+      "sha256": "3534671f16bd530ef4095e4c794187e8394b9456a6f3b657da4abf10b2efcd46"
+    },
+    {
+      "path": "backend/worker_main.py",
+      "sha256": "8dcb51e0bc81c12153749cec8a589b3ac4b2fe376099341e3def205fab1fe475"
+    },
+    {
+      "path": "backend/workflow_graph.py",
+      "sha256": "e88d52e5c1343ef1ba3c52f3b005369dd68e1a352e3d3c677806f4202e3b1639"
+    },
+    {
+      "path": "tests/dispatch_process_probe.py",
+      "sha256": "fd4d62eb61781fc0a746a653e31bbf66b05d705ced7150b23c92d5cdd0da99c3"
+    },
+    {
+      "path": "tests/fixtures/finmind-forum-only-news-20261012.json",
+      "sha256": "9f66d9a24eaa31489285f142057f13b4e37efe79ad0eef0cbd119b0cd473fdc7"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/acer_news_full_20261011/article0.raw.gz",
+      "sha256": "fb4d5a3e8f43edcf54c92557027d0a206b734472788ff3ea18ff84855704683d"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/acer_news_full_20261011/article1.raw.gz",
+      "sha256": "07575de7cb69838c91d48a6d6c79a0e0561989c64f407c126f65e18847ce812a"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/acer_news_full_20261011/article2.raw.gz",
+      "sha256": "137f1c7213d048ffc5b4f25f79dfd765657ba77f7552fadd9d703b64b4cc8615"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/acer_news_full_20261011/article3.raw.gz",
+      "sha256": "fdeb1a6400ca39e68d901f7fc0920ac8fa52e4f02d518a609ba0846ac2e54c36"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/acer_news_full_20261011/article4.raw.gz",
+      "sha256": "dc13760140a984117f78ec5d8fa2c026ec9249f6ad010dc29c8fe868be239850"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/acer_news_full_20261011/index.raw.gz",
+      "sha256": "35e4e3af38faeb3045cf83c9bf2787b08e151edd58baeed1f7b24ef3d4cac59e"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/acer_news_full_20261011/manifest.json",
+      "sha256": "77268c58ce9d2d7b213fec4053e4484b7358f3cd8edcdf16581159a6e2430ab9"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/acer_news_full_20261011/master.raw.gz",
+      "sha256": "0fa7275115fd27edd48ef13ddf6e4915e66ffe33696b4eaf6466840179ad90b4"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/auras3324_index_20261013.gz",
+      "sha256": "7bde2dd722d5d1b0cde49661adce3cd52856da52faa35a420b94fd35dc8d12b5"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/auras3324_master_20261013.gz",
+      "sha256": "d7f2023d0f64ecb992e71cb6484161bb136fb124faeede66c2c5738cfa964c1c"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/auras3324_pdf_20261013.gz",
+      "sha256": "6516ffcf3c3269a7614e322f35914e0555b5edcddd0762e58cbd2fe440a2c023"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/auras_monthly_20261013/financial.json.gz",
+      "sha256": "2f0dbd08a570e7e7c80e5798d17d5ddc10b1255f831d19017179911dc1a72453"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/auras_monthly_20261013/financial_module.js.gz",
+      "sha256": "232af5215f241da2a66f05796706a5a9bfac0b91524527b32301ab2166871a04"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/auras_monthly_20261013/otc.csv.gz",
+      "sha256": "9666081f041f3a3100d151ca636af35f3e228ef15af86082651274744f54ceff"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/auras_monthly_20261013/otc_roster.json.gz",
+      "sha256": "d7f2023d0f64ecb992e71cb6484161bb136fb124faeede66c2c5738cfa964c1c"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/auras_monthly_20261013/provenance.json",
+      "sha256": "8122bcb0dbcba94be60846a45f3ad057e00735d00e0664ba8745289e4819be3d"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/bank_2834_2021_captured_20261011.xhtml.gz",
+      "sha256": "7a2d84a76cbb9350999715d4f9bd27de16b8262e500549b8ad4289070129d88e"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/bank_2834_2022_captured_20261011.xhtml.gz",
+      "sha256": "4970dc51a63ab6dae8906240a648a7ae1e52eb9fc0a3b5f783ebddab75b7a426"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/bank_2834_2023_captured_20261011.xhtml.gz",
+      "sha256": "e88bd26b83a01a00dc56d741a263993b6cbe101aca0f0da3468f3c25797e9251"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/bank_2834_2024_captured_20261011.xhtml.gz",
+      "sha256": "b94ac66e7c9ea6139a701371bb6d2a55246b10e97d54fce09523c33ca4a2b9bf"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/bank_2834_2025_captured_20261011.xhtml.gz",
+      "sha256": "9347f4dcd927db2ab652b2b6e752aa3d41ce6c0dafae5705b57b722226f7bcd5"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/bank_2834_index_captured_20261011.html.gz",
+      "sha256": "a1eb80f8916c9b1406ac38777054a87f25478adc9c3bd4613193582d6089acd2"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/broker_2855_20261009.json",
+      "sha256": "cdea69b14e29eb47b36c29d671c81ccb0bc0e04787a27553b57d01f6051044a8"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/caa_airline_20261013/index.html.gz",
+      "sha256": "3c4c8c482d5bc6cfa6bb56f556ba600cbfa1b448748660e5842a36cd1f489f4c"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/caa_airline_20261013/operations.ods",
+      "sha256": "eb05efdb1f616c56d2bd146a617eb4013e9e977ac9d035a554c3da2b27e83239"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/cal_annual_20261013/book2022.gz",
+      "sha256": "048d60934c99ccbecedd694eb5cec96d71261fc3e35364c2ee2f8cc563107a72"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/cal_annual_20261013/book2024.gz",
+      "sha256": "7581e568101cf910e73cc0793a99ed0b29708f1aff49e5352616164fb2e0a904"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/cal_annual_20261013/book2025.gz",
+      "sha256": "b5aeb51f4a5a8fd20f87e91ca9c494592b313ce889e5aefdef7deb49b386736a"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/cal_annual_20261013/ir-index.gz",
+      "sha256": "20ed439845ec4a67fa295b8f83ba619ef07c51e306cc9b4ca7f660d88206bcf1"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/cal_annual_20261013/manifest.json",
+      "sha256": "19c0521018141fd34d0810feffda574f439785045c5796b7dd1a8389c679a0dc"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/cal_annual_20261013/master-json.gz",
+      "sha256": "545bf05d822da37c35ccd542ce2d0a8aeee844b1d71f838efa22c03ca1c3ba36"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/cal_annual_20261013/master-json.json",
+      "sha256": "e680592f11635c43cb98e7570d93cec43ba941866f2c73b8bfbebab50969c28f"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/cal_annual_20261013/master.gz",
+      "sha256": "4df7ef66315e974cff6fb9fdc33fa04d71c80e19ad5e72cb93d4fcb307aa5da4"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/cal_annual_20261013/mops0.gz",
+      "sha256": "90b219c4452b16bb0a67025a48f08ad29ea7270196d5715bac4a0f21b4b5ebe4"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/cal_annual_20261013/mops1.gz",
+      "sha256": "9cf3a6bf61a0ae5b90895518843a341f9297063c056e9e07a7e3c706c7ca13c7"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/cal_annual_20261013/mops10.gz",
+      "sha256": "0b4c60367ac92597f9ada12253b5a52180c0278bfa8769a486b298545140069b"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/cal_annual_20261013/mops11.gz",
+      "sha256": "10aff8dc96d9de93612fd1b88823b7ae024bc1afe62b1cce6795b65b61c4cefa"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/cal_annual_20261013/mops12.gz",
+      "sha256": "ec9fd7dc618a5de45c9d8bb1c05427eb62818270ea2bcf8f40c090e3271bbdf0"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/cal_annual_20261013/mops13.gz",
+      "sha256": "fa11db013d3886243159bf9d2e8001fbe2fcd67604b8b70b0ce5f6da4eb98237"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/cal_annual_20261013/mops14.gz",
+      "sha256": "2cdc3bd98fa15355dd66fa16a464a0d71692ad63a19db1896418d68f91ad2332"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/cal_annual_20261013/mops15.gz",
+      "sha256": "e5ca0d9d555d15ea07689079b1c99aab43ca6aaed7bcc3b7527c9a469ee89dea"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/cal_annual_20261013/mops16.gz",
+      "sha256": "5bac4dcc87f2d203134745100d0a56692a328b0ace7589f12a182e6bf5e6db29"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/cal_annual_20261013/mops17.gz",
+      "sha256": "36392acc3ad443f9f4dbe720eb40d52d5cc8db83a9f7e3ac7fdce082f9916e85"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/cal_annual_20261013/mops18.gz",
+      "sha256": "2f62bd6b7987d683c9ae6172e3fdde4d41328ca9c24d59796c311d27c865072d"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/cal_annual_20261013/mops2.gz",
+      "sha256": "5eefd5573552b29a5039f3555dab8756c7a3749e52e4e25fdc3fd8760bb3f05c"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/cal_annual_20261013/mops3.gz",
+      "sha256": "27649d3c13467197a422ad4acb981a77a34848ae0b022ced02094e8c551f4d31"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/cal_annual_20261013/mops4.gz",
+      "sha256": "4563bc612af056d65aff5c3dad8e981091241ee07da6f96f35255a3673f8a783"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/cal_annual_20261013/mops5.gz",
+      "sha256": "7f040736ff3febca5dff5558734f2dfdc3888129dc62d05fabd869f1a4bfafaa"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/cal_annual_20261013/mops6.gz",
+      "sha256": "d4b7978434b47f23c17f0438cb341f31a6f8936ad17915d5e3b028c516937203"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/cal_annual_20261013/mops7.gz",
+      "sha256": "3e8432e80fd83ea153b7126d4dfa05f8b39747b6ff7d13050f74cf2150ce957d"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/cal_annual_20261013/mops8.gz",
+      "sha256": "f695dfcade06c4fc24e9089bebd7c345ae95c0292019b1b631e1b9581579d2cd"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/cal_annual_20261013/mops9.gz",
+      "sha256": "4ae37f27aa86de216c42098b2c5a24dc91a151d4dbfd98ce90404d591140931a"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/chipmos_2026q2_transcript.pdf",
+      "sha256": "712d554e7f3878cbcb7705bdfc7f9977f410661e176af6288f74fc3e81371d7a"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/chipmos_conference_20261014_index.html",
+      "sha256": "9d1567ce49c4a8b5418b1f03e3d33980923222929da94acf8024f5f2f0fdcd6f"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/chipmos_news_full_20261011/article0.raw.gz",
+      "sha256": "d3c1d926f076964de672f169187f632666570dc2193dd30ca7fd2e68ed3b437e"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/chipmos_news_full_20261011/index.raw.gz",
+      "sha256": "66803600b1c3901e3952ccd5bf5420662cb9899e748d370481079423869836c4"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/chipmos_news_full_20261011/manifest.json",
+      "sha256": "9fb4fd4437b36253d77d99147ec54f8bcf5f2f5cdb2ec2223c533de9645d22be"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/chipmos_news_full_20261011/master.raw.gz",
+      "sha256": "0fa7275115fd27edd48ef13ddf6e4915e66ffe33696b4eaf6466840179ad90b4"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/chroma2360_news1189_20261007.html.gz",
+      "sha256": "d0238298b8d56637efcf807640630e227924d4a7c2775a613eca74a958042fb4"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/chroma2360_news_index_20261012.html.gz",
+      "sha256": "eb51a7caf1b2346490c742a99b7497c69f32ab348bf63e7a929125e7ba8bc13a"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/cht_news_full_20261011/article0.html.gz",
+      "sha256": "5d2faf005785a66230b2fb5934c4c48281a0b58de309217741009525f3084671"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/cht_news_full_20261011/article1.html.gz",
+      "sha256": "d41f6ee8e2bfd1ae765b3aa2080f379fcb0634f8a598aaeba7a0ba7955fa1e58"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/cht_news_full_20261011/article2.html.gz",
+      "sha256": "f7d0a4a8ac949b6c48c8d728169a7c89f3f3ea113074e3a5100d6af69a2410c2"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/cht_news_full_20261011/article3.html.gz",
+      "sha256": "338302a1c09da5dd7d177248997d52f923db10b107133169871ab3961bf620d3"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/cht_news_full_20261011/article4.html.gz",
+      "sha256": "ffc95703f5b8c42d41e637039ece5e227d2740fb99803409a5a5c071af372a75"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/cht_news_full_20261011/index.html.gz",
+      "sha256": "028e656e5e07222d6a0e3437adb22ad8812c5e524a237698271d7467b83ad1ae"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/cht_news_full_20261011/manifest.json",
+      "sha256": "5dce95009ff2c6babefedf9b6888e5f976d952f01bb0fc4740f19d68dbdaaa5d"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/cht_news_full_20261011/master.json.gz",
+      "sha256": "0fa7275115fd27edd48ef13ddf6e4915e66ffe33696b4eaf6466840179ad90b4"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/cht_news_index_route_20261017/index.html.gz",
+      "sha256": "4e098589790687d696fca862ffe9e8f3c639b4e7ca4a37d7e6da863eef9df22b"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/cht_news_index_route_20261017/manifest.json",
+      "sha256": "4bd24e191d9efcaa2bbb9aa1d8c5fac279b014b9a03234b5256d7d5dbb421e70"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/cmoney_5314_context_selected_20261010.json",
+      "sha256": "6f14b1e07dc2f69f3d2768591fca53de3a4f44d42fde4def60c7b70ebdd313c1"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/cmoney_6672_referenced_original_20261009.json",
+      "sha256": "528454d56aa11be8d874b80bd290761f3b3f05751a1520da0bec34415d9cddc0"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/cmoney_9103_qualified_name_20261009.json",
+      "sha256": "d1d13e3b72c0fee6ad4438120ca0126cdd414c391e1cc98c5610ac53867523a0"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/construction_9945_issuer_20261009.html",
+      "sha256": "54127bcd12dd21b453a0ca1214cfbed5c677505db685714039292555e0d8020c"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/construction_cohort_20261009.html",
+      "sha256": "c1536b10be0ad071edceb1f97d81c7cf586bc57098c43bc0448f35135465a086"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/coplus_company_roster_native_20261011.json.gz",
+      "sha256": "0fa7275115fd27edd48ef13ddf6e4915e66ffe33696b4eaf6466840179ad90b4"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/coplus_verified_local_name_native_20261011.json",
+      "sha256": "f01978e5e3a89f9c46ecc3fddc71e0164ea0d6d98520a4b481d8540259367db3"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/coplus_verified_local_name_native_20261011.xml.gz",
+      "sha256": "064a40aacbe36aef640bdd703e2bc95b39246a7ede9eb1f9e2a90300da7e2441"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/csc_mops_month_202609/iih.json",
+      "sha256": "05319739136a8506a7fb2d681622ea041e60b4df95ba37f444c1b460538041ce"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/csc_mops_month_202609/manifest.json",
+      "sha256": "41ea3a16e4935f28c4f36b0baca6a047bacbd52bf6a6d7dc1c9bf17835c2add4"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/csc_mops_month_202609/month.html",
+      "sha256": "d62053caf13210f9af95d51cad04abf0f1b532c439ed85ce9f5bc001871788a5"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/ctbc_2891_jobs_20261009.json",
+      "sha256": "79d470946dd80fe05ff658a0add4496ece5e185efa40610008f48bdb37302ae5"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/delta2308_index_20261013.gz",
+      "sha256": "53ded9f5bfad7894b5ec0bbf12a913ff6db305cce8d354ca97980c662776554b"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/delta2308_index_20261016.gz",
+      "sha256": "09b5ce2ab7fb686111185d25445dc5572938e101c42f270e2943db11096b01df"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/delta2308_master_20261013.gz",
+      "sha256": "4df7ef66315e974cff6fb9fdc33fa04d71c80e19ad5e72cb93d4fcb307aa5da4"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/delta2308_transcript_20261013.gz",
+      "sha256": "d5179a62c01596399c009716b7c07c0be45e8d630bd43ebecbc021ddbff89ddc"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/eclat1476_index_20261017.gz",
+      "sha256": "8933e21996acd439c0c7e6d172e4ab70b1a4f6b4273968f986579b02103a32a0"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/eclat1476_pdf_20261017.gz",
+      "sha256": "e1a35abd20513885e302da2f916d94e724a928d8cb98dcaf6dbdb656bfa7ca65"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/eink8069_isin_native_20261011.html",
+      "sha256": "b4612c2c34ef6cd0ae34fbbc27676074ef3234033f884c9469d16e45bed0e5d1"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/eink8069_news_with_indexed_forum_native_20261011.xml",
+      "sha256": "b33af964cb818d2aaa84a1b27f17af633d56b13829daa076e9f6115f79a46197"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/eink_issuer_news_full_20261011/locale_anchor.gz",
+      "sha256": "799d7953ef1e150de2f437cf8977d75ea10bc4c3d2dc31700e6a3f5815babc72"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/eink_issuer_news_full_20261011/manifest.json",
+      "sha256": "5dceaa1497237e9bb718fb7d123b0b7126d368c9d6284616b3a7dbeea294b9ad"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/eink_issuer_news_full_20261011/otc_master.gz",
+      "sha256": "7b02e592b451fda91803af34c73bb429beff4448f44cc39ae7d2c23f27de02e7"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/eink_issuer_news_full_20261011/zh_article_1.gz",
+      "sha256": "56aa204267d64b756f2781a8d6293a77108f158fcb5cf45daeb5f6e287e2cc5c"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/eink_issuer_news_full_20261011/zh_article_2.gz",
+      "sha256": "78d932578db0b3a9e038dc8f9e3a17b525e46878e2a76fb6107042bd30ef8a83"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/eink_issuer_news_full_20261011/zh_index.gz",
+      "sha256": "782d960c6808525bf26c0afd50bbd21f0e03f7ad9ecdadb2b99f4aff054a66b1"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/esun_news_full_20261012/article0.raw.gz",
+      "sha256": "fc48e2b8ccf97f39d67f5f59a29a947df239c34bd373c54bdb833bb16ee9fcf8"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/esun_news_full_20261012/article1.raw.gz",
+      "sha256": "58c28bf0f4a204275263896eb58f5e56465aa72462647db90e3aec93be0eaf48"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/esun_news_full_20261012/article2.raw.gz",
+      "sha256": "b5ef4808a31a6a95d62becfd70fb742cb7bd61727530b7638294bfe96755fda7"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/esun_news_full_20261012/index.raw.gz",
+      "sha256": "5df078c7692289dd8caa54cbbc747614d3b5407bed15c88259b012c7196537a1"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/esun_news_full_20261012/manifest.json",
+      "sha256": "7e3913f1bad0f81b6515ca9b2267fd33a641fea124cef57cd6e2c8d6077bec38"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/esun_news_full_20261012/master.raw.gz",
+      "sha256": "0fa7275115fd27edd48ef13ddf6e4915e66ffe33696b4eaf6466840179ad90b4"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/feib_verified_news_commentary_20261011.gz",
+      "sha256": "5e7bbaab8e46ac44e9dc5f20cb7fcdf35d76199ac8a3d4a4800af83f1e140b37"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/feib_verified_news_group_20261011.gz",
+      "sha256": "478b68c09919cedc6d839df24704996c9c56637cbc86c1e7e7b86654b79585b4"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/feib_verified_news_native_20261011.json",
+      "sha256": "c413e63b10c77047386f5bc73bad98cb8bebedb0347ea23be8f5bed0ab4570ec"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/feib_verified_news_rss_20261011.gz",
+      "sha256": "0b6a9d280caa44032f9088139261b5b55b9243b0499d42ab0a5fea5a04ad5e99"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/financial_institution_2891_20261009.json",
+      "sha256": "78261df9fc5c0029ba5523fb938cad5b44b0a84c205852244c260d69c8b1256e"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/finmind-stock-overview-1623-20261014.json",
+      "sha256": "c73bc7fad2b22f8cc011908c8bf3a10cf5a4ee9f79b0614d2e38202b23b58b6f"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/food_1229_issuer_20261009.html",
+      "sha256": "51d1dfc9d2e3be45c9ffd9d74c0892ea4fdaef7cd5efeab790901932a735c2ee"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/food_processing_cohort_20261009.html",
+      "sha256": "3e767fb81e16fe0fb1c7e7f32a70f2bd84243613d10c5c4cb72e979f0739050d"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/gogolook_brand_query_native_20261011.json",
+      "sha256": "c9d8082c370dc9b55375db8b1068829207a815846172d92211dc1a78ed1de3ec"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/gogolook_brand_query_native_20261011.xml.gz",
+      "sha256": "03b82105df30fdbde958363d6ae2a991e4ec23be474ff54773be0f565906cc2e"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/gogolook_company_roster_native_20261011.json.gz",
+      "sha256": "8966b5802e7aa7c21f024cd1932266093302f2d54b6bd79fd9b96157c8dfd592"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/gogolook_name_only_query_full_20261011.json",
+      "sha256": "4955a21fe1dcbcd578e6435537f255db5e719d6ce8503f10cb177aa2f53db4a2"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/gogolook_name_only_query_full_20261011.xml.gz",
+      "sha256": "e317c8da552725765226c13f7b30d7aa48cfe1554f53ef62140310b9aeed547a"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/greatek_comparative_start_full_20261011/40b816989222a0018336e3de29988e3f7a5f90e3cac934173bc0f3938757d2da.gz",
+      "sha256": "c6c5da10c9876e835b772eb9cac500e01529ce8cec03f1582d24628adb694ca0"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/greatek_comparative_start_full_20261011/41e3734afffb7c0bd50835e2ff00c0303871c7a03cadabacbcb031ee9c8a9938.gz",
+      "sha256": "20a9b70b2d9c82160020c0b22c421b33401dbc855267dd612fa7a59990608882"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/greatek_comparative_start_full_20261011/4f2491487da3489f8cb5cb9acd95dd6ee73981ebbbb0c45e8df4c5e2bfc0b413.gz",
+      "sha256": "27649d3c13467197a422ad4acb981a77a34848ae0b022ced02094e8c551f4d31"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/greatek_comparative_start_full_20261011/5214a08240619b8390e31ea819208f1792562fc56c765d2f1732873a33e7cdcc.gz",
+      "sha256": "cc587e282030f2ca862def2090fe54292e655a9f039c84e2462e4de57ead80d0"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/greatek_comparative_start_full_20261011/5cc1331565cb63b493fc72bc1396fef3b4b37db346389881da48df02007a6981.gz",
+      "sha256": "0f580a8850dd37fe4d037f4610e8dcbf90195199392a95e2aa18789075f7ce70"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/greatek_comparative_start_full_20261011/60879f1fc31c6590739d66dac6aa70ee358fcadf93949a0997e0017984a6238d.gz",
+      "sha256": "2905093552d46da28ecc72976913ba3d7f5a4f5ccc01b3ce106cf0519e78b561"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/greatek_comparative_start_full_20261011/62f001b93a333a8c4bcbd5d0bf1fdde9f9bd891ed015a97046b0f3c5bd2d52f7.gz",
+      "sha256": "64855d4df30f7d528ff7b72cdac78e8bec46c706f0c800ec5da40cb08aa51ab2"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/greatek_comparative_start_full_20261011/6d1695de0f0234163792333a4cf07ef9316f01687ef1a0928fa6ddc9feecc7ba.gz",
+      "sha256": "9cf3a6bf61a0ae5b90895518843a341f9297063c056e9e07a7e3c706c7ca13c7"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/greatek_comparative_start_full_20261011/75a3e11084c7680a293921cdf153a4a73d21830a6a0fbc46d39cb1ce866005bf.gz",
+      "sha256": "e775a48b61554463e7b91b36bd50ee57e6ddfcd16bf92076634dc511b5512837"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/greatek_comparative_start_full_20261011/9da7d127497cd68d9e227b5d486cb4c4d14beda94d2f71b2f0e19006074846c1.gz",
+      "sha256": "edf8147912add28544124f0f1b0209a48f7fa8154a85e5600fc222f956f1833e"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/greatek_comparative_start_full_20261011/9e708b98162f8bf1474f0d1fac1731894bacc27061adbb31546bf8c33959d8f9.gz",
+      "sha256": "d5f1de2c739b084502e72eacda029006f6dfef100a6b4082b2f268081ac1bba9"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/greatek_comparative_start_full_20261011/afb9948c65cbc98f51d4d9f38c2826c1df53655d9065f6deee08e56013155cde.gz",
+      "sha256": "fd04f90941d156883b3794a0a38a53415b549289e8e10f9bb306e7ec183c858a"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/greatek_comparative_start_full_20261011/d13ebce13c86a673e45ddd1fcb47a2a35a2e71463b58c5d8c3b82ff87a428e91.gz",
+      "sha256": "aaed533a5a06a8c3e8e6760a4bceece651275e5e21fdef93f8334f1fadce4c79"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/greatek_comparative_start_full_20261011/df0b4b84d3fe501753565f313fbbe8ed38c7a22f64db65a99547290697a538f1.gz",
+      "sha256": "6c45ddfccb26b774ec87c41249953be5205a3c8cce575f032ac2e07d8f1018b0"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/greatek_comparative_start_full_20261011/eac65922534d5d38718f88eed0a33862ade5ba26e251a4390e546edd645557c7.gz",
+      "sha256": "1b275315256191fc7e34f0898e194d7f160a5bdc377aded2f45a5a3b3c232b72"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/greatek_comparative_start_full_20261011/fbfd5754dd2ce843cadd7a800e188fc84acda6ee61bfb64d5afd3a1ac9cfee23.gz",
+      "sha256": "5eefd5573552b29a5039f3555dab8756c7a3749e52e4e25fdc3fd8760bb3f05c"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/greatek_comparative_start_full_20261011/manifest.json",
+      "sha256": "457434bb328f5ffd4cfb2b02510d55252c930ad8dc2e90f5aab67134ec8b520d"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/greatek_comparative_start_full_20261011/value.json",
+      "sha256": "70f2ca38e13f690f0192a00388bcba1779d5a24cd10b8f6c0e5eb1319cafd8d3"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/guc3443_index_20261016.gz",
+      "sha256": "178b038e7fd43328f4a3cc7ab0cb1daebc18bae09873d2dc66e7d295e9161a35"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/guc3443_master_20261014.gz",
+      "sha256": "1a16a2320d1bc99a6149908fc26ced34f383a2b17207822e1b91be0180518dd8"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/guc3443_pdf_20261016.gz",
+      "sha256": "3e1902cab451596852d37f4d48c1053ccfd76f15dc4d1c0936c034a1f9034ea9"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/guc3443_reader.json",
+      "sha256": "4fe7f82d959f8ffc90a06994f896dbaa90883de32b9448abde09bc6b8b178249"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/guc_news_full_20261011/article0.html.gz",
+      "sha256": "abb9984ff30089c0e5f0fd45a6f8e8735947e8d08a88beae48eef6f9093a65e3"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/guc_news_full_20261011/article1.html.gz",
+      "sha256": "c27d336a8ef9fc8794098007a129e9e9287e0fc561b712c6180c103124b9fe1d"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/guc_news_full_20261011/index.html.gz",
+      "sha256": "ba308605ed5fed1e87ea32cb65d03f607e982f95215bc27e15726f352e9403a5"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/guc_news_full_20261011/manifest.json",
+      "sha256": "600773b29cfa09561a6c27825e3f39f970847b37740c5a8a02e3b4ed15c3681c"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/guc_news_full_20261011/master.json.gz",
+      "sha256": "0fa7275115fd27edd48ef13ddf6e4915e66ffe33696b4eaf6466840179ad90b4"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/honhai2317_event106_complete_20261012.html.gz",
+      "sha256": "a116f0214f4bdddb7c7cf82cfa5140f461ed62c86511f66578bda9607aeec867"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/honhai2317_transcript_2q26_complete_20260812.pdf.gz",
+      "sha256": "03644e19a7bb1e8509a11f5063ecaf98af770d546281b42087b5f0b6c7c9e743"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/honhai2317_transcript_2q26_native_pages_20261012.json.gz",
+      "sha256": "f370465917983e8823970621330938950d953d11bd5d3253a15d1f36034e6d6c"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/honprec2354_incomplete_public_annual_captured_20261011.json.gz",
+      "sha256": "e0eb4863dbc6524c149224fcd3e7aad836b317443251f7c22f57b94f41903b17"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/institutional_1229_daily_pair_20261009.json",
+      "sha256": "cd31d075ba85a8a42a347c9b94aa817c2861a2d0b4ebcb8108844809163ccdf9"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/institutional_1301_daily_categories_20261010.json",
+      "sha256": "9cb0644dd46abbc08b6f90e407bb4dcae37d98ca8102000ab30399796e611768"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/institutional_2855_daily_categories_20261010.json",
+      "sha256": "0db7dda4d20f752b6be31377b3d39c0328748d63d2eb549f9f12f5b6dba4925b"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/institutional_6152_full30_20261012/actual_primary29.json",
+      "sha256": "e11efa43d8d11bc5e00f5e32b252c4436a031767a05992dfad10ff6b15566243"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/institutional_6152_full30_20261012/latest_Oct12.json.gz",
+      "sha256": "a209c3a83c9ddc475651ab1b55570e82f65664316c06c2038e98a3e0b96730ba"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/institutional_6152_full30_20261012/manifest.json",
+      "sha256": "ae62c80d959030ff81a01fb295bc71448ee59e567dde33e7aa76d78e3f37dee9"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/institutional_6152_full30_20261012/missing_Aug27.json.gz",
+      "sha256": "dde412388ed56e1fa29e088ecfbf99731c6c1b12e66dc22eac3f5593b2e24cc1"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/institutional_9103_daily_categories_20261010.json",
+      "sha256": "ba1e4408fa386d77bb91d1b73b0c7ff2150be6ca221171137e74c14798ed6ff2"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/insurer_standalone_2851_20261009.json",
+      "sha256": "bcd01320dab9119ee7bc10d6b3ec7da792b29264e6e4137d4f3655b904f2f900"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/issuer_roster_selected_20261009.json",
+      "sha256": "39a94f8ed12c95af543d0dc5ab50a5b3fccf23d1b814252b747c888d6ab17b77"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/issuer_sanyang_article_20261009.html",
+      "sha256": "034c62f3942ae72997533cbb0bc8566238ad3d0bc7a49f65eab01f3555450b95"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/issuer_sanyang_news_20261009.html",
+      "sha256": "f00b7ce2221db934bf0c3f1cbba0dbb0aab06cbb76de738fc45c87ea8e2de0a0"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/issuer_sinbon_detail_20261009.json",
+      "sha256": "6ade3b03a66025bc9be94b33027c76719dc35e81a9a28ba93e0b0c1e1367afef"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/issuer_sinbon_news_20261009.json",
+      "sha256": "5e0cbdea0026950c24ea9d25c4e465f546e0f5b56de6d1ca6e0d831c36cc94db"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/kgi_2883_jobs_20261013/native-detail-JR106307.json",
+      "sha256": "1bddd6818e8b86626d905ce185e9f9c5abc6e79dec060a970bae5b79da75b2b9"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/kgi_2883_jobs_20261013/native-detail-JR106341.json",
+      "sha256": "53ef3e12262cd8c1b95bf5643de82a206280788c97740e0558c77e58190c9d19"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/kgi_2883_jobs_20261013/native-filtered-list.json",
+      "sha256": "71035fe984013b4fca16fdca847fcfde08f0884551bac382b15f09c80c2956f5"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/kingslide2059_index_20261016.gz",
+      "sha256": "76a373ea20145429066969e8196d9ec758467be576ba71ae0757d0820de9841f"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/kingslide2059_pdf_20261016.gz",
+      "sha256": "da391c74501a2ed0a25b679690825abd87f40ff09fdd5675e9e0480b00826d38"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/lienhwa_pptx_20261014/122920260930E001.pptx",
+      "sha256": "4ab60e7e57d57255e9d93ffcf25e54bab12db5e3718086000ae956a057ba160c"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/lienhwa_pptx_20261014/manifest.json",
+      "sha256": "f5959c8976f9d89783c898060844c81c5c272749029bcd2a868c2abad62bbd14"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/lienhwa_pptx_20261014/original-receipt.json",
+      "sha256": "ccd5b5d9c08ef3423fe290973ced3119d55fbcc9662bcdaa5f8950676bd16238"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/listed_company_complete_20261012.csv.gz",
+      "sha256": "761ba003f8c2b7fc68494d455fdac0475225674763e69f0a8d2efc8acc50199f"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/ltn_5314_selected_20261010.json",
+      "sha256": "1301a69b315a7395976f623033a5c59cbd7d996210658001e0d40d1a7c3c9d89"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/ltn_9103_relative_selected_20261010.json",
+      "sha256": "8be7e8076bad7ea349c65b09a714da9403630370204fadb08bb0e6df5fff919c"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/medtecs_medical_cohort_20261010.json",
+      "sha256": "46ea974286f26849ef65f51e68b3ce77334042f87d269b1ab8a65b8cbb13ad54"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/mega2886_complete_news_article_20261012.html.gz",
+      "sha256": "f1f8269ed5abf7156b08c9def003c522a00f6fc4f3e0de943149fff277838b05"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/mega2886_complete_news_index_20261012.html.gz",
+      "sha256": "d969e3377168960f3ad3c626ad46082dece6bc81f743912443e5603a0d1f94d9"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/mega2886_complete_parent_article6638_20261012.html.gz",
+      "sha256": "60d001f6c11130fca0500714c584c60a295698c5d8de827e8f8b0db0de91f5c0"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/mega2886_complete_parent_article6640_20261012.html.gz",
+      "sha256": "67e5086c2b1d7654f165a569610388643a39f10960815b09e390eef863afae77"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/mega_holding_public_UI_captured_20261011.json.gz",
+      "sha256": "d6f90fbf46a285628de343da000bab9433b08a0fa5c2cf08d1d0380eca6f4873"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/mirle2464_complete_news_article_20261012.html.gz",
+      "sha256": "2299d91de7d944834550e082414670a47d4b18afaecaa30b97602ff80ef7ecff"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/mirle2464_complete_news_index_20261012.html.gz",
+      "sha256": "07f7b4726346e9e8f2ede55c89ae605feba52dc2512ad33ad685e39ecce00679"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/moneydj_food_biotech_20261009.html",
+      "sha256": "f75fc9324d38120c12406e5cd48742d81e5cbc80ace500feb19f81f86bc30e48"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/mops2408_same_day_conference_20261012.html.gz",
+      "sha256": "17dc757c64e526cc070790859377ef3d3855d7540eaae6fdf1eeadf6b358a368"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/mops_2891_20261009_month_09.json",
+      "sha256": "91b7391aa28f4a45a8af756aa76eae4431af56fde3cb1cb47338fc3636734b11"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/mops_2891_20261009_month_10.json",
+      "sha256": "b42482012088cda1a63c700d9502b9176835314bde746299fc49f1b33665ab9e"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/mops_materials_20261014/1229-index.html",
+      "sha256": "f9dd944142fd4762f3d6bca11255d4b433197589b79cc0e7b239a41a3f2d5886"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/mops_materials_20261014/2303-index.html",
+      "sha256": "7f0c826eab1906804d097ccc0bf9c3ba163b987ed56f9f4969df21146f841a9e"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/mops_materials_20261014/2330-index.html",
+      "sha256": "e1b1f2b13b753e04d4ad74051c41f614af06ccaaa5b4b1b766091a96223b93ec"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/mops_materials_20261014/manifest.json",
+      "sha256": "5367f533aee94d93b0297a8bddb43898547984462aa1196b64b01acdd826e6b8"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/mops_opening_balance_full_20261011/2023_balance.gz",
+      "sha256": "e25ba7f79cd5ec6ac4851d5945dc7c329c4c0747480780ff63a60cb85b75f171"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/mops_opening_balance_full_20261011/2466_balance.gz",
+      "sha256": "ae12eec32cd53bf64e37942150e0f1da905e7c86999150714edd312ae2a84475"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/mops_opening_balance_full_20261011/CashflowStatement_unit_renderer.gz",
+      "sha256": "27649d3c13467197a422ad4acb981a77a34848ae0b022ced02094e8c551f4d31"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/mops_opening_balance_full_20261011/IncomeStatement_unit_renderer.gz",
+      "sha256": "5eefd5573552b29a5039f3555dab8756c7a3749e52e4e25fdc3fd8760bb3f05c"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/mops_opening_balance_full_20261011/balance_unit_renderer.gz",
+      "sha256": "9cf3a6bf61a0ae5b90895518843a341f9297063c056e9e07a7e3c706c7ca13c7"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/mops_opening_balance_full_20261011/manifest.json",
+      "sha256": "b386c96477c9e3bccbb2f91abe53dc62bf254c9d13b73c5800f6b18bb98916c4"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/mops_ordinary_originals_20261012.json",
+      "sha256": "51fbb6900af5bca3eb0dbf76204c41d805d1881a5d70bb37e0220d4e33cba1bf"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/mops_ordinary_originals_2838_20261017.json",
+      "sha256": "0bb780cfb2a085400597b3b218e4e4fcaa07eedec0c68f76624109ef2d1abbae"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/mops_public_2409_comparative_20261011.json",
+      "sha256": "60285cfafad13699797fa58136f579df2f73afa8ac81bc2e47dbb7d37416e012"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/mops_public_3443_20261011.json",
+      "sha256": "6c0fcc592a792a95c41b81275ba6f53b1bc47e7da5ab8f6bf700a9b948a94eb4"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/myson_monthly_20261013/index.html.gz",
+      "sha256": "acbf8bbdbba7b3fab71c857b04cd8c82b3b4c5185a6bb5d7a43eefc5b4c031e8"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/myson_monthly_20261013/otc.csv.gz",
+      "sha256": "9666081f041f3a3100d151ca636af35f3e228ef15af86082651274744f54ceff"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/myson_monthly_20261013/otc_roster.json.gz",
+      "sha256": "d7f2023d0f64ecb992e71cb6484161bb136fb124faeede66c2c5738cfa964c1c"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/myson_monthly_20261013/provenance.json",
+      "sha256": "f8d07adf4e4fd98cd2a6b8a7b2340d25027182d5423eb5b4634b51a9f685a157"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/nanya2408_complete_roster_20261011.json.gz",
+      "sha256": "8966b5802e7aa7c21f024cd1932266093302f2d54b6bd79fd9b96157c8dfd592"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/nanya2408_presentation_20260819.pdf.gz",
+      "sha256": "9c9fdd665c931af8fcde4ee173797139602f872dccdcc04f168cc9d767ab4f27"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/official_monthly_20261012/listed.csv.gz",
+      "sha256": "712598af6b38869c7fa3403df633c5f50f8cf72dfdd322d5040fd2345d8863be"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/official_monthly_20261012/manifest.json",
+      "sha256": "e36cf25c2abab9b7ce4a1878a1f206d5f2ebb117763b1bf9c2e109f82d8b67f3"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/official_monthly_20261012/otc.csv.gz",
+      "sha256": "2b602d0be2ae23bcafd3b01b6a73261432d1edf874abb818e630e66b1127ab53"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/official_segment_1216_chain_20261010.html",
+      "sha256": "bf7b807d197cb51e1fd0a26806b89602afebe7036644c9175a029829728cf196"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/official_segment_9945_chain_20261010.html",
+      "sha256": "66b833e9e7ad2499554d9890cd45df1eba4fbf8cb4ff28bdd04df0a2d742ead5"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/official_segment_M000_20261010.html",
+      "sha256": "26bfeb3dc532893e491d4bdc5f1461ab879da42a5f607808137b00beb376e8f1"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/official_segment_S000_20261010.html",
+      "sha256": "26cc878812279c547c033939b365208a9ea63d133f94718b20ae69ab92b2f3c9"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/philjobnet_medtecs_20261010_complete.html",
+      "sha256": "e2cbf6613ff500a6bf5ac3c1d7762bc93105d507d7ec2a863572ed441c5fa6b3"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/promate6189_index_20261016.gz",
+      "sha256": "8c76eaac2d6f318434127c32ff7173990475cdb36729c485fb9841001c915406"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/promate6189_pdf_20261016.gz",
+      "sha256": "4dbdf0693763be5c6eb9d8afd14e373b02b83e40a5bdc57ef2129e19b7b94144"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/psc2855_complete_about_20261013.gz",
+      "sha256": "44d2940f218ccfdd4b669aebd1c1ec9b6c6481df1c92fe9449994e15fdadc4a9"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/psc2855_complete_announcement_20261013.gz",
+      "sha256": "ea6da8ecdce805bbcde5212320f5f50b1aa5cc525ec590f249fc9bf06d86a6be"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/psc2855_complete_index_20261013.gz",
+      "sha256": "d710fb090996a6e0a3c925b32c92ed28b519f89bbb5c59851dd04769061323cb"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/psc2855_complete_presentation_20261013.gz",
+      "sha256": "5b2d279934cee006b02b3aca3ade7944687be94a29b4ac35de13e6bf98120f05"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/psc_broker_subject_role_native_20261011.json",
+      "sha256": "0a59aceea8bb33b5f111861a302b5499e798e59d27fde172cb93a5a84dc28406"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/psc_broker_subject_role_native_20261011_1.xml.gz",
+      "sha256": "7ad313ad46618bced2e8676e93ea5dbc0d11be8f0dd149ee56b2bfbeaa02ee66"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/psc_broker_subject_role_native_20261011_2.xml.gz",
+      "sha256": "72ee8fc7dea1bba091a7b803884fabd60cca333d8a8b1882d623a28cc841d4e9"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/psc_ehr_jobs_20261009.json",
+      "sha256": "cc11df0d5273398c04f89befc32894a3364381f7401c50b8c852f2554b0aa3e4"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/ptt_2308_body_20261009.json",
+      "sha256": "373f9ce1b82b77c164ba1fbf89c81f96bdc1601875540121a8d710ed82cb84e5"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/realtek_issuer_news_selected_20261010.json",
+      "sha256": "3664b599233af9b14e2cbb9fce92541efabb3828ece131072486e744299e69d7"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/seec1503_index_20261016.gz",
+      "sha256": "c82996b5a5f6442e18a738f26fd039d0334ffcfb6425ba747523abfea38c9368"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/seec1503_pdf_20261016.gz",
+      "sha256": "548c736de18bfd1320020aea5fa3c59d1c4597bb5566166969d3762cc45803bc"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/seetel_short_annual_index_complete_20261010.html",
+      "sha256": "91321c23fb130f8d1aaba0fed1ebda590582f58e59786e7aa2398662972ccd54"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/sgx_medtecs_completion_20261009.pdf",
+      "sha256": "c4008add8d53a2ae13b2c08379f5ff6c2556ba8608d19bd41fb112684ff8b50d"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/sgx_medtecs_selected_20261009.json",
+      "sha256": "750a31d7a3ed51f32bd4c5a9dda46bc9a4a4681eddc0df4542c67dee9efb38b3"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/sti2480_presentation_reader.pdf",
+      "sha256": "61a4dececbdb1a30bb4ea6529de24001b4cdf10a26e8a33a85f4feb4378c6e0b"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/syntec_annual_bridge_full_20261012/2023_BalanceSheet.raw.gz",
+      "sha256": "86b67059f71c1e9a1b2268b67f0fc6029ab074c012e0d29fd6648065468b7b33"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/syntec_annual_bridge_full_20261012/2023_CashflowStatement.raw.gz",
+      "sha256": "761367a5ea860e389800311c09408d6950d2986d28bc2b216a9915127579c239"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/syntec_annual_bridge_full_20261012/2023_IncomeStatement.raw.gz",
+      "sha256": "42087094068d652b36b654c9820d077b56732427bf2177ed429bd2ea2c210b5a"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/syntec_annual_bridge_full_20261012/2024_BalanceSheet.raw.gz",
+      "sha256": "210e9ebd7024fe3cdf5d8bc4892eb9d357cd42f0e16e2c5d849430b8e98e83a5"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/syntec_annual_bridge_full_20261012/2024_CashflowStatement.raw.gz",
+      "sha256": "62532df51c1530a7f7fe514d333e5e75b8db38b60604f9e0a975b070a25648a5"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/syntec_annual_bridge_full_20261012/2024_IncomeStatement.raw.gz",
+      "sha256": "98767b804daa683f71af7fa82dd766a7e81e60d8eeecad5d4d5bab4d66f33a8f"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/syntec_annual_bridge_full_20261012/2025_BalanceSheet.raw.gz",
+      "sha256": "beebc9202c4c231e5508d0bf4816c578414940c3b35303f3d40bbc1cd7e4bff3"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/syntec_annual_bridge_full_20261012/2025_CashflowStatement.raw.gz",
+      "sha256": "b571b4e3a4b72814fa465f722bbe2eaa00cccfc92322441115e638cbd1362d0f"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/syntec_annual_bridge_full_20261012/2025_IncomeStatement.raw.gz",
+      "sha256": "7cfc0ece2f54bef7e564bd5250f663df93a00cd76a42133ab4cabd520738dc0c"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/syntec_annual_bridge_full_20261012/book.raw.gz",
+      "sha256": "ceb665d2310d68a4924918bd817b807962739485e59f5073163961d3d4df8439"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/syntec_annual_bridge_full_20261012/catalog.raw.gz",
+      "sha256": "f9df809a591202f31ba0e176a8804d66d9461a0fca19290de42cfc15fbe1d8d1"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/syntec_annual_bridge_full_20261012/download_form.raw.gz",
+      "sha256": "29c3a331db3fb3a3a61549dfe6d3027b5357162fff355f6ac1a82f955614c26b"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/syntec_annual_bridge_full_20261012/index.raw.gz",
+      "sha256": "2c0b693c556beb84b12565e00fbfeb2f850e3c8052a4caca702fdc8c73f06331"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/syntec_annual_bridge_full_20261012/manifest.json",
+      "sha256": "d53f9fbd3772ba72b599dd43605d168aff28bc024f15d4156a9a7d7e0733617b"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/syntec_annual_bridge_full_20261012/master.raw.gz",
+      "sha256": "0fa7275115fd27edd48ef13ddf6e4915e66ffe33696b4eaf6466840179ad90b4"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/syntec_annual_bridge_full_20261012/selected_native_coordinates.json",
+      "sha256": "43ab1bd9615ee8d339cde15405e5647c5ad072445a8688274a2cc672cbb3473a"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/syntec_annual_bridge_full_20261012/template_BalanceSheet.raw.gz",
+      "sha256": "9cf3a6bf61a0ae5b90895518843a341f9297063c056e9e07a7e3c706c7ca13c7"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/syntec_annual_bridge_full_20261012/template_CashflowStatement.raw.gz",
+      "sha256": "27649d3c13467197a422ad4acb981a77a34848ae0b022ced02094e8c551f4d31"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/syntec_annual_bridge_full_20261012/template_IncomeStatement.raw.gz",
+      "sha256": "5eefd5573552b29a5039f3555dab8756c7a3749e52e4e25fdc3fd8760bb3f05c"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/syntec_download_clock_20261012/download_form.raw.gz",
+      "sha256": "1efbfdbce4d9d9cc60154445378d38f1ec24267ee62943b7b8eaefc43f5d3646"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/syntec_download_clock_20261012/manifest.json",
+      "sha256": "dd9068f1614eee80500742030cc34ca1e9cdea1f8a66bd7d9277d2c0787fbd97"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/systex_20260917_conference_complete.pdf",
+      "sha256": "0261069f2d4ebb6c2fb1488a972ccaa43588000a63f66d89939eb3b77829209f"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/systex_20261010_conference_index.json",
+      "sha256": "c7017779dc0da199885342134ce5b3ca0e66a52843ab04aa86367c793f154721"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/tcc_issuer_news_selected_20261010.json",
+      "sha256": "e2864c6510274e8dacb47a3a89275eaa1636fef6c3fd8cea8b1a195a5e8f84f8"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/tcfhc5880_event_20261013.gz",
+      "sha256": "6ed1ffa80ba68aa1ee446f8767d6cbaefa8c1819bdf78213d9762003976bc6fe"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/tcfhc5880_index_20261013.gz",
+      "sha256": "664b13b97cbe97a6f68931c2ea7b60d575bbc81af135ebb749f4158803765492"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/tcfhc5880_master_20261013.gz",
+      "sha256": "4df7ef66315e974cff6fb9fdc33fa04d71c80e19ad5e72cb93d4fcb307aa5da4"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/tcfhc5880_qa_20261013.gz",
+      "sha256": "cb522af9e5cfd0d9db4c80fc5d503712dfc08f673b3d812a3aa4ed5601b75caa"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/tdr_mops_9103_20261010.json",
+      "sha256": "a8cf166cd26aea496d85e980654ba8447bbe367ee3bb0d4a981438fc35b93153"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/tdr_mops_9103_disposal_20261009_complete.pdf",
+      "sha256": "2d492d9bde49ac20c23ff8cbc25f90bfb7e13278b071817362099b7e8345ea25"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/tewc1623_pdf_20261014.gz",
+      "sha256": "8cbe1c224542e470f2b0106cae53a99f79329ff882dc3f79b675e4c018a68e15"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/thermal_metrics_20261013/issuer.html.gz",
+      "sha256": "8f2299a8a616727139dfab1d866b76816309ab9849bd3cbf63a1515f2ff51c3e"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/thermal_metrics_20261013/listed.json.gz",
+      "sha256": "1d9c2f865d73a6a5f6896431bedc0e8f8efe142fea1914118290137070f3b5fd"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/thermal_metrics_20261013/otc.json.gz",
+      "sha256": "d7f2023d0f64ecb992e71cb6484161bb136fb124faeede66c2c5738cfa964c1c"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/thermal_metrics_20261013/provenance.json",
+      "sha256": "2792bfcdb794f9bf6c21f9a0f957f586bb78aa5af111aa1db399b6777179a721"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/thermal_metrics_20261013/segment.html.gz",
+      "sha256": "30637213da95a1168f4241615e71ac1a9e5b4a2f49d6669feff3569054f63585"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/tpex_complete_company_master_native_20261011.json",
+      "sha256": "50c431da2be02964a1d149cff1415d1ff8d2a320c186e43b22b62ebafdd52e07"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/tpex_quarterly_summary_2026Q2.xls",
+      "sha256": "86ff1112a0eb6da1a0e4fc8d7be562b0848bfb95bcffacfce7742537c7316f43"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/twse_2059_trading_notices_markup_20261010.json",
+      "sha256": "ecfa6e4f39a8cbe905e86c961d3f3eec147e5ac4a5a959addad0ad8e34009758"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/twse_2340_trading_notices_markup_20261014.json",
+      "sha256": "732ddcd92592428f7dc873e2931af1356bbb41b8646bedd02e40b07ed478cb7f"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/twse_2468_trading_notices_markup_20261014.json",
+      "sha256": "40c86a6bdca75bf8c8436e546a949f6c481cdfb1833d3436ad3e1b8e1628b69e"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/twse_3653_trading_notices_markup_20261010.json",
+      "sha256": "58736b006d368410f477426c79306cc7e3511b64ab77301c5e44da56dd65b525"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/twse_6504_trading_notices_markup_20261014.json",
+      "sha256": "e27ce671cafac64ff3e7d9819e067793c8faf377d0cc4ca9e743724b8f046a01"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/twse_6531_trading_notices_markup_20261014.json",
+      "sha256": "85c3378e5a8a01defb878874bdc34bab6cf51316c76921c4cc0be4fe50a6bd0f"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/twse_allmarket_notices_20261014.json",
+      "sha256": "e9bb622738fd5145ac4a24d9b54437892912e8a3373a766289dfaa6ecd357f79"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/twse_isin_0050_captured_20261011.html",
+      "sha256": "24fec2788cd8945787d325d9a5c629871b1093d4048813f2c980ef946de96a02"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/twse_isin_2353_captured_20261011.html",
+      "sha256": "810e730891bece151d4bf7615418bd4fb95fad3ca8654e3b1bedccb492667d0f"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/twse_isin_6669_captured_20261011.html",
+      "sha256": "40d785c9143aab2fb3964c5dd265659de9005978c41e2dfcce7b34343c0487f1"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/twse_isin_6924_captured_20261011.html",
+      "sha256": "ac2abb61dff569c10ae90dcb8254fc1d614198cf9ef9cd4d85403bcb02c8b234"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/twse_monthly_history_20261013/1301.pdf.gz",
+      "sha256": "6468ad7818cf6ce0faa770cbac38e647127576a32657dced3578ff0b88b98bac"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/twse_monthly_history_20261013/2466.pdf.gz",
+      "sha256": "d975a69f2eaeda3efbfbe6b97a52f69410b2eceb8bf8217daceab6376dda854e"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/twse_monthly_history_20261013/listed.csv.gz",
+      "sha256": "4cfb4d2c2b6388a8955c668187626f354a9e2d9b13b522e4e0790d89840fea16"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/txc3042_conference219_complete_20260910.pdf.gz",
+      "sha256": "d022f3e3a7e3875fdc2e1da570220ed8bc4eb4ce5a010345405ac9dd7624b833"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/txc3042_conference219_original_pages_20261012.json.gz",
+      "sha256": "5fc11152d2801d31f98e87154126c7fef92b3f02fcbed8900572f9d961969398"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/txc3042_conference_index_20261012.html.gz",
+      "sha256": "9f03a417e58472ac6cad79b41e714573cfea3c1faccb4b488a3b13beb4b000fc"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/txc3042_income52_20260915.html.gz",
+      "sha256": "6f3b80c195ab25bf04eb37dd553d3afb099070deb254803c18e91f87793a5177"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/txc3042_news_index_20261012.html.gz",
+      "sha256": "9936ee32fd438365db84ebf0b3241d7cda1d4c19607f1568adbf22464aaf046f"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/txc3042_revenue47_20261005.html.gz",
+      "sha256": "b1a3ea2377333e66563eb48e8e9825364d66373c24f0abc54faff6cb65514a27"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/uk1325_complete_roster_20261010.json.gz",
+      "sha256": "8966b5802e7aa7c21f024cd1932266093302f2d54b6bd79fd9b96157c8dfd592"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/uk1325_conference_index_20261010.html.gz",
+      "sha256": "de0217546e8b08829ec3616383688d51341b1f98040bd62a427807f12f9cb97d"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/uk1325_formal_acquisition_events_20261012.json",
+      "sha256": "417418ee305c37dcf896ebc59b23862c120287c042c65af5006b0a5a1c1164f5"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/uk1325_native_pages_20251219.json",
+      "sha256": "5272a523601b6e1121ec179b6cd85fdef9f9c1659206d6e53dd0560fecdd860b"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/uk1325_presentation_20251219.pdf.gz",
+      "sha256": "69f518114fbd20d76d87e34b01d9e3a4805eae1b5cd2f3aacb71f4faba7edb84"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/ventec_issuer_republication_selected_20261010.json",
+      "sha256": "ff57f1b30ad1d716b5e8feec703100dc6da293d0de0cec2a494527708f59a65d"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/voltronic_partial_pdf_20261015.json",
+      "sha256": "532c0ef7ef748055ce57c74aebd17ee26fceb24f1bc44bc47e82d084919102da"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/webpro_month_2812_20261017.gz",
+      "sha256": "246246554d7879e9d60a0b3851e78f7a1285b42cc00e172ac89c9ed4445df5ef"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/wiwynn_news_full_20261011/article.gz",
+      "sha256": "ca42a0d2e211a598fef07a4d52f61e61c1c13ec08380dcdb674c70167debb628"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/wiwynn_news_full_20261011/index.gz",
+      "sha256": "f0f3460beea30fda3ca0045dd88db6cb8744e644ab6f60f275cab7eee92936e0"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/wiwynn_news_full_20261011/manifest.json",
+      "sha256": "37ce97a8b3285bcfc8d25b049467b52c852195d107f9f0299aa5aae86ce1ef4d"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/wiwynn_news_full_20261011/master.gz",
+      "sha256": "55ed30a36e170de4e1127838bd52e90da085a46aa990208e031def55da0fc83c"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/workforce_qualified_partial_20261009.json",
+      "sha256": "972f888795ad7ed1b816ea96cac7975224f46020c200c3ec60f18eb948b465ce"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/yahoo_comments_3587_20261009.json",
+      "sha256": "3e07ae0a024fa046937cb2389b03ac699446dfd88a320a3c2ca3a88b8c196d8d"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/yulon-community-index_20261016.html.gz",
+      "sha256": "57e0b68b5d84d83cbbdb3040c7f79d22a3af876c8477c8d594d552a3ade1fd1f"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/yulon-group-identity_20261016.html.gz",
+      "sha256": "556224ad88d3d995d36531ae5b4119f619c5389151d9bdd0951f4dedead87e93"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/yulon-woodcarving_20261016.html.gz",
+      "sha256": "b096014048b2750e4dfa67baf01e56d1006d5df281b3f65a9e45c2b9b0d2a015"
+    },
+    {
+      "path": "tests/fixtures/source_acquisition/yulon-yuanli_20261016.html.gz",
+      "sha256": "db11bd94fbac73b6ba605e7fde31494e478ea5e5e3fd07c76f29fb584f5ed028"
+    },
+    {
+      "path": "tests/fixtures/tpex_3324_202610_metadata.json",
+      "sha256": "d792a57d13a483f89f0d264e8583be305c03468f546f96fb9b1bd2e9778c9993"
+    },
+    {
+      "path": "tests/fixtures/tpex_3324_202610_raw.json",
+      "sha256": "a8c2d5da63fb045214f4fe15f042b7b38c06b8c3dae95299e44b1de0d1372af7"
+    },
+    {
+      "path": "tests/fixtures/twse_oct8_official_quotes.json.gz",
+      "sha256": "8d610173e4620d738480a2c6f6e47bc6ce04d2e1d5b007cd57e79136b5683756"
+    },
+    {
+      "path": "tests/test_acer_issuer_news.py",
+      "sha256": "8fce0d198fbe440f446bf3fc92fb43811230e3fc978a9b0a713c278fc935bebb"
+    },
+    {
+      "path": "tests/test_agent24_state_reference_capacity.py",
+      "sha256": "d71ad58c0a214f99f6e79adde8346af97c61383757adf39db21397eb8156c794"
+    },
+    {
+      "path": "tests/test_agent_context_providers.py",
+      "sha256": "2e6cfb494ed3f33d5445fe403f79a3baf408ab3fe77854f0e6e7915da9c8aee0"
+    },
+    {
+      "path": "tests/test_alternative_data_fetcher.py",
+      "sha256": "fa8e582375077ae790f1a03c9621a03d43cbf069508a1ad1437cb5e7709307ef"
+    },
+    {
+      "path": "tests/test_alternative_search_providers.py",
+      "sha256": "12e632449cdef9589fdc82ea0affa6e2ea98a3c64643752840b7aab65bab938d"
+    },
+    {
+      "path": "tests/test_alternative_source_presence.py",
+      "sha256": "d011f18ecd92516931b3d72d3f611418731b0690dd9d8a92d9136736cfed63a9"
+    },
+    {
+      "path": "tests/test_analysis_job_checkpoint_input.py",
+      "sha256": "979731ad86ee5a930ea35b40fa3ecd8dad5d687fef5eb6fa282623eaf9cace50"
+    },
+    {
+      "path": "tests/test_annual_cached_coverage.py",
+      "sha256": "746047a451d0c5aa324e7cf9d2aac6a28a287d19087063d0fb0925821e2c5021"
+    },
+    {
+      "path": "tests/test_annual_component_completeness.py",
+      "sha256": "910b1bdb9466b9c721b285b6b061f389e1bc73a025d10a9c3679b69f724b9a86"
+    },
+    {
+      "path": "tests/test_annual_disclosure_refresh_scheduler.py",
+      "sha256": "e03e63a4cb635b72c8aa31903cff9f771748961a143a842ac676b8526f65d20c"
+    },
+    {
+      "path": "tests/test_annual_occupational_safety.py",
+      "sha256": "7756d30b5113845f110183cfee2481ff59b56bb6bb87505255470c1d4122946e"
+    },
+    {
+      "path": "tests/test_annual_workforce_source.py",
+      "sha256": "c60f69b01bba6905d9a2f287b84b2e7a0fe9b69e1d6b35d0ee9049d605429312"
+    },
+    {
+      "path": "tests/test_audit_rules.py",
+      "sha256": "ea7920c2effb3e8de665001ae581e5d62b87e9557817c8d5f4fec8eef0e8a581"
+    },
+    {
+      "path": "tests/test_audit_trade_sources.py",
+      "sha256": "8a2ed09351e4a3868cef8271b777441c067ea0c5302c5eee3dd2473e3ddca4a3"
+    },
+    {
+      "path": "tests/test_auras_conference.py",
+      "sha256": "3e395df311ccb4f2a13ca4e284106ec8bf663ed61fe3c399fa24362b7d218cab"
+    },
+    {
+      "path": "tests/test_auras_conference_transport.py",
+      "sha256": "df4e962538aff361dfa9a7bca2cda683e394dd3f34b9ba06278eec2cdbc2db08"
+    },
+    {
+      "path": "tests/test_auras_monthly_history.py",
+      "sha256": "76313b17b8ca4811eceb9ca3ab7442994779fea2ba0088b1e6642e8ce0df26ea"
+    },
+    {
+      "path": "tests/test_bound_brand_fallback_query.py",
+      "sha256": "4849c0a217fc02a67d787c807bbb054812be315bd2cf7ccca87fa9dca2dda89e"
+    },
+    {
+      "path": "tests/test_broker_history_projection.py",
+      "sha256": "a919bab34fda4ea6866c2ebe65ad5affc1f4e64d663abcd832d2eb9d96c4bfe4"
+    },
+    {
+      "path": "tests/test_broker_news_subject_role.py",
+      "sha256": "8493399b5fe50f89dddd14496bec6f1ae1a54af0fd5ef32aeed2768e73a2d22b"
+    },
+    {
+      "path": "tests/test_cached_optional_recovery.py",
+      "sha256": "ff1c8e6b18c2e7ac16c0ba037b3b0a3104943f10f8f16d6966f26960bffe3269"
+    },
+    {
+      "path": "tests/test_catalyst_search_fallback_plan.py",
+      "sha256": "c652daea2b8d1c3c0d7bbada4ad509884807be907344a28f2998906e36f11371"
+    },
+    {
+      "path": "tests/test_cathay_official_careers.py",
+      "sha256": "d5b3aeff542c7ec68919bb03700f5781f9855c49c72721659b6735b72c63e4c1"
+    },
+    {
+      "path": "tests/test_cathay_official_conference.py",
+      "sha256": "1658f898c58dfdc489b72215556754d4f05ad3aac4d8be7f54e8aa5d3d29ddd1"
+    },
+    {
+      "path": "tests/test_chipmos_issuer_news.py",
+      "sha256": "b6d271bd1054f0c5bd7ee5f5f269429e52d0ebdd801ad2f2d5d4a1ff77a96a49"
+    },
+    {
+      "path": "tests/test_chipmos_transcript_pdf_reader.py",
+      "sha256": "61a4bbe10b0fad24c11bf137b6cf6e7acd4ed56dcc65c4368b1ea73ef8002553"
+    },
+    {
+      "path": "tests/test_chroma_issuer_news.py",
+      "sha256": "d7faa4d035ec661034a3a045cb5862f71713de5092bba4444e8c0e6f6bfabfb8"
+    },
+    {
+      "path": "tests/test_cht_issuer_news.py",
+      "sha256": "c0277953ce04f697eca24fd3c9c7f2973fa6171fd98daf30826dd69d6315f60f"
+    },
+    {
+      "path": "tests/test_cmoney_qualified_names.py",
+      "sha256": "c367b2f4c934d436efeda251a7ce9c6648e1caea12a1676c8a2ee9771a60c372"
+    },
+    {
+      "path": "tests/test_cmoney_referenced_originals.py",
+      "sha256": "4da0e6d9ae1bda624b4e6ba9edccbe90ebae972a2f5d38893ce17a6801214864"
+    },
+    {
+      "path": "tests/test_cmoney_stock_context.py",
+      "sha256": "31f22128eee15380ff6ea6cffe65b25f528d0b9dd939029dcec258f36b4fec6f"
+    },
+    {
+      "path": "tests/test_cmoney_stock_posts.py",
+      "sha256": "2498a91456eba5ba78821dca952aeb9795c6bffc5cec1c2a0588c11646f1c1c8"
+    },
+    {
+      "path": "tests/test_company_conference_content.py",
+      "sha256": "50f46a2fc390aa3bbcfcc0069218dbcaa769bfdf899e8af9ac2bf36b43c80b83"
+    },
+    {
+      "path": "tests/test_company_conference_contract.py",
+      "sha256": "f390dd4d568922fd076353cceb8140d52e68d30fbcf3b9bc794f74eb99a4a515"
+    },
+    {
+      "path": "tests/test_company_news_acquisition.py",
+      "sha256": "0c4c1a664d60da0059da03e98402b79de4985abb976d6945c0cc0a5de6a3eb2f"
+    },
+    {
+      "path": "tests/test_conference_metadata_recovery.py",
+      "sha256": "2f58568ce2d930fe76fffe041b139d81076f6268235bf70d36d7a0dcf2c62f7a"
+    },
+    {
+      "path": "tests/test_construction_cohort_transport.py",
+      "sha256": "16ed3585e48f3f849e599fb2be185db31690e86ac029bfe3054c46b8311832c3"
+    },
+    {
+      "path": "tests/test_content_credibility.py",
+      "sha256": "7546f7ca3391ab4bdecfe44564dab8fa26f36392f905c63720243a85d5dd2895"
+    },
+    {
+      "path": "tests/test_content_credibility_projection.py",
+      "sha256": "bda0972c9b0d39bc5796942e13d1bae6dc4211b3949c150bb2c967689dac4005"
+    },
+    {
+      "path": "tests/test_coplus_verified_news_name.py",
+      "sha256": "36cc93a289fc847d36220cb083bd0cc598da0750b4e8769249aa1ec22cbd323b"
+    },
+    {
+      "path": "tests/test_cross_mode_evidence_contract.py",
+      "sha256": "d4c1b6f29b797a77a62a1d229995dc255db92e8f91c2f3cdb63582417d6b4b72"
+    },
+    {
+      "path": "tests/test_ctbc_official_careers.py",
+      "sha256": "e2221cb32db0f1d4625fb69ab2013d09ba8569b8541208c980be8faa6e2fc48b"
+    },
+    {
+      "path": "tests/test_daily_read_timing.py",
+      "sha256": "4005402a6aa44e69830e9c630b69afeca131306a1158ffc8c9e5721de08b7700"
+    },
+    {
+      "path": "tests/test_data_fetch_fixtures.py",
+      "sha256": "019eb90305c7957cb711645b01a8eccbb4bad2c9c1853dfa5199edbe79a7a261"
+    },
+    {
+      "path": "tests/test_data_trust.py",
+      "sha256": "f4fe99568b0506430d73e1394dd930eaf89eae45b563f6fa37bcb8cc26bf3987"
+    },
+    {
+      "path": "tests/test_decision_tracking_workflow.py",
+      "sha256": "553fa9052bbd0b2b23e39fea59514d2998db3987c82b0ca77eb31d8337bcff7e"
+    },
+    {
+      "path": "tests/test_delta_conference.py",
+      "sha256": "f7d11385371348f1c0eb4bf8e6e851f82241593c2b4257c9804360b5e334e9f1"
+    },
+    {
+      "path": "tests/test_delta_scheduled_index.py",
+      "sha256": "fc548560336264be70196fdd8347d0d7d95b5b0d73af4f4c4fdf34d78d39f5b2"
+    },
+    {
+      "path": "tests/test_eclat_conference.py",
+      "sha256": "0050b177288f482baa34d6c680b42926e79276040e2e043e13e044b4124b9c7e"
+    },
+    {
+      "path": "tests/test_eink_issuer_news.py",
+      "sha256": "f3db220760f5d8fc465910e9961141f6c10301f3dd1c5ff6f096f863f459518a"
+    },
+    {
+      "path": "tests/test_esun_issuer_news.py",
+      "sha256": "8e1c49150b2967bf825c2b744ab66fc0dfb794764e52e1bc65b676b85a5a6d15"
+    },
+    {
+      "path": "tests/test_evidence_claim_types.py",
+      "sha256": "fa74e737f784ff26a02b8afe50ba9401b1c53a962a53f6544e39acda33e64924"
+    },
+    {
+      "path": "tests/test_evidence_exit_gate.py",
+      "sha256": "03574fbabdddc56b7614a511d3dc4088947c874b93620b24c5fa09bbac4c10da"
+    },
+    {
+      "path": "tests/test_evidence_exit_gate_daily_ohlc.py",
+      "sha256": "82baf3f0ef52b1359cdd1ee383ee9fc422186edf381eb9199ad755e873e788ce"
+    },
+    {
+      "path": "tests/test_evidence_exit_gate_technical.py",
+      "sha256": "1387a73170b1182b32266a25f7fc96090715643c564efd0bd569063a56c500a1"
+    },
+    {
+      "path": "tests/test_evidence_financial_amounts.py",
+      "sha256": "bf593436025d5186803bb70f6ce815dd3e04eff11ec062f3374b44af50a8683f"
+    },
+    {
+      "path": "tests/test_evidence_independent_source.py",
+      "sha256": "44052d19ab6b90797cd4d5761b0ac30f097634b0121c2d9711d250920f5f22dd"
+    },
+    {
+      "path": "tests/test_evidence_literal_path_matching.py",
+      "sha256": "ac7a785a566b2f992a9566908407ffd5e319fa77d2f25697b1d34dec599fbe8e"
+    },
+    {
+      "path": "tests/test_evidence_monthly_amounts.py",
+      "sha256": "ec39cdb2aac46e112687f52fa29f31b858e22f0202432747c621f56d72d58a48"
+    },
+    {
+      "path": "tests/test_evidence_normalization_cache.py",
+      "sha256": "cb7d418ee529444f031e66bb87e56b47f26bfa98b4464d234d097a20ee58efff"
+    },
+    {
+      "path": "tests/test_evidence_timestamp_boundaries.py",
+      "sha256": "7f979bf726b1a3de5aac8f9effa3995c54215a540d23a6e7c9e8334a53a03cac"
+    },
+    {
+      "path": "tests/test_evidence_today_regressions.py",
+      "sha256": "30ca3e0229fe7cc2ce2d0988e273234c159b476f19a9f77ccf7b8ee6e5d9744d"
+    },
+    {
+      "path": "tests/test_external_context_providers.py",
+      "sha256": "847eca895c335f3fe4450d12e931389d9097c8941acbd8631f5afc8e75798a9a"
+    },
+    {
+      "path": "tests/test_external_data_client.py",
+      "sha256": "893e7370aac3b9a9f8075ea5019671967c38f88af64220fd2dd56a0292fb29f8"
+    },
+    {
+      "path": "tests/test_feib_verified_news_name.py",
+      "sha256": "66748a7bbf0603c900f6f137ff02bc001e44f139c82d952a9e8e0fdfafc6d4ba"
+    },
+    {
+      "path": "tests/test_financial_data_freshness.py",
+      "sha256": "74b8bb22ba504d057f5729656a9e865e43fd0a00a9366d391b6a492a7129cfc7"
+    },
+    {
+      "path": "tests/test_financial_institution_history_projection.py",
+      "sha256": "d85ee1247041714e5208d7463c6da53a402390878486f14e199afa8a8fb2d676"
+    },
+    {
+      "path": "tests/test_financial_policy_admission_order.py",
+      "sha256": "38cdf094d204bf93b520e9291329e33cdf4f582c47f61a85c27075ae66b5b94b"
+    },
+    {
+      "path": "tests/test_financial_statement_observation.py",
+      "sha256": "baca9718d36e31d270ca67e68562edbd64c43f393e30fd8ca274d09eb39f913c"
+    },
+    {
+      "path": "tests/test_finmind_financial_transport.py",
+      "sha256": "0372283b7e2157e841b3ca0a114534235ced86001361c76703aa9887e7b509a8"
+    },
+    {
+      "path": "tests/test_finmind_news_daily_recovery.py",
+      "sha256": "ee6b9c5f7d129bbaf8722e816b2ce61f6052f05a6f39cb1ddea35e9b24817422"
+    },
+    {
+      "path": "tests/test_finmind_overview_recovery.py",
+      "sha256": "9ed2df51532a40b77c4bb15bffb92010d2a8248acae24005df24ac9e78cda936"
+    },
+    {
+      "path": "tests/test_finmind_overview_review.py",
+      "sha256": "530f6a88ff808450bd85aa95722a80ffcf17e2bec307f2414578a2a0ee27a086"
+    },
+    {
+      "path": "tests/test_finmind_sdk_quota_retry.py",
+      "sha256": "28521927aadf70043a0a1df125f770d0c686f9ea411db91ed525373afc76e401"
+    },
+    {
+      "path": "tests/test_free_news_evidence_capacity.py",
+      "sha256": "7637bb7bad2ad7cab5138634dcd818052c95b43e9d6252c3812ae0cc89a1c47b"
+    },
+    {
+      "path": "tests/test_free_news_quality_fallback.py",
+      "sha256": "de8a2833cf1c808a26d2d977f508b0aa6bbf0a9fa37ef014bcba53d6c012a9c3"
+    },
+    {
+      "path": "tests/test_full_evidence_coverage.py",
+      "sha256": "b82ba3b155b971987dab2be1e4f69017546fccc4caa5eff9488bc3c8f4783c5a"
+    },
+    {
+      "path": "tests/test_gogolook_verified_news_name.py",
+      "sha256": "e78ca64649daf4cc5792c8a93c5b37a4f2fa2d262ad7b91accaad838b9f1a93f"
+    },
+    {
+      "path": "tests/test_guc_conference.py",
+      "sha256": "8cc2f4f25c3c406b58a7f151cbbf4633c5aeba8c15f9dd37be63ffad90200d23"
+    },
+    {
+      "path": "tests/test_guc_conference_transport.py",
+      "sha256": "1ae730a24a467b6fc6178e2f79f5d3d94b8f8bfadbfff77295fade851bf22078"
+    },
+    {
+      "path": "tests/test_guc_issuer_news.py",
+      "sha256": "45d56eff97d3ddf40ea76f9786a18af76942d0a5e4668f106141e770977bd7b1"
+    },
+    {
+      "path": "tests/test_honhai_conference.py",
+      "sha256": "22c1e91f1c5da7f7fe65f9d2b8eefb7b37ed9c629e616dc4b92b4d135d531f02"
+    },
+    {
+      "path": "tests/test_honhai_conference_acquisition.py",
+      "sha256": "4329714cd24d6d3a09ed7054fa2038bf936800690b69884d7b2db9a90740a4d0"
+    },
+    {
+      "path": "tests/test_honhai_conference_prompt.py",
+      "sha256": "8c0c783aebb3967902ba10ad04441e6940684d0d46f893173cbeb95612031ab9"
+    },
+    {
+      "path": "tests/test_honhai_conference_storage.py",
+      "sha256": "968bc6b054705959062c24a02b3573ce2f07e62701ebd84949913ea9c545f118"
+    },
+    {
+      "path": "tests/test_honhai_conference_transport.py",
+      "sha256": "0e2fc925d49cdd6dbca0a37fb56c6c864fb9419ee077db4bd6b4c6129e1d3f38"
+    },
+    {
+      "path": "tests/test_indexed_non_article_news.py",
+      "sha256": "bb8e5c01d3d67db5f321b12a1b5f3e78f8c06cc789bc47e700681ec3e111b171"
+    },
+    {
+      "path": "tests/test_institutional_claim_lineage.py",
+      "sha256": "d1df22c5f607e5953e54d04f229dd9dc6bbf6ef670deec34c36c5c3b15e014dc"
+    },
+    {
+      "path": "tests/test_institutional_daily_category_evidence.py",
+      "sha256": "ed48861b8fc8eb189e387f569915f3eb333be08cd985cbdaef10b0ca3214f387"
+    },
+    {
+      "path": "tests/test_institutional_explicit_daily_pair.py",
+      "sha256": "ba5336833450cc53c5e7ddd572d0b862962dcf766413222b40e3544b00881d2a"
+    },
+    {
+      "path": "tests/test_institutional_full_window_recovery.py",
+      "sha256": "1e1eb64dab80e3b1527ee794a1526f2b84a9baee2cf324878f5a425084126812"
+    },
+    {
+      "path": "tests/test_institutional_provider_recovery.py",
+      "sha256": "1ceddca4319fd842185b0681a1cb37056cbeed2fe6d4c655a42cf4c42466a796"
+    },
+    {
+      "path": "tests/test_institutional_summary_consistency.py",
+      "sha256": "8cc17a5ad4f49093c5d001115c62fed0bbf6e31ff6e424a5697d13d8c0d0b982"
+    },
+    {
+      "path": "tests/test_insurer_standalone_history_projection.py",
+      "sha256": "c2cac7d4d809864b48d2712b7f6b75bf2e7081e9ca567614cd743fb17df94eb2"
+    },
+    {
+      "path": "tests/test_irengage_conference.py",
+      "sha256": "de91c5204953ce8b85319b310330d593523a688ef74da8154a9d6365695e916b"
+    },
+    {
+      "path": "tests/test_issuer_news.py",
+      "sha256": "b31bf0da93e7686445e2752ea29a30c982b1228b2b40597c57c6b00be6cf9c29"
+    },
+    {
+      "path": "tests/test_issuer_news_component_refresh.py",
+      "sha256": "d4f15d3b4e0a44d00f25a981b23de3c6554a2b2a98b0ae5eeec122e470e21244"
+    },
+    {
+      "path": "tests/test_issuer_news_integration.py",
+      "sha256": "6dd548c1cb4c0de0ffc2c4eb4d5ca689ffd23c78217d13eadb86e760948092c1"
+    },
+    {
+      "path": "tests/test_issuer_news_shared_roster.py",
+      "sha256": "2abb71288199f56c231a4790892949d4732f63056992538b1e90038be49381ce"
+    },
+    {
+      "path": "tests/test_issuer_news_transport.py",
+      "sha256": "aaf53cb7eb894b308cd6037bb27b0ecc017c29230de484e99a44782b9c03adfb"
+    },
+    {
+      "path": "tests/test_issuer_search_anchor.py",
+      "sha256": "d9525fffc6748a6269f71acdf1a0d98493ace37a0cb6e81b9387aa07321d5658"
+    },
+    {
+      "path": "tests/test_jentech_fallback_routing.py",
+      "sha256": "6504505b01f4045d37fd35fa5d3931127aafd2414f02507695534247180b3987"
+    },
+    {
+      "path": "tests/test_jentech_transport_null_content_type.py",
+      "sha256": "20a829fbf35b61bc91a207668dc2efdb1d3c6787f28135aacf8e5655c4bc2eec"
+    },
+    {
+      "path": "tests/test_kgi_careers_transport.py",
+      "sha256": "289096c1fee1a424c9c495c1462bec0d20700269a5b8efa499af3379cd4db5bd"
+    },
+    {
+      "path": "tests/test_kgi_official_careers.py",
+      "sha256": "1c0d6ea61b16308c5e521947e1187b21d746c86c2c8348981a4561f38f1fdae6"
+    },
+    {
+      "path": "tests/test_kingslide_conference.py",
+      "sha256": "7da885e65b6041c7051b4d309d8f8f878dcb9113bf885a099b5a739036fef692"
+    },
+    {
+      "path": "tests/test_kingslide_conference_transport.py",
+      "sha256": "0f19786ec19d5961a245a4cd2246efdf263706d3afe25ac2f0163516d2ce2163"
+    },
+    {
+      "path": "tests/test_large_response_evidence.py",
+      "sha256": "8aed893d282d813c51613c698483ba436e81804386bfb8b16b58ae21f078ebe4"
+    },
+    {
+      "path": "tests/test_ltn_catalyst_fallback.py",
+      "sha256": "a308edba9bd617d35201486247d1cf66a7516b2a4ace888f9d38e48ee143a93c"
+    },
+    {
+      "path": "tests/test_ltn_official_identity_and_relative_dates.py",
+      "sha256": "30b65a3623506af994f015bdf3940f54d7699fe81dbb26f89cc9ec7d4a9a20ca"
+    },
+    {
+      "path": "tests/test_ltn_stock_news.py",
+      "sha256": "6f3dc738d565ab6d00f54d59c816914937403ca79ffca00bd03111110d3986f0"
+    },
+    {
+      "path": "tests/test_market_price_reconciliation.py",
+      "sha256": "fc8c3d2c46c622a636bb3bcb76cc4b0a65bdc7868bec583d67b7a6d74c1c7ad4"
+    },
+    {
+      "path": "tests/test_medtecs_medical_peer_recovery.py",
+      "sha256": "3f3321f3623681e9c3635049dcaa9eda62699c11d6679a91a2c468f8995fba4e"
+    },
+    {
+      "path": "tests/test_medtecs_published_discovery_integration.py",
+      "sha256": "126bb30ff545999241ea0501e6d9bfe1fb9fb6641aa3b314c505364b892a7e6c"
+    },
+    {
+      "path": "tests/test_memo_output_completion.py",
+      "sha256": "3203d835ff75221750e341dcc5d6b39fca22c48248c8b7d48256ee8994deca09"
+    },
+    {
+      "path": "tests/test_moneydj_cohort_transport.py",
+      "sha256": "0c107be5226792295098d5a3939f9c6fda8d3c139432dd814199712f5104d8ed"
+    },
+    {
+      "path": "tests/test_moneydj_published_peer_cohort.py",
+      "sha256": "0ea96564bf9556bc3232acf804bdc3c66b93826a12e25bd7788099a5b6726100"
+    },
+    {
+      "path": "tests/test_monthly_revenue_shared_cache.py",
+      "sha256": "8fe528b25caf4a40a8d04f908d54746d0c0b5f8e605cf812226c727c175d6ef2"
+    },
+    {
+      "path": "tests/test_monthly_revenue_values.py",
+      "sha256": "329cdb3391aa90ccdd74f4d96c19b63393b26035fe618f5bd6246bc9d472265d"
+    },
+    {
+      "path": "tests/test_mops_complete_first_comparative.py",
+      "sha256": "8b2554199d6770512e898faccaf489e03de23ca56b76efccb304d6db65141526"
+    },
+    {
+      "path": "tests/test_mops_conference_same_day.py",
+      "sha256": "d5c43d76bec30307244e671c26c4227dfdfee5d5545aa89369fdd5d64aa1cc90"
+    },
+    {
+      "path": "tests/test_mops_conference_source_reuse.py",
+      "sha256": "b5e9a1ee25a738b2d25e20e2190a4090540bac9b4e2fb142b65958855b42da9a"
+    },
+    {
+      "path": "tests/test_mops_json_company_history.py",
+      "sha256": "010eb148741d4485faea610b56a055fc3e027dadea9963afeba35e8b4adcfd98"
+    },
+    {
+      "path": "tests/test_mops_opening_balance_layout.py",
+      "sha256": "8e1613e3e9bf9d8e9f1e0de8a144cf5d8f187d461af695fa5309a32142897b61"
+    },
+    {
+      "path": "tests/test_mops_published_materials.py",
+      "sha256": "2c0cf4f3f8198cf4a1d765697b342ccb0f6ce503ff89a17d480f67fbc6d6c51a"
+    },
+    {
+      "path": "tests/test_multi_issuer_announcement_refresh.py",
+      "sha256": "ea1ebb9b975679b0a4d0853feaaf1f3a68eaf42cb76f5765599b2644d3d04983"
+    },
+    {
+      "path": "tests/test_nanya_mops_pipeline.py",
+      "sha256": "3b5e5f5e210295136a569a9ee2ff1e2d801782bde247ad328a1467582059ef48"
+    },
+    {
+      "path": "tests/test_nanya_mops_presentation.py",
+      "sha256": "c036e15ec27c6bc2d1609039a0c7719c6fb741df1fb656f8b81a346bf78793df"
+    },
+    {
+      "path": "tests/test_nanya_mops_transport.py",
+      "sha256": "7090fa8581d9320ec3b30076359b3bd08f27961ab394bc769bab1bd813765463"
+    },
+    {
+      "path": "tests/test_news_name_only_fallback.py",
+      "sha256": "b569d0e23d6eab48515f17716174f65744f6c00d545f78bdc970868957ad9ab4"
+    },
+    {
+      "path": "tests/test_news_refresh_staleness.py",
+      "sha256": "c98a06a19958e3f6abb326580ca7695c6147de331c46c23f2671816cbb9e8879"
+    },
+    {
+      "path": "tests/test_news_role_projection.py",
+      "sha256": "88242d5107f9aa4af62e512aac32e312785c3b705500cd6c9a790b296870d77b"
+    },
+    {
+      "path": "tests/test_news_wrapper_dedup.py",
+      "sha256": "9f116568c93b778b751e7b541debb88e42f99f4eb2b8fd43bf697550ef4fd434"
+    },
+    {
+      "path": "tests/test_normal_annual_cache_boundaries.py",
+      "sha256": "67ad423c494be60491873d01a9bfb1dc811a78810656c95af678e7659a29acf1"
+    },
+    {
+      "path": "tests/test_normal_annual_source_reuse.py",
+      "sha256": "77012ff8ae37912953da195c4ca4df6185153853bb91cd523eb3b38ed5774515"
+    },
+    {
+      "path": "tests/test_official_airline_peer_cohort.py",
+      "sha256": "cd61401e9d0b1b0329a67cc6b43411e100496effe7af8315ef6d4e5c65dabb85"
+    },
+    {
+      "path": "tests/test_official_announcement_independent_review.py",
+      "sha256": "a0122cba87dbaf6070bdbcd7f9e984ffd057e315dd68634d1c68b2451e7035ff"
+    },
+    {
+      "path": "tests/test_official_announcement_source_refresh.py",
+      "sha256": "bc839748a66a11b2a03e906110345764b50a4c198e5a60bb0153d0eaa5aeb0e9"
+    },
+    {
+      "path": "tests/test_official_broker_cohort.py",
+      "sha256": "fae747a75ec6fe8beb80bc5297a317473d4fd87815da162d7da1327a6ce7cf75"
+    },
+    {
+      "path": "tests/test_official_broker_financial_xbrl.py",
+      "sha256": "545100505801c4bd60147bd36d2a2b519c0675ee732b8bad38bfb3f6939daedf"
+    },
+    {
+      "path": "tests/test_official_company_legal_name.py",
+      "sha256": "31f0282903c2c488f460166a91f4f12298e8f827f670aebd3c044a9519dd2d70"
+    },
+    {
+      "path": "tests/test_official_construction_peer_cohort.py",
+      "sha256": "485574f5815741b4845f487e8799ffe1e54a0bf1825546dd29b9c487598176b8"
+    },
+    {
+      "path": "tests/test_official_convenience_peer_cohort.py",
+      "sha256": "76442475bc20c70ea45571e97c4767b5418ca65216b01febb59aa1bd5daa4b0f"
+    },
+    {
+      "path": "tests/test_official_financial_gap_cache.py",
+      "sha256": "3a629b185ff1f069c01c6ae5caa8f75c695b451ee6873f7ab78473f96ac350de"
+    },
+    {
+      "path": "tests/test_official_financial_institution_xbrl.py",
+      "sha256": "6273d35d0adba8d136da1b1e9d38f18b3c4232175e6b656d81f0d45b8390233c"
+    },
+    {
+      "path": "tests/test_official_financials.py",
+      "sha256": "6362d2df4c0bef0b4e807dda27435dfbbed02e5decdca50032d66286cd3af2bf"
+    },
+    {
+      "path": "tests/test_official_food_processing_peer_cohort.py",
+      "sha256": "f89fd6f2245a71be205489b08cb43aa3a67ad188e9374df0e5533fe212fa54c1"
+    },
+    {
+      "path": "tests/test_official_institutional_verification.py",
+      "sha256": "7e290b2868d5ab19c451698dc128810109d9179fd7fa7e6307dfd75332f97ac0"
+    },
+    {
+      "path": "tests/test_official_insurer_individual_xbrl.py",
+      "sha256": "4cea5657446cb447efa4e75c5cf2a3c5ae53f5bb0bff7a57c333cf8bc3a46653"
+    },
+    {
+      "path": "tests/test_official_monthly_revenue.py",
+      "sha256": "573698d6d8d4a739b62fecde871e6c459595082968022761fa428fe4443884cc"
+    },
+    {
+      "path": "tests/test_official_mopsfin_financial.py",
+      "sha256": "2e96a93746628cd9e5e748a97b38c015c16f36696f9fc81d8ff75e7a4118652a"
+    },
+    {
+      "path": "tests/test_official_peer_valuation.py",
+      "sha256": "e6e7fba385a9ceaaebbaa20ab95d02aaeff63bdfce65605580c8251a050fdda9"
+    },
+    {
+      "path": "tests/test_official_quarterly_financials.py",
+      "sha256": "918d03459e33be8e62b9608f86bdbe01ef088dd334e5761d46807a571dcf3a1b"
+    },
+    {
+      "path": "tests/test_official_segment_discovery.py",
+      "sha256": "35885898039c55c9dfffe911b5517bbf0ab15c499092527642511d3a36eac02c"
+    },
+    {
+      "path": "tests/test_official_short_annual_index_gap.py",
+      "sha256": "c3b81fb7ddd6122474e33dcbc742decf660c312afd6b174e4bc0eac7f05577f0"
+    },
+    {
+      "path": "tests/test_official_short_name_reconciliation.py",
+      "sha256": "9ad246f3700a973c123dd4c42743d68d8d82d2e354137a3a4872f81bc4b5d817"
+    },
+    {
+      "path": "tests/test_official_source_recovery.py",
+      "sha256": "741d12fddf0dcb6393d9704b71785e93048b7ee3fb9f18f8516e9ad16c401b0e"
+    },
+    {
+      "path": "tests/test_official_steel_wire_peer_cohort.py",
+      "sha256": "098f81d1acf9b0bc64fa6397c0319ac1c014a8528acab8025c9acae4b05242b0"
+    },
+    {
+      "path": "tests/test_official_thermal_peer_cohort.py",
+      "sha256": "6a30bfa60d8af14f981d128f51f5e91196c5cac60f14e570f617ac160d587285"
+    },
+    {
+      "path": "tests/test_official_underwriter_peer_cohort.py",
+      "sha256": "ddc019a4e7994926c7ade0cd61114ac0beb2516898dd8e6a72dadf81ef51dec2"
+    },
+    {
+      "path": "tests/test_official_xbrl_financial.py",
+      "sha256": "0bb15fa57239e6e02e91a2b00066e10dd7f3517b29934dd7845d472ef74eb65d"
+    },
+    {
+      "path": "tests/test_ordinary_individual_scope.py",
+      "sha256": "11061b75a6a40c39734468642d00c33842961e4ccd0a65e5c106004b94e505fb"
+    },
+    {
+      "path": "tests/test_peer_acquisition_recovery.py",
+      "sha256": "d95b814760ddac09f8912db1b2814d8f40f8d952a8554717e6e30ea3523713cb"
+    },
+    {
+      "path": "tests/test_peer_prompt_exclusion.py",
+      "sha256": "aefa1b8a7f65b3f696cf0c54a6a8c23198a4adf6d3b2347521b4dcf5988216c8"
+    },
+    {
+      "path": "tests/test_pending_announcement_source_refresh.py",
+      "sha256": "b4dea696ea035a58e0da3ef9e16223feba142c4d75e709de7ec816c10a63e06c"
+    },
+    {
+      "path": "tests/test_performance_read_executor.py",
+      "sha256": "e8435abea1a03d77558d9e69e738c5bc46cac8de27873ad9443dae39c2562b4b"
+    },
+    {
+      "path": "tests/test_promate_conference.py",
+      "sha256": "3d4f09aa8e335802411ad84286f8691450ac40a32a73141a807d6737671b4484"
+    },
+    {
+      "path": "tests/test_promate_conference_transport.py",
+      "sha256": "49b3d9144bdaf0f9b058c76e341f3787fa82a3a81e86b26361d3332ef0eda41e"
+    },
+    {
+      "path": "tests/test_prompt_context_routing.py",
+      "sha256": "f6768bd675f01f4fa1c199b185f79a29890240ca11fa6273163660d5054964b4"
+    },
+    {
+      "path": "tests/test_provider_acquisition.py",
+      "sha256": "983aae6fbe58ad690e6842803fb8e8a604b248c6883e4a2ff3c8766b76414579"
+    },
+    {
+      "path": "tests/test_provider_observation_details.py",
+      "sha256": "0a0dad980cc962d89a09be005faf272800c3939f36e81f3cc81310e27a201220"
+    },
+    {
+      "path": "tests/test_provider_workflow.py",
+      "sha256": "660ec8fba4feeb547efa8db08346353cb3072dcd02347e502f8a8bc3012dd9a2"
+    },
+    {
+      "path": "tests/test_psc_careers_transport.py",
+      "sha256": "b0ec4f5b226b4573579e21c503874f12787ca742914f570ce59cacfeffffd06d"
+    },
+    {
+      "path": "tests/test_psc_conference.py",
+      "sha256": "b626220a52c1bc9691273158b05a6b88e776f3928a9c8007328aa07964a0692b"
+    },
+    {
+      "path": "tests/test_psc_conference_transport.py",
+      "sha256": "4a6192c29aa0f764667c60d49c747f6d780094be9cf8641a44b24a1d81e2df71"
+    },
+    {
+      "path": "tests/test_psc_official_careers.py",
+      "sha256": "da2434a512a32f40593d9814193adf7b1d27557742cc589dc74a3065ef9bf034"
+    },
+    {
+      "path": "tests/test_ptt_body_evidence.py",
+      "sha256": "ab55716d20f8caa39cf2bb999248fb5ef90c66a5673a08548bc34cc420c8df60"
+    },
+    {
+      "path": "tests/test_ptt_stock_search.py",
+      "sha256": "71132826d6d362b9a76b90f2303993887f09e58a06435ad190ee0794bf5bcadd"
+    },
+    {
+      "path": "tests/test_realtek_issuer_news.py",
+      "sha256": "f891ba5d53aa5c6e0beafeba8e66de576905fd45596270bfa69977539ccf975f"
+    },
+    {
+      "path": "tests/test_recent_google_query_window.py",
+      "sha256": "e1b5926a653315311e561fbcb19b075fb8734f345a7748608d699486bebb5c93"
+    },
+    {
+      "path": "tests/test_registered_issuer_articles.py",
+      "sha256": "a39529859e564b9d43350d98a3d93155531dea00661ba89d9cd9785a04596e25"
+    },
+    {
+      "path": "tests/test_report_alternative_source_refresh.py",
+      "sha256": "284e94a4532cedb4ccc908d598c24b60e04b1e46591781b3bde75e2af140a988"
+    },
+    {
+      "path": "tests/test_report_bundle_failure_recovery.py",
+      "sha256": "c17b9565b983c1f11a51de328ad9ec7c2e9e08cbc8bb83884090793433d6d7be"
+    },
+    {
+      "path": "tests/test_report_bundle_retention.py",
+      "sha256": "8c3a95f80e9a65047e9e24f81a2f2d447545fda50d27fab488a18347c8797819"
+    },
+    {
+      "path": "tests/test_report_conformance.py",
+      "sha256": "18d164d3fe9b0e5196d9d8b34d7ba6ac4df45eddaa1e9bd7bed08d0264ef3c84"
+    },
+    {
+      "path": "tests/test_report_data_trust.py",
+      "sha256": "1e289c5fcbd26f08036ece04b98924ccbdfabdc83281660738e2d89fc1888975"
+    },
+    {
+      "path": "tests/test_report_preview.py",
+      "sha256": "8adc015ee767e04a9098b15984feea3c18d339764ac612de7e1b8a6893ee717b"
+    },
+    {
+      "path": "tests/test_report_quality_audit.py",
+      "sha256": "6f84d6184de1b45c685be5e12043a70d9b0cfeee03952d025a816d25909fdb79"
+    },
+    {
+      "path": "tests/test_report_quality_evidence_frontend.py",
+      "sha256": "dec437cb221f50ec821a7620b33b3470a0d83ce306a6fc40df3b0a68290a247a"
+    },
+    {
+      "path": "tests/test_report_recent_catalyst_source_refresh.py",
+      "sha256": "eda017861543405b257d0d46a62d3d4f6805fa32bfd7ad66826511952e775736"
+    },
+    {
+      "path": "tests/test_report_refresh_acquisition_audit.py",
+      "sha256": "7058203a81efa601f79b67bbfb207f61176af299d0cac34ea235fca99fe2d9b2"
+    },
+    {
+      "path": "tests/test_report_source_refresh.py",
+      "sha256": "ef33cf7931d7a8fdc160c7fac805e52a47bdb0c2e55372137aa7f552c09df9f9"
+    },
+    {
+      "path": "tests/test_request_projection_reuse.py",
+      "sha256": "e0b3d70bb2b19ba52eb8e6e552f118debe4800f6a5898537f1656c1b79fcba21"
+    },
+    {
+      "path": "tests/test_rq_real_pipeline_dispatch.py",
+      "sha256": "334f6755d57eabc176bf9d899f80d3aadc8f5826c2d848c061d33e2d9244c899"
+    },
+    {
+      "path": "tests/test_saved_data_repair_validation.py",
+      "sha256": "b3522152c6278edd4aa47d4441dfea111bcb794c2c8394a50497b6e083d98bd5"
+    },
+    {
+      "path": "tests/test_schedule_enqueue_fault_evidence.py",
+      "sha256": "f27070b50816a3757b143e225d125f890272f0af31d5ac9d73813c25431a12d4"
+    },
+    {
+      "path": "tests/test_search_catalyst_queries.py",
+      "sha256": "1b944e04bfc940943d28a1acbf89786cea50a91bfdcfed6a3b11a643f87ed06c"
+    },
+    {
+      "path": "tests/test_search_news_role_boundaries.py",
+      "sha256": "c43d33d6d92c46521bea5563cba51bcb43f5163272672fb4ab066ae30c545c85"
+    },
+    {
+      "path": "tests/test_search_provider_recovery.py",
+      "sha256": "44743e13c3ccf47e1cd4d659b8a73d735178942226bd88c966d571ab9be39800"
+    },
+    {
+      "path": "tests/test_seec_conference.py",
+      "sha256": "63cfb8466c60d80580b18be00f3f55a95b0825a846bd8cf2aa73f584c1f2c07a"
+    },
+    {
+      "path": "tests/test_seec_conference_transport.py",
+      "sha256": "53f2b373c5fb95555cd7da2edd465b1e9a0c2fb1f2fa4f78ae758e218c2be78e"
+    },
+    {
+      "path": "tests/test_seec_pdf_header_whitespace.py",
+      "sha256": "6f14238ea55870ab7971c7af42c3aa04254176947724b67abb9bacbd170c4bc2"
+    },
+    {
+      "path": "tests/test_settings_env_loading.py",
+      "sha256": "e3961fad232c2e97d1471c25854cf6711a7e21fca17b8ec048696291b52b00d9"
+    },
+    {
+      "path": "tests/test_sgx_issuer_news.py",
+      "sha256": "993d5f8853860a1778d26f95f2efbc08bba19deadddf9fb71e2af47039674615"
+    },
+    {
+      "path": "tests/test_shared_cache_corruption.py",
+      "sha256": "3627bc024eaaa64adb18788ebe2a4cce11dcbdc4ac25e5395c341033ce58636b"
+    },
+    {
+      "path": "tests/test_shared_provider_cache.py",
+      "sha256": "4422f1c7fa8c18fe630bd1e6eb59efd7019fda746c3b61591511deca0b97d742"
+    },
+    {
+      "path": "tests/test_short_term_market_data.py",
+      "sha256": "ad7a8c3987db1c5c0d13542d9e80d0c4e2c7d59834d2024f5a2973e4a5802584"
+    },
+    {
+      "path": "tests/test_sma_alignment_contract.py",
+      "sha256": "b61c0463f2d7251492800e03b68301cff6c51a0e6152615a279bdc38ba198169"
+    },
+    {
+      "path": "tests/test_social_query_precision.py",
+      "sha256": "6270c08a9b48005d9b83c12adda511a729445f4ae382a2daaf50f19b2d43b8d8"
+    },
+    {
+      "path": "tests/test_source_admission_observation.py",
+      "sha256": "c54163a51a50daca17d097948e10e5ee06aabb9d39217d5a5b086c00e11f8d28"
+    },
+    {
+      "path": "tests/test_source_approval_without_trade_setup.py",
+      "sha256": "fa4821d24a73587468a73d23925705e39a1023eab02c91733483eb0f328a8e6d"
+    },
+    {
+      "path": "tests/test_source_content_selection.py",
+      "sha256": "032df1e711f889fc03642daff11a56c9b2087caf1f2d086e4c68da50449ab4b4"
+    },
+    {
+      "path": "tests/test_source_documents_integration.py",
+      "sha256": "e46d2f37efa6c8eb5b96c230e9bac9b2da93e71963793953f17661c0aaa3f13f"
+    },
+    {
+      "path": "tests/test_source_pdf_exit_accounting.py",
+      "sha256": "4558ff045ef8a3659a744c79412c3415cd6c5d72b9657d6ea7764b05409b645d"
+    },
+    {
+      "path": "tests/test_source_pdf_reader.py",
+      "sha256": "20f7c5ed0f6d793aa4c8da0a175f49119f0d459bb1a0adaefb40f97559d507d3"
+    },
+    {
+      "path": "tests/test_source_pdf_verified_symbols.py",
+      "sha256": "9be11f1f1656cc102872c6adb6921ce9f38d3a9f93903ec240f1f23b6c11248e"
+    },
+    {
+      "path": "tests/test_source_pptx_reader.py",
+      "sha256": "a08d80221e8e5e53dc15dda700c7877e40fc9bad45cff8848c568358873c26b9"
+    },
+    {
+      "path": "tests/test_static_history_filters.py",
+      "sha256": "32d7e8e7322e75189926a025fbeac0911e092fe63b6b3e26f151badc5e67110d"
+    },
+    {
+      "path": "tests/test_stock_snapshot_acquisition_audit.py",
+      "sha256": "05104f4e2a53086bc2d13bedc702d71ab1eb624bb7ec673d5babd74f3909974c"
+    },
+    {
+      "path": "tests/test_strategy_evaluator.py",
+      "sha256": "427e1466c399a9ec9b4d79f094dc486551fcdd01e03ea80b5cf611f39a8d7314"
+    },
+    {
+      "path": "tests/test_structured_output_models.py",
+      "sha256": "e05b5f5f73985c33afdb57b7bf3810ffe1aded901674c93dfa3e46894eeaa528"
+    },
+    {
+      "path": "tests/test_sync_enrichment_source_plan.py",
+      "sha256": "85f99c0a494396e772415367e7dfc7042331ff968fe36b85f007528726e94411"
+    },
+    {
+      "path": "tests/test_system_chain_isolated.py",
+      "sha256": "8e6557cc25d922fe491880027624859c68d431c66b27e248858c06d448d118f9"
+    },
+    {
+      "path": "tests/test_systex_conference_index.py",
+      "sha256": "3a3baf5fdb399f584883fd2c7ee6b16c01dbc44f934bafcadbaeec06cd024ad2"
+    },
+    {
+      "path": "tests/test_taiwanjobs_company_jobs.py",
+      "sha256": "75c9f8debcafca394d019daab5f00a9bfe362fbaf3316ae75d383f831b506941"
+    },
+    {
+      "path": "tests/test_taiwanjobs_fcfc_name_reconciliation.py",
+      "sha256": "9cfe7b8abd489cbf4945146a672f05cd9dbeca43daaf0ced7a0cdb995fcb4714"
+    },
+    {
+      "path": "tests/test_taiwanjobs_regional_jobs.py",
+      "sha256": "dc19838612907b35d5bea3831d334e359a7dca4e0b94c74ce0e500394119cd8b"
+    },
+    {
+      "path": "tests/test_tcc_issuer_news.py",
+      "sha256": "d4188865e2f512f06d43a862ebb7279ce062b5c8312167b9775f0754ab9461d3"
+    },
+    {
+      "path": "tests/test_tcfhc_conference.py",
+      "sha256": "caa0f58dd1126743359841e1c3cae0af9487a5486c75424f97a103e8b5b4276f"
+    },
+    {
+      "path": "tests/test_tcfhc_conference_transport.py",
+      "sha256": "9202d1dfab6134016b67db6c5b2f3cd85cbdc067af7c3a999a02ee1275229abf"
+    },
+    {
+      "path": "tests/test_tcfhc_review_boundaries.py",
+      "sha256": "bb0996fc92c009733f1a2608e5b8c47bc522844205af508f02fc1ea724be21bc"
+    },
+    {
+      "path": "tests/test_tdr_mops_boundaries.py",
+      "sha256": "7c0961c511c39f8f9b57c408fc67e6307798c6f300b1c95532de8cf6ed14aa78"
+    },
+    {
+      "path": "tests/test_tdr_mops_component_boundaries.py",
+      "sha256": "d4ab0e856b60bdcc20f68b109b74c4c42167a5766e6d85184f2280f5bed725b2"
+    },
+    {
+      "path": "tests/test_tdr_mops_component_refresh.py",
+      "sha256": "e993452e2b091be42100fdc3a40811b392faf0abc01d082827f3ef1f34eb9341"
+    },
+    {
+      "path": "tests/test_tdr_mops_history.py",
+      "sha256": "a77b24b19059cfc5937b4ba68c3b9c61350138739316cc2509a8efb51b469576"
+    },
+    {
+      "path": "tests/test_thermal_peer_source_refresh.py",
+      "sha256": "6d4f90131540bb02a121f317431d716f82bb50750d27de96e160f81413981da2"
+    },
+    {
+      "path": "tests/test_thermal_sync_enrichment.py",
+      "sha256": "c208c63d9998ec96651dc4266497fa82c18823fbf30e2e5e7bc9b5887144bb08"
+    },
+    {
+      "path": "tests/test_tpex_company_history.py",
+      "sha256": "9fe93d37ea95dfed2cc53a402dbd473050586bbaa932db779d0e3350f840f9a2"
+    },
+    {
+      "path": "tests/test_tpex_historical_quarterly_summary.py",
+      "sha256": "5da1b29d16db60665dc38e4d2352f09b86a6c57055d30313b1e78483ddbf09ec"
+    },
+    {
+      "path": "tests/test_tpex_infohub.py",
+      "sha256": "44118faa1d639ca5b8febbf73f682d742ab95b51931b03bd6c10c8d7ff732b56"
+    },
+    {
+      "path": "tests/test_tpex_openapi_institutional.py",
+      "sha256": "3bf9557052f392bc9d64f7fb14a67a573a9a766608b01d12b9ef86c0df1e96f9"
+    },
+    {
+      "path": "tests/test_tpex_session_observation.py",
+      "sha256": "75f23c56e450544a559d734a4684d42c81411be7fe79af021d6988d447e4661e"
+    },
+    {
+      "path": "tests/test_tracking_latest_selection.py",
+      "sha256": "15d07ad20ae7496650a842d28d87df4ed6c69d23863ce4ce6c3bb4725c08bb67"
+    },
+    {
+      "path": "tests/test_tracking_read_executor.py",
+      "sha256": "6f84df32ba308a80afca0b4a2f2824adb0b663c7dddfca0eb5ba524114905523"
+    },
+    {
+      "path": "tests/test_trade_catalog_expansion.py",
+      "sha256": "d860ccabb31dde04987e8dedaa36505e5454b72a494bd2b07556b8ca802c06da"
+    },
+    {
+      "path": "tests/test_trade_catalyst_semantics.py",
+      "sha256": "20170e7ef85fb42194d4af3728d92c1e61fb325ceb04899bdd8bd92f7d25a84b"
+    },
+    {
+      "path": "tests/test_trade_financial_risk_guard.py",
+      "sha256": "434ccb1a242e761505b4cdbcd5d913acf921656a9c377d49c6a1b34f3499d025"
+    },
+    {
+      "path": "tests/test_trade_price_grid.py",
+      "sha256": "35b1d6d1c0d5f976d99158e844256027905cc6c63ca50a1529eea95a3db468d3"
+    },
+    {
+      "path": "tests/test_trade_source_completion.py",
+      "sha256": "7fc45c0abdf74439fa8f9e5c2ace07158713dc718457dc0efb5947187204783a"
+    },
+    {
+      "path": "tests/test_trade_source_precise_guidance.py",
+      "sha256": "b3877901469e5bf5882f50e5395c28c960c76dd6a3821febcdd450eae81e61f6"
+    },
+    {
+      "path": "tests/test_trade_source_schema_scope.py",
+      "sha256": "93f5106a9dea40548173a856960cc173bf67c3451ddc15ab40705f2515e85f35"
+    },
+    {
+      "path": "tests/test_two_week_daily_eligibility.py",
+      "sha256": "3c4199abbfd25e0aae98e6a7fd8dfe7dd13a600593c3ed78b319d0c05dce8029"
+    },
+    {
+      "path": "tests/test_twse_announcement_connect_budget.py",
+      "sha256": "6c4ec225da040f9ffc2934e684907aa17fb01895da230921252d6e3a879657a3"
+    },
+    {
+      "path": "tests/test_twse_announcement_progress.py",
+      "sha256": "6846fd368fa7347ec6851e349ab608718149c0bd2a0019456195ef970d7b6622"
+    },
+    {
+      "path": "tests/test_twse_announcement_recovery_integration.py",
+      "sha256": "4920a77e3b043b427e74289567953fcc89d009900c7fd5001fb110495e9ca967"
+    },
+    {
+      "path": "tests/test_twse_company_history.py",
+      "sha256": "5afcdc281e260aab7bc189fd69a64482c9a92b5b160f04046118d2f4c857c77a"
+    },
+    {
+      "path": "tests/test_twse_etf_official_evidence.py",
+      "sha256": "e2d2042bec68c305cfe5bb1c4de3b8d88a8b0d1f01f0613fd5e34759ec2aed12"
+    },
+    {
+      "path": "tests/test_twse_history_transport.py",
+      "sha256": "c33e8d125149ef06eaab57953267772155b0a4a58636610494d0e98ba0593263"
+    },
+    {
+      "path": "tests/test_twse_iih_conference_notice.py",
+      "sha256": "1364c367fc37f3c353b543952710f912dc887086d3ae25334e78c5437f0b67da"
+    },
+    {
+      "path": "tests/test_twse_json_history.py",
+      "sha256": "a0b836987303d02aae8ca8a1f3a7e59ebf17ea1a9453ba5560f72b412105bac5"
+    },
+    {
+      "path": "tests/test_twse_market_notice_independent_review.py",
+      "sha256": "38ef34c7e01a77be00a6b283f3d3a0efc6b95cffbf740dbd9612f096f0f3090a"
+    },
+    {
+      "path": "tests/test_twse_market_trading_notices.py",
+      "sha256": "af2cd2f4374ce1f2e48fa20a8df923dfb51923cc3283854fa493ab08cb62955f"
+    },
+    {
+      "path": "tests/test_twse_monthly_history.py",
+      "sha256": "c767433dc3ed936efe88e32d2c320b639865353e5af6c681d377cea89630e1b2"
+    },
+    {
+      "path": "tests/test_twse_notice_clause_markup.py",
+      "sha256": "289362dc98c9c02a8eeb334bfff47165dad8bcccad8a3c8249830e8eab83db7c"
+    },
+    {
+      "path": "tests/test_twse_notice_risk_clause_markup.py",
+      "sha256": "714698d4389cb989d4d1a398285955547259b4a4316d2274a5b253a7f603be49"
+    },
+    {
+      "path": "tests/test_twse_trading_notices.py",
+      "sha256": "996f923b0963673947c6fbca50cf159858dc9b277d8658416b747ad9e595e3bc"
+    },
+    {
+      "path": "tests/test_txc_conference.py",
+      "sha256": "ad52ca55276ae4f55150f5280e10c237511c5443cc843232b5b9d01267ee06b5"
+    },
+    {
+      "path": "tests/test_txc_conference_acquisition.py",
+      "sha256": "a6ce604a606b46123b01e9931f6d7317b15b5366305221f45f8042a87bc46ffc"
+    },
+    {
+      "path": "tests/test_txc_conference_pipeline.py",
+      "sha256": "e4b7127625e21d7022186f1d68b3ea7bc24e5eb16fb5c3a16071d6d70cadea87"
+    },
+    {
+      "path": "tests/test_txc_conference_transport.py",
+      "sha256": "89e78e594383b736409750e8c3dd0cb2cf16b9aaba10522a37ce4d000a923f7a"
+    },
+    {
+      "path": "tests/test_txc_issuer_news.py",
+      "sha256": "3ca37652b0f024c43edfaeb58f946945235a67dbaddc8f72647a1e17dd50ff3d"
+    },
+    {
+      "path": "tests/test_txc_pdf_symbols.py",
+      "sha256": "578b306f584437785e78fe6aacc7f185bd7658fa36f351ceb209d2e47b87f980"
+    },
+    {
+      "path": "tests/test_uk_conference.py",
+      "sha256": "56e7659ef8a9f96ee06999693f6e1020405506710c207569ab9ac76a00c9afe9"
+    },
+    {
+      "path": "tests/test_uk_conference_acquisition.py",
+      "sha256": "a4c6625dc6450af84f8650f6f9352b22e3b2d9aa2e3d2d038514b3ecd156c672"
+    },
+    {
+      "path": "tests/test_uk_conference_pipeline.py",
+      "sha256": "b917cbd5aeda76f262b50c3591d83cc77f8df953518c56c5ea33ef30a6d5def3"
+    },
+    {
+      "path": "tests/test_uk_conference_transport.py",
+      "sha256": "d36d46dce1141c42e7c4715dc37f906f25748d816a2658e6479658a228a3ea69"
+    },
+    {
+      "path": "tests/test_unitech_conference_transport.py",
+      "sha256": "a645a0bab49385d5406cb0e686334bf5d02178994dbb037a312e5a336c200419"
+    },
+    {
+      "path": "tests/test_v4_observation_gate.py",
+      "sha256": "0a53d426b13b438cf388392b5118b48ca299742b5e166dc5be6644f84d6b7ebc"
+    },
+    {
+      "path": "tests/test_v4_trade_basis_gate.py",
+      "sha256": "c4f230c348a03e1fc7cb7d0cab48a4832890f98628ff6604d9282b5dacf067fc"
+    },
+    {
+      "path": "tests/test_ventec_issuer_republication.py",
+      "sha256": "dd0401348aac23941b47868d51630499f37ac03bc74a37543568d79e09416e78"
+    },
+    {
+      "path": "tests/test_watchlist_batch_shutdown.py",
+      "sha256": "97f45c161bd339a9063b0f589b9261f6375688dbd1b460790c2867c7f491d7ee"
+    },
+    {
+      "path": "tests/test_watchlist_dispatch_recovery.py",
+      "sha256": "e85d2b11bb10574696f8b66446b8fd91501a81cfa6931c66f851412fb40ee9b3"
+    },
+    {
+      "path": "tests/test_watchlist_radar_data.py",
+      "sha256": "bcc6e1f344a7f8418471455ddf362597deed2e6dc05197a2fa6bd97c7b4c3e2b"
+    },
+    {
+      "path": "tests/test_watchlist_service.py",
+      "sha256": "b91744d754a7f4ef1ea4fc17762ec668b35d72af31e87581db602008f6c5c5fb"
+    },
+    {
+      "path": "tests/test_watchlist_triggers.py",
+      "sha256": "f9fc58b17a722609967abf2152a12abc693e32ea960c272f7358bb1003dc969b"
+    },
+    {
+      "path": "tests/test_webpro_conference_categories.py",
+      "sha256": "80ae3e33926382971ede4d695d625576fcdf911d057861bf86171d7940d69a73"
+    },
+    {
+      "path": "tests/test_webpro_conference_fallback.py",
+      "sha256": "870e1d4f02c71bfabf737716e27a697728f2c0d6ec871b5f4c175ddab4085f07"
+    },
+    {
+      "path": "tests/test_webpro_empty_month_recovery.py",
+      "sha256": "e939f47b6618b12a1998599cac760d645015af6d323683c3192d6e0862ef8041"
+    },
+    {
+      "path": "tests/test_webpro_latest_category.py",
+      "sha256": "81032d69a412861d964bf01b04dfd0e2eb4cb504d97d6bfa3c3ce5ff35412235"
+    },
+    {
+      "path": "tests/test_webpro_row_recovery.py",
+      "sha256": "87078cd0aa3756bc21de34be1e05a934fd5d56c181c2f9187f68ed120eb14b37"
+    },
+    {
+      "path": "tests/test_wiwynn_issuer_news.py",
+      "sha256": "c5244b90c6efcd4998b0d962de5c8b9751d786614f5a1b2affd7a62d2a934065"
+    },
+    {
+      "path": "tests/test_worker_main.py",
+      "sha256": "52bcb8755df801efe7c2a8b66058f7ce41b550624e55269ea4f3e35f837d44d8"
+    },
+    {
+      "path": "tests/test_workforce_partial_facts.py",
+      "sha256": "d718aca5ee11b0687a87294f5adf4428eaf637cc34b5507c59702dfc71bca658"
+    },
+    {
+      "path": "tests/test_yahoo_published_peer_ranking.py",
+      "sha256": "a3e8c64de8104d7e247f842d11cb32c26570de39b8f167a0a83f9b90640ba665"
+    },
+    {
+      "path": "tests/test_yahoo_stock_comments.py",
+      "sha256": "363fcf2dbd695b6aa36d3a53e22b2238d8f8e593e141badca5a589e644a57f25"
+    },
+    {
+      "path": "tests/test_yahoo_taiwan_news.py",
+      "sha256": "08a9e9471d820adcc3f010dc0f6d382f7a136bc2500045fac5c9e37f91ce7b53"
+    },
+    {
+      "path": "tests/test_yahoo_taiwan_transport.py",
+      "sha256": "53a03b63470bd8439e9fe0a5f89329dd0e349da9b2f7ab3139dd76dbc53a95ec"
+    },
+    {
+      "path": "tests/test_yulon_group_articles.py",
+      "sha256": "57bcbd1f3ab9b516445694fa578475ed7d8e6cafb21477991f1708f521c04a60"
+    }
+  ]
+}

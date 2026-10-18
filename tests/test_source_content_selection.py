@@ -9,16 +9,16 @@ from data_fetch.types import FetchRequest
 def record(title,days=1,link='https://publisher.test/story'):
     return {'title':title,'summary':title,'published_date':(datetime.now(timezone.utc)-timedelta(days=days)).isoformat(),'link':link,'source':'Publisher'}
 
-def test_social_raw_nonempty_is_not_recent_company_evidence(monkeypatch):
+def test_social_does_not_fetch_unverified_forum_index_records(monkeypatch):
     import news_fetchers
     from data_fetch.agent_context_providers import SocialSentimentProvider
-    monkeypatch.setattr(news_fetchers,'fetch_google_news_rss',lambda *a,**k:[record('東訊產品測試',days=300),record('無關討論')])
+    monkeypatch.setattr(news_fetchers,'fetch_google_news_rss',lambda *a,**k: (_ for _ in ()).throw(AssertionError('forum index requested')))
     monkeypatch.setattr(news_fetchers,'fetch_ptt_stock_sentiment',lambda *a,**k:[])
     r=SocialSentimentProvider()._fetch_uncached(FetchRequest.from_ticker('2321.TW'),{'data':{'company_name':'東訊','ticker':'2321.TW'}})
     assert r.status=='degraded_enrichment'
-    assert r.audit['raw_count']==6 and r.audit['usable_count']==0
+    assert r.audit['raw_count']==0 and r.audit['usable_count']==0
     assert r.value['sample_count']==0
-    assert r.audit['rejected_reason_counts']=={'historical':3,'issuer_unverified':3}
+    assert r.audit['rejected_reason_counts']=={}
 
 def test_free_news_counts_usable_and_retains_rejected_audit(monkeypatch):
     from data_fetch.enrichment_providers import FreeNewsWaterfallProvider
@@ -125,3 +125,22 @@ def test_cached_ticker_only_context_requires_explicit_issuer_evidence():
     apply_news_freshness(data)
     assert [r['title'] for r in data['recent_catalysts']] == ['東訊(2321)營收']
     assert data['news_selection']['identity_rejected_count'] == 1
+
+
+def test_social_search_wrapper_does_not_attest_original_forum_post():
+    from source_content_selection import select_company_records
+
+    indexed_topic = record('中鋼的最新討論 - Dcard', link='https://news.google.com/rss/articles/CBMiExample')
+    indexed_topic['social_channel'] = 'dcard'
+    direct_topic = record('中鋼的最新討論 - Dcard', link='https://www.dcard.tw/topics/中鋼')
+    direct_topic['social_channel'] = 'dcard'
+    direct_post = record('[標的] 中鋼(2002) 討論', link='https://www.ptt.cc/bbs/Stock/M.123.A.ABC.html')
+    direct_post['social_channel'] = 'ptt_stock_direct'
+
+    selected, audit = select_company_records(
+        [indexed_topic, direct_topic, direct_post], {'ticker': '2002.TW', 'company_name': '中鋼'}
+    )
+
+    assert [row['title'] for row in selected] == ['[標的] 中鋼(2002) 討論']
+    assert audit['rejected_reason_counts'] == {'forum_original_unverified': 2}
+    assert [row['record'] for row in audit['source_record_archive']] == [indexed_topic, direct_topic]

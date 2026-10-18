@@ -127,6 +127,9 @@ def build_legacy_payload(ctx: dict) -> dict:
         "roe_history": ctx["roe_history"],
         "total_equity_history": ctx["total_equity_history"],
         "total_assets_history": ctx["total_assets_history"],
+        "sector_specific_financials": ctx.get("sector_specific_financials"),
+        "financial_history_basis": ctx.get("financial_history_basis"),
+        "net_revenue_history": ctx.get("net_revenue_history"),
         "price_history": ctx["price_history"],
         "price_history_ranges": ctx["price_history_ranges"],
         "daily_market_data": ctx["daily_market_data"],
@@ -161,6 +164,8 @@ def finalize_and_cache_legacy_payload(
     monthly_revenue_audit: dict | None,
     finmind_financial_fallback_audit: dict | None,
     primary_financial_audit: dict | None = None,
+    official_financial_audit: dict | None = None,
+    sector_specific_financial_audit: dict | None = None,
 ) -> dict:
     fetched_at_epoch = time_module.time()
     from source_applicability import apply_source_applicability
@@ -187,6 +192,10 @@ def finalize_and_cache_legacy_payload(
         apply_institutional_freshness(data, ticker, institutional_audit)
     # Primary SDK evidence precedes the existing package/fallback summaries so
     # their latest-source semantics remain unchanged. The service persists once.
+    # Keep the generic-data completeness audit as the latest financial status.
+    # A complete financial-institution statement does not fill industrial rows.
+    if sector_specific_financial_audit:
+        append_source_audit(data, sector_specific_financial_audit)
     if primary_financial_audit:
         append_source_audit(data, primary_financial_audit)
     _append_full_fetch_audit(
@@ -206,9 +215,22 @@ def finalize_and_cache_legacy_payload(
     if fmp_quote_audit:
         append_source_audit(data, fmp_quote_audit)
     if monthly_revenue_audit:
+        from .market_sources.finmind_monthly_revenue import POLICY as MONTHLY_CACHE_POLICY
+        if monthly_revenue_audit.get('monthly_cache_policy') == MONTHLY_CACHE_POLICY:
+            # The package summary cannot claim a new FinMind acquisition when
+            # the actual source used a fresh shared observation or local wait.
+            data['source_audit'] = [entry for entry in data.get('source_audit', [])
+                                    if entry.get('source') != 'monthly_revenue']
         append_source_audit(data, monthly_revenue_audit)
+        from .market_sources.official_monthly_revenue import apply_monthly_freshness
+        apply_monthly_freshness(data, ticker, monthly_revenue_audit)
     if finmind_financial_fallback_audit:
         append_source_audit(data, finmind_financial_fallback_audit)
+    if official_financial_audit:
+        append_source_audit(data, official_financial_audit)
+    from .annual_history_cache_freshness import preserve_reused_annual_freshness
+    preserve_reused_annual_freshness(data,ticker,[official_financial_audit,sector_specific_financial_audit,
+        primary_financial_audit,finmind_financial_fallback_audit],fetched_at_epoch)
     finalize_data_trust(data)
     data["cache_generated_at_epoch"] = fetched_at_epoch
     data["cache_generated_at"] = datetime.fromtimestamp(fetched_at_epoch, timezone.utc).isoformat()

@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from fastapi import APIRouter, HTTPException
 
 from data_fetch.types import FetchRequest
-from data_fetch.workflow import fetch_payload_async
+from data_fetch.service import fetch_stock_data_async
 from stock_snapshot_service import build_stock_snapshot
 
 
@@ -17,8 +17,13 @@ class StockSnapshotRouteDeps:
     fetch_payload: Callable[[FetchRequest], Awaitable[dict]]
 
 
+async def _fetch_snapshot_payload(request: FetchRequest) -> dict:
+    result = await fetch_stock_data_async(request)
+    return result.data
+
+
 def create_stock_snapshot_router(deps: StockSnapshotRouteDeps | None = None) -> APIRouter:
-    deps = deps or StockSnapshotRouteDeps(fetch_payload=fetch_payload_async)
+    deps = deps or StockSnapshotRouteDeps(fetch_payload=_fetch_snapshot_payload)
     router = APIRouter(prefix="/api/stocks")
 
     @router.get("/{ticker}/snapshot")

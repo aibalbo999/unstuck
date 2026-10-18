@@ -19,7 +19,7 @@ from market_context_manifest import CONTRACT_VERSION, FINAL_AGENTS, clear_market
 PROMPT_VERSION_DEFAULT = "runtime_rules:unversioned"
 # Step outputs are already normalized/rendered. Bump when the listed roles'
 # system/generation or output contract changes even if their user prompt does not.
-AGENT_OUTPUT_CONTRACT_VERSION = "agent-output:role-evidence:v4"
+AGENT_OUTPUT_CONTRACT_VERSION = "agent-output:role-evidence:v5-final-completion"
 _OUTPUT_CONTRACT_AGENTS = frozenset({3, 7, 12, 16, 18, 19, 20, 21})
 
 
@@ -40,10 +40,12 @@ def build_agent_step_cache_key(
         "upstream_input_hash": upstream_input_hash(agent_num, context),
         "market_context_contract_version": context.get("market_context_contract_version"),
     }
+    if agent_num in {22, 23}:
+        key_parts["memo_completion_contract"] = "memo-output-completion:v1-low-thinking"
     if agent_num in {23, 24}:
         key_parts["institutional_evidence_contract"] = "typed-flow:v2"
     if agent_num == 24:
-        key_parts["trade_source_contract_version"] = "trade-sources:v3-completion:v9"
+        key_parts["trade_source_contract_version"] = "trade-sources:v4-completion:v10"
         from trade_financial_risk import FINANCIAL_RISK_POLICY_VERSION
         key_parts["financial_risk_policy_version"] = FINANCIAL_RISK_POLICY_VERSION
     if agent_num in _OUTPUT_CONTRACT_AGENTS:
@@ -90,6 +92,16 @@ def get_cached_agent_step(cache_key: str, observation: dict | None = None) -> di
         issues = assessment.get("issues") if isinstance(assessment, dict) else None
         observe("reject", "a7_known_assessment_failure" if isinstance(issues, (list, tuple)) and issues else "a7_invalid_entry")
         return None
+    if str(cached.get('agent_num')) in {'16', '19'}:
+        receipt = (cached.get('structured_output') or {}).get('output_completion') or {}
+        if receipt.get('contract_version') != 'final-output-completion:v1' or receipt.get('status') != 'complete':
+            observe('reject', 'final_completion_unconfirmed')
+            return None
+    if str(cached.get("agent_num")) in {"22", "23"}:
+        receipt = (cached.get("structured_output") or {}).get("output_completion") or {}
+        if receipt.get("contract_version") != "memo-output-completion:v1" or receipt.get("status") != "complete":
+            observe("reject", "memo_completion_unconfirmed")
+            return None
     return cached
 
 
@@ -103,8 +115,19 @@ def store_cached_agent_step(
 ) -> None:
     if not AGENT_STEP_CACHE_ENABLED or AGENT_STEP_CACHE_SECONDS <= 0:
         return
+    from memo_output_completion import incomplete_memo_roles
+    if any(role["agent"] == agent_num for role in incomplete_memo_roles(context)):
+        return
     if agent_num == 24 and not _structured_output_for_agent(context, agent_num):
         return  # Incomplete drafts must reach the bounded structured retry, not its cache.
+    if agent_num in {16, 19}:
+        receipt = (_structured_output_for_agent(context, agent_num) or {}).get('output_completion') or {}
+        if receipt.get('contract_version') != 'final-output-completion:v1' or receipt.get('status') != 'complete':
+            return
+    if agent_num in {22, 23}:
+        receipt = (_structured_output_for_agent(context, agent_num) or {}).get("output_completion") or {}
+        if receipt.get("status") != "complete":
+            return
     payload = {
         "schema_version": 1,
         "agent_num": agent_num,

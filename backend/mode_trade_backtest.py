@@ -83,6 +83,9 @@ def _plan_inputs(pipeline_id: str, parsed: dict) -> tuple[dict | None, tuple[int
 
 def evaluate_report_trades(*, report: dict, pipeline_id: str, generated: date, as_of: date, output_dir: str, bar_fetcher) -> tuple[list[dict], list[dict]]:
     filename = str(report.get("filename") or "")
+    from report_publication_identity import read_report_publication_identity, non_prediction_reason
+    if not read_report_publication_identity(report, output_dir)["prediction_eligible"]:
+        return [], [{"filename": filename, "reason": non_prediction_reason(read_report_publication_identity(report, output_dir))}]
     parsed = _parsed_snapshot(report, output_dir)
     inputs, horizons, issue = _plan_inputs(pipeline_id, parsed)
     if issue:

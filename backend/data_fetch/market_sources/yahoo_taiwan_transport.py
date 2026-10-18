@@ -1,4 +1,4 @@
-"""One bounded ordinary curl GET for the public Yahoo Taiwan quote-news page."""
+"""One bounded ordinary curl GET for public Yahoo Taiwan quote/board data."""
 from __future__ import annotations
 
 from contextlib import contextmanager
@@ -20,6 +20,21 @@ HEADER_LIMIT = METADATA_LIMIT = 65536
 PROXY_ENV = ('HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'http_proxy', 'https_proxy', 'all_proxy')
 SAFE_HEADERS = {'content-type', 'content-length', 'content-encoding', 'retry-after', 'date'}
 _CURL_VERSION = None
+COMMENT_URL_TEMPLATE = ('https://tw.stock.yahoo.com/_td-stock/api/resource/'
+    'canvass.getMessageListForContext_ns;apiVersion=v1;context={context};count=10;index=null;'
+    'lang=zh-Hant-TW;namespace=yahoo_tw_finance;'
+    'oauthConsumerKey=abu.stock.comment.oauthConsumerKey;'
+    'oauthConsumerSecret=abu.stock.comment.oauthConsumerSecret;rankingProfile=;region=TW;'
+    'sortBy=createdAt;spaceId=152952224;type=null;userActivity=true')
+# These are the signed-out site's literal resource names, not credentials.
+_COMMENT_URL = re.compile(re.escape(COMMENT_URL_TEMPLATE).replace(
+    re.escape('{context}'), r'finmb_[0-9]{1,16}_lang_zh'))
+
+
+def comment_url(context):
+    if not isinstance(context, str) or not re.fullmatch(r'finmb_[0-9]{1,16}_lang_zh', context):
+        raise ValueError('Invalid public quote-board context')
+    return COMMENT_URL_TEMPLATE.format(context=context)
 
 
 from bounded_curl_process import collect_capped_process as _collect
@@ -65,11 +80,17 @@ def _received_headers(raw):
 @contextmanager
 def curl_stream(method, url, *, deadline, diagnostics, proxy=None, **_compat):
     """HTTPX-compatible body seam, with explicit native-client capture provenance."""
+    is_rss_feed = bool(re.fullmatch(r'https://tw\.stock\.yahoo\.com/rss\?s=\d{4,6}\.(?:TW|TWO)', url))
     diagnostics.update(http_request_sent=False, transport_client='native_curl',
-                       transport_request_profile='curl_default', transport_body_encoding='not_observed')
+                       transport_request_profile='yahoo_rss_browser_headers_v1' if is_rss_feed else 'curl_default',
+                       transport_body_encoding='not_observed')
     if os.getenv('STOCK_AGENT_TEST_NO_NETWORK') == '1':
         raise SourceResponseError('test_network_disabled')
-    if method != 'GET' or not re.fullmatch(r'https://tw\.stock\.yahoo\.com/quote/\d{4,6}/news', url):
+    valid_url = (re.fullmatch(r'https://tw\.stock\.yahoo\.com/quote/\d{4,6}/news', url)
+                 or is_rss_feed
+                 or re.fullmatch(r'https://tw\.stock\.yahoo\.com/quote/\d{4}\.(?:TW|TWO)', url)
+                 or _COMMENT_URL.fullmatch(url))
+    if method != 'GET' or not valid_url:
         raise SourceResponseError('transport_url_invalid')
     # Conservatively refuse unsupported routing rather than silently going direct.
     if proxy or any(os.getenv(name) for name in PROXY_ENV):
@@ -84,6 +105,12 @@ def curl_stream(method, url, *, deadline, diagnostics, proxy=None, **_compat):
     argv = [CURL, '--disable', '--silent', '--max-time', str(seconds), '--connect-timeout', str(min(3., seconds)),
             '--max-filesize', str(BODY_LIMIT), '--proto', '=https', '--max-redirs', '0', '--retry', '0',
             '--dump-header', '/dev/fd/{HEADER_FD}', '--write-out', '%{stderr}%{json}', url]
+    if is_rss_feed:
+        argv[-1:-1] = [
+            '--user-agent', 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/130.0.0.0 Safari/537.36',
+            '--header', 'Accept: application/rss+xml, application/xml;q=0.9, */*;q=0.8',
+            '--referer', 'https://tw.stock.yahoo.com/',
+        ]
     parts, rc, failure = _collect(argv, min(deadline, time.monotonic() + 10), body_limit=BODY_LIMIT, headers=True)
     diagnostics.update(http_request_sent=parts['process_started'], transport_process_started=parts['process_started'])
     raw = parts['body']

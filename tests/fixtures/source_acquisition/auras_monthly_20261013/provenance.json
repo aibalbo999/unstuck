@@ -1,0 +1,26 @@
+{
+  "otc.csv": {
+    "source_url": "https://mopsfin.twse.com.tw/opendata/t187ap05_O.csv",
+    "retrieved_at": 1791866928.527804,
+    "raw_bytes": 166534,
+    "raw_sha256": "938149cc0ed2b462cc992644fcbde5fd1bbda2425a0d64f52f2987adcdfb7896"
+  },
+  "otc_roster.json": {
+    "source_url": "https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap03_O",
+    "retrieved_at": 1791866454.139458,
+    "raw_bytes": 1074417,
+    "raw_sha256": "2a88c98473730bb43bb2f109008c2eadf35b0e96df8e8eefd7256fd78eedb5f8"
+  },
+  "financial.json": {
+    "source_url": "https://www.auras.com.tw/CmsApi/api/FinancialReport/getFinancialReportAsync?Year=&IsPage=false&CurrentPage=1&PageSize=10&OrderBy=&IsDesc=true",
+    "retrieved_at": 1791866815.095038,
+    "raw_bytes": 33785,
+    "raw_sha256": "6243795085de65ba570cc062fd7adca8805ee6824b56c48233d2f83de5bf23a5"
+  },
+  "financial_module.js": {
+    "source_url": "https://www.auras.com.tw/assets/FinancialInformtion-f05283f2.js",
+    "retrieved_at": 1791866721.153148,
+    "raw_bytes": 23623,
+    "raw_sha256": "e0f38342343e9cdde25f3f3434e1b912db291f967c30856e4cf18fd9ebb947d9"
+  }
+}

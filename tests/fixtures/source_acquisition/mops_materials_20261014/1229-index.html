@@ -1,0 +1,198 @@
+
+
+
+<html>
+<head>
+	<title>公開資訊觀測站</title>
+	
+	
+	<link href="css/css2.css" rel="stylesheet" type="text/css" Media="Screen"/> 
+	
+	<script type="text/javascript" src="js/mops2.js"></script>
+	
+	<script src='js/outerScript/t100sb02_1_j.js'></script>
+	
+</head>
+
+<body>
+
+
+<div id="div01" >
+<form action='/mops/web/ajax_t100sb02_1' method='post' onsubmit='return false;' name='fm'>
+<input type='hidden' name='firstin' value='true'>
+<input type='hidden' name='step' value='10'>
+<input type='hidden' name='filename' value='t100sb02_1_20261014_065459598.csv'>
+<button style='background-color:transparent;border:0;cursor:pointer;text-decoration:underline;' onclick="action='/server-java/t105sb02';submit();"><img src='images/bu_03.gif' hspace='3' ></button>
+</form>
+<form action = '/server-java/FileDownLoad' method = 'post' id='fm_fileDownload' name='fm_fileDownload'>
+<input type = 'hidden' name = 'step' id = 'step' value = '9'/>
+<input type = 'hidden' name = 'filePath' id = 'filePath' value = '/home/html/nas/STR/'/>
+<input type = 'hidden' name = 'fileName' id = 'fileName' value = ''/>
+<input type = 'hidden' name = 'functionName' id = 'functionName' value = 't100sb02_1'/>
+</form>
+<form name='form_t100sb02_1' action='/mops/web/ajax_t100sb02_1' method='post' onsubmit='return false;'>
+<input type='hidden' name='step' value='0'>
+<input type='hidden' name='firstin' value='true'>
+<input type='hidden' name='TYPEK' value='sii'>
+<input type='hidden' name='colorchg' value=''>
+<input type='hidden' name='co_id'>
+<input type='hidden' id='URL' name='URL'>
+<input type='hidden' id='from' name='from'>
+<input type='hidden' id='COMPANY_ID' name='COMPANY_ID'>
+<input type='hidden' id='SEQ_NO' name='SEQ_NO'>
+<div class='sortBlock'>
+<span>請選擇排列方式：
+<input type='radio' id='sortMyTable1' name='sortMyTable' value='1' onclick='ChangeSortTable(0);' checked />證券代號
+<input type='radio' id='sortMyTable2' name='sortMyTable' value='2' onclick='ChangeSortTable(2);' />召開法人說明會日期
+</span>
+<br>
+<span>請選擇排列順序：
+<input type='hidden' id='changeAsc' value='1' />
+<input type='radio' id='seq1' name='seq' value='1' onclick='sortTable(0,"");' checked />資料由小到大/舊到新
+<input type='radio' id='seq2' name='seq' value='2' onclick='sortTable(0,1);' />資料由大到小/新到舊
+</span>
+</div>
+<table id='myTable' class='hasBorder'>
+<thead style='position:relative;top:0px;'><tr class='tblHead'><th class='tblHead' nowrap rowspan='2'><b>公司代號</b></th><th class='tblHead' nowrap rowspan='2'><b>公司名稱</b></th><th class='tblHead' nowrap rowspan='2' data-type='date'><b>召開法人說明會日期</b></th><th class='tblHead' nowrap rowspan='2'><b>召開法人說明會時間</b></th><th class='tblHead' nowrap rowspan='2'><b>召開法人說明會地點</b></th><th class='tblHead' nowrap rowspan='2'><b>法人說明會擇要訊息</b></th><th class='tblHead' nowrap colspan='2'><b>法人說明會簡報內容</b></th><th class='tblHead' nowrap rowspan='2'><b>公司網站是否提供法人說明會相關資訊</b></th><th class='tblHead' nowrap rowspan='2'><b>影音連結資訊</b></th><th class='tblHead' nowrap rowspan='2'><b>其他應敘明事項</b></th><th class='tblHead' nowrap rowspan='2'><b>歷年法人說明會</b></th></tr><tr><th class='tblHead' nowrap><b>中文檔案</b></th><th class='tblHead' nowrap><b>英文檔案</b></th></tr></thead>
+<tr class='even' data-type='body' >
+<td style='text-align:left !important;'>1229</td><td>聯華</td>
+<td align='center'>115/03/31</td>
+<td align='center'>15:30</td>
+<td style='text-align:left !important;'>線上法人說明會</td>
+<td style='text-align:left !important;'>本公司受邀參加康和證券線上法人說明會，會中就本公司已公開發佈之財務數字及經營績效等相關資訊做說明</td>
+<td style='text-align:left !important;'><a href='#' onclick='document.fm_fileDownload.fileName.value="122920260331M001.pdf";document.fm_fileDownload.submit();'><font color='blue'><u>122920260331M001.pdf</u></font></a></td>
+<td style='text-align:left !important;'><a href='#' onclick='document.fm_fileDownload.fileName.value="122920260331E001.pdf";document.fm_fileDownload.submit();'><font color='blue'><u>122920260331E001.pdf</u></font></a></td>
+<td style='text-align:left !important;'><a href='https://www.lhicholdings.com/investors/3news/Investor-Conference-2/' target='_blink'><font color='blue'><u>https://www.lhicholdings.com/investors/3news/Investor-Conference-2/</u></font></a></td>
+<td style='text-align:left !important;'>
+影音資訊網址：
+<a target='_blank' href='http://irconference.twse.com.tw/1229_17_20260331_ch.mp4'><font color=blue><u>http://irconference.twse.com.tw/1229_17_20260331_ch.mp4</u></font></a>
+<br>
+</td>
+<td style='text-align:left !important;'>無</td>
+<td align='center'><input type='button' value='查詢' onclick='document.form_t100sb02_1.co_id.value="1229";openWindow(this.form ,"");'>
+</td>
+</tr>
+<tr class='odd' data-type='body' >
+<td style='text-align:left !important;'>1229</td><td>聯華</td>
+<td align='center'>115/06/30</td>
+<td align='center'>15:00</td>
+<td style='text-align:left !important;'>線上法人說明會</td>
+<td style='text-align:left !important;'>本公司受邀參加統一證券線上法人說明會，會中就本公司已公開發佈之財務數字及經營績效等相關資訊做說明</td>
+<td style='text-align:left !important;'><a href='#' onclick='document.fm_fileDownload.fileName.value="122920260630M001.pdf";document.fm_fileDownload.submit();'><font color='blue'><u>122920260630M001.pdf</u></font></a></td>
+<td style='text-align:left !important;'><a href='#' onclick='document.fm_fileDownload.fileName.value="122920260630E001.pdf";document.fm_fileDownload.submit();'><font color='blue'><u>122920260630E001.pdf</u></font></a></td>
+<td style='text-align:left !important;'><a href='https://www.lhicholdings.com/investors/3news/Investor-Conference-2/' target='_blink'><font color='blue'><u>https://www.lhicholdings.com/investors/3news/Investor-Conference-2/</u></font></a></td>
+<td style='text-align:left !important;'>
+影音資訊網址：
+<a target='_blank' href='http://irconference.twse.com.tw/1229_18_20260630_ch.mp4'><font color=blue><u>http://irconference.twse.com.tw/1229_18_20260630_ch.mp4</u></font></a>
+<br>
+</td>
+<td style='text-align:left !important;'>無</td>
+<td align='center'><input type='button' value='查詢' onclick='document.form_t100sb02_1.co_id.value="1229";openWindow(this.form ,"");'>
+</td>
+</tr>
+<tr class='even' data-type='body' >
+<td style='text-align:left !important;'>1229</td><td>聯華</td>
+<td align='center'>115/09/30</td>
+<td align='center'>15:30</td>
+<td style='text-align:left !important;'>線上法人說明會</td>
+<td style='text-align:left !important;'>本公司受邀參加凱基證券線上法人說明會，會中就本公司已公開發佈之財務數字及經營績效等相關資訊做說明</td>
+<td style='text-align:left !important;'><a href='#' onclick='document.fm_fileDownload.fileName.value="122920260930M001.pptx";document.fm_fileDownload.submit();'><font color='blue'><u>122920260930M001.pptx</u></font></a></td>
+<td style='text-align:left !important;'><a href='#' onclick='document.fm_fileDownload.fileName.value="122920260930E001.pptx";document.fm_fileDownload.submit();'><font color='blue'><u>122920260930E001.pptx</u></font></a></td>
+<td style='text-align:left !important;'><a href='https://www.lhicholdings.com/investors/3news/Investor-Conference-2/' target='_blink'><font color='blue'><u>https://www.lhicholdings.com/investors/3news/Investor-Conference-2/</u></font></a></td>
+<td style='text-align:left !important;'>
+影音資訊網址：
+<a target='_blank' href='http://irconference.twse.com.tw/1229_19_20260930_ch.mp4'><font color=blue><u>http://irconference.twse.com.tw/1229_19_20260930_ch.mp4</u></font></a>
+<br>
+</td>
+<td style='text-align:left !important;'>無</td>
+<td align='center'><input type='button' value='查詢' onclick='document.form_t100sb02_1.co_id.value="1229";openWindow(this.form ,"");'>
+</td>
+</tr>
+</table>
+<br>
+<div class='pageBtn'>
+<input type='button' value='1' style='margin:15px 5px; cursor:pointer;background: #165c98;color: #fff;border: 1px solid #000000;border-radius: 2px;' onclick='page(0);' />
+</div>
+</form>
+<style>
+tr[data-page="none;"]{
+	display: none;
+}
+</style>
+<form action='/mops/web/ajax_t100sb02_1' method='post' onsubmit='return false;' name='fm1'>
+<input type='hidden' name='firstin' value='true'>
+<input type='hidden' name='step' value='10'>
+<input type='hidden' name='filename' value='t100sb02_1_20261014_065459598.csv'>
+<button style='background-color:transparent;border:0;cursor:pointer;text-decoration:underline;' onclick="action='/server-java/t105sb02';submit();"><img src='images/bu_03.gif' hspace='3' ></button>
+</form>
+
+</div>
+
+
+</body>
+
+
+
+<script>
+	try {
+		if(!document.querySelector('#table01')){
+			var table01 = document.createElement("div");
+			table01.id = "table01"; 
+			document.body.appendChild(table01);
+			if(document.querySelector("#div01")){
+				table01.appendChild(div01);
+			};
+		};
+
+		if (document.autoForm!=null && document.autoForm!=undefined && document.autoForm.run.value==''){
+			ajax1(document.autoForm,'div01');
+			document.querySelector('form[name=autoForm]').remove();
+		};
+
+		if (document.autoForm1!=null && document.autoForm1!=undefined && document.autoForm1.run.value==''){
+			ajax1(document.autoForm1,'div01');
+			document.querySelector('form[name=autoForm1]').remove();
+		};
+
+		if (document.autoRunScript!=null && document.autoRunScript!=undefined && document.autoRunScript.run!=null && document.autoRunScript.run.value!=''){
+			let s = document.autoRunScript.run.value;
+			let script = document.createElement("script");
+
+			script.innerText = s;
+			document.body.appendChild(script);
+			document.querySelector('form[name=autoRunScript] > input[name=run]').remove();
+		};
+
+		if (document.autoRunScript1!=null && document.autoRunScript1!=undefined){
+			if (document.autoRunScript1.count!=null && document.autoRunScript1.count!=undefined && document.autoRunScript1.count.value!=''){
+				var count = parseInt(document.autoRunScript1.count.value);
+				for (var i=0;i<count;i++){
+					var run = eval("document.autoRunScript1.run"+i);
+					if (run!=null && run!=undefined && run.value!=''){
+						var s = run.value;
+
+						var script = document.createElement("script");
+						script.textContent = s;
+						document.querySelector("body").appendChild(script);
+
+						run.remove();
+					};
+				};
+			}else if (document.autoRunScript1.run!=null && document.autoRunScript1.run!=undefined && document.autoRunScript1.run.value!=''){
+				var s = document.autoRunScript1.run.value;
+				s = htmlEncode(s);
+				var script = document.createElement("script");
+				script.textContent = s;
+				document.querySelector("body").appendChild(script);
+
+				document.querySelector('form[name=autoRunScript1] > input[name=run]').remove();
+			};
+		};
+	} catch (error) {
+		console.error("Script Error:", error);
+	};
+</script>
+
+
+
+</html>

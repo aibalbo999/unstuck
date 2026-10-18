@@ -1,6 +1,8 @@
 """Render only individually verified institutional observations with explicit scope."""
 import json
 
+from institutional_daily_evidence import DAILY_CATEGORY_PATH_PREFIX
+
 from institutional_evidence import (
     _valid_record, institutional_evidence_records, institutional_evidence_issues,
     institutional_evidence_diagnostics,
@@ -15,10 +17,37 @@ _RULE = ('【法人逐項來源契約】每一筆 finding、counterevidence 與�
 
 def build_institutional_source_prompt(data):
     lines = [_RULE]
-    for index, record in enumerate(institutional_evidence_records(data)):
+    source = data.get("institutional_trading", {})
+    observation = source.get("latest_official_observation", {}) if isinstance(source, dict) else {}
+    raw = observation.get("raw_evidence", {}) if isinstance(observation, dict) else {}
+    if isinstance(raw, dict) and raw.get("raw_response_sha256") and raw.get("retrieved_at"):
+        # Receipt belongs to this input version; it never certifies later versions.
+        receipt = {key: raw.get(key) for key in (
+            "source_url", "retrieved_at", "raw_response_sha256", "evidence_kind",
+            "finality_guaranteed", "historical_point_in_time_verified")}
+        receipt.update(observed_date=observation.get("date"),
+                       acquisition_phase=observation.get("acquisition_phase"),
+                       categories=observation.get("categories"), unit=observation.get("unit"))
+        lines.append("官方單日版本收據（與彙總期間分開；hash只证明此取得版本，不證明後續不變）："
+                     + json.dumps(receipt, ensure_ascii=False, allow_nan=False))
+
+    records = institutional_evidence_records(data)
+    daily_dates = [record.get('observed_at') for record in records
+                   if isinstance(record.get('path'), str)
+                   and record['path'].startswith(DAILY_CATEGORY_PATH_PREFIX)
+                   and _valid_record(record)]
+    latest_daily = (source.get('latest_date') if isinstance(source, dict) else None)
+    if latest_daily is None:
+        latest_daily = max(daily_dates) if daily_dates else None
+    for index, record in enumerate(records):
         if not _valid_record(record):
             continue
         path = record.get('path')
+        # The gate/catalog retains ten exact dates; the repeated role prompt
+        # adds only the newest three subgroup facts to avoid a large token cost.
+        if (isinstance(path, str) and path.startswith(DAILY_CATEGORY_PATH_PREFIX)
+                and record['observed_at'] != latest_daily):
+            continue
         if not isinstance(path, str) or not path:
             path = f'short_term_market_context.institutional_evidence.records[{index}]'
         population = {'total': '三大法人合計', 'foreign': '外資',

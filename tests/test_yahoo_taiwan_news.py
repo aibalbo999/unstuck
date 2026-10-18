@@ -38,13 +38,21 @@ def isolation(monkeypatch):
     provider_throttle.clear_provider_throttles()
 
 
-def fake_http(monkeypatch, body=None, status=200, headers=None):
+def fake_http(monkeypatch, body=None, status=200, headers=None, *, rss_body=None,
+              rss_status=None, page_status=None):
     calls=[]
     @contextmanager
     def stream(method, url, **kwargs):
         calls.append({'method':method, 'url':url, **kwargs})
-        response=httpx.Response(status, content=FIXTURE.read_bytes() if body is None else body,
-                                headers=headers or {'Content-Type':'text/html; charset=utf-8'},
+        is_rss='/rss?s=' in url
+        content=(rss_body if is_rss and rss_body is not None else
+                 b'<rss version="2.0"><channel><title>empty</title></channel></rss>' if is_rss else
+                 FIXTURE.read_bytes() if body is None else body)
+        response_status=(rss_status if is_rss and rss_status is not None else
+                         page_status if not is_rss and page_status is not None else status)
+        response=httpx.Response(response_status, content=content,
+                                headers=headers or {'Content-Type':'application/rss+xml; charset=utf-8'} if is_rss
+                                else headers or {'Content-Type':'text/html; charset=utf-8'},
                                 request=httpx.Request(method,url))
         try:
             yield response
@@ -53,6 +61,30 @@ def fake_http(monkeypatch, body=None, status=200, headers=None):
     from data_fetch.market_sources import yahoo_taiwan_news as regional
     monkeypatch.setattr(regional, 'curl_stream', stream)
     return calls
+
+
+def test_public_ticker_rss_recovers_recent_yahoo_company_news(monkeypatch):
+    rss='''<?xml version="1.0" encoding="UTF-8"?>
+    <rss version="2.0"><channel><title>Yahoo 個股新聞</title><item>
+    <title>世紀民生公告最新營收</title>
+    <link>https://tw.stock.yahoo.com/news/example-news-012345678.html</link>
+    <description>世紀民生公布最新營運資訊。</description>
+    <pubDate>Sat, 26 Sep 2026 10:00:00 +0800</pubDate>
+    <source>中央社財經</source><guid>yahoo-rss-5314-1</guid>
+    </item></channel></rss>'''.encode('utf-8')
+    calls=fake_http(monkeypatch,rss_body=rss)
+    result=YahooProvider().fetch(FetchRequest.from_ticker('5314.TWO'),context())
+
+    assert result.status=='success' and len(result.value)==1
+    assert result.value[0]['title']=='世紀民生公告最新營收'
+    assert result.value[0]['source']=='中央社財經'
+    assert result.value[0]['source_type']=='yahoo_taiwan_news'
+    assert result.value[0]['page_ticker']=='5314.TWO'
+    assert result.audit['transport']=='yahoo_taiwan_stock_rss'
+    assert result.audit['source_url']=='https://tw.stock.yahoo.com/rss?s=5314.TWO'
+    assert result.value[0]['aggregator_source']=='Yahoo股市'
+    assert result.audit['http_request_count']==1
+    assert len(calls)==1 and calls[0]['url']=='https://tw.stock.yahoo.com/rss?s=5314.TWO'
 
 
 def test_optional_tw_provider_recovers_three_with_original_partial_archive(monkeypatch):
@@ -70,7 +102,10 @@ def test_optional_tw_provider_recovers_three_with_original_partial_archive(monke
     assert [row['date'][:10] for row in result.value]==['2026-09-18','2026-09-10','2026-09-04']
     assert all(row['source']=='中央社財經' for row in result.value)
     assert all(row['source_type']=='yahoo_taiwan_news' for row in result.value)
-    assert len(calls)==1 and calls[0]['method']=='GET' and calls[0]['follow_redirects'] is False
+    assert len(calls)==2
+    assert calls[0]['url']=='https://tw.stock.yahoo.com/rss?s=5314.TWO'
+    assert calls[1]['url']=='https://tw.stock.yahoo.com/quote/5314/news'
+    assert all(call['method']=='GET' and call['follow_redirects'] is False for call in calls)
 
 
 def changed_fixture(change):
@@ -97,7 +132,7 @@ def test_raw_invalid_rows_consume_budget_and_survive_prompt_boundary(monkeypatch
     assert result.value==[] and result.status=='degraded_enrichment'
     assert result.audit['raw_count']==10 and result.audit['rejected_count']==10
     assert result.audit['rejected_reason_counts']=={'article_unavailable':10}
-    assert result.audit['capacity_excluded_count']==10 and len(calls)==1
+    assert result.audit['capacity_excluded_count']==10 and len(calls)==2
     from prompt_evidence import prompt_evidence_copy
     from data_trust_snapshot import build_data_snapshot
     data={'ticker':'5314.TWO','source_audit':[result.audit]}
@@ -133,7 +168,7 @@ def test_invalid_title_or_url_rejections_merge_with_historical_gate(monkeypatch)
 def test_bare_request_keeps_verified_resolved_ticker(monkeypatch):
     calls=fake_http(monkeypatch)
     result=YahooProvider().fetch(FetchRequest.from_ticker('5314'),context())
-    assert len(result.value)==3 and len(calls)==1
+    assert len(result.value)==3 and len(calls)==2
     assert result.audit['page_ticker']=='5314.TWO'
     assert all(row['page_ticker']=='5314.TWO' for row in result.value)
 
@@ -178,7 +213,7 @@ def test_us_provider_and_legacy_sync_path_unchanged(monkeypatch):
 def test_page_schema_or_identity_mismatch_fails_once(monkeypatch,mutation):
     calls=fake_http(monkeypatch,changed_fixture(mutation))
     result=YahooProvider().fetch(FetchRequest.from_ticker('5314.TWO'),context())
-    assert result.status=='error' and result.value==[] and len(calls)==1
+    assert result.status=='error' and result.value==[] and len(calls)==2
     assert result.audit['error_kind']=='parse_error'
     assert result.audit['response_complete'] is True
 
@@ -189,7 +224,7 @@ def test_exact_bound_empty_stream_is_unknown_not_error_or_success(monkeypatch):
     result=YahooProvider().fetch(FetchRequest.from_ticker('5314.TWO'),context())
     assert result.status=='degraded_enrichment' and result.value==[]
     assert result.audit['raw_count']==0 and result.audit['retrieval_status']=='no_records'
-    assert len(calls)==1
+    assert len(calls)==2
 
 
 @pytest.mark.parametrize('status,kind',[(302,'http_error'),(401,'authentication'),(403,'access_denied'),(429,'rate_limited'),(503,'server_error')])
@@ -199,6 +234,18 @@ def test_http_errors_are_single_attempt_and_not_empty_success(monkeypatch,status
     assert result.status=='error' and result.audit['error_kind']==kind
     assert result.audit['http_status']==status and result.value==[] and len(calls)==1
     assert result.audit['http_request_sent'] is True
+
+
+def test_missing_rss_route_falls_back_to_established_quote_page(monkeypatch):
+    calls=fake_http(monkeypatch,rss_status=404)
+    result=YahooProvider().fetch(FetchRequest.from_ticker('5314.TWO'),context())
+    assert result.status=='degraded_enrichment' and len(result.value)==3
+    assert result.audit['actual_provider']=='Yahoo Taiwan'
+    assert result.audit['http_request_count']==2
+    assert [call['url'] for call in calls]==[
+        'https://tw.stock.yahoo.com/rss?s=5314.TWO',
+        'https://tw.stock.yahoo.com/quote/5314/news',
+    ]
 
 
 def test_existing_yahoo_outer_guard_prevents_regional_call(monkeypatch):
@@ -250,7 +297,7 @@ def test_only_selected_quote_stream_counts_not_duplicate_or_other_streams(monkey
         stores['ApacStreamStore']={'streams':{'CUSTOM:NEWS.mega':other}}
     calls=fake_http(monkeypatch,changed_fixture(change))
     result=YahooProvider().fetch(FetchRequest.from_ticker('5314.TWO'),context())
-    assert len(result.value)==3 and result.audit['raw_count']==10 and len(calls)==1
+    assert len(result.value)==3 and result.audit['raw_count']==10 and len(calls)==2
     assert 'UNRELATED_STREAM_SENTINEL' not in str(result.value)+str(result.audit)
 
 
@@ -363,7 +410,7 @@ def test_lost_lease_after_parse_keeps_originals_but_no_evidence(monkeypatch):
     result=YahooProvider().fetch(FetchRequest.from_ticker('5314.TWO'),context())
     assert result.status=='error' and result.audit['error_kind']=='lease_lost' and result.value==[]
     assert result.audit['raw_count']==10 and result.audit['rejected_reason_counts']=={'acquisition_unusable':10}
-    assert result.audit['response_complete'] is True and len(calls)==1
+    assert result.audit['response_complete'] is True and len(calls)==2
 
 
 def test_provider_audit_merge_cache_snapshot_and_single_canonical_sink(monkeypatch):
@@ -408,7 +455,7 @@ def test_provider_audit_merge_cache_snapshot_and_single_canonical_sink(monkeypat
     built=StockDataService()._build_result(FetchRequest.from_ticker('5314.TWO'),cached,1)
     assert len(sink)==1
     assert len([a for a in sink[0] if a['provider']=='Yahoo Finance news'])==1
-    assert built.source_audit==sink[0] and len(calls)==1
+    assert built.source_audit==sink[0] and len(calls)==2
 
 
 def test_persistent_transport_failure_does_not_inherit_prior_http_status(monkeypatch):
@@ -439,4 +486,4 @@ def test_single_canonical_sla_preserves_partial_and_actual_provider(monkeypatch)
     assert details['actual_provider']=='Yahoo Taiwan' and details['coverage_status']=='partial'
     assert details['raw_count']==10 and details['usable_count']==3 and details['rejected_count']==7
     assert 'source_record_archive' not in details
-    assert stats['success_count']==0 and stats['degraded_enrichment_count']==1 and len(calls)==1
+    assert stats['success_count']==0 and stats['degraded_enrichment_count']==1 and len(calls)==2

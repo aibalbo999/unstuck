@@ -101,7 +101,9 @@ def _run_agent_once(
                 response = _generate_content(api_key, model_id, agent_num, prompt)
         _record_llm_token_usage(context, agent_num, response)
         result = process_agent_response(agent_num, _response_text(response), context, model_id=model_id, completion_diagnostics=response_diagnostics(response))
-        _validate_agent_result(result)
+        from memo_output_completion import incomplete_memo_roles
+        if not any(role["agent"] == agent_num for role in incomplete_memo_roles(context)):
+            _validate_agent_result(result)
     except Exception as exc:
         propagate_admission_cancel(exc)
         emit_context_error(
@@ -207,7 +209,9 @@ async def _run_agent_once_async(
                     )
         _record_llm_token_usage(context, agent_num, response)
         result = process_agent_response(agent_num, _response_text(response), context, model_id=model_id, completion_diagnostics=response_diagnostics(response))
-        _validate_agent_result(result)
+        from memo_output_completion import incomplete_memo_roles
+        if not any(role["agent"] == agent_num for role in incomplete_memo_roles(context)):
+            _validate_agent_result(result)
     except (Exception, asyncio.CancelledError) as exc:
         propagate_admission_cancel(exc)
         await emit_context_error_async(

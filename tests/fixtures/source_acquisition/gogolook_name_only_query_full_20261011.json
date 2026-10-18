@@ -1,0 +1,174 @@
+{
+  "url": "https://news.google.com/rss/search?q=%22Gogolook%22+when%3A30d&hl=zh-TW&gl=TW&ceid=TW%3Azh-Hant",
+  "bytes": 32895,
+  "sha256": "f9df6239a1175a2db1e148abed615e2039dbaadce824d3a10fd8ef17de8d3a2b",
+  "retrieved_at": 1791716918.7041678,
+  "company_data": {
+    "ticker": "6902.TW",
+    "company_name": "GOGOLOOK-創 / Gogolook Co., Ltd.",
+    "company_identity": {
+      "ticker": "6902.TW",
+      "instrument_type": "EQUITY",
+      "instrument_type_source": "yfinance quoteType",
+      "stock_id": "6902",
+      "official_name": "GOGOLOOK-創",
+      "legal_name": null,
+      "display_name": "GOGOLOOK-創 / Gogolook Co., Ltd.",
+      "english_names": [
+        "Gogolook Co., Ltd.",
+        "GOGOLOOK CO LTD"
+      ],
+      "allowed_aliases": [
+        "GOGOLOOK-創",
+        "GOGOLOOK-創 / Gogolook Co., Ltd.",
+        "Gogolook Co., Ltd.",
+        "6902.TW",
+        "6902",
+        "GOGOLOOK CO LTD"
+      ],
+      "forbidden_aliases": [],
+      "industry_categories": [
+        "創新版股票",
+        "創新板股票",
+        "數位雲端"
+      ],
+      "same_industry_peers": [
+        {
+          "stock_id": "7722",
+          "stock_name": "LINEPAY"
+        },
+        {
+          "stock_id": "6997",
+          "stock_name": "博弘"
+        },
+        {
+          "stock_id": "7714",
+          "stock_name": "創泓科技"
+        },
+        {
+          "stock_id": "6925",
+          "stock_name": "意藍"
+        },
+        {
+          "stock_id": "7747",
+          "stock_name": "昕奇雲端"
+        },
+        {
+          "stock_id": "7547",
+          "stock_name": "碩網"
+        },
+        {
+          "stock_id": "7721",
+          "stock_name": "微程式"
+        },
+        {
+          "stock_id": "7765",
+          "stock_name": "中華資安"
+        },
+        {
+          "stock_id": "7738",
+          "stock_name": "東聯互動"
+        },
+        {
+          "stock_id": "6614",
+          "stock_name": "資拓宏宇"
+        },
+        {
+          "stock_id": "6910",
+          "stock_name": "德鴻"
+        },
+        {
+          "stock_id": "7805",
+          "stock_name": "威聯通"
+        },
+        {
+          "stock_id": "7839",
+          "stock_name": "達人網"
+        },
+        {
+          "stock_id": "6565",
+          "stock_name": "物聯"
+        },
+        {
+          "stock_id": "6473",
+          "stock_name": "美賣*"
+        },
+        {
+          "stock_id": "6165",
+          "stock_name": "浪凡"
+        },
+        {
+          "stock_id": "7904",
+          "stock_name": "任開數位"
+        },
+        {
+          "stock_id": "7943",
+          "stock_name": "鴻璟科技"
+        },
+        {
+          "stock_id": "7785",
+          "stock_name": "北祥科服"
+        },
+        {
+          "stock_id": "7781",
+          "stock_name": "昕力資*"
+        },
+        {
+          "stock_id": "7835",
+          "stock_name": "永悅健康-創"
+        },
+        {
+          "stock_id": "7823",
+          "stock_name": "奧義賽博-KY創"
+        },
+        {
+          "stock_id": "7826",
+          "stock_name": "極風雲創"
+        },
+        {
+          "stock_id": "8487",
+          "stock_name": "愛爾達-創"
+        },
+        {
+          "stock_id": "8454",
+          "stock_name": "富邦媒"
+        },
+        {
+          "stock_id": "6689",
+          "stock_name": "伊雲谷"
+        },
+        {
+          "stock_id": "7551",
+          "stock_name": "知識科技"
+        },
+        {
+          "stock_id": "6984",
+          "stock_name": "ACpay"
+        },
+        {
+          "stock_id": "7737",
+          "stock_name": "凱鈿"
+        },
+        {
+          "stock_id": "7745",
+          "stock_name": "紅陽"
+        },
+        {
+          "stock_id": "6906",
+          "stock_name": "現觀科"
+        },
+        {
+          "stock_id": "6950",
+          "stock_name": "科科科技-KY"
+        },
+        {
+          "stock_id": "3130",
+          "stock_name": "一零四"
+        }
+      ]
+    }
+  },
+  "source_kind": "full_unmodified_native_RSS_response",
+  "query": "\"Gogolook\" when:30d",
+  "no_full_articles_or_independence_verified": true
+}

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import httpx
 
 from config import (
@@ -20,6 +21,7 @@ from external_search_payloads import (
     parse_tavily_payload,
 )
 from external_search_types import SearchResult
+from news_fetchers import fetch_duckduckgo_news_strict
 from search_provider_runtime import observe_http_response
 from search_response_validation import (
     observed_json_get as _async_json_get, response_json as _response_json,
@@ -29,6 +31,7 @@ from search_response_validation import (
 
 BRAVE_SEARCH_URL = "https://api.search.brave.com/res/v1/web/search"
 BING_SEARCH_URL = BING_SEARCH_ENDPOINT
+BING_NEWS_RSS_URL = "https://www.bing.com/news/search"
 GDELT_DOC_URL = "https://api.gdeltproject.org/api/v2/doc/doc"
 GOOGLE_NEWS_RSS_URL = "https://news.google.com/rss/search"
 SERPAPI_SEARCH_URL = "https://serpapi.com/search.json"
@@ -53,6 +56,10 @@ async def fetch_provider_results(
         return await _fetch_brave_results(client, query, max_results=max_results)
     if provider == "bing":
         return await _fetch_bing_results(client, query, max_results=max_results)
+    if provider == "bing_news_rss":
+        return await _fetch_bing_news_rss_results(client, query, max_results=max_results)
+    if provider == "duckduckgo_news":
+        return await _fetch_duckduckgo_news_results(query, max_results=max_results)
     if provider == "tavily":
         return await _fetch_tavily_results(client, query, max_results=max_results)
     if provider == "serpapi":
@@ -86,6 +93,32 @@ async def _fetch_bing_results(client, query: str, *, max_results: int) -> list[S
     )
     _validate_payload(payload, "webPages")
     return parse_bing_payload(payload)
+
+
+async def _fetch_bing_news_rss_results(client, query: str, *, max_results: int) -> list[SearchResult]:
+    response = await client.get(
+        BING_NEWS_RSS_URL,
+        params={"q": query, "format": "rss"},
+        timeout=_FREE_PROVIDER_TIMEOUT_SECONDS,
+    )
+    observe_http_response(response)
+    response.raise_for_status()
+    _validate_rss(response.text)
+    return parse_news_rss_payload(
+        response.text, provider="bing_news_rss", fallback_source="Bing News RSS",
+    )[:max(1, int(max_results))]
+
+
+async def _fetch_duckduckgo_news_results(query: str, *, max_results: int) -> list[SearchResult]:
+    rows = await asyncio.to_thread(fetch_duckduckgo_news_strict, query, max_results)
+    return [
+        SearchResult(
+            title=row["title"], snippet=row["summary"], link=row["link"],
+            source=row["source"] or "DuckDuckGo News", published_at=row["published_date"],
+            provider="duckduckgo_news",
+        )
+        for row in rows
+    ][:max(1, int(max_results))]
 
 
 async def _fetch_tavily_results(client, query: str, *, max_results: int) -> list[SearchResult]:

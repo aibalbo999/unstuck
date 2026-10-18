@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from datetime import date
 import re
 from institutional_evidence_tail import pair_tail_complete
+from institutional_evidence_windows import _DATE, _WINDOW
 
 _AMOUNT = r'[+\-−]?\d[\d,]*(?:\.\d+)?'
 _VERB = r'淨買超|淨賣超|買超|賣超'
@@ -21,6 +22,30 @@ _COMPACT = re.compile(
     _day('1') + r'[與及和、]' + _day('2', optional_month=True)
     + r'(?:(?!外資|投信|自營商|法人|買超|賣超)[^\d。；;\n]){0,18}?分別'
     + rf'(?P<verb>{_VERB})' + _amount('1') + r'[與及和、]' + _amount('2'))
+_EXPLICIT_DAILY_PAIR = re.compile(
+    r'(?<![\d年月/\-])' + _day('1') + r'[與及和、]' + _day('2', optional_month=True)
+    + r'單日(?:三大法人|法人合計|法人|外資|投信|自營商)(?:轉為)?'
+    + rf'(?P<verb>{_VERB})[，,]分別(?:為|達)?'
+    + _amount('1') + r'[與及和、]' + _amount('2'))
+_SUBJECT = re.compile(r'三大法人|法人合計|法人|外資|投信|自營商')
+
+
+def _explicit_daily_scope_closed(text, pair, ordinary_pattern):
+    # This new grammar certifies exactly two dates in its own clause. Never
+    # discard a leading range, another date or a trailing population qualifier.
+    before = re.split(r'[。；;\n]', text[:pair.start()])[-1]
+    if _DATE.search(before) or _WINDOW.search(before):
+        return False
+    tail = re.split(r'[。!?！？\n]', text[pair.end():], maxsplit=1)[0]
+    subjects = list(_SUBJECT.finditer(tail))
+    following = list(ordinary_pattern.finditer(tail))
+    for index, subject in enumerate(subjects):
+        claim = next((m for m in following if m.start() >= subject.end()), None)
+        # A later explicitly separated subject may own its own ordinary claim.
+        if (claim is None or not re.search(r'[；;，,]$', tail[:subject.start()])
+                or index + 1 < len(subjects) and subjects[index + 1].start() < claim.start()):
+            return False
+    return True
 _START_PEAK = re.compile(
     _day('1') + r'(?:至|到)' + _day('end')
     + rf'[)）](?:{_VERB})[，,]單日(?P<verb>{_VERB})(?:量)?由'
@@ -47,10 +72,13 @@ class _DatedClaim:
 def date_pair_claims(text, existing_claims, ordinary_pattern):
     """Preserve every ordinary claim; expand only a complete two-value grammar."""
     claims = list(existing_claims)
-    for kind, pattern in (('ordered_pair', _COMPACT), ('start_peak', _START_PEAK)):
+    for kind, pattern in (('ordered_pair', _COMPACT), ('explicit_daily', _EXPLICIT_DAILY_PAIR),
+                          ('start_peak', _START_PEAK)):
         for pair in pattern.finditer(text):
             # A third date/value changes scope; do not reinterpret a suffix as a pair.
             ambiguous = bool(re.search(r'\d日?[與及和、]$', text[:pair.start()])) or not pair_tail_complete(text, pair.end(), ordinary_pattern)
+            if kind == 'explicit_daily':
+                ambiguous = ambiguous or not _explicit_daily_scope_closed(text, pair, ordinary_pattern)
             claims = [(m, population) for m, population in claims if m.start() != pair.start('verb')]
             claims.extend([(_DatedClaim(pair, 1, kind, ambiguous), None), (_DatedClaim(pair, 2, kind, ambiguous), None)])
     return sorted(claims, key=lambda item: item[0].start())

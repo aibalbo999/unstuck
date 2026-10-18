@@ -44,13 +44,14 @@ def hydrate_report_from_index_row(
     recorded = safe_text(stored.get("status")).strip().lower() in {
         "passed", "warning", "blocked", "failed", "rejected",
     }
-    projected = project_content_credibility(snapshot) if project_current_quality and recorded else None
     projected_evidence = None
     if project_current_quality and recorded_evidence:
         projected_evidence = project_evidence_exit_gate(
             snapshot,
             _load_markdown(storage, filename, load_item),
         )
+    projection_snapshot = dict(snapshot, evidence_exit_gate=projected_evidence) if projected_evidence is not None else snapshot
+    projected = project_content_credibility(projection_snapshot) if project_current_quality and recorded else None
     return {
         "ticker": safe_text(row.get("ticker")).strip(),
         "filename": filename,

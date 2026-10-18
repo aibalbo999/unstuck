@@ -20,6 +20,7 @@ PROMPT_COUNT_COMPARABLE_SOURCES = {
     "macro_indicators",
     "chip_data",
     "alternative_data",
+    "esg_occupational_safety",
     "social_sentiment",
     "sec_edgar",
     "taiwan_open_data",

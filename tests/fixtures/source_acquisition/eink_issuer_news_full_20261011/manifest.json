@@ -1,0 +1,40 @@
+{
+  "kind": "complete_original_bytes_copied_for_isolated_tests",
+  "parts": {
+    "otc_master": {
+      "url": "https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap03_O",
+      "filename": "otc_master.gz",
+      "bytes": 1074408,
+      "sha256": "50c431da2be02964a1d149cff1415d1ff8d2a320c186e43b22b62ebafdd52e07",
+      "native_retrieved_at": 1791702999.052227
+    },
+    "locale_anchor": {
+      "url": "https://www.eink.com/news",
+      "filename": "locale_anchor.gz",
+      "bytes": 67824,
+      "sha256": "709cdb809d58f49ef9c96e04aa7485f1b26725c5e8517a5ec92f5d0f5d1e3970",
+      "native_retrieved_at": 1791703799.385938
+    },
+    "zh_index": {
+      "url": "https://tw.eink.com/news",
+      "filename": "zh_index.gz",
+      "bytes": 67012,
+      "sha256": "02af361eb9d6d339aae8e3e03f6cfccd56ac485de3a887c4f5535c85741157ea",
+      "native_retrieved_at": 1791706722.936022
+    },
+    "zh_article_1": {
+      "url": "https://tw.eink.com/news/detail/3L5OW59BOY",
+      "filename": "zh_article_1.gz",
+      "bytes": 54906,
+      "sha256": "ad314cef92454a748506571fdf6048cf771adeb02632b7fda4ebd52372541db4",
+      "native_retrieved_at": 1791706723.497288
+    },
+    "zh_article_2": {
+      "url": "https://tw.eink.com/news/detail/SXLRVIQTJF",
+      "filename": "zh_article_2.gz",
+      "bytes": 59861,
+      "sha256": "1ef193d4d70a851b83cd183f0934aa4cf2ad29767edf419c5406b913caffe03d",
+      "native_retrieved_at": 1791706724.0458581
+    }
+  }
+}

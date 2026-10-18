@@ -29,6 +29,8 @@ from api_routes.maintenance import MaintenanceRouteDeps, create_maintenance_rout
 from api_routes.observability import ObservabilityRouteDeps, create_observability_router
 from api_routes.ops import OpsRouteDeps, create_ops_router
 from api_routes.performance import PerformanceRouteDeps, create_performance_router
+from performance_read_executor import performance_reads, read_performance_stats
+from tracking_read_executor import tracking_reads, tracking_preparations, quality_reads, read_tracking_items, read_quality_audit
 from api_routes.pipeline_modes import create_pipeline_modes_router
 from api_routes.reports import ReportRouteDeps, create_reports_router
 from api_routes.review import ReviewRouteDeps, create_review_router
@@ -141,6 +143,10 @@ def get_data_refresh_service(app: FastAPI):
     return get_api_runtime_for_app(app).data_refresh_service
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
+    performance_reads.open()
+    tracking_reads.open()
+    tracking_preparations.open()
+    quality_reads.open()
     for warning in validate_runtime_settings():
         emit_log(f"設定檢查警告：{warning}")
     existing_runtime = getattr(_app.state, "runtime", None)
@@ -160,6 +166,10 @@ async def lifespan(_app: FastAPI):
     finally:
         from llm_transport import close_cached_clients_async
 
+        quality_reads.close()
+        tracking_preparations.close()
+        tracking_reads.close()
+        performance_reads.close()
         await close_cached_clients_async()
         runtime.close()
 def create_app() -> FastAPI:
@@ -213,6 +223,7 @@ def create_app() -> FastAPI:
     app.include_router(create_pipeline_modes_router())
     app.include_router(create_performance_router(PerformanceRouteDeps(
         get_output_dir=lambda: OUTPUT_DIR,
+        read_performance=read_performance_stats,
     )))
     app.include_router(create_review_router(ReviewRouteDeps(
         get_output_dir=lambda: OUTPUT_DIR,
@@ -222,6 +233,7 @@ def create_app() -> FastAPI:
         get_output_dir=lambda: OUTPUT_DIR,
         get_refresh_service=lambda: get_data_refresh_service(app),
         require_mutation_authorized=require_mutation_authorized,
+        read_tracking=read_tracking_items,
     )))
     app.include_router(create_observability_router(ObservabilityRouteDeps(
         get_provider_sla_summary=lambda limit: get_provider_sla_summary(limit),
@@ -240,6 +252,8 @@ def create_app() -> FastAPI:
         create_job=lambda ticker, pipeline_id: create_runtime_job(ticker, pipeline_id),
         find_active_job=lambda ticker, pipeline_id: find_queue_backed_active_job(ticker, pipeline_id),
         require_mutation_authorized=require_mutation_authorized,
+        read_performance=read_performance_stats,
+        read_quality_audit=read_quality_audit,
     )))
     app.include_router(create_maintenance_router(MaintenanceRouteDeps(
         require_mutation_authorized=require_mutation_authorized,

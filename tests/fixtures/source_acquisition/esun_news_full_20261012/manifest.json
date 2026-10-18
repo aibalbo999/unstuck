@@ -1,0 +1,41 @@
+{
+  "complete_native_originals": true,
+  "components_retrieved_at_not_renewed": true,
+  "parts": {
+    "master": {
+      "url": "https://openapi.twse.com.tw/v1/opendata/t187ap03_L",
+      "filename": "master.raw.gz",
+      "sha256": "ace3e78957b763b9e99b4f3d222b6838c2b176778bc5a7295d3754e1dafe4865",
+      "bytes": 1327578,
+      "retrieved_at": 1791665479.241487
+    },
+    "index": {
+      "url": "https://www.esunfhc.com/zh-tw/news-center/news-center/news",
+      "filename": "index.raw.gz",
+      "sha256": "0eca489a6ebfeae3477a76f39037377c9a239213fc98961ddeba0c08fcd8e63f",
+      "bytes": 162281,
+      "retrieved_at": 1791735744.752115
+    },
+    "article0": {
+      "url": "https://www.esunfhc.com/zh-tw/news-center/news-center/news/detail?id=5D38564ADB1642839FFB2B82A732E9A6&p=148DB1EBDC2B47629ED09DC9820A2155",
+      "filename": "article0.raw.gz",
+      "sha256": "7ba20ebafe43067e02ac4a9f389fc34fdf9f26060111c7da27ad045784513778",
+      "bytes": 107729,
+      "retrieved_at": 1791735821.2607749
+    },
+    "article1": {
+      "url": "https://www.esunfhc.com/zh-tw/news-center/news-center/news/detail?id=1E8E47CF311B43E2B558F06B9CF79A55&p=148DB1EBDC2B47629ED09DC9820A2155",
+      "filename": "article1.raw.gz",
+      "sha256": "feb09d64dae1e08f311e5954bf6906bdbf5ab19a0573ed871fbb76343e1cf4ec",
+      "bytes": 103961,
+      "retrieved_at": 1791735821.654398
+    },
+    "article2": {
+      "url": "https://www.esunfhc.com/zh-tw/news-center/news-center/news/detail?id=41D5482FB6E94E50AAD7FFD0F70EAC89&p=148DB1EBDC2B47629ED09DC9820A2155",
+      "filename": "article2.raw.gz",
+      "sha256": "e93e92f60885b434ac3a0e366ce5f62a975fb3398500ee1ad503a80c9f280626",
+      "bytes": 103418,
+      "retrieved_at": 1791736236.178702
+    }
+  }
+}

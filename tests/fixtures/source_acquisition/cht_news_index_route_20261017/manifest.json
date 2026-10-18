@@ -1,0 +1,9 @@
+{
+  "source_url": "https://www.cht.com.tw/zh-tw/home/cht/messages",
+  "cache_fetched_at_epoch": 1792201642.4599779,
+  "http_status": "unknown_in_shared_provider_cache",
+  "http_status_observed": false,
+  "raw_bytes": 179585,
+  "raw_sha256": "2169ea78d01d3c9a9e9621663435af62d0fe859cbbb36d78b69799106b596777",
+  "fixture": "index.html.gz"
+}

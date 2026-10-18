@@ -12,6 +12,7 @@ from typing import Any
 from agent_state import AgentReport, AgentState
 from prompt_evidence import is_internal_prompt_key, prompt_evidence_copy
 from prompt_loader import load_agent_prompt_config
+from prompt_peer_projection import comparable_peer_rows
 from short_term_market_data import build_short_term_market_context
 
 
@@ -196,6 +197,17 @@ def state_view_for(role: str | int, state: AgentState) -> dict[str, Any]:
             if section == "quant_metrics":
                 selected_keys.extend(("contract_version", "metric_status", "input_provenance", "calculation_methods", "assumptions"))
             view[section] = _pick(value, selected_keys)
+            if section == "normalized_financials":
+                from data_fetch.financial_history_basis import COMMON_FIELDS, prompt_history_basis, INSTITUTION_SCHEMAS
+                if any(key in view[section] for key in COMMON_FIELDS):
+                    basis = prompt_history_basis(value)
+                    if basis:
+                        view[section]["financial_history_basis"] = basis
+                        if basis.get("statement_schema") in INSTITUTION_SCHEMAS:
+                            view[section]["net_revenue_history"] = value["net_revenue_history"]
+            if section == "peer_context" and isinstance(view[section].get("dynamic_peer_metrics"), list):
+                view[section]["dynamic_peer_metrics"] = comparable_peer_rows(
+                    view[section]["dynamic_peer_metrics"])
     if str(role) in {"15", "16"} and "short_term_market_context" not in view:
         view["short_term_market_context"] = build_short_term_market_context(state.normalized_financials)
     return _jsonable(prompt_evidence_copy(view))

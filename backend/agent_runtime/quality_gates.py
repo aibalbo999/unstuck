@@ -30,6 +30,21 @@ from .quality_structured_outputs import try_parse_structured_output as _try_pars
 from .routing import get_runtime_model_sequence, is_agent_execution_failure
 from .single_agent import run_single_agent_async
 
+async def _memo_partial_result(agent_num, result, context, progress_callback):
+    from memo_output_completion import incomplete_memo_roles
+    if not any(role['agent'] == agent_num for role in incomplete_memo_roles(context)):
+        return False
+    issue = f'Agent {agent_num} 輸出未完整，停止自動重試與後續整合；待有限次復驗。'
+    if issue not in context.setdefault('blocking_issues', []):
+        context['blocking_issues'].append(issue)
+    context.setdefault('analyses', {})[agent_num] = result
+    role = next(role for role in incomplete_memo_roles(context) if role['agent'] == agent_num)
+    await emit_status_async(progress_callback, issue, phase='analysis_output_incomplete',
+                            agent=agent_num, finish_reasons=role['receipt']['finish_reasons'],
+                            retry_scheduled=False, recoverable=True)
+    return True
+
+
 async def run_agent_with_quality_gates_async(
     agent_num: int,
     data: StockData,
@@ -105,6 +120,8 @@ async def run_agent_with_quality_gates_async(
     result = await initial_or_checkpointed_draft(agent_num, data, context, rotator, run_single_agent_async)
     raise_if_cancelled(context)
     result = sanitize_model_output(result)
+    if await _memo_partial_result(agent_num, result, context, progress_callback):
+        return agent_num, result
     try:
         parsed_ok, parsed_result = _try_parse_structured_output(agent_num, result, context)
         if parsed_ok:
@@ -127,6 +144,8 @@ async def run_agent_with_quality_gates_async(
         raise
     except Exception as exc:
         emit_log(f"  ⚠️  Agent {agent_num} 結構化輸出即時驗證失敗，略過同節點重試：{str(exc)[:120]}")
+    if await _memo_partial_result(agent_num, result, context, progress_callback):
+        return agent_num, result
     await emit_status_async(
         progress_callback,
         f"Agent {agent_num}（{agent_position}/{agent_total}）正在執行輸出清洗與品質檢查...",
@@ -167,6 +186,8 @@ async def run_agent_with_quality_gates_async(
         raise_if_cancelled(context)
         retry_result = await run_single_agent_async(agent_num, data, context, rotator)
         retry_result = sanitize_model_output(retry_result)
+        if await _memo_partial_result(agent_num, retry_result, context, progress_callback):
+            return agent_num, retry_result
         retry_prompt_leak_issues = validate_prompt_leakage(retry_result)
         if retry_prompt_leak_issues:
             emit_log("  🚨 重寫輸出仍偵測到 prompt 洩漏，停止產生正式報告。")
@@ -212,6 +233,8 @@ async def run_agent_with_quality_gates_async(
             emit_status=emit_status_async,
             parse_structured_output=_try_parse_structured_output,
         )
+        if await _memo_partial_result(agent_num, result, context, progress_callback):
+            return agent_num, result
         if is_agent_execution_failure(result):
             context.setdefault("blocking_issues", []).append(f"Agent {agent_num} {agent_name}: {result}")
             context["analyses"][agent_num] = result

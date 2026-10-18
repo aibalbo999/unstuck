@@ -10,8 +10,8 @@ from short_term_market_data import build_short_term_market_context
 TEXT_FIELDS = ("trade_direction", "entry_zone", "target_price", "stop_loss",
                "support_level", "resistance_level", "core_catalyst", "risk_level")
 REF_FIELDS = ("support_source_refs", "resistance_source_refs", "catalyst_source_refs")
-CONTRACT_VERSION = "trade-sources:v3"
-SUPPORTED_VERSIONS = {"trade-sources:v1", "trade-sources:v2", CONTRACT_VERSION}
+CONTRACT_VERSION = "trade-sources:v4"
+SUPPORTED_VERSIONS = {"trade-sources:v1", "trade-sources:v2", "trade-sources:v3", CONTRACT_VERSION}
 # Price/volume observations cannot establish who traded or ownership changes.
 _INSTITUTIONAL_CATALYST = re.compile(r"外資|投信|自營商|法人(?!說明會)|大戶|持股|買超|賣超|籌碼|foreign\s+investor|institutional|ownership", re.I)
 
@@ -51,9 +51,11 @@ def missing_trade_fields(payload, *, context=None):
         key for key in REF_FIELDS if not isinstance(payload.get(key), list)
     ]
     manifest = context.get("_trade_source_manifest") if isinstance(context, dict) else None
-    if isinstance(manifest, dict) and manifest.get("version") == CONTRACT_VERSION:
+    if isinstance(manifest, dict) and manifest.get("version") in {"trade-sources:v3", CONTRACT_VERSION}:
         from trade_catalyst_semantics import SEMANTIC_FIELDS
         missing.extend(key for key in SEMANTIC_FIELDS if key not in payload)
+        if manifest.get("version") == CONTRACT_VERSION and "price_level_evidence" not in payload:
+            missing.append("price_level_evidence")
     return missing
 
 
@@ -91,10 +93,16 @@ def source_block(data):
     text = ("【trade-source:" + fingerprint + "】\n" + encoded +
             "\n可引用路徑：" + json.dumps(allowed, ensure_ascii=False, separators=(",", ":")) +
             source_guidance_text(catalog) + "\n【/trade-source】\n來源引用只使用以上完整區塊中實際存在且非空的 short_term_market_context 路徑；"
+            "price_level_evidence須明示：每個非N/A支撐壓力各一筆，field為support_level或resistance_level；kind=direct_reference時operation=identity且只一個純價格ref，數值須與來源相符。"
+            "kind=derived時operation只用min/max/mean且inputs列全部純價格來源，結果必須可重算；不能只寫derived逃避引用數值矛盾。"
+            "inputs依對應source_refs順序，逐項ref、observed_date、window_sessions、price_basis與原catalog一致；缺metadata用null，不得杜撰期間、日期或原始/還原價範圍。"
+            "日K窗口是1個交易日，sma_N/ema_N/atr_N/high_Nd/low_Nd窗口是N個交易日；保留引用bar原日期，不以最新日期替代。"
             "不得自行補造路徑。三組 source_refs 均須輸出。Long/Short 缺少支撐、壓力或催化證據時明示資料限制，"
             "K 線與均線只支持價格與技術條件；RSI、MACD、量能只能作技術催化，不能作價格支撐壓力。"
+            "宣稱5／10／20日均線多頭排列前，須逐值確認 SMA5 > SMA10 > SMA20；不成立時只能如實描述數值與排列，不能稱多頭排列。"
             "法人主張須引用 institutional_evidence 中對應單位、統計主體、期間的完整record，不能以合計冒充外資；"
             "具體寫出主體、期間、觀測日、數值與單位；沒有對應record的『外資累積』或『法人買超』不可放進核心催化。"
+            "單一累計record不能證明近幾日買賣交錯、連續或轉向；沒有完整逐日來源時不得寫成已觀測訊號。"
             "Neutral 也必須遵守相同證據要求；技術觀望可只引用對應技術指標並列出重新評估條件。"
             "現況與未來條件分欄：observed_signal 只寫已觀測事實，observed_source_refs 逐項列其完整來源；"
             "recheck_condition 使用『等待…後再重新評估』表達純未來條件，不能混入已發生主張。"
@@ -105,6 +113,7 @@ def source_block(data):
             "event_calendar 整個物件及 availability 不可作催化引用；日曆缺資料只能說未知，known_empty只代表提供區間內無紀錄。"
             "recent_news 只支持逐字引用的新聞標題，請明示新聞報導並保留完整標題；出版日期不是未來事件日，不支持確定未來舉行的主張。未知或過期來源不可推定。"
             "core_catalyst 僅原文複述 observed_signal 或完整重新評估條件；財務警示與事件另欄，禁止加入新的無來源主張。"
+            "即期 free_cash_flow_raw 的期間與完整 CapEx 未核實，不得在 observed_signal 或 core_catalyst 中寫成已確認的自由現金流事實；風險限制由系統 financial_risk_flags 表示。"
             "Neutral 必須說明觀望及重新評估條件；禁止為通過檢查強迫方向。")
     return text, catalog, fingerprint
 
@@ -178,6 +187,7 @@ def reference_is_evidence(catalog, ref, role):
                 and isinstance(value, dict) and bool(value.get("date")) and bool(value.get("source")) and bool(value.get("label")))
     if role == "catalyst_source_refs" and re.fullmatch(r"short_term_market_context.institutional_evidence.records\[\d+\]", ref):
         return (isinstance(value, dict) and value.get("unit") in {"shares", "thousand_shares"}
+                and value.get("lineage_status") != "mismatch"
                 and bool(value.get("population")) and bool(value.get("window"))
                 and bool(value.get("observed_at")) and bool(value.get("provider"))
                 and isinstance(value.get("value"), (int, float)) and not isinstance(value.get("value"), bool)
@@ -216,6 +226,9 @@ def bind_trade_payload(payload, context):
             result[key] = valid if len(valid) == len(refs) else []
         if payload.get("trade_direction") in {"Long", "Short"} and not result.get(key):
             reasons.append("missing_" + key)
+    if bound and manifest.get("visible"):
+        from trade_price_reference import price_reference_issues
+        reasons.extend(price_reference_issues(payload, manifest.get("catalog", {})))
     if bound and not manifest.get("visible"):
         reasons.append("source_block_not_visible")
     if bound:
@@ -236,9 +249,32 @@ def bind_trade_payload(payload, context):
         if observed_issues:
             reasons.extend("observed_" + issue for issue in observed_issues)
             result["observed_source_refs"] = []
+        if not result.get("observed_source_refs"):
+            # A rejected observation cannot remain visible as an established
+            # fact. Rejection diagnostics retain its preview and fingerprint.
+            result["observed_signal"] = None
     # New semantic failures cannot leave an executable legacy reference set.
     if reasons:
         result["catalyst_source_refs"] = []
+        # Degradation invalidates the executable catalyst, not a separately
+        # validated observation. Do not duplicate that fact without its refs.
+        # The original catalyst remains in rejection_diagnostics below.
+        duplicated_fact = observation.strip()
+        for policy_prefix in (
+            "來源不足，原方向不可執行；等待可驗證來源後重新評估；",
+            "資料不足，原方向不可執行；且來源不足，等待可驗證來源後重新評估；",
+            "資料不足，原方向不可執行；",
+        ):
+            if duplicated_fact.startswith(policy_prefix):
+                duplicated_fact = duplicated_fact[len(policy_prefix):].strip()
+                break
+        if (observed and duplicated_fact.rstrip("。")
+                and duplicated_fact.rstrip("。") in observed.rstrip("。")
+                and result.get("observed_source_refs")):
+            result["core_catalyst"] = (
+                "原交易構想未通過來源與價格檢查；已核驗的日期、數值及來源保留於 observed_signal 與 observed_source_refs；"
+                "重新核對原退件項目後才可評估交易條件。"
+            )
     if payload.get("trade_direction") in {"Long", "Short"} and any(
         payload.get(key, "").strip().upper() in {"N/A", "NA", "資料不足"} for key in ("entry_zone", "target_price", "stop_loss")
     ):
@@ -250,6 +286,8 @@ def bind_trade_payload(payload, context):
                   "contract_version": CONTRACT_VERSION, "repair_attempted": bool(context.get("_trade_source_repair_attempted"))}
     if bound:
         assessment["source_fingerprint"] = manifest.get("fingerprint")
+        from trade_price_reference import price_reference_checks
+        assessment["price_reference_checks"] = price_reference_checks(payload, manifest.get("catalog", {}))
         if degraded:
             from trade_source_diagnostics import source_rejection_diagnostics
             assessment["rejection_diagnostics"] = source_rejection_diagnostics(payload, manifest, reasons, result, data=context.get("data", {}))

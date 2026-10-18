@@ -31,6 +31,7 @@ def test_source_guidance_schema_does_not_reuse_old_normalized_agent24_cache(monk
     monkeypatch.setattr(step_cache, 'get_cache_json', cache.get)
     current = step_cache.build_agent_step_cache_key(24, data, context, 'gemini-test', 'unchanged source')
     assert step_cache.get_cached_agent_step(current) is None
-    # Agent23 shares institutional input but its output guidance did not change.
+    # Agent23 retains its current memo completion contract; this change is role24 guidance.
     assert step_cache.build_agent_step_cache_key(23, data, context, 'gemini-test', 'unchanged source') == _legacy_key(
-        23, data, context, extra_fields={'institutional_evidence_contract': 'typed-flow:v2'})
+        23, data, context, extra_fields={'institutional_evidence_contract': 'typed-flow:v2',
+            'memo_completion_contract': 'memo-output-completion:v1-low-thinking'})

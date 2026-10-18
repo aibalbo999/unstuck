@@ -1,0 +1,324 @@
+{
+  "origin": "Native public MOPS JSON HTTP response bodies, no credentials or runtime writes.",
+  "captured_at": "2026-10-17T14:48:20.496687+08:00",
+  "manifest": [
+    {
+      "url": "https://mops.twse.com.tw/mops/api/t05st01",
+      "query": {
+        "companyId": "2838",
+        "year": "115",
+        "month": "9",
+        "firstDay": "17",
+        "lastDay": "30"
+      },
+      "http_status": 200,
+      "response_bytes": 1091,
+      "sha256": "3662e272cca585496c2b503f25a3e64f46f2b133ac0744c6cb4eacada8367d03"
+    },
+    {
+      "url": "https://mops.twse.com.tw/mops/api/t05st01_detail",
+      "query": {
+        "companyId": "2838",
+        "marketKind": "sii",
+        "enterDate": "1150921",
+        "serialNumber": "1"
+      },
+      "http_status": 200,
+      "response_bytes": 1803,
+      "sha256": "6aaf084e10a4d6952fda7fc2d4f3f28cffe0f06e95a0de9a35c6b28edf9f8cc4"
+    },
+    {
+      "url": "https://mops.twse.com.tw/mops/api/t05st01",
+      "query": {
+        "companyId": "2838",
+        "year": "115",
+        "month": "10",
+        "firstDay": "1",
+        "lastDay": "17"
+      },
+      "http_status": 200,
+      "response_bytes": 1004,
+      "sha256": "6a14d18f414c62842f50ec0e121f69bbe4d747fbc600910dca65218c2add9a19"
+    },
+    {
+      "url": "https://mops.twse.com.tw/mops/api/t05st01_detail",
+      "query": {
+        "companyId": "2838",
+        "marketKind": "sii",
+        "enterDate": "1151006",
+        "serialNumber": "1"
+      },
+      "http_status": 200,
+      "response_bytes": 2574,
+      "sha256": "eb7abf70a03fa66c510840a09037b0b97bd2b2937ac3b33459bc0e7237930735"
+    }
+  ],
+  "issuers": {
+    "2838.TW": {
+      "indexes": {
+        "9": {
+          "code": 200,
+          "message": "查詢成功",
+          "result": {
+            "marketName": "上市公司",
+            "companyId": "2838",
+            "tradingUrl": "https://mopsov.twse.com.tw/mops/web/ajax_t211sb05?parameters=cd311393fac67115f8379c750f125940b6f67cc2e3bae29d5e84c6f810625aea1ac0acc2404d43cb0735ee58c4dce607ecae32a4d750adfbee83ed57b77e0680",
+            "financialUrl": "https://mopsov.twse.com.tw/mops/web/ajax_t211sb01?parameters=cd311393fac67115f8379c750f125940c6aef014273813ea6f45393cd669eea0e4f688ac21fab49d2aff59acbc5754eb697c3035aecb928c4d5d6cd05f86cceb",
+            "data": [
+              [
+                "2838",
+                "聯邦銀",
+                "115/09/21",
+                "18:17:20",
+                "本公司代子公司聯邦租賃公告向關係人聯邦商業\r\n銀行股份有限公司處分使用權資產\r\n(提前終止租約)",
+                {
+                  "apiName": "t05st01_detail",
+                  "parameters": {
+                    "companyId": "2838",
+                    "marketKind": "sii",
+                    "enterDate": "1150921",
+                    "serialNumber": "1"
+                  }
+                }
+              ]
+            ],
+            "titles": [
+              {
+                "main": "公司代號",
+                "sub": []
+              },
+              {
+                "main": "公司名稱",
+                "sub": []
+              },
+              {
+                "main": "發言日期",
+                "sub": []
+              },
+              {
+                "main": "發言時間",
+                "sub": []
+              },
+              {
+                "main": "主旨",
+                "sub": []
+              },
+              {
+                "main": "詳細資料",
+                "sub": []
+              }
+            ],
+            "companyAbbreviation": "聯邦銀"
+          },
+          "datetime": "115/10/17 14:48:20"
+        },
+        "10": {
+          "code": 200,
+          "message": "查詢成功",
+          "result": {
+            "marketName": "上市公司",
+            "companyId": "2838",
+            "tradingUrl": "https://mopsov.twse.com.tw/mops/web/ajax_t211sb05?parameters=cd311393fac67115f8379c750f125940b6f67cc2e3bae29d5e84c6f810625aea1ac0acc2404d43cb0735ee58c4dce607ecae32a4d750adfbee83ed57b77e0680",
+            "financialUrl": "https://mopsov.twse.com.tw/mops/web/ajax_t211sb01?parameters=cd311393fac67115f8379c750f125940c6aef014273813ea6f45393cd669eea0e4f688ac21fab49d2aff59acbc5754eb697c3035aecb928c4d5d6cd05f86cceb",
+            "data": [
+              [
+                "2838",
+                "聯邦銀",
+                "115/10/06",
+                "17:47:00",
+                "公布本行115年9月自結盈餘相關資訊。",
+                {
+                  "apiName": "t05st01_detail",
+                  "parameters": {
+                    "companyId": "2838",
+                    "marketKind": "sii",
+                    "enterDate": "1151006",
+                    "serialNumber": "1"
+                  }
+                }
+              ]
+            ],
+            "titles": [
+              {
+                "main": "公司代號",
+                "sub": []
+              },
+              {
+                "main": "公司名稱",
+                "sub": []
+              },
+              {
+                "main": "發言日期",
+                "sub": []
+              },
+              {
+                "main": "發言時間",
+                "sub": []
+              },
+              {
+                "main": "主旨",
+                "sub": []
+              },
+              {
+                "main": "詳細資料",
+                "sub": []
+              }
+            ],
+            "companyAbbreviation": "聯邦銀"
+          },
+          "datetime": "115/10/17 14:48:21"
+        }
+      },
+      "originals": {
+        "{\"companyId\": \"2838\", \"enterDate\": \"1150921\", \"marketKind\": \"sii\", \"serialNumber\": \"1\"}": {
+          "code": 200,
+          "message": "查詢成功",
+          "result": {
+            "marketName": "上市公司",
+            "companyId": "2838",
+            "data": [
+              [
+                "1",
+                "115/09/21",
+                "18:17:20",
+                "楊巨昌                                                                                                                                                                                                  ",
+                "副總經理            ",
+                "(02)2718-0001       ",
+                "本公司代子公司聯邦租賃公告向關係人聯邦商業\r\n銀行股份有限公司處分使用權資產\r\n(提前終止租約)                                                                                          ",
+                "第20款",
+                "115/09/21",
+                "1. 原公告日期：\r\n111/04/25\r\n2. 簡述原公告申報內容：\r\n本公司向關係人聯邦商業銀行股份有限公司承租高雄市三民區九如二路495號3樓\r\n及B1第15號車位，租期至116年4月30日止，因組織變動業務整併，於115年10月\r\n01日提前終止租約。\r\n3. 變動緣由及主要內容：\r\n於民國115年10月01日提前終止租約，使用權資產減少金額合計：164,941元。\r\n4. 變動後對公司財務業務之影響：\r\n無。\r\n5. 其他應敘明事項：\r\n無。"
+              ]
+            ],
+            "footer": [
+              "以上資料均由各公司依發言當時所屬市場別之規定申報後，由本系統對外公佈，資料如有虛偽不實，均由該公司負責。"
+            ],
+            "header": {
+              "note": [],
+              "subTitle": [],
+              "mainTitle": []
+            },
+            "titles": [
+              {
+                "main": "序號",
+                "sub": []
+              },
+              {
+                "main": "發言日期",
+                "sub": []
+              },
+              {
+                "main": "發言時間",
+                "sub": []
+              },
+              {
+                "main": "發言人",
+                "sub": []
+              },
+              {
+                "main": "發言人職稱",
+                "sub": []
+              },
+              {
+                "main": "發言人電話",
+                "sub": []
+              },
+              {
+                "main": "主旨",
+                "sub": []
+              },
+              {
+                "main": "符合條款",
+                "sub": []
+              },
+              {
+                "main": "事實發生日",
+                "sub": []
+              },
+              {
+                "main": "說明",
+                "sub": []
+              }
+            ],
+            "companyAbbreviation": "聯邦銀"
+          },
+          "datetime": "115/10/17 14:48:21"
+        },
+        "{\"companyId\": \"2838\", \"enterDate\": \"1151006\", \"marketKind\": \"sii\", \"serialNumber\": \"1\"}": {
+          "code": 200,
+          "message": "查詢成功",
+          "result": {
+            "marketName": "上市公司",
+            "companyId": "2838",
+            "data": [
+              [
+                "1",
+                "115/10/06",
+                "17:47:00",
+                "楊巨昌                                                                                                                                                                                                  ",
+                "副總經理            ",
+                "(02)2718-0001       ",
+                "公布本行115年9月自結盈餘相關資訊。                                                                                                                                                  ",
+                "第51款",
+                "115/10/06",
+                "1.事實發生日:115/10/06\n2.公司名稱:聯邦商業銀行股份有限公司\n3.與公司關係(請輸入本公司或子公司):本公司\n4.相互持股比例:不適用\n5.發生緣由:自願公告自結盈餘\n                   　　     9月份盈餘                  累積盈餘\n     項目           ------------------------  ---------------------------\n　　　　　　　　       稅前         稅後          稅前          稅後\n------------------  -----------  -----------  -------------  ------------\n歸屬母公司業主        592,157        646,274       6,010,364     5,153,852\n之權益(仟元)\n非控制權益(仟元)           31             31             160           160\n合併損益(仟元)        592,188        646,305       6,010,524     5,154,012\n每股盈餘(元)             0.13           0.14            1.18          1.00\n註:上述資料均係自結數字，未經會計師查核或核閱。\n6.因應措施:無。\n7.其他應敘明事項(若事件發生或決議之主體係屬公開發行以上公司，本則重大訊息同時\n  符合證券交易法施行細則第7條第9款所定對股東權益或證券價格有重大影響之事項):\n(1)9月底逾放比率為0.25% ；呆帳覆蓋率為501.99%。\n(2)本年度累積至9月份之合併稅前盈餘較去年同期增加13.96%。\n"
+              ]
+            ],
+            "footer": [
+              "以上資料均由各公司依發言當時所屬市場別之規定申報後，由本系統對外公佈，資料如有虛偽不實，均由該公司負責。"
+            ],
+            "header": {
+              "note": [],
+              "subTitle": [],
+              "mainTitle": []
+            },
+            "titles": [
+              {
+                "main": "序號",
+                "sub": []
+              },
+              {
+                "main": "發言日期",
+                "sub": []
+              },
+              {
+                "main": "發言時間",
+                "sub": []
+              },
+              {
+                "main": "發言人",
+                "sub": []
+              },
+              {
+                "main": "發言人職稱",
+                "sub": []
+              },
+              {
+                "main": "發言人電話",
+                "sub": []
+              },
+              {
+                "main": "主旨",
+                "sub": []
+              },
+              {
+                "main": "符合條款",
+                "sub": []
+              },
+              {
+                "main": "事實發生日",
+                "sub": []
+              },
+              {
+                "main": "說明",
+                "sub": []
+              }
+            ],
+            "companyAbbreviation": "聯邦銀"
+          },
+          "datetime": "115/10/17 14:48:21"
+        }
+      }
+    }
+  }
+}

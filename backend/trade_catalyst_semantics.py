@@ -6,16 +6,50 @@ missing claim, source, event date, timezone or confirmation status.
 from __future__ import annotations
 
 from datetime import date
+from math import isfinite
 import re
 
 SEMANTIC_FIELDS = ("observed_signal", "observed_source_refs", "event_catalyst",
                    "recheck_condition", "financial_risk_flags")
 EVENT_STATUSES = {"unknown", "scheduled", "confirmed", "date_range"}
 _ABSENT = {"", "n/a", "na", "null", "unknown", "未評估", "未知", "資料不足"}
+_FCF_CLAIM = re.compile(r"自由現金流|(?<![A-Za-z])FCF(?![A-Za-z])|free cash flow", re.I)
+_SMA_BULLISH_ORDER = re.compile(r"\s*[>＞]\s*".join(
+    rf"(?<![A-Za-z0-9])(?:SMA\s*{n}(?!\d)|{n}\s*日\s*均線)" for n in (5, 10, 20)
+), re.I)
+
+
+def _alignment_is_asserted(text, match):
+    prefix = re.split(r"[，,；;。.!！？\n]", text[:match.start()])[-1]
+    if re.search(r"(?:尚未|未|不是|並非|不構成|不屬於|非|若|待|可能|有望).{0,8}$", prefix):
+        return False
+    return not re.match(r"\s*[）)]?\s*(?:(?:尚未|未)(?:成立|形成|出現)|不成立)", text[match.end():])
 
 
 def optional_claim_text(value):
     return value.strip() if isinstance(value, str) and value.strip().lower() not in _ABSENT else None
+
+
+def bullish_sma_alignment_issue(text, technical):
+    """Validate an explicit 5/10/20 bullish-order claim against saved SMA values."""
+    from trade_catalyst_claims import catalyst_observation_text
+    text = catalyst_observation_text(text)
+    technical = technical if isinstance(technical, dict) else {}
+    claimed = any(_alignment_is_asserted(text, match) for match in re.finditer("多頭排列", text))
+    named = all(re.search(rf"(?<![A-Za-z0-9])(?:{n}\s*日|SMA\s*{n}(?!\d))", text, re.I) for n in (5, 10, 20))
+    explicit_order = any(_alignment_is_asserted(text, match) for match in _SMA_BULLISH_ORDER.finditer(text))
+    if not (claimed and named) and not explicit_order:
+        return None
+    raw_values = [technical.get("sma_" + str(n)) for n in (5, 10, 20)]
+    if any(isinstance(value, bool) for value in raw_values):
+        return "bullish_sma_alignment_unverified"
+    try:
+        values = [float(value) for value in raw_values]
+    except (TypeError, ValueError, OverflowError):
+        return "bullish_sma_alignment_unverified"
+    if any(not isfinite(value) or value <= 0 for value in values):
+        return "bullish_sma_alignment_unverified"
+    return None if values[0] > values[1] > values[2] else "bullish_sma_alignment_contradiction"
 
 
 def _refs(value):
@@ -95,7 +129,7 @@ def _event_issues(event, catalog, visible):
 def trade_semantic_issues(payload, context):
     """Inspect original types and field meanings; callers retain source checks."""
     from trade_catalyst_claims import catalyst_observation_text
-    from trade_financial_risk import NEGATIVE_FCF_WARNING, negative_fcf_value
+    from trade_financial_risk import NEGATIVE_FCF_WARNING, LEGACY_NEGATIVE_FCF_WARNING, negative_fcf_value
     from trade_source_contract import SUPPORTED_VERSIONS, CONTRACT_VERSION
     issues = []
     manifest = context.get("_trade_source_manifest")
@@ -117,14 +151,24 @@ def trade_semantic_issues(payload, context):
     if "event_catalyst" in payload:
         issues.extend(_event_issues(payload.get("event_catalyst"), catalog, visible))
     flags = _refs(payload.get("financial_risk_flags"))
-    if any(flag != NEGATIVE_FCF_WARNING for flag in flags):
+    if any(flag not in {NEGATIVE_FCF_WARNING, LEGACY_NEGATIVE_FCF_WARNING} for flag in flags):
         issues.append("unsupported_financial_risk_flag")
-    if (NEGATIVE_FCF_WARNING in flags or NEGATIVE_FCF_WARNING in str(payload.get("core_catalyst") or "")) and negative_fcf_value(context.get("data", {})) is None:
+    if (any(flag in flags or flag in str(payload.get("core_catalyst") or "") for flag in (NEGATIVE_FCF_WARNING, LEGACY_NEGATIVE_FCF_WARNING))) and negative_fcf_value(context.get("data", {})) is None:
         issues.append("unverified_financial_policy_warning")
     observed = optional_claim_text(payload.get("observed_signal"))
+    if _FCF_CLAIM.search(observed or ""):
+        issues.append("unverified_fcf_as_observed_claim")
+    core_claim = catalyst_observation_text(payload.get("core_catalyst"), allow_policy_suffix=negative_fcf_value(context.get("data", {})) is not None)
+    if _FCF_CLAIM.search(core_claim):
+        issues.append("unverified_fcf_as_core_claim")
+    data = context.get("data")
+    technical = data.get("technical_indicators") if isinstance(data, dict) else None
+    for key in ("observed_signal", "core_catalyst", "catalyst"):
+        alignment_issue = bullish_sma_alignment_issue(payload.get(key), technical)
+        if alignment_issue:
+            issues.append(alignment_issue)
     if observed or recheck or payload.get("event_catalyst"):
         # A newly populated fact field must never hide an unrelated old summary.
-        core = catalyst_observation_text(payload.get("core_catalyst"), allow_policy_suffix=negative_fcf_value(context.get("data", {})) is not None)
-        if core.strip("，,；;。.!！ \n") and core.strip("，,；;。.!！ \n") != (observed or "").strip("，,；;。.!！ \n"):
+        if core_claim.strip("，,；;。.!！ \n") and core_claim.strip("，,；;。.!！ \n") != (observed or "").strip("，,；;。.!！ \n"):
             issues.append("core_catalyst_semantic_mismatch")
     return list(dict.fromkeys(issues))

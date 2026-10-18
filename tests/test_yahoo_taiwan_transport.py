@@ -22,7 +22,9 @@ def test_regional_provider_uses_native_seam_with_original_quality_gate(monkeypat
         yield httpx.Response(200,content=body.read_bytes(),request=httpx.Request(method,url))
     monkeypatch.setattr(regional,'curl_stream',native,raising=False)
     result=YahooProvider().fetch(FetchRequest.from_ticker('5314.TWO'),context())
-    assert len(calls)==1
+    assert len(calls)==2
+    assert calls[0][1]=='https://tw.stock.yahoo.com/rss?s=5314.TWO'
+    assert calls[1][1]=='https://tw.stock.yahoo.com/quote/5314/news'
     assert len(result.value)==3 and result.status=='degraded_enrichment'
     assert result.audit['raw_count']==10 and result.audit['rejected_reason_counts']=={'historical':7}
 
@@ -53,6 +55,49 @@ def invoke(native,diagnostics=None,**kwargs):
     with native.curl_stream('GET','https://tw.stock.yahoo.com/quote/5314/news',
                             deadline=time.monotonic()+12,diagnostics=diagnostics,**kwargs) as response:
         return response,diagnostics
+
+
+def invoke_rss(native,diagnostics=None,**kwargs):
+    import time
+    diagnostics={} if diagnostics is None else diagnostics
+    with native.curl_stream('GET','https://tw.stock.yahoo.com/rss?s=5314.TWO',
+                            deadline=time.monotonic()+12,diagnostics=diagnostics,**kwargs) as response:
+        return response,diagnostics
+
+
+def test_native_rss_request_uses_current_public_query_route_and_browser_headers(transfer,monkeypatch):
+    import json
+    native=transfer; calls=[]
+    def collect(argv,deadline,**kwargs):
+        calls.append((argv,deadline,kwargs))
+        url='https://tw.stock.yahoo.com/rss?s=5314.TWO'
+        headers=b'Content-Type: text/xml; charset=utf-8\r\n'
+        meta={'http_code':200,'http_version':'2','url_effective':url,'num_redirects':0}
+        return {'body':b'<rss version="2.0"><channel/></rss>',
+                'headers':b'HTTP/2 200\r\n'+headers+b'\r\n',
+                'metadata':json.dumps(meta).encode(),'process_started':True},0,None
+    monkeypatch.setattr(native,'_collect',collect)
+    response,diagnostic=invoke_rss(native)
+    assert response.status_code==200 and response.headers['content-type']=='text/xml; charset=utf-8'
+    assert diagnostic['http_request_sent'] is True and len(calls)==1
+    assert diagnostic['transport_request_profile']=='yahoo_rss_browser_headers_v1'
+    argv=calls[0][0]
+    assert argv[-1]=='https://tw.stock.yahoo.com/rss?s=5314.TWO'
+    assert argv[argv.index('--user-agent')+1].startswith('Mozilla/5.0')
+    assert argv[argv.index('--header')+1].startswith('Accept: application/rss+xml')
+    assert argv[argv.index('--referer')+1]=='https://tw.stock.yahoo.com/'
+    assert argv[argv.index('--max-redirs')+1]=='0' and argv[argv.index('--retry')+1]=='0'
+
+
+def test_native_rss_transport_rejects_unbound_query_parameters(transfer):
+    import time
+    from search_provider_runtime import SourceResponseError
+    native=transfer
+    with pytest.raises(SourceResponseError) as caught:
+        with native.curl_stream('GET','https://tw.stock.yahoo.com/rss?s=5314.TWO&category=news',
+                                deadline=time.monotonic()+12,diagnostics={}):
+            pass
+    assert caught.value.error_kind=='transport_url_invalid'
 
 
 def test_native_get_retains_genuine_defaults_and_original_url(transfer,monkeypatch):

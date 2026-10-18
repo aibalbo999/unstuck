@@ -21,12 +21,15 @@ _PREFIX = 'shared_provider:v1:'
 def shared_fetch(key: str, fetch: Callable, *, freshness_seconds: int,
                  retention_seconds: int | None = None, error_retry_seconds: int = 60,
                  use_cache: bool = True, result_ttl: Callable | None = None,
-                 lock_wait_seconds: float | None = None) -> tuple[object, dict]:
+                 lock_wait_seconds: float | None = None,
+                 force_refresh: bool = False) -> tuple[object, dict]:
     """Return payload and acquisition metadata, preserving errors and stale state.
 
     A supplied lock budget bounds both thread and process waiting together; zero
     makes both locks nonwaiting. None preserves the existing waiting behavior.
     The caller's HTTP budget remains separate from this acquisition wait budget.
+    force_refresh bypasses this key's saved observation under the same lock and
+    writes its replacement for later normal readers; provider guards still apply.
     """
     if not use_cache or freshness_seconds <= 0:
         return _uncached(fetch)
@@ -36,18 +39,37 @@ def shared_fetch(key: str, fetch: Callable, *, freshness_seconds: int,
     retention = max(freshness_seconds, retention_seconds or freshness_seconds)
     with _shared_lock(digest, lock_wait_seconds) as acquired:
         if not acquired:
+            if not force_refresh:
+                try:
+                    cached = _validated_time_metadata(get_cache_json(cache_key))
+                except Exception:
+                    cached = {}
+                now = time.time()
+                fetched_at = cached.get('fetched_at_epoch')
+                fresh_until = cached.get('fresh_until_epoch')
+                value = cached.get('value')
+                if (value is not None
+                        and type(fetched_at) in (int, float) and math.isfinite(fetched_at)
+                        and 0 < fetched_at <= now
+                        and type(fresh_until) in (int, float) and math.isfinite(fresh_until)
+                        and fetched_at <= fresh_until and now < fresh_until):
+                    return deepcopy(value), {
+                        'cache_hit': True, 'stale': False,
+                        'fetched_at_epoch': fetched_at,
+                        'lock_contention_cache_hit': True,
+                    }
             return None, {"cache_hit": False, "stale": False, "error_kind": "single_flight_busy", "fetched_at_epoch": None}
         now = time.time()
         try:
             row = get_cache_json(cache_key)
         except Exception:
             row = None
-        row = row if isinstance(row, dict) else {}
+        row = _validated_time_metadata(row)
         fetched_at = row.get('fetched_at_epoch')
         value = row.get('value')
-        if value is not None and now < float(row.get('fresh_until_epoch') or 0):
+        if not force_refresh and value is not None and now < float(row.get('fresh_until_epoch') or 0):
             return deepcopy(value), {'cache_hit': True, 'stale': False, 'fetched_at_epoch': fetched_at}
-        if now < float(row.get('retry_after_epoch') or 0):
+        if not force_refresh and now < float(row.get('retry_after_epoch') or 0):
             stale = value is not None and now < float(row.get('retained_until_epoch') or 0)
             return deepcopy(value) if stale else None, {
                 'cache_hit': stale, 'stale': stale, 'fetched_at_epoch': fetched_at,
@@ -66,7 +88,8 @@ def shared_fetch(key: str, fetch: Callable, *, freshness_seconds: int,
             retained = row.get('value') is not None and now < float(row.get('retained_until_epoch') or 0)
             if not retained:
                 row = {}
-            row.update(error_kind=meta['error_kind'], retry_after_epoch=now + error_retry_seconds)
+            row.update(error_kind=meta['error_kind'], retry_after_epoch=now + error_retry_seconds,
+                       fresh_until_epoch=now)
             ttl = max(error_retry_seconds, int(float(row.get('retained_until_epoch') or now) - now))
             meta.update(cache_hit=retained, stale=retained,
                         fetched_at_epoch=row.get('fetched_at_epoch'), retry_after_epoch=row['retry_after_epoch'])
@@ -76,6 +99,28 @@ def shared_fetch(key: str, fetch: Callable, *, freshness_seconds: int,
         except Exception:
             pass  # Cache availability must not discard a completed provider result.
         return value_new, meta
+
+
+def _validated_time_metadata(row):
+    if not isinstance(row, dict):
+        return {}
+    fields = ('fetched_at_epoch', 'fresh_until_epoch',
+              'retained_until_epoch', 'retry_after_epoch')
+    def valid(value):
+        try:
+            return type(value) in (int, float) and math.isfinite(value) and value >= 0
+        except OverflowError:
+            return False
+    if all(valid(row[field]) for field in fields if field in row):
+        return row
+    # An observation with untrustworthy timing cannot be fresh or retained.
+    # Preserve a valid error cooldown; recovery still uses the same lock and
+    # writes the next real result back instead of fetching outside single flight.
+    retry = row.get('retry_after_epoch')
+    if valid(retry) and row.get('error_kind'):
+        return {'retry_after_epoch': retry, 'error_kind': row['error_kind'],
+                'fresh_until_epoch': 0}
+    return {}
 
 
 @contextmanager

@@ -1628,7 +1628,9 @@ class AuditRuleTests(unittest.TestCase):
             self.assertEqual(bundle["fmp_quote"]["price"], 123.4)
             self.assertEqual(bundle["search_catalysts"][0]["source_type"], "gdelt_search")
             self.assertEqual(bundle["search_catalysts"][0]["title"], "台積電 Alternative search headline")
-            self.assertEqual(bundle["search_peer_discovery"][0]["source_type"], "alternative_peer_discovery")
+            # A company headline is useful catalyst evidence, but it does not
+            # identify a comparable business for the Taiwan peer gate.
+            self.assertEqual(bundle["search_peer_discovery"], [])
             self.assertNotIn("google_catalysts", bundle)
             self.assertNotIn("google_peer_discovery", bundle)
         finally:
@@ -1793,11 +1795,12 @@ class AuditRuleTests(unittest.TestCase):
         self.assertIn("台積電 Search headline", titles)
         self.assertNotIn("FMP headline", titles)
         self.assertNotIn("聯發科 unrelated headline", titles)
-        self.assertEqual(data["peer_discovery_results"][0]["source_type"], "alternative_peer_discovery")
+        # A record with no identified counterpart or reported relationship is
+        # not a usable peer, even when the optional search returned a hit.
+        self.assertEqual(data["peer_discovery_results"], [])
         self.assertEqual(calls["search"][0], "2330.TW")
         self.assertEqual(calls["search"][1], "台積電 / Taiwan Semiconductor")
         self.assertEqual(calls["search"][2]["official_name"], "台積電")
-        self.assertEqual(calls["peer"], ("2330.TW", "台積電 / Taiwan Semiconductor", "Technology", "Semiconductor"))
         self.assertNotIn("fmp", calls)  # FMP is outside TW market coverage.
         self.assertTrue(cache_mock.called)
 

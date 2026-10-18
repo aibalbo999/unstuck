@@ -1,0 +1,127 @@
+{
+  "complete_originals": true,
+  "research_original_receipt_epochs_not_renewed": true,
+  "native_raw_parts_not_synthetic": true,
+  "parts": {
+    "master": {
+      "url": "https://openapi.twse.com.tw/v1/opendata/t187ap03_L",
+      "sha256": "ace3e78957b763b9e99b4f3d222b6838c2b176778bc5a7295d3754e1dafe4865",
+      "bytes": 1327578,
+      "retrieved_at": 1791665479.241487,
+      "filename": "master.raw.gz"
+    },
+    "index": {
+      "url": "https://mopsov.twse.com.tw/mops/web/ajax_t203sb01",
+      "sha256": "d05f2fc19917331114b15ec67e69f9b80f62978efc95c9c3bc62c35823c80719",
+      "bytes": 7587,
+      "retrieved_at": 1791739510.520159,
+      "filename": "index.raw.gz"
+    },
+    "catalog": {
+      "url": "https://doc.twse.com.tw/server-java/t57sb01?co_id=7750&colorchg=1&mtype=A&seamon=&step=1&year=111",
+      "sha256": "bd9757af49ce0374f8a46af0bd2d53859b2b3285dc343f37ffab48a552151336",
+      "bytes": 4518,
+      "retrieved_at": 1791730893.274814,
+      "filename": "catalog.raw.gz"
+    },
+    "download_form": {
+      "url": "https://doc.twse.com.tw/server-java/t57sb01",
+      "sha256": "f429ed6d854d3877c1c3000ae8e32d1c436c22a223a0241dcec23979e7384d47",
+      "bytes": 491,
+      "retrieved_at": 1791730980.258423,
+      "filename": "download_form.raw.gz"
+    },
+    "book": {
+      "url": "https://doc.twse.com.tw/pdf/202204_7750_AI1_20261011_230300.pdf",
+      "sha256": "87bb008de9f44669b91f863c68afaec83096bca7843811c76b57162e8b1c3f7f",
+      "bytes": 2865508,
+      "retrieved_at": 1791730982.326849,
+      "filename": "book.raw.gz"
+    },
+    "2023_CashflowStatement": {
+      "url": "https://mops.twse.com.tw/mops/api/t164sb05",
+      "sha256": "2fcd8505798c132bf9dc865554c84c610d2920a9969de599982cff52835d5db4",
+      "bytes": 4926,
+      "retrieved_at": 1791735954.795489,
+      "filename": "2023_CashflowStatement.raw.gz"
+    },
+    "template_CashflowStatement": {
+      "url": "https://mops.twse.com.tw/mops/assets/t164sb05.js",
+      "sha256": "4f2491487da3489f8cb5cb9acd95dd6ee73981ebbbb0c45e8df4c5e2bfc0b413",
+      "bytes": 6480,
+      "retrieved_at": 1791722080.169766,
+      "filename": "template_CashflowStatement.raw.gz"
+    },
+    "2023_BalanceSheet": {
+      "url": "https://mops.twse.com.tw/mops/api/t164sb03",
+      "sha256": "54c5a62cf651be0fb698c6002dfcf1256910503698f5a2ace807062b0d67f906",
+      "bytes": 4513,
+      "retrieved_at": 1791735954.90189,
+      "filename": "2023_BalanceSheet.raw.gz"
+    },
+    "template_BalanceSheet": {
+      "url": "https://mops.twse.com.tw/mops/assets/t164sb03.js",
+      "sha256": "6d1695de0f0234163792333a4cf07ef9316f01687ef1a0928fa6ddc9feecc7ba",
+      "bytes": 6549,
+      "retrieved_at": 1791722080.127794,
+      "filename": "template_BalanceSheet.raw.gz"
+    },
+    "2023_IncomeStatement": {
+      "url": "https://mops.twse.com.tw/mops/api/t164sb04",
+      "sha256": "e418265e14adeb734be688b0d0e830bdc75275971ec7d031b6da1d07607e9a62",
+      "bytes": 3212,
+      "retrieved_at": 1791735955.003906,
+      "filename": "2023_IncomeStatement.raw.gz"
+    },
+    "template_IncomeStatement": {
+      "url": "https://mops.twse.com.tw/mops/assets/t164sb04.js",
+      "sha256": "fbfd5754dd2ce843cadd7a800e188fc84acda6ee61bfb64d5afd3a1ac9cfee23",
+      "bytes": 6507,
+      "retrieved_at": 1791722080.149158,
+      "filename": "template_IncomeStatement.raw.gz"
+    },
+    "2024_CashflowStatement": {
+      "url": "https://mops.twse.com.tw/mops/api/t164sb05",
+      "sha256": "32e7907c864945bbd2a45e83b29835948a5d0e0786f4cd6709641b20bc48ef3f",
+      "bytes": 4953,
+      "retrieved_at": 1791736032.796692,
+      "filename": "2024_CashflowStatement.raw.gz"
+    },
+    "2024_BalanceSheet": {
+      "url": "https://mops.twse.com.tw/mops/api/t164sb03",
+      "sha256": "9b018c68de017ae624d90267d06e43dfbfdfb8ab507c5f5866975ec9cab4cc9e",
+      "bytes": 4471,
+      "retrieved_at": 1791736032.885797,
+      "filename": "2024_BalanceSheet.raw.gz"
+    },
+    "2024_IncomeStatement": {
+      "url": "https://mops.twse.com.tw/mops/api/t164sb04",
+      "sha256": "242d7577639688fbf6187f2eb4bb78e7d7b98cf09d1cb0e83e47c613d3a8dfca",
+      "bytes": 3235,
+      "retrieved_at": 1791736032.97549,
+      "filename": "2024_IncomeStatement.raw.gz"
+    },
+    "2025_CashflowStatement": {
+      "url": "https://mops.twse.com.tw/mops/api/t164sb05",
+      "sha256": "80fbcdd032cc982e45191d77bbad9328bd65fccd88203185b56508c4764afb89",
+      "bytes": 5038,
+      "retrieved_at": 1791736033.085303,
+      "filename": "2025_CashflowStatement.raw.gz"
+    },
+    "2025_BalanceSheet": {
+      "url": "https://mops.twse.com.tw/mops/api/t164sb03",
+      "sha256": "501e0c92200d42b69e1dbb1dd4108e7b1bbb1aec607bd5dc80de12a922a5ab90",
+      "bytes": 4360,
+      "retrieved_at": 1791736033.16974,
+      "filename": "2025_BalanceSheet.raw.gz"
+    },
+    "2025_IncomeStatement": {
+      "url": "https://mops.twse.com.tw/mops/api/t164sb04",
+      "sha256": "4a7f96c2f66ded4431676ff82bb7059f4fa19137a8f1800cc21b9b0ef33e236e",
+      "bytes": 3245,
+      "retrieved_at": 1791736033.2603798,
+      "filename": "2025_IncomeStatement.raw.gz"
+    }
+  },
+  "selected_native_coordinates_sha256": "43ab1bd9615ee8d339cde15405e5647c5ad072445a8688274a2cc672cbb3473a"
+}

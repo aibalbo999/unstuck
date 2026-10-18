@@ -1,0 +1,54 @@
+{
+  "cutoff": "2026-10-11T05:12:15.603083+00:00",
+  "company_data": {
+    "ticker": "2855.TW",
+    "company_name": "統一證 / President Securities Corporation",
+    "company_identity": {
+      "ticker": "2855.TW",
+      "stock_id": "2855",
+      "instrument_type": "EQUITY",
+      "official_name": "統一證",
+      "legal_name": null,
+      "official_ubn": null,
+      "allowed_aliases": [
+        "統一證",
+        "統一證 / President Securities Corporation",
+        "President Securities Corporation",
+        "2855.TW",
+        "2855",
+        "PRESIDENT SECURITIES"
+      ],
+      "english_names": [
+        "President Securities Corporation",
+        "PRESIDENT SECURITIES"
+      ],
+      "forbidden_aliases": []
+    }
+  },
+  "captured_current_issuer": {
+    "公司代號": "2855",
+    "公司名稱": "統一綜合證券股份有限公司",
+    "公司簡稱": "統一證",
+    "營利事業統一編號": "23218183",
+    "出表日期": "1151009"
+  },
+  "raw_RSS": [
+    {
+      "file": "psc_broker_subject_role_native_20261011_1.xml.gz",
+      "sha256": "5e56adf94df5cdc696002386c244eff83f7ea266adc24cd36452bbb7a4de841d",
+      "bytes": 3067,
+      "source_url": "https://news.google.com/rss/search?q=%22%E7%B5%B1%E4%B8%80%E8%AD%89%E5%88%B8%22+2855+when%3A30d&hl=zh-TW&gl=TW&ceid=TW%3Azh-Hant",
+      "original_retrieved_at": 1791694905.7346501,
+      "raw_items": 2
+    },
+    {
+      "file": "psc_broker_subject_role_native_20261011_2.xml.gz",
+      "sha256": "07110a79dd14d9a121f42dc63153a78c993321a8ce7735d05c1e0a1bf734943e",
+      "bytes": 18742,
+      "source_url": "https://news.google.com/rss/search?q=%22%E7%B5%B1%E4%B8%80%E8%AD%89%E5%88%B8%22+when%3A30d&hl=zh-TW&gl=TW&ceid=TW%3Azh-Hant",
+      "original_retrieved_at": 1791695471.862038,
+      "raw_items": 17
+    }
+  ],
+  "contract": "Broker name as research author for other explicit stocks is not evidence of broker issuer own catalysts. Keep originals rejected; same 8/3 and 30day gates."
+}

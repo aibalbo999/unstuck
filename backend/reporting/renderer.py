@@ -6,7 +6,7 @@ from data_trust import build_data_snapshot
 from data_trust_snapshot import set_snapshot_integrity
 from evidence_exit_gate import evaluate_report_evidence
 from report_analysis_completeness import assess_report_analysis_completeness
-from report_analysis_evidence import capture_analysis_evidence
+from report_analysis_evidence import capture_analysis_evidence, preserve_analysis_evidence
 
 from .conformance import evaluate_report_conformance
 from .content_credibility import evaluate_content_credibility
@@ -44,8 +44,24 @@ def _lint_or_repair(html: str, markdown: str) -> tuple[str, str, dict]:
 class ReportRenderer:
     async def render_async(self, request: ReportRequest) -> ReportBundle:
         context = dict(request.context)
+        from report_publication_identity import replay_context
+        from data_trust_snapshot import utc_now_iso
+        generated_at = request.generated_at or utc_now_iso()
+        context = replay_context(context, generated_at)
         pipeline_id = first_non_missing_text(request.pipeline_id, context.get("pipeline_id")) or "v1"
         context["pipeline_id"] = pipeline_id
+        # Every gate must see the same immutable input and source catalog that
+        # the final saved snapshot exposes to current-quality readers.
+        from report_publication_identity import publication_identity
+        identity = publication_identity(context)
+        if identity["kind"] == "saved_analysis_replay" and not isinstance(context.get("analysis_evidence"), dict):
+            # A replacement container's valid receipt cannot prove old prose.
+            context["analysis_evidence"] = preserve_analysis_evidence(request.context)
+        elif identity["prediction_eligible"] or not isinstance(context.get("analysis_evidence"), dict):
+            context["analysis_evidence"] = capture_analysis_evidence(
+                context, generated_at=identity["analysis_generated_at"]
+                if not identity["prediction_eligible"] else generated_at,
+            )
         html = await generate_html_report_async(context)
         markdown = generate_markdown_report(context)
         html, markdown, report_lint = _lint_or_repair(html, markdown)
@@ -54,9 +70,10 @@ class ReportRenderer:
         snapshot = build_data_snapshot(
             snapshot_context,
             pipeline_id=pipeline_id,
-            generated_at=request.generated_at,
+            generated_at=generated_at,
         )
         evidence_exit_gate = evaluate_report_evidence(markdown, snapshot)
+        snapshot["evidence_exit_gate"] = evidence_exit_gate
         final_context = dict(context)
         final_context["report_lint"] = report_lint
         final_context["evidence_exit_gate"] = evidence_exit_gate
@@ -70,7 +87,7 @@ class ReportRenderer:
         snapshot = build_data_snapshot(
             snapshot_context,
             pipeline_id=pipeline_id,
-            generated_at=request.generated_at,
+            generated_at=generated_at,
         )
         report_conformance = evaluate_report_conformance(
             html,
@@ -90,16 +107,24 @@ class ReportRenderer:
         html, markdown, report_lint = _lint_or_repair(html, markdown)
         snapshot_context = dict(final_context)
         snapshot_context["report_lint"] = report_lint
-        snapshot_context["analysis_evidence"] = capture_analysis_evidence(
-            snapshot_context, generated_at=request.generated_at or snapshot.get("generated_at", ""),
-        )
         snapshot = build_data_snapshot(
             snapshot_context,
             pipeline_id=pipeline_id,
-            generated_at=request.generated_at,
+            generated_at=generated_at,
         )
+        # Quality notices can move claim locations in the final Markdown.
+        # Persist checks of the actual final artifacts, not an earlier render.
+        evidence_exit_gate = evaluate_report_evidence(markdown, snapshot)
         snapshot["evidence_exit_gate"] = evidence_exit_gate
+        final_context["evidence_exit_gate"] = evidence_exit_gate
+        content_credibility = evaluate_content_credibility(final_context, snapshot, markdown=markdown)
         snapshot["content_credibility"] = content_credibility
+        final_context["content_credibility"] = content_credibility
+        report_conformance = evaluate_report_conformance(
+            html, markdown, context=final_context, snapshot=snapshot,
+            report_lint=report_lint, evidence_exit_gate=evidence_exit_gate,
+            content_credibility=content_credibility,
+        )
         snapshot["report_conformance"] = report_conformance
         snapshot["analysis_completeness"] = final_context["analysis_completeness"]
         snapshot = set_snapshot_integrity(snapshot)

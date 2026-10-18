@@ -4,7 +4,10 @@ from __future__ import annotations
 
 import asyncio
 from collections.abc import Callable
+from contextvars import copy_context
 from datetime import datetime
+from functools import partial
+from threading import Event
 from typing import Any
 
 import market_screener
@@ -22,7 +25,10 @@ def _run_due_watchlist_batch(
     task_queue: Any,
     run_stock_analysis_job: Callable[[str, str, str], str],
     emit_log: Callable[[str], None],
+    stop_event: Event | None = None,
 ) -> dict:
+    if stop_event is not None and stop_event.is_set():
+        return {"success": True, "queued": [], "skipped": [], "errors": [], "interrupted": True}
     due_items = watchlist_service.claim_due_watchlist_items()
     if not due_items:
         return {"success": True, "queued": [], "skipped": []}
@@ -32,10 +38,11 @@ def _run_due_watchlist_batch(
         find_active_job=find_active_job,
         task_queue=task_queue,
         run_stock_analysis_job=run_stock_analysis_job,
+        **({'stop_event': stop_event} if stop_event is not None else {}),
     )
     queued_count = len(result.get("queued") or [])
     skipped_count = len(result.get("skipped") or [])
-    emit_log(f"watchlist 批次分析：queued={queued_count}, skipped={skipped_count}")
+    emit_log(f"watchlist 批次分析：queued={queued_count}, skipped={skipped_count}, errors={len(result.get('errors') or [])}")
     return result
 
 
@@ -80,14 +87,34 @@ async def _watchlist_scheduler_forever(
 ) -> None:
     while True:
         try:
-            await asyncio.to_thread(
+            stop_event = Event()
+            # Keep the actual executor future private: cancelling all asyncio
+            # tasks must not mark the producer complete while its thread runs.
+            batch = asyncio.get_running_loop().run_in_executor(None, copy_context().run, partial(
                 _run_due_watchlist_batch,
                 create_job=create_job,
                 find_active_job=find_active_job,
                 task_queue=task_queue,
                 run_stock_analysis_job=run_stock_analysis_job,
                 emit_log=emit_log,
-            )
+                stop_event=stop_event,
+            ))
+            try:
+                await asyncio.shield(batch)
+            except asyncio.CancelledError as cancelled:
+                stop_event.set()
+                while not batch.done():
+                    try:
+                        await asyncio.shield(batch)
+                    except asyncio.CancelledError:
+                        continue
+                    except Exception:
+                        break
+                try:
+                    batch.result()
+                except Exception as exc:
+                    emit_log(f"watchlist 關閉時批次收尾失敗：{type(exc).__name__}")
+                raise cancelled
             await asyncio.to_thread(_run_daily_market_screener, emit_log=emit_log)
             trigger_result = await watchlist_service.monitor_watchlist_triggers(
                 data_service=data_service,

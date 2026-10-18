@@ -20,7 +20,7 @@
                 ? `顯示 ${displayed} / 共 ${total} 件快速操作`
                 : `${displayed} 件快速操作`;
         }
-        function renderActions(items, queueSummary) { if (!elements.actionList) return; elements.actionList.innerHTML = `<div class="operator-action-list-header"><strong>今日待處理</strong><span>${escapeHtml(actionCountText(items, queueSummary))}</span></div>${items.map(item => item.type === 'review_candidate' ? renderCandidate(item) : `<div class="operator-action-row"><span><strong>${escapeHtml(item.title)}</strong><em>${escapeHtml(item.detail || '')}</em></span><button class="operator-action-button ${item.action === 'rerun-all-reports' ? 'is-primary' : ''}" type="button" data-operator-action="${escapeHtml(item.action)}" data-filename="${escapeHtml(item.filename || '')}" data-filenames="${escapeHtml(JSON.stringify(item.filenames || []))}" data-ticker="${escapeHtml(item.ticker || '')}" data-pipeline="${escapeHtml(item.pipeline || 'v1')}" data-target-tab="${escapeHtml(item.targetTab || '')}" data-target-panel="${escapeHtml(item.targetPanel || '')}">${escapeHtml(item.label)}</button></div>`).join('')}`; }
+        function renderActions(items, queueSummary, dashboard) { if (!elements.actionList) return; elements.actionList.innerHTML = `<div class="operator-action-list-header"><strong>今日待處理</strong><span>${escapeHtml(actionCountText(items, queueSummary))}</span></div>${items.map(item => item.type === 'review_candidate' ? renderCandidate(item) : `<div class="operator-action-row"><span><strong>${escapeHtml(item.title)}</strong><em>${escapeHtml(item.detail || '')}</em></span><button class="operator-action-button ${item.action === 'rerun-all-reports' ? 'is-primary' : ''}" type="button" data-operator-action="${escapeHtml(item.action)}" data-filename="${escapeHtml(item.filename || '')}" data-filenames="${escapeHtml(JSON.stringify(item.filenames || []))}" data-ticker="${escapeHtml(item.ticker || '')}" data-pipeline="${escapeHtml(item.pipeline || 'v1')}" data-target-tab="${escapeHtml(item.targetTab || '')}" data-target-panel="${escapeHtml(item.targetPanel || '')}">${escapeHtml(item.label)}</button></div>`).join('')}` + (window.StockAgentDailyCandidateReview?.render(dashboard, escapeHtml) || ''); }
         function parseFilenames(button) { try { const parsed = JSON.parse(button.dataset.filenames || '[]'); return Array.isArray(parsed) ? parsed.filter(Boolean) : []; } catch (err) { return []; } }
         async function rerunReport(filename) { return apiClient.requestJson(`/api/report/${encodeURIComponent(filename)}/rerun?scope=full_report`, { method: 'POST' }); }
         async function load() {
@@ -47,7 +47,7 @@
             const actions = dashboardActionItems.length ? dashboardActionItems : fallbackActions;
             const warningCount = [jobsText, quotasText, trust, rerun, dashboardSummary].filter(Boolean).filter(item => item.tone === 'warning').length, next = actions[0] || {}, updated = new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' });
             setShift(elements.shift, warningCount ? 'warning' : 'ok', warningCount ? `${warningCount} 類訊號需注意` : '可正常操作', `${updated} · 下一步：${next.label || '查看狀態'} — ${next.title || '目前沒有急件'}`);
-            renderActions(actions, dashboardValue?.decision_queue?.summary);
+            renderActions(actions, dashboardValue?.decision_queue?.summary, dashboardValue);
         }
         async function handleCandidateAction(event) {
             const button = event.target.closest('[data-candidate-action]');

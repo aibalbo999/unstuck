@@ -19,6 +19,7 @@ def context():
     bind_source_prompt(ctx, block, block, catalog, fp)
     payload = setup_payload()
     payload.update(trade_direction='Neutral', core_catalyst='外資持續買超，暫時觀望。',
+                   support_level='N/A', resistance_level='N/A', price_level_evidence=[],
                    support_source_refs=[], resistance_source_refs=[], catalyst_source_refs=[])
     ctx['analyses'][24] = process_agent_response(24, json.dumps(payload), ctx)
     return ctx, payload

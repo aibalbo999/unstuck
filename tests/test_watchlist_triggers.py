@@ -140,6 +140,25 @@ def test_report_catalyst_trigger_records_manual_radar_condition():
     assert "管理層調升毛利率指引" in events[0]["message"]
 
 
+def test_monthly_revenue_threshold_requires_current_unambiguous_observation():
+    from watchlist_triggers import evaluate_watchlist_triggers
+
+    item = {"ticker": "5314.TWO", "pipeline": "v3", "triggers": [
+        {"type": "report_catalyst", "trigger_condition": "月營收低於5億元"}]}
+    def evaluate(rows):
+        return evaluate_watchlist_triggers(item, {"recent_monthly_revenue": rows},
+                                           evaluation_date="2026-10-04")[0]
+
+    event = evaluate(["2026年8月: NT$4.80億"])
+    assert event["matched"] is True
+    assert event["metrics"]["observed_month"] == "2026-08"
+    assert event["metrics"]["revenue_twd"] == 480_000_000
+    assert evaluate(["2026年8月: NT$5.00億"])["matched"] is False
+    assert evaluate(["2026年7月: NT$4.80億"])["matched"] is False
+    assert evaluate(["2026年8月: NT$4.80億", "2026年8月: NT$5.20億"])["matched"] is False
+    assert evaluate(["2026年11月: NT$4.80億"])["matched"] is False
+
+
 def test_daily_screener_trigger_always_routes_to_mode_d():
     from watchlist_triggers import evaluate_watchlist_triggers
 

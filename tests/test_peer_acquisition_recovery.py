@@ -3,6 +3,7 @@ from datetime import date
 from pathlib import Path
 import sys
 
+import pandas as pd
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
@@ -91,6 +92,58 @@ def test_bank_metrics_do_not_force_gross_margin_or_asset_turnover(source_setup, 
     assert records[0]["pe_ttm"] == 12.4
     assert records[0]["roe_pct"] == 12
     assert records[0]["metric_sources"]["pb"]["observed_at"] == "2026-09-24"
+
+
+def test_matching_annual_statements_fill_missing_peer_asset_turnover(source_setup, monkeypatch):
+    monkeypatch.setattr(peers, "load_peer_stock_master", lambda: [
+        master("1476", category="紡織纖維"), master("1477", category="紡織纖維")])
+
+    class Quote:
+        info = {"symbol": "1477.TW", "quoteType": "EQUITY", "industry": "Apparel Manufacturing",
+                "grossMargins": .4, "operatingMargins": .2, "profitMargins": .1,
+                "returnOnEquity": .12, "trailingPE": 15, "priceToBook": 2,
+                "priceToSalesTrailing12Months": 3, "totalRevenue": 9e9}
+        financials = pd.DataFrame([[4e9, 3e9]], index=["Total Revenue"],
+                                  columns=pd.to_datetime(["2025-12-31", "2024-12-31"]))
+        balance_sheet = pd.DataFrame([[2e9, 2e9]], index=["Total Assets"],
+                                     columns=pd.to_datetime(["2025-12-31", "2024-12-31"]))
+
+    monkeypatch.setattr(peers.yf, "Ticker", lambda _symbol: Quote())
+    result = peers.fetch_dynamic_peer_metrics_with_diagnostics(
+        "1476.TW", "儒鴻", "Consumer Cyclical", "Apparel Manufacturing", {})
+
+    record = result["peers"][0]
+    assert record["asset_turnover"] == 2.0
+    assert record["metrics_status"] == "complete"
+    assert record["metric_sources"]["asset_turnover"]["observed_at"] == "2025-12-31"
+    assert record["metric_sources"]["asset_turnover"]["basis"] == "annual_revenue / same_date_year_end_assets"
+    assert result["audit"]["coverage_status"] == "success"
+
+
+@pytest.mark.parametrize("case", ["different_day", "duplicate_date", "zero_assets"])
+def test_peer_asset_turnover_rejects_unaligned_or_ambiguous_annual_values(source_setup, monkeypatch, case):
+    monkeypatch.setattr(peers, "load_peer_stock_master", lambda: [
+        master("1476", category="紡織纖維"), master("1477", category="紡織纖維")])
+    columns = pd.to_datetime(["2025-06-30"] if case == "different_day" else ["2025-12-31"])
+    if case == "duplicate_date":
+        columns = pd.to_datetime(["2025-12-31", "2025-12-31"])
+
+    class Quote:
+        info = {"symbol": "1477.TW", "quoteType": "EQUITY", "industry": "Apparel Manufacturing",
+                "grossMargins": .4, "operatingMargins": .2, "profitMargins": .1,
+                "returnOnEquity": .12, "trailingPE": 15, "priceToBook": 2,
+                "priceToSalesTrailing12Months": 3, "totalRevenue": 9e9}
+        financials = pd.DataFrame([[4e9]], index=["Total Revenue"], columns=pd.to_datetime(["2025-12-31"]))
+        balance_sheet = pd.DataFrame([[0 if case == "zero_assets" else 2e9] * len(columns)],
+                                     index=["Total Assets"], columns=columns)
+
+    monkeypatch.setattr(peers.yf, "Ticker", lambda _symbol: Quote())
+    record = peers.fetch_dynamic_peer_metrics_with_diagnostics(
+        "1476.TW", "儒鴻", "Consumer Cyclical", "Apparel Manufacturing", {})["peers"][0]
+    assert record["asset_turnover"] is None
+    assert record["metrics_status"] == "partial"
+    assert record["acquisition_attempts"][-1] == {
+        "provider": "Yahoo annual financial statements", "status": "missing_matching_annual_values"}
 
 
 def test_ranked_profile_rejection_cannot_fall_back_to_unqualified_legacy():

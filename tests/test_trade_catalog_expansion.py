@@ -63,11 +63,27 @@ def test_chip_percent_evidence_is_typed_and_does_not_prove_a_trend():
     assert reference_is_evidence(catalog,ref,'catalyst_source_refs')
     assert not reference_is_evidence(catalog,ref,'support_source_refs')
     ctx={'_trade_source_manifest':{'version':'trade-sources:v2','visible':True,'catalog':catalog}}
-    payload=setup_payload();payload.update(core_catalyst='大戶持股比例66.76%，等待價格突破。',catalyst_source_refs=[ref])
-    assert bind_trade_payload(payload,ctx)[1]['status']=='source_bound'
+    payload=setup_payload();payload.update(support_level=str(catalog['short_term_market_context']['technical_indicators']['sma_20']), resistance_level=str(catalog['short_term_market_context']['technical_indicators']['sma_5']));payload.update(core_catalyst='大戶持股比例66.76%，等待價格突破。',catalyst_source_refs=[ref])
+    assert bind_trade_payload(payload,ctx)[1]['status']=='source_bound', bind_trade_payload(payload,ctx)[1]
     for text in ['大戶持股比例增加至66.76%','散戶持股比例66.76%','大戶持股比例99%']:
         payload['core_catalyst']=text
         assert bind_trade_payload(payload,ctx)[1]['status']=='degraded',text
+
+
+def test_ownership_fact_is_not_rejected_by_separate_institutional_flow_clause():
+    from trade_catalog_evidence import ownership_claim_supported
+
+    record = {'value': 83.49, 'unit': 'percent', 'population': 'major_holders',
+              'threshold': 'gt_1000_lots', 'observed_at': '2026-10-02',
+              'provider': 'TDCC OpenData'}
+    mixed = ('截至2026-10-02，投信近30個交易日淨買超25673.55千股，'
+             '外資近30個交易日淨買超3045.82千股，'
+             '持股超過1000張大戶持股比例83.49%。')
+
+    assert ownership_claim_supported(mixed, [record])
+    assert not ownership_claim_supported(
+        '截至2026-10-02，大戶持股比例持續增加至83.49%。', [record]
+    )
 
 
 def test_institutional_catalyst_requires_same_population_period_and_units():
@@ -80,11 +96,13 @@ def test_institutional_catalyst_requires_same_population_period_and_units():
     ref='short_term_market_context.institutional_evidence.records[0]'
     assert reference_is_evidence(catalog,ref,'catalyst_source_refs')
     ctx={'_trade_source_manifest':{'version':'trade-sources:v2','visible':True,'catalog':catalog}}
-    payload=setup_payload();payload.update(core_catalyst='法人近5日買超1576.69張，等待價格突破。',catalyst_source_refs=[ref])
-    assert bind_trade_payload(payload,ctx)[1]['status']=='source_bound'
+    payload=setup_payload();payload.update(support_level=str(catalog['short_term_market_context']['technical_indicators']['sma_20']), resistance_level=str(catalog['short_term_market_context']['technical_indicators']['sma_5']));payload.update(core_catalyst='法人近5日買超1576.69張，等待價格突破。',catalyst_source_refs=[ref])
+    assert bind_trade_payload(payload,ctx)[1]['status']=='source_bound', bind_trade_payload(payload,ctx)[1]
     for text in ['外資近5日買超1576.69張','法人近5日買超1576.69千張','法人近3日買超1576.69張','外資買超','法人持續買超']:
         payload['core_catalyst']=text
         assert bind_trade_payload(payload,ctx)[1]['status']=='degraded',text
+    payload['core_catalyst'] = '法人近5日買超1576.69張，但近10日買賣交錯。'
+    assert bind_trade_payload(payload,ctx)[1]['status']=='degraded'
 
 def ownership_context():
     value=data();value['chip_data']={'tdcc_shareholder_distribution':{'status':'success','source':'TDCC',

@@ -1,0 +1,138 @@
+{
+  "schema": "insurer_standalone.v1",
+  "report_scope": "standalone",
+  "years": [
+    "2021",
+    "2022",
+    "2023",
+    "2024",
+    "2025"
+  ],
+  "raw_twd_by_year": {
+    "2021": {
+      "insurance_operating_revenue": 20440955000,
+      "net_operating_income": 2470965000,
+      "profit_loss": 2065077000,
+      "assets": 49464949000,
+      "equity": 16552411000,
+      "operating_cash_flow": 3173984000,
+      "ppe_purchase": -8975000,
+      "intangible_purchase": -6073000,
+      "free_cash_flow": 3158936000
+    },
+    "2022": {
+      "insurance_operating_revenue": 21338046000,
+      "net_operating_income": 15532000,
+      "profit_loss": 253273000,
+      "assets": 50271788000,
+      "equity": 16997748000,
+      "operating_cash_flow": 2124927000,
+      "ppe_purchase": -14580000,
+      "intangible_purchase": -18583000,
+      "free_cash_flow": 2091764000
+    },
+    "2023": {
+      "insurance_operating_revenue": 21978208000,
+      "net_operating_income": 2489620000,
+      "profit_loss": 2089944000,
+      "assets": 53897720000,
+      "equity": 19054309000,
+      "operating_cash_flow": -7331695000,
+      "ppe_purchase": -23267000,
+      "intangible_purchase": -10273000,
+      "free_cash_flow": -7365235000
+    },
+    "2024": {
+      "insurance_operating_revenue": 22886773000,
+      "net_operating_income": 2956232000,
+      "profit_loss": 2515177000,
+      "assets": 57853650000,
+      "equity": 20903428000,
+      "operating_cash_flow": -1731491000,
+      "ppe_purchase": -3026000,
+      "intangible_purchase": -15520000,
+      "free_cash_flow": -1750037000
+    },
+    "2025": {
+      "insurance_operating_revenue": 22898381000,
+      "net_operating_income": 3369513000,
+      "profit_loss": 2932619000,
+      "assets": 59835174000,
+      "equity": 21706032000,
+      "operating_cash_flow": 2359679000,
+      "ppe_purchase": -14504000,
+      "intangible_purchase": -24999000,
+      "free_cash_flow": 2320176000
+    }
+  },
+  "ticker": "2851.TW",
+  "documents": [
+    {
+      "year": 2021,
+      "url": "https://mopsov.twse.com.tw/server-java/FileDownLoad?functionName=t164sb01&step=9&co_id=2851&year=2021&season=4&report_id=A",
+      "sha256": "bbf150a7bfd22c0b612bba2a1052f8a1826457edb3712be0594c0db2084f212d",
+      "report_scope": "standalone",
+      "standalone_scope_evidence": {
+        "fact": "tifrs-notes:BasisOfPreparation",
+        "issuer": "2851",
+        "year": 2021,
+        "text": "1.本公司並無子公司，故本財務報告係個別財務報告，由資產負債表、以單一報表方式\n　呈現之綜合損益表、權益變動表、現金流量表及相關附註所組成。\n2.除下列重要項目外，本財務報告主係按歷史成本編製：\n　(1)按公允價值衡量之透過損益按公允價值衡量之金融資產及負債(包括衍生工具)。\n　(2)按公允價值衡量之透過其他綜合損益按公允價值衡量之金融資產。\n　(3)按退休基金資產減除確定福利義務現值之淨額認列之確定福利負債。\n　(4)按保險業相關特定法令及函令等提列之各項保險負債及再保險準備資產。\n3.編製符合IFRSs之財務報告需要使用一些重要會計估計，在應用本公司的會計政策過\n　程中亦需要管理階層運用其判斷，涉及高度判斷或複雜性之項目，或涉及財務報告之\n　重大假設及估計之項目，請詳附註五說明。",
+        "document_sha256": "bbf150a7bfd22c0b612bba2a1052f8a1826457edb3712be0594c0db2084f212d"
+      }
+    },
+    {
+      "year": 2022,
+      "url": "https://mopsov.twse.com.tw/server-java/FileDownLoad?functionName=t164sb01&step=9&co_id=2851&year=2022&season=4&report_id=A",
+      "sha256": "87a4e0d38a89270a3dc04ba82aa4b1eb4cd2ced389209c32a740557181e490a7",
+      "report_scope": "standalone",
+      "standalone_scope_evidence": {
+        "fact": "tifrs-notes:BasisOfPreparation",
+        "issuer": "2851",
+        "year": 2022,
+        "text": "1.本公司並無子公司，故本財務報告係個別財務報告，由資產負債表、以單一報表方式\n　呈現之綜合損益表、權益變動表、現金流量表及相關附註所組成。\n2.除下列重要項目外，本財務報告主係按歷史成本編製：\n　(1)按公允價值衡量之透過損益按公允價值衡量之金融資產及負債(包括衍生工具)。\n　(2)按公允價值衡量之透過其他綜合損益按公允價值衡量之金融資產。\n　(3)按退休基金資產減除確定福利義務現值之淨額認列之確定福利負債。\n　(4)按保險業相關特定法令及函令等提列之各項保險負債及再保險準備資產。\n3.編製符合IFRSs之財務報告需要使用一些重要會計估計，在應用本公司的會計政策過\n　程中亦需要管理階層運用其判斷，涉及高度判斷或複雜性之項目，或涉及財務報告之\n　重大假設及估計之項目，請詳附註五說明。",
+        "document_sha256": "87a4e0d38a89270a3dc04ba82aa4b1eb4cd2ced389209c32a740557181e490a7"
+      }
+    },
+    {
+      "year": 2023,
+      "url": "https://mopsov.twse.com.tw/server-java/FileDownLoad?functionName=t164sb01&step=9&co_id=2851&year=2023&season=4&report_id=A",
+      "sha256": "b95ccacbee0a63dc171f5120ccbd22a254fd966f8db113412d29006925f49ed8",
+      "report_scope": "standalone",
+      "standalone_scope_evidence": {
+        "fact": "tifrs-notes:BasisOfPreparation",
+        "issuer": "2851",
+        "year": 2023,
+        "text": "1.本公司並無子公司，故本財務報告係個別財務報告，由資產負債表、以單一報表方式\n　呈現之綜合損益表、權益變動表、現金流量表及相關附註所組成。\n2.除下列重要項目外，本財務報告主係按歷史成本編製：\n　(1)按公允價值衡量之透過損益按公允價值衡量之金融資產及負債(包括衍生工具)。\n　(2)按公允價值衡量之透過其他綜合損益按公允價值衡量之金融資產。\n　(3)按退休基金資產減除確定福利義務現值之淨額認列之確定福利負債。\n　(4)按保險業相關特定法令及函令等提列之各項保險負債及再保險準備資產。\n3.編製符合IFRSs之財務報告需要使用一些重要會計估計值，在應用本公司的會計政策過\n  程中亦需要管理階層運用其判斷，涉及高度判斷或複雜性之項目，或涉及財務報告之\n  重大假設及估計之項目，請詳附註五說明。",
+        "document_sha256": "b95ccacbee0a63dc171f5120ccbd22a254fd966f8db113412d29006925f49ed8"
+      }
+    },
+    {
+      "year": 2024,
+      "url": "https://mopsov.twse.com.tw/server-java/FileDownLoad?functionName=t164sb01&step=9&co_id=2851&year=2024&season=4&report_id=A",
+      "sha256": "271f3d8c3b93670cf811172a6faf01d937bd3aef9ccb2d614777d058cb5b5e02",
+      "report_scope": "standalone",
+      "standalone_scope_evidence": {
+        "fact": "tifrs-notes:BasisOfPreparation",
+        "issuer": "2851",
+        "year": 2024,
+        "text": "1.本公司並無子公司，故本財務報告係個別財務報告，由資產負債表、以單一報表方式\n  呈現之綜合損益表、權益變動表、現金流量表及相關附註所組成。\n2.除下列重要項目外，本財務報告主係按歷史成本編製：\n　(1)按公允價值衡量之透過損益按公允價值衡量之金融資產及負債(包括衍生工具)。\n　(2)按公允價值衡量之透過其他綜合損益按公允價值衡量之金融資產。\n　(3)按退休基金資產減除確定福利義務現值之淨額認列之確定福利負債。\n　(4)按保險業相關特定法令及函令等提列之各項保險負債及再保險準備資產。\n3.編製符合IFRSs之財務報告需要使用一些重要會計估計值，在應用本公司的會計政策\n　過程中亦需要管理階層運用其判斷，涉及高度判斷或複雜性之項目，或涉及財務報告\n　之重大假設及估計之項目，請詳附註五說明。",
+        "document_sha256": "271f3d8c3b93670cf811172a6faf01d937bd3aef9ccb2d614777d058cb5b5e02"
+      }
+    },
+    {
+      "year": 2025,
+      "url": "https://mopsov.twse.com.tw/server-java/FileDownLoad?functionName=t164sb01&step=9&co_id=2851&year=2025&season=4&report_id=A",
+      "sha256": "3bbdaab4568c0930001bdc358437c7c13302774dc7ce4dfcb45eee070f6b3536",
+      "report_scope": "standalone",
+      "standalone_scope_evidence": {
+        "fact": "tifrs-notes:BasisOfPreparation",
+        "issuer": "2851",
+        "year": 2025,
+        "text": "1.本公司並無子公司，故本財務報告係個別財務報告，由資產負債表、以單一報表方式\n　呈現之綜合損益表、權益變動表、現金流量表及相關附註所組成。\n2.除下列重要項目外，本財務報告主係按歷史成本編製：\n　(1)按公允價值衡量之透過損益按公允價值衡量之金融資產及負債(包括衍生工具)。\n　(2)按公允價值衡量之透過其他綜合損益按公允價值衡量之金融資產。\n　(3)按退休基金資產減除確定福利義務現值之淨額認列之確定福利負債。\n　(4)按保險業相關特定法令及函令等提列之各項保險負債及再保險準備資產。\n3.編製符合IFRSs之財務報告需要使用一些重要會計估計值，在應用本公司的會計政策\n  過程中亦需要管理階層運用其判斷，涉及高度判斷或複雜性之項目，或涉及財務報告\n  之重大假設及估計之項目，請詳附註五說明。",
+        "document_sha256": "3bbdaab4568c0930001bdc358437c7c13302774dc7ce4dfcb45eee070f6b3536"
+      }
+    }
+  ],
+  "source_url": "https://mopsov.twse.com.tw/mops/web/ajax_t203sb01",
+  "comparative_revisions": []
+}

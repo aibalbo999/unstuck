@@ -7,6 +7,7 @@ import time
 
 from data_fetch import FetchRequest
 from runtime_logging import log_runtime_message, runtime_log_scope
+from watchlist_trigger_helpers import monthly_revenue_below_threshold
 
 SOURCE_TTL = {'market_data': 300, 'macro_indicators': 300,
               'institutional_trading': 900, 'monthly_revenue': 3600,
@@ -26,6 +27,10 @@ def trigger_sources(triggers: list) -> tuple[str, ...]:
     sources = set()
     for trigger in triggers:
         if not isinstance(trigger, dict) or trigger.get('enabled') is False:
+            continue
+        if (str(trigger.get('type') or '').strip() == 'report_catalyst'
+                and monthly_revenue_below_threshold(trigger.get('trigger_condition')) is not None):
+            sources.add('monthly_revenue')
             continue
         sources.update(TRIGGER_SOURCES.get(str(trigger.get('type') or '').strip(), ('full',)))
     return tuple(sorted(sources))
@@ -57,7 +62,8 @@ class RadarDataCache:
         try:
             with runtime_log_scope(f'背景雷達 {ticker}'):
                 log_runtime_message('更新觸發條件資料：' + ', '.join(sources))
-                request = FetchRequest.from_ticker(ticker, force_refresh='full' in sources)
+                request = FetchRequest.from_ticker(ticker, force_refresh='full' in sources,
+                                                   radar_refresh='full' in sources)
                 selective = getattr(service, 'fetch_radar_async', None)
                 result = await selective(request, sources) if selective else await service.fetch_async(request)
                 data = getattr(result, 'data', None)

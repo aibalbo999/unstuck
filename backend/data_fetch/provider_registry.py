@@ -12,11 +12,14 @@ from .enrichment_providers import (
     EarningsCallProvider,
     FmpNewsProvider,
     FreeNewsWaterfallProvider,
+    TwseCompanyHistoryProvider,
+    TpexCompanyHistoryProvider,
     GlobalMarketContextProvider,
     InternationalNewsContextProvider,
     PeRiverChartProvider,
     YahooProvider,
 )
+from .enrichment_search_providers import MedicalPublishedPeerCohortProvider, MoneyDjPublishedPeerCohortProvider, OfficialSegmentDiscoveryProvider, YahooPublishedPeerRankingProvider
 from .provider_base import DataProvider
 from .quote_providers import FmpProvider, YFinanceProvider
 from .taiwan_providers import FinMindProvider, InstitutionalTradingProvider, MonthlyRevenueProvider, TwseOfficialProvider
@@ -25,6 +28,9 @@ from .taiwan_open_data_provider import TaiwanOpenDataProvider
 from .types import FetchRequest
 from .official_disclosures_provider import OfficialDisclosuresProvider
 from .company_ir_provider import CompanyIrProvider
+from .annual_workforce_provider import AnnualWorkforceProvider
+from .issuer_news_provider import IssuerNewsProvider
+from .trading_notices_provider import TradingNoticesProvider
 
 
 class ProviderRegistry:
@@ -56,6 +62,10 @@ def default_providers() -> list[DataProvider]:
         FinMindProvider(),
         FmpProvider(),
         FreeNewsWaterfallProvider(),
+        TwseCompanyHistoryProvider(),
+        TpexCompanyHistoryProvider(),
+        IssuerNewsProvider(),
+        TradingNoticesProvider(),
         AlternativeSearchProvider(),
         FmpNewsProvider(),
         EarningsCallProvider(),
@@ -68,9 +78,14 @@ def default_providers() -> list[DataProvider]:
         CompanyIrProvider(),
         ChipDataProvider(),
         AlternativeJobOpeningsProvider(),
+        AnnualWorkforceProvider(),
         SocialSentimentProvider(),
         SecEdgarProvider(),
         AlternativePeerDiscoveryProvider(),
+        YahooPublishedPeerRankingProvider(),
+        MoneyDjPublishedPeerCohortProvider(),
+        MedicalPublishedPeerCohortProvider(),
+        OfficialSegmentDiscoveryProvider(),
         TwseOfficialProvider(),
         MonthlyRevenueProvider(),
         InstitutionalTradingProvider(),

@@ -7,6 +7,7 @@ ROUTED_EXTERNAL_CONTEXT_KEYS = {
     "tdcc_shareholder_distribution": {15, 18, 23, 24},
     "twse_margin_short_sales": {15, 18, 23, 24},
     "alternative_data": {13, 14},
+    "annual_workforce": {13, 14},
     "sentiment_context": {17},
     "social_sentiment": {17},
     "sec_edgar": {13, 14, 21},

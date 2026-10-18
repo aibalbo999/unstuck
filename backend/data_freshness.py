@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 import time as time_module
 from datetime import datetime, timezone
 from typing import Optional, Sequence
@@ -62,7 +63,47 @@ def cache_timestamp_epoch(cached: dict) -> Optional[float]:
         return None
 
 
-def source_timestamp_epoch(data: dict, source: str) -> Optional[float]:
+def _twse_original_timestamp(data: dict, now_epoch: Optional[float] = None) -> Optional[float]:
+    """Use only the selected TWSE observation, never aggregate/market time.
+
+    An explicit entry (including unknown or invalid) is authoritative. Without
+    one, only source-specific fields are eligible. Audit selection remains with
+    its producer; source-only refresh already projects retained original audits.
+    """
+    now_epoch = time_module.time() if now_epoch is None else now_epoch
+    freshness = data.get("source_freshness")
+    if isinstance(freshness, dict) and "twse_official" in freshness:
+        entry = freshness["twse_official"]
+        if not isinstance(entry, dict):
+            return None
+        epoch, iso = entry.get("fetched_at_epoch"), entry.get("fetched_at")
+    else:
+        epoch, iso = data.get("twse_official_fetched_at_epoch"), data.get("twse_official_fetched_at")
+    try:
+        if epoch is not None:
+            if type(epoch) not in (int, float) or not math.isfinite(epoch):
+                return None
+            epoch = float(epoch)
+        if iso is not None:
+            if not isinstance(iso, str):
+                return None
+            parsed = datetime.fromisoformat(iso.replace("Z", "+00:00"))
+            if parsed.tzinfo is None or parsed.utcoffset() is None:
+                return None
+            iso_epoch = parsed.timestamp()
+            if not math.isfinite(iso_epoch) or not 0 < iso_epoch <= now_epoch:
+                return None
+            if epoch is not None and abs(epoch - iso_epoch) >= 1:
+                return None
+            epoch = iso_epoch if epoch is None else epoch
+        return epoch if epoch is not None and math.isfinite(epoch) and 0 < epoch <= now_epoch else None
+    except (ValueError, TypeError, OverflowError, OSError):
+        return None
+
+
+def source_timestamp_epoch(data: dict, source: str, *, now_epoch: Optional[float] = None) -> Optional[float]:
+    if source == "twse_official":
+        return _twse_original_timestamp(data, now_epoch=now_epoch)
     source_freshness = data.get("source_freshness", {}) if isinstance(data.get("source_freshness"), dict) else {}
     entry = source_freshness.get(source, {}) if isinstance(source_freshness.get(source), dict) else {}
     for key in ("fetched_at_epoch", "market_data_fetched_at_epoch", "cache_generated_at_epoch"):
@@ -140,7 +181,7 @@ def build_source_freshness(
         source: build_source_freshness_entry(
             source,
             ticker,
-            source_timestamp_epoch(data, source),
+            source_timestamp_epoch(data, source, now_epoch=now_epoch),
             cache_hit=cache_hit,
             now_epoch=now_epoch,
             market_session=market_session,
@@ -173,7 +214,7 @@ def source_is_stale(
     entry = build_source_freshness_entry(
         source,
         ticker,
-        source_timestamp_epoch(data, source),
+        source_timestamp_epoch(data, source, now_epoch=now_epoch),
         cache_hit=safe_bool(data.get("_cache_hit")),
         now_epoch=now_epoch,
         market_session=market_session,

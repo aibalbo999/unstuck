@@ -4,6 +4,75 @@ import json
 import re
 
 
+def price_source_observations(catalog):
+    """Expose exactly the date/window/basis consumed by the price validator."""
+    from trade_source_contract import allowed_source_refs
+    from trade_price_reference import _observation
+    allowed = allowed_source_refs(catalog)
+    observations = {}
+    for role in ('support_source_refs', 'resistance_source_refs'):
+        for ref in allowed[role]:
+            value = _observation(catalog, ref, role)
+            if value is not None:
+                observations[ref] = value
+    return list(observations.values())
+
+
+def technical_comparison_facts(catalog):
+    """Single-session comparisons; never infer a cross or trend from a point."""
+    root = catalog.get('short_term_market_context', {})
+    if not isinstance(root, dict):
+        return []
+    daily = root.get('daily_market_data', {})
+    technical = root.get('technical_indicators', {})
+    if not isinstance(daily, dict) or not isinstance(technical, dict):
+        return []
+    bars = daily.get('bars', [])
+    if not bars or not isinstance(bars[-1], dict):
+        return []
+    if (not technical.get('as_of') or bars[-1].get('date') != technical.get('as_of')
+            or daily.get('price_adjustment_basis') in {None, '', 'unknown', 'unavailable'}
+            or daily.get('price_adjustment_basis') != technical.get('price_adjustment_basis')):
+        return []
+    from quant_input_contract import finite_number
+    close = finite_number(bars[-1].get('close'))
+    if close is None or close <= 0:
+        return []
+    close_ref = f'short_term_market_context.daily_market_data.bars[{len(bars)-1}].close'
+    facts = []
+    for field in ('sma_5', 'sma_10', 'sma_20', 'sma_60'):
+        average = finite_number(technical.get(field))
+        if average is not None and average > 0:
+            facts.append({'observed_date': technical['as_of'], 'price_basis': daily['price_adjustment_basis'],
+                          'close': close, 'average': average,
+                          'relation': 'above' if close > average else 'below' if close < average else 'equal',
+                          'source_refs': [close_ref, 'short_term_market_context.technical_indicators.' + field]})
+    averages = [finite_number(technical.get('sma_' + str(n))) for n in (5, 10, 20)]
+    if all(value is not None for value in averages):
+        facts.append({'observed_date': technical['as_of'], 'price_basis': daily['price_adjustment_basis'],
+                      'sma_5_10_20': averages, 'bullish_order': averages[0] > averages[1] > averages[2],
+                      'bearish_order': averages[0] < averages[1] < averages[2],
+                      'source_refs': ['short_term_market_context.technical_indicators.sma_' + str(n) for n in (5, 10, 20)]})
+    return facts
+
+
+def technical_comparison_prompt(catalog):
+    facts = technical_comparison_facts(catalog)
+    technical = catalog.get('short_term_market_context', {}).get('technical_indicators', {})
+    comparison = technical.get('macd_histogram_comparison') if isinstance(technical, dict) else None
+    if isinstance(comparison, dict):
+        facts.append({'macd_histogram_comparison': comparison})
+    return ('【同日同價格基準的可重算相對位置】\n'
+            'below才表示低於，above表示高於；不得把高於寫成跌破。'
+            '此處只證明當日相對位置，不證明穿越、轉正、斜率、趨勢或動能加速；'
+            '突破/跌破/黃金交叉/轉正必須另列前後兩個日期的同基準觀測。'
+            'SMA5>SMA10>SMA20才是5/10/20日多頭排列；其他均線組合需明寫組合。'
+            'MACD柱的擴張比較絕對值，不是帶符號大小：負柱-0.57到-0.44為收斂，仍負值不代表擴張。'
+            '正柱也以絕對值判斷；跨零須寫跨零，不能沿用負柱收斂／擴張。'
+            '只可使用下列同一完整輸入窗與EMA種子的兩日計算收據；缺前日或基準時標未評估。\n'
+            + json.dumps(facts, ensure_ascii=False, allow_nan=False)) if facts else ''
+
+
 def canonical_catalog(catalog):
     """Keep record indexes/values; references identify the visible catalog, not raw input."""
     result = copy.deepcopy(catalog)
@@ -39,7 +108,9 @@ def source_fact_cards(catalog):
         ref = tail.split('；provider=', 1)[0]
         if ref in roles:
             cards.append({'ref': ref, 'roles': roles[ref], 'fact': fact,
-                          'limit': '累計淨額不證明每日連續、持續或趨勢；不得改主體或期間'})
+                          'limit': '累計淨額不證明每日連續、持續或趨勢；不得改主體或期間',
+                          'supports': ['dated_numeric_net_flow'],
+                          'unsupported': ['daily_alternation', 'continuous_flow', 'turning_trend']})
         if len(cards) >= 12:
             break
     root = catalog.get('short_term_market_context', {})
@@ -80,7 +151,11 @@ def source_fact_cards(catalog):
         if counts.get(kind, 0) >= limits[kind]:
             continue
         counts[kind] = counts.get(kind, 0) + 1
-        cards.append({'ref': ref, 'roles': ref_roles, 'fact': fact})
+        card = {'ref': ref, 'roles': ref_roles, 'fact': fact}
+        if kind == 'ownership':
+            card.update(supports=['dated_ownership_percentage'],
+                        unsupported=['ownership_increase', 'ownership_decrease', 'multiweek_trend'])
+        cards.append(card)
     # A fact example must also survive the actual combined source predicates.
     # This is an isolated probe, never an adopted candidate or direction change.
     from trade_source_contract import bind_trade_payload, CONTRACT_VERSION
@@ -102,7 +177,17 @@ def source_guidance_text(catalog):
     return ('\n【同一來源的有限事實句示例；不是方向建議】\n'
             '以下僅示範來源可以證明的範圍，不是完整來源清單，也不取代原始資料。'
             '依研究需要自行選擇並引用，不得為通過 gate 強迫方向、刪除反證或把未知當成事實。'
-            '額外推論仍須自己的同期間來源；單根日K高點不證明52週高點；新聞出版不證明未來排程。\n'
+            '額外推論仍須自己的同期間來源；單根日K高點不證明52週高點；新聞出版不證明未來排程。'
+            '生成 observed_signal 前逐句核對：每個事實須有自己的 observed_source_refs；'
+            '不可在已引用的累計數值後附加「近10日買賣交錯」，也不可在單次持股比例後附加「連續兩週減少」。'
+            '下列 unsupported 是目前契約不能由該引用證明的論述；不要把這些論述寫成已觀測事實。'
+            '尚待發生的改善只能放 recheck_condition；事件資料 unavailable 時保留未知，不能當成催化證據。\n'
             + '\n'.join('- ' + c['fact'] + ' source ref=' + c['ref'] + '；' +
                         json.dumps({k: v for k, v in c.items() if k not in {'fact', 'ref'}},
-                                   ensure_ascii=False, separators=(',', ':')) for c in cards))
+                                   ensure_ascii=False, separators=(',', ':')) for c in cards)
+            + '\n【逐引用價格輸入收據；只供引用，不指定支撐壓力或方向】\n'
+            'price_level_evidence.inputs逐項原樣沿用下列ref、observed_date、window_sessions、price_basis；'
+            '不得把Yahoo還原OHLC改稱交易所未還原價、unadjusted_high或adjusted_analysis_series。'
+            '來源缺metadata保留null，不靠名稱猜測；數字相同也不證明基準相同。\n'
+            + json.dumps(price_source_observations(catalog), ensure_ascii=False, allow_nan=False)
+            + ('\n' + technical_comparison_prompt(catalog) if technical_comparison_prompt(catalog) else ''))

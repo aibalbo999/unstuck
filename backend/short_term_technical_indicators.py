@@ -50,7 +50,9 @@ def _rsi(closes, period=14):
 
 def calculate_technical_indicators(daily: dict) -> dict:
     """Compute exclusively from the validated, stored daily bars (at most 120)."""
+    import hashlib, json
     bars = daily.get("bars") or []
+    sample_sha=hashlib.sha256(json.dumps(bars,sort_keys=True,separators=(",",":"),allow_nan=False).encode()).hexdigest()
     closes = [bar["close"] for bar in bars]
     volumes = [bar["volume"] for bar in bars]
     fast, slow = _ema(closes, 12), _ema(closes, 26)
@@ -83,6 +85,9 @@ def calculate_technical_indicators(daily: dict) -> dict:
         "as_of": daily.get("as_of"), "sample_count": len(bars),
         "source": daily.get("source"),
         "volume_unit": daily.get("volume_unit"),
+        "price_adjustment_basis": daily.get("price_adjustment_basis"),
+        "volume_basis": daily.get("volume_basis"),
+        "input_window": {"start": bars[0]["date"] if bars else None, "end": bars[-1]["date"] if bars else None, "sample_count": len(bars), "bars_sha256": sample_sha},
         "availability": "unavailable" if not bars else "partial" if missing else "available",
         "missing_indicators": missing,
         "calculation_policy": {
@@ -93,5 +98,31 @@ def calculate_technical_indicators(daily: dict) -> dict:
             "atr_14": "14 true ranges using previous close; SMA seed then Wilder smoothing; requires 15 bars",
             "volume_ratio_20": "Latest volume / mean of final 20 volumes; zero mean yields null",
         },
+        "macd_histogram_comparison": histogram_comparison(
+            macd_series, signal_series, bars, daily, sample_sha),
         **values,
     }
+
+
+def histogram_comparison(macd_series, signal_series, bars, daily, sample_sha):
+    """Compare two observations from one SMA-seeded window, not rolling seeds."""
+    if len(signal_series) < 2 or signal_series[-2] is None or signal_series[-1] is None:
+        return None
+    before, after = macd_series[-2] - signal_series[-2], macd_series[-1] - signal_series[-1]
+    previous, current = bars[-2].get("date"), bars[-1].get("date")
+    if not previous or not current or previous >= current or current != daily.get("as_of"):
+        return None
+    magnitude_delta = abs(after) - abs(before)
+    if before * after < 0:
+        relation = "crossed_zero"
+    elif before == 0 or after == 0:
+        relation = "touches_zero" if before != after else "unchanged"
+    else:
+        relation = ("negative_" if after < 0 else "positive_") + (
+            "expansion" if magnitude_delta > 0 else "contraction" if magnitude_delta < 0 else "unchanged")
+    return {"previous_date": previous, "observed_date": current,
+            "previous": _finite(before), "current": _finite(after),
+            "signed_delta": _finite(after - before), "magnitude_delta": _finite(magnitude_delta),
+            "relation": relation, "price_basis": daily.get("price_adjustment_basis"),
+            "input_bars_sha256": sample_sha, "input_sample_count": len(bars),
+            "scope": "last two observed sessions;same full input window and EMA seed;not proof of future momentum"}

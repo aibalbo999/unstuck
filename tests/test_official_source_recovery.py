@@ -130,12 +130,14 @@ def test_official_missing_security_preserves_stale_date_and_no_zero(monkeypatch,
     assert result.value['official_recovery']['checked_dates']==['2026-09-24','2026-09-23','2026-09-22','2026-09-21','2026-09-18']
 
 
-def test_complete_current_primary_does_not_trigger_official_requests(institutional_http):
+def test_claimed_complete_primary_without_raw_evidence_still_checks_official(institutional_http):
     from data_fetch.institutional_provider import fetch_institutional_result
     value={**primary_old(),'latest_date':'2026-09-24','window_coverage_status':'complete'}
     result=fetch_institutional_result(FetchRequest.from_ticker('2330.TW'),fetch=lambda _:value)
-    assert not institutional_http
+    assert len(institutional_http)==5
     assert result.value['latest_date']=='2026-09-24'
+    assert result.audit['official_recovery']['status']=='security_absent'
+    assert result.audit['latest_session_admission']['eligible'] is False
 
 
 def test_dated_report_does_not_accept_provider_ignoring_requested_date(monkeypatch, institutional_http):
@@ -153,6 +155,93 @@ def test_market_reports_are_shared_between_tickers(institutional_http):
     second=fetch_institutional_result(FetchRequest.from_ticker('2330.TW'),fetch=lambda _:primary_old())
     assert len(institutional_http)==5
     assert all(row['cache_hit'] for row in second.audit['official_recovery']['reports'])
+
+
+def test_twse_t86_timeout_uses_official_mirror_for_same_exact_report(monkeypatch, institutional_http):
+    from requests.exceptions import Timeout
+    import external_http_client
+    from official_institutional_source import _fetch_report
+    from search_provider_runtime import cooldown_state, scope_key
+
+    calls = []
+
+    def get(url, **kwargs):
+        calls.append((url, kwargs['timeout']))
+        if len(calls) == 1:
+            raise Timeout('primary T86 timed out')
+        return Response(t86('2026-09-24'))
+
+    monkeypatch.setattr(external_http_client, 'sync_get', get)
+    report = _fetch_report('TWSE', '2026-09-24', 8)
+
+    assert report['report_status'] == 'available'
+    assert report['rows']['2321']['foreign'] == 1200
+    assert [url.split('/')[2] for url, _ in calls] == ['www.twse.com.tw', 'wwwc.twse.com.tw']
+    assert all('20260924' in url for url, _ in calls)
+    assert calls[0][1] <= 5 and 0 < calls[1][1] <= 3
+    assert report['source_url'].startswith('https://wwwc.twse.com.tw/')
+    assert report['fallback_reason'] == 'timeout'
+    assert cooldown_state(scope_key('TWSE T86', endpoint='institutional_daily')) == {}
+
+
+def test_twse_t86_mirror_does_not_bypass_access_denial_or_wrong_date(monkeypatch, institutional_http):
+    from requests.exceptions import HTTPError, Timeout
+    from types import SimpleNamespace
+    import external_http_client
+    from official_institutional_source import _fetch_report
+
+    calls = []
+
+    def forbidden(url, **kwargs):
+        calls.append(url)
+        error = HTTPError('forbidden')
+        error.response = SimpleNamespace(status_code=403, headers={})
+        raise error
+
+    monkeypatch.setattr(external_http_client, 'sync_get', forbidden)
+    with pytest.raises(HTTPError):
+        _fetch_report('TWSE', '2026-09-24', 8)
+    assert len(calls) == 1 and 'www.twse.com.tw' in calls[0]
+
+    from cache_store import set_cache_json
+    from search_provider_runtime import scope_key
+    set_cache_json(scope_key('TWSE T86', endpoint='institutional_daily'), {}, 1)
+    calls.clear()
+
+    def wrong_date(url, **kwargs):
+        calls.append(url)
+        if len(calls) == 1:
+            raise Timeout('primary timeout')
+        return Response(t86('2026-09-23'))
+
+    monkeypatch.setattr(external_http_client, 'sync_get', wrong_date)
+    with pytest.raises(ValueError, match='date does not match'):
+        _fetch_report('TWSE', '2026-09-24', 8)
+    assert len(calls) == 2 and 'wwwc.twse.com.tw' in calls[1]
+
+
+def test_institutional_workflow_recovers_latest_day_through_twse_mirror(monkeypatch, institutional_http):
+    from requests.exceptions import Timeout
+    from urllib.parse import parse_qs, urlparse
+    import external_http_client
+    from data_fetch.institutional_provider import fetch_institutional_result
+
+    calls = []
+
+    def get(url, **kwargs):
+        calls.append(url)
+        day = parse_qs(urlparse(url).query)['date'][0]
+        if len(calls) == 1:
+            raise Timeout('primary latest day timeout')
+        return Response(t86(day))
+
+    monkeypatch.setattr(external_http_client, 'sync_get', get)
+    result = fetch_institutional_result(FetchRequest.from_ticker('2321.TW'), fetch=lambda _: primary_old())
+
+    assert result.value['latest_date'] == '2026-09-24'
+    assert result.value['official_recovery']['reports'][0]['source_url'].startswith('https://wwwc.twse.com.tw/')
+    assert len(calls) >= 2 and calls[0].startswith('https://www.twse.com.tw/')
+    assert calls[1].startswith('https://wwwc.twse.com.tw/')
 
 
 def test_conflicting_date_category_is_preserved_not_double_counted(institutional_http):

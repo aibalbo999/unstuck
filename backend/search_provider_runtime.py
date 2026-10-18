@@ -78,13 +78,58 @@ def error_details(exc: Exception) -> dict:
     return {'error_kind': kind, 'http_status': status if status is not None else _HTTP_STATUS.get(), **{name: diagnostic[name] for name in ('response_sha256', 'response_bytes', 'parser_version') if name in diagnostic}}
 
 
+def _failure_fingerprint(state: dict) -> str:
+    return hashlib.sha256(json.dumps(state, sort_keys=True, allow_nan=False).encode()).hexdigest()
+
+
+def _recovery_key(key: str) -> str:
+    return 'provider_endpoint_recovery:v1:' + hashlib.sha256(key.encode()).hexdigest()
+
+
+def _valid_recovery_times(state, marker, now):
+    times = (state.get('retry_at'), marker.get('request_started_at'), marker.get('confirmed_at'), now)
+    return (all(type(value) in (int, float) and math.isfinite(value) and value > 0 for value in times)
+            and times[0] <= times[1] <= times[2] <= times[3])
+
+
+def remember_success(key: str, *, request_started_at: float) -> bool:
+    """Record a validated native recovery, without deleting or shortening guards.
+
+    The marker binds the exact expired failure state. If a concurrent request
+    records a new failure, its different fingerprint prevents this success from
+    resetting that new streak. Cache replay must never call this function.
+    """
+    try:
+        previous = get_cache_json(key)
+        if not isinstance(previous, dict) or not previous.get('consecutive_failures'):
+            return False
+        marker = {'request_started_at': request_started_at, 'confirmed_at': time.time()}
+        if not _valid_recovery_times(previous, marker, time.time()):
+            return False
+        marker['failure_state_sha256'] = _failure_fingerprint(previous)
+        set_cache_json(_recovery_key(key), marker, ttl_seconds=7 * 86400)
+        return True
+    except Exception:
+        # Recovery bookkeeping cannot discard validated source data.
+        return False
+
+
+def _failure_recovered(key, previous):
+    try:
+        marker = get_cache_json(_recovery_key(key))
+        return (isinstance(marker, dict) and _valid_recovery_times(previous, marker, time.time())
+                and marker.get('failure_state_sha256') == _failure_fingerprint(previous))
+    except Exception:
+        return False
+
+
 def remember_failure(key: str, exc: Exception) -> dict:
     details = error_details(exc)
     try:
         previous = get_cache_json(key) or {}
     except Exception:
         previous = {}
-    failures = min(12, int(previous.get('consecutive_failures') or 0) + 1)
+    failures = 1 if _failure_recovered(key, previous) else min(12, int(previous.get('consecutive_failures') or 0) + 1)
     seconds = {'authentication': 3600, 'payment_required': 3600, 'access_denied': 1800,
                'provider_rejected': 900, 'rate_limited': 300, 'parse_error': 300,
                'provider_error': 300}.get(details['error_kind'], 60)

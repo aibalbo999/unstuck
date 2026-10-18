@@ -1,0 +1,60 @@
+{
+  "captured_at": "2026-10-11T06:15:11.820813+00:00",
+  "cutoff": "2026-10-11T06:15:11.820813+00:00",
+  "data": {
+    "ticker": "2845.TW",
+    "instrument_type": "EQUITY",
+    "company_name": "遠東銀 / Far Eastern International Bank Ltd.",
+    "company_identity": {
+      "ticker": "2845.TW",
+      "stock_id": "2845",
+      "official_name": "遠東銀",
+      "legal_name": null,
+      "official_ubn": null,
+      "allowed_aliases": [
+        "遠東銀",
+        "遠東銀 / Far Eastern International Bank Ltd.",
+        "Far Eastern International Bank Ltd.",
+        "2845.TW",
+        "2845",
+        "FAR EASTERN INTERNATIONAL BANK"
+      ],
+      "forbidden_aliases": [],
+      "english_names": [
+        "Far Eastern International Bank Ltd.",
+        "FAR EASTERN INTERNATIONAL BANK"
+      ]
+    }
+  },
+  "receipts": {
+    "group": {
+      "sha256": "24aaac16e0a02e030f87f13908e2bec3c1fda63c96766562e46e2eb98fa64295",
+      "source_url": "https://www.feg.com.tw/tw/business/company.aspx?id=78",
+      "retrieved_at": 1791699310.433438,
+      "bytes": 45095,
+      "fixture": "feib_verified_news_group_20261011.gz"
+    },
+    "rss": {
+      "sha256": "b0aac5e6b120749019bf254573f6dde390eb1f1e84cc9d6590ec0b6de9f2dca4",
+      "source_url": "https://news.google.com/rss/search?q=%22%E9%81%A0%E9%8A%80%22+when%3A30d&hl=zh-TW&gl=TW&ceid=TW%3Azh-Hant",
+      "retrieved_at": 1791699311.127243,
+      "bytes": 19705,
+      "fixture": "feib_verified_news_rss_20261011.gz"
+    },
+    "commentary": {
+      "sha256": "208da30f43b31fc95aa43941f5f6e8eb00fd697f9450859e5cddeeb9eb1eacd1",
+      "source_url": "https://news.google.com/rss/search?q=%22%E9%81%A0%E6%9D%B1%E5%95%86%E9%8A%80%22+when%3A30d&hl=zh-TW&gl=TW&ceid=TW%3Azh-Hant",
+      "retrieved_at": 1791699130.551202,
+      "bytes": 30608,
+      "fixture": "feib_verified_news_commentary_20261011.gz"
+    }
+  },
+  "roster": {
+    "公司代號": "2845",
+    "公司名稱": "遠東國際商業銀行股份有限公司",
+    "公司簡稱": "遠東銀",
+    "營利事業統一編號": "86517096",
+    "出表日期": "1151009",
+    "網址": "http://www.feib.com.tw"
+  }
+}

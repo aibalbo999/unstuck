@@ -218,3 +218,97 @@ def test_thread_and_process_wait_share_one_deadline(monkeypatch):
     assert waits == [1, 0.25]
     assert now[0] == 101.0
     assert meta['error_kind'] == 'single_flight_busy' and not calls
+def test_explicit_force_refresh_updates_the_shared_value_without_changing_other_keys():
+    import cache_store
+    from cache_backends import InMemoryCache
+    from shared_provider_cache import shared_fetch
+    cache_store.set_cache_backend(InMemoryCache());calls=[]
+    def acquire(value):
+        def read():calls.append(value);return {'value':value}
+        return read
+    try:
+        shared_fetch('force-write-through-target',acquire(1),freshness_seconds=3600)
+        shared_fetch('force-write-through-other',acquire(8),freshness_seconds=3600)
+        value,meta=shared_fetch('force-write-through-target',acquire(2),freshness_seconds=3600,force_refresh=True)
+        assert value=={'value':2} and meta['cache_hit'] is False
+        value,meta=shared_fetch('force-write-through-target',acquire(3),freshness_seconds=3600)
+        assert value=={'value':2} and meta['cache_hit'] is True
+        other,_=shared_fetch('force-write-through-other',acquire(9),freshness_seconds=3600)
+        assert other=={'value':8} and calls==[1,8,2]
+    finally:cache_store.reset_cache_store_for_tests()
+
+
+def test_failed_forced_refresh_cannot_hide_error_as_fresh_old_cache(monkeypatch):
+    import shared_provider_cache as shared
+    import cache_store
+    from cache_backends import InMemoryCache
+    now=[1000.];monkeypatch.setattr(shared.time,'time',lambda:now[0]);cache_store.set_cache_backend(InMemoryCache())
+    calls=[]
+    try:
+        first,_=shared.shared_fetch('forced-failure',lambda:{'value':1},freshness_seconds=3600,retention_seconds=7200,error_retry_seconds=60)
+        other,othermeta=shared.shared_fetch('unchanged-other',lambda:{'value':9},freshness_seconds=3600)
+        now[0]=1001
+        def fail():
+            calls.append('force');raise TimeoutError('timeout')
+        forced,forcedmeta=shared.shared_fetch('forced-failure',fail,freshness_seconds=3600,retention_seconds=7200,error_retry_seconds=60,force_refresh=True)
+        assert forced==first and forcedmeta['stale'] is True and forcedmeta['error_kind']=='TimeoutError'
+        now[0]=1002
+        normal,normalmeta=shared.shared_fetch('forced-failure',lambda:pytest.fail('retry before cooldown'),freshness_seconds=3600,retention_seconds=7200,error_retry_seconds=60)
+        assert normal==first and calls==['force']
+        assert normalmeta.get('stale') is True and normalmeta.get('cooldown') is True and normalmeta.get('error_kind')=='TimeoutError',normalmeta
+        assert normalmeta['fetched_at_epoch']==1000
+        value,meta=shared.shared_fetch('unchanged-other',lambda:pytest.fail('other key invalidated'),freshness_seconds=3600)
+        assert value==other and meta['cache_hit'] is True and meta['stale'] is False and meta['fetched_at_epoch']==othermeta['fetched_at_epoch']
+    finally:cache_store.reset_cache_store_for_tests()
+
+
+def test_busy_lock_can_reuse_only_an_unexpired_cache_without_fetching(monkeypatch):
+    import shared_provider_cache as shared
+    from contextlib import contextmanager
+
+    calls=[]
+    shared.shared_fetch('busy-fresh-cache',lambda:{'value':'last-good'},freshness_seconds=60)
+
+    @contextmanager
+    def busy(_digest, _wait):
+        yield False
+
+    monkeypatch.setattr(shared,'_shared_lock',busy)
+    value,meta=shared.shared_fetch(
+        'busy-fresh-cache',lambda:calls.append('unexpected'),
+        freshness_seconds=60,lock_wait_seconds=0,
+    )
+
+    assert value=={'value':'last-good'}
+    assert meta['cache_hit'] is True and meta['stale'] is False
+    assert meta['fetched_at_epoch'] is not None
+    assert calls==[]
+
+
+def test_busy_lock_does_not_return_stale_or_force_refresh_cache(monkeypatch):
+    import shared_provider_cache as shared
+    from contextlib import contextmanager
+
+    now=[1000.]
+    monkeypatch.setattr(shared.time,'time',lambda:now[0])
+    shared.shared_fetch('busy-stale-cache',lambda:{'value':'old'},freshness_seconds=10,retention_seconds=100)
+    now[0]=1011
+
+    @contextmanager
+    def busy(_digest, _wait):
+        yield False
+
+    monkeypatch.setattr(shared,'_shared_lock',busy)
+    calls=[]
+    stale,stale_meta=shared.shared_fetch(
+        'busy-stale-cache',lambda:calls.append('stale-fetch'),
+        freshness_seconds=10,retention_seconds=100,lock_wait_seconds=0,
+    )
+    forced,forced_meta=shared.shared_fetch(
+        'busy-stale-cache',lambda:calls.append('forced-fetch'),
+        freshness_seconds=10,retention_seconds=100,lock_wait_seconds=0,force_refresh=True,
+    )
+
+    assert stale is None and stale_meta['error_kind']=='single_flight_busy'
+    assert forced is None and forced_meta['error_kind']=='single_flight_busy'
+    assert calls==[]

@@ -1,0 +1,54 @@
+{
+  "captured_at": "2026-10-11T04:25:56.733404+00:00",
+  "RSS_retrieved_at": 1791692757.20684,
+  "RSS_sha256": "917bac993c919220827e502b6f1d72c933db36e180bf58b64e064f5949bdfc28",
+  "RSS_url": "https://news.google.com/rss/search?q=%22%E5%B7%A8%E9%8E%A7%E7%B2%BE%E5%AF%86%22+2254+when%3A30d&hl=zh-TW&gl=TW&ceid=TW%3Azh-Hant",
+  "company_data": {
+    "ticker": "2254.TW",
+    "company_name": "巨鎧精密-創 / Coplus Inc.",
+    "company_identity": {
+      "ticker": "2254.TW",
+      "stock_id": "2254",
+      "official_name": "巨鎧精密-創",
+      "legal_name": null,
+      "display_name": "巨鎧精密-創 / Coplus Inc.",
+      "english_names": [
+        "Coplus Inc.",
+        "COPLUS INC"
+      ],
+      "allowed_aliases": [
+        "巨鎧精密-創",
+        "巨鎧精密-創 / Coplus Inc.",
+        "Coplus Inc.",
+        "2254.TW",
+        "2254",
+        "COPLUS INC"
+      ],
+      "forbidden_aliases": [],
+      "instrument_type": "EQUITY"
+    }
+  },
+  "roster_sha256": "ace3e78957b763b9e99b4f3d222b6838c2b176778bc5a7295d3754e1dafe4865",
+  "captured_current_issuer": {
+    "公司代號": "2254",
+    "公司名稱": "巨鎧精密工業股份有限公司",
+    "公司簡稱": "巨鎧精密-創",
+    "營利事業統一編號": "54297090",
+    "出表日期": "1151009"
+  },
+  "original_report_filename": "2254_TW_v4_report_job_1b30292e19f2.html",
+  "original_snapshot_sha256": "3187841bb7b997280f92f8444446df91f1247b20b8c360159403f0bf4c15e7c1",
+  "record_count": 8,
+  "reported_source_keys": [
+    "cmoney",
+    "cmoney投資網誌",
+    "中時新聞網",
+    "富聯網"
+  ],
+  "publisher_families_after_CMoney_labels_collapsed": [
+    "cmoney",
+    "chinatimes",
+    "fubon_ebroker"
+  ],
+  "not_full_article_or_original_publication_date_or_event_impact_verification": true
+}

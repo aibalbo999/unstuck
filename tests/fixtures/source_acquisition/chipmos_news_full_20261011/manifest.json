@@ -1,0 +1,26 @@
+{
+  "parts": {
+    "master": {
+      "filename": "master.raw.gz",
+      "url": "https://openapi.twse.com.tw/v1/opendata/t187ap03_L",
+      "bytes": 1327578,
+      "sha256": "ace3e78957b763b9e99b4f3d222b6838c2b176778bc5a7295d3754e1dafe4865",
+      "retrieved_at": 1791665479.241487
+    },
+    "index": {
+      "filename": "index.raw.gz",
+      "url": "https://www.chipmos.com/chinese/news/news-list.aspx?MID=1",
+      "bytes": 30249,
+      "sha256": "d5d1637298e59d06e049f4845e73c5238e1224b41af8dfb9dad732946e7ae4fc",
+      "retrieved_at": 1791733954.9186869
+    },
+    "article0": {
+      "filename": "article0.raw.gz",
+      "url": "https://www.chipmos.com/chinese/news/news-detail.aspx?NID=271",
+      "bytes": 31805,
+      "sha256": "f23ea7431cd4cd4d0824845af39cae46bcf1bd496ff493c91da55c796d013861",
+      "retrieved_at": 1791733955.1832561
+    }
+  },
+  "complete_native_originals": true
+}

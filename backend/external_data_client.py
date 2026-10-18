@@ -8,7 +8,7 @@ import math
 import re
 from typing import Any, Callable
 
-from news_fetchers import fetch_duckduckgo_news, fetch_google_news_rss, fetch_ptt_stock_sentiment
+from news_fetchers import fetch_duckduckgo_news, fetch_google_news_rss
 from official_financials import fetch_mops_balance_sheet
 
 
@@ -26,45 +26,36 @@ class ExternalDataClient:
         *,
         google_news: NewsFetcher = fetch_google_news_rss,
         ddg_news: NewsFetcher = fetch_duckduckgo_news,
-        ptt_news: NewsFetcher = fetch_ptt_stock_sentiment,
         financial_fetcher: FinancialFetcher | None = None,
         mops_fetcher: MopsFetcher = fetch_mops_balance_sheet,
     ) -> None:
         self.google_news = google_news
         self.ddg_news = ddg_news
-        self.ptt_news = ptt_news
         self.financial_fetcher = financial_fetcher or (lambda _ticker: {})
         self.mops_fetcher = mops_fetcher
         self.last_news_audit: list[dict[str, Any]] = []
 
-    def get_news(self, query: str, *, ticker: str | None = None, limit: int = 10) -> list[dict[str, str]]:
-        """Fetch news through free providers with Taiwan-specific PTT enrichment."""
-        self.last_news_audit = []
-        if ticker and _is_taiwan_ticker(ticker):
-            return self._get_taiwan_news(query, ticker, limit)
+    def get_news(self, query: str, *, ticker: str | None = None, limit: int = 10,
+                 sufficient: Callable[[list[dict[str, str]]], bool] | None = None) -> list[dict[str, str]]:
+        """Fetch publisher news, optionally expanding an insufficient candidate pool.
 
-        google = self._safe_news("Google News RSS", self.google_news, query, limit)
-        if google:
-            return _dedupe_news(google, limit)
-        self._log_fallback("Google News RSS", "DuckDuckGo News")
+        With a quality predicate, limit bounds each provider and the merged pool
+        is at most twice that size. The caller selects eligible evidence before
+        its final capacity limit, so irrelevant primary hits cannot crowd out
+        the fallback. Existing callers retain first-nonempty behavior.
+        """
+        self.last_news_audit = []
+        limit = max(1, int(limit or 10))
+        google = _dedupe_news(self._safe_news("Google News RSS", self.google_news, query, limit), limit)
+        if google and (sufficient is None or sufficient(google)):
+            return google
+        reason = "insufficient_usable_evidence" if google else "no_records"
+        self.last_news_audit[-1]['fallback_reason'] = reason
+        LOGGER.warning("Google News RSS fallback to DuckDuckGo News [%s]", reason)
 
         ddg = self._safe_news("DuckDuckGo News", self.ddg_news, query, limit)
-        if ddg:
-            return _dedupe_news(ddg, limit)
-
-        if not ticker or not _is_taiwan_ticker(ticker):
-            return []
-        self._log_fallback("DuckDuckGo News", "PTT Stock")
-        return _dedupe_news(self._safe_news("PTT Stock", self.ptt_news, ticker, limit), limit)
-
-    def _get_taiwan_news(self, query: str, ticker: str, limit: int) -> list[dict[str, str]]:
-        google = self._safe_news("Google News RSS", self.google_news, query, limit)
-        ptt = self._safe_news("PTT Stock", self.ptt_news, ticker, limit)
-        merged = _dedupe_news([*google, *ptt], limit)
-        if merged:
-            return merged
-        self._log_fallback("Google News RSS + PTT Stock", "DuckDuckGo News")
-        return _dedupe_news(self._safe_news("DuckDuckGo News", self.ddg_news, query, limit), limit)
+        ddg = _dedupe_news(ddg, limit)
+        return _dedupe_news(google + ddg, limit * 2 if sufficient is not None else limit)
 
     def get_financial_data(
         self,

@@ -197,6 +197,8 @@ def test_projection_uses_snapshot_pipeline_when_rerun_context_pipeline_is_missin
     assert {issue["id"] for issue in result["blocking_issues"]} == {
         "long_target_not_above_current_price",
         "long_stop_not_below_current_price",
+        "v4_market_observation_missing",
+        "v4_market_price_missing",
     }
 
 

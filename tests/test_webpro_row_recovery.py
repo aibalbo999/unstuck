@@ -26,15 +26,15 @@ def upstream(monkeypatch):
         monkeypatch.setattr(module, 'get_cache_json', lambda key: state.get(key))
         monkeypatch.setattr(module, 'set_cache_json', lambda key, value, ttl_seconds: state.__setitem__(key, deepcopy(value)))
     monkeypatch.setattr(runtime, 'record_source_audit_entries', lambda entries: observations.extend(deepcopy(entries)))
-    def post(url, **kwargs):
+    def get(url, **kwargs):
         assert url == webpro.LIST_URL  # Never dereference any event link.
-        assert kwargs['data']['pageNumber'] == '1' and kwargs['data']['pagingSize'] == '3'
-        category = int(kwargs['data']['categoryId'])
-        calls.append((url, category, kwargs['data']['stockCodeOrCompanyName']))
-        return httpx.Response(200, json=responses[category], request=httpx.Request('POST', url))
+        assert kwargs['params']['pagingSize'] == str(webpro.PAGE_SIZE)
+        category = int(kwargs['params']['categoryId'])
+        calls.append((url, category, kwargs['params']['companyCode']))
+        return httpx.Response(200, json=responses[category], request=httpx.Request('GET', url))
     def denied(*args, **kwargs):
         raise runtime.SourceResponseError('access_denied', status_code=200)
-    monkeypatch.setattr(webpro, 'sync_post', post)
+    monkeypatch.setattr(webpro, 'sync_get', get)
     monkeypatch.setattr(official_financials, 'fetch_mops_investor_conference_events', denied)
     return responses, state, calls, observations
 

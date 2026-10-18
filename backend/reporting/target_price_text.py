@@ -19,9 +19,9 @@ def target_price_text(value: Any) -> str:
     if value is None or value == "" or isinstance(value, bool):
         return "N/A"
     if isinstance(value, Decimal):
-        return f"NT${value:.0f}" if value.is_finite() else "N/A"
+        return f"NT${value:.0f}" if value.is_finite() and value > 0 else "N/A"
     if isinstance(value, (int, float)):
-        return f"NT${value:.0f}" if math.isfinite(value) else "N/A"
+        return f"NT${value:.0f}" if math.isfinite(value) and value > 0 else "N/A"
     text = safe_text(value).strip()
     if not text:
         return "N/A"
@@ -37,7 +37,7 @@ def _single_finite_price_number(text: str) -> float | None:
         number = float(tokens[0])
     except (ArithmeticError, AttributeError, RuntimeError, TypeError, ValueError):
         return None
-    return number if math.isfinite(number) else None
+    return number if math.isfinite(number) and number > 0 else None
 
 
 __all__ = ["target_price_text"]

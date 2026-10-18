@@ -76,7 +76,7 @@ def price_target_number(value) -> float | None:
         return None
     if isinstance(value, (int, float)):
         number = float(value)
-        return number if math.isfinite(number) else None
+        return number if math.isfinite(number) and number > 0 else None
     tokens = PRICE_NUMERIC_TOKEN_RE.findall(safe_text(value).replace(",", ""))
     if len(tokens) != 1:
         return None
@@ -84,7 +84,7 @@ def price_target_number(value) -> float | None:
         number = float(tokens[0])
     except ValueError:
         return None
-    return number if math.isfinite(number) else None
+    return number if math.isfinite(number) and number > 0 else None
 
 
 __all__ = [

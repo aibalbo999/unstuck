@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import time
+import re
 from contextlib import suppress
 from typing import Awaitable, Callable, Optional
 
@@ -38,6 +39,7 @@ class StockDataService:
             force_refresh=request.options.force_refresh,
             include_provider_results=request.options.include_provider_results,
             record_provider_sla=request.options.record_provider_sla,
+            radar_refresh=request.options.radar_refresh,
         )
 
         if self._fetcher is not None:
@@ -55,6 +57,113 @@ class StockDataService:
         from .radar import fetch_radar_payload
         started = time.time()
         data = await fetch_radar_payload(request, sources, self.registry)
+        return self._build_result(request, data, max(0, int((time.time() - started) * 1000)))
+
+    @correlate_fetch
+    async def fetch_source_async(self, request: FetchRequest, source: str, *, context: dict | None = None) -> FetchResult:
+        """Acquire one optional source, including its unsuccessful observations."""
+        if source not in {"instrument_identity", "financial_statements", "annual_workforce", "earnings_call", "recent_catalysts", "issuer_news", "tdr_announcements", "official_announcements", "philjobnet_jobs", "dynamic_peer_metrics", "institutional_trading", "alternative_data"} or self._fetcher is not None:
+            raise RuntimeError("指定來源刷新不支援此資料計畫")
+        if source == 'instrument_identity':
+            from .security_identity_provider import SecurityIdentityProvider
+            provider = SecurityIdentityProvider()
+            canonical_source = 'taiwan_open_data'
+        elif source == 'financial_statements':
+            from .annual_financial_source_provider import AnnualFinancialSourceProvider
+            provider = AnnualFinancialSourceProvider()
+            canonical_source = source
+        elif source == 'recent_catalysts':
+            from copy import deepcopy
+            from recent_catalyst_source_refresh import validate_recent_refresh_context
+            validate_recent_refresh_context((context or {}).get('data'), request.ticker)
+            context = deepcopy(context or {})
+            context['data']['_cache_hit'] = False
+            context['free_sources_only'] = True
+            candidates = [p for p in self.registry.for_request(request, source)
+                          if p.name == 'Alternative Search']
+            provider = candidates[0] if len(candidates) == 1 else None
+            canonical_source = source
+        elif source == 'dynamic_peer_metrics':
+            from thermal_peer_source_refresh import validate_thermal_refresh_context
+            validate_thermal_refresh_context((context or {}).get('data'), request.ticker)
+            candidates = [p for p in self.registry.for_request(request, source) if p.name == 'FinMind/yfinance']
+            provider = candidates[0] if len(candidates) == 1 else None
+            canonical_source = source
+        elif source == 'institutional_trading':
+            from institutional_source_refresh import validate_institutional_refresh_context, institutional_refresh_session
+            validate_institutional_refresh_context((context or {}).get('data'), request.ticker)
+            institutional_refresh_session(request.ticker)
+            candidates = [p for p in self.registry.for_request(request, source) if p.name == 'FinMind']
+            provider = candidates[0] if len(candidates) == 1 else None
+            canonical_source = source
+        elif source == 'alternative_data':
+            from copy import deepcopy
+            from alternative_source_refresh import validate_alternative_refresh_context, PROVIDER
+            validate_alternative_refresh_context((context or {}).get('data'), request.ticker)
+            context = deepcopy(context or {})
+            candidates = [p for p in self.registry.for_request(request, source)
+                          if p.name == PROVIDER and p.cost_tier == 'free']
+            provider = candidates[0] if len(candidates) == 1 else None
+            canonical_source = source
+        elif source == 'philjobnet_jobs':
+            if request.ticker != '9103.TW':
+                raise RuntimeError('此雇主入口尚未驗證此股票')
+            from .agent_context_providers import PhilJobNetJobObservationProvider
+            provider = PhilJobNetJobObservationProvider()
+            canonical_source = 'alternative_data'
+        elif source in {"issuer_news", "tdr_announcements", "official_announcements"}:
+            if source == 'official_announcements':
+                from official_announcement_source_refresh import supports as supports_ordinary
+                if supports_ordinary(request.ticker):
+                    from official_announcement_source_refresh import validate_context as validate_json_context
+                else:
+                    from .market_sources.mops_json_company_history import validate_json_context
+                try:
+                    validate_json_context((context or {}).get('data'), request.ticker)
+                except ValueError as exc:
+                    raise RuntimeError('此新版公告入口或原股票身分尚未通過核對') from exc
+            if source == "tdr_announcements" and request.ticker != "9103.TW":
+                raise RuntimeError("此公告入口尚未驗證此股票")
+            provider_name = "TWSE company announcement history" if source in {"tdr_announcements", "official_announcements"} else "Verified issuer news"
+            candidates = [p for p in self.registry.for_request(request, "recent_catalysts")
+                          if p.name == provider_name]
+            provider = candidates[0] if len(candidates) == 1 else None
+            canonical_source = "recent_catalysts"
+        else:
+            provider = self.registry.first_provider(request, source)
+            canonical_source = source
+        if provider is None:
+            raise RuntimeError("指定來源未設定")
+        started = time.time()
+        material_context = False
+        if source == 'earnings_call':
+            from .market_sources.mops_presentation import supports as supports_material
+            material_context = supports_material(request.ticker)
+        result = await provider.fetch_async(request, context if material_context or source in {'financial_statements', 'recent_catalysts', 'official_announcements', 'dynamic_peer_metrics', 'alternative_data'} or source == 'issuer_news' and request.ticker in {'2201.TW', '5880.TW', '2206.TW'} or source == 'earnings_call' and (request.ticker in {'1476.TW', '3653.TW', '2912.TW', '3443.TW', '1503.TW', '2059.TW', '2367.TW', '8150.TW', '2344.TW', '6257.TW', '2480.TW', '2330.TW', '1229.TW', '1605.TW', '2002.TW', '2412.TW', '1514.TW', '2368.TW', '2049.TW', '1560.TW'} or request.ticker == '2317.TW' and isinstance(context,dict)and context.get('source_only_recovery')is True or re.fullmatch(r'[1-9]\d{3,5}\.TWO',request.ticker) is not None) else {"original_ticker": request.ticker})
+        if source == 'recent_catalysts':
+            from recent_catalyst_source_refresh import guard_recent_source_result
+            result = guard_recent_source_result(result, context['data'])
+        if source == 'official_announcements':
+            from official_announcement_source_refresh import supports as supports_ordinary
+            if supports_ordinary(request.ticker):
+                from official_announcement_source_refresh import guard_result as guard_json_result
+            else:
+                from .market_sources.mops_json_company_history import guard_json_result
+            result = guard_json_result(result, context['data'])
+        if source == 'alternative_data':
+            from alternative_source_refresh import guard_alternative_result
+            result = guard_alternative_result(result, context['data'])
+        # Build the canonical result before the caller rejects a failure. Radar
+        # intentionally raises early and cannot retain this failure observation.
+        source_audits = [result.audit]
+        if source in {'financial_statements', 'annual_workforce'}:
+            related = result.audit.get('related_entries') if isinstance(result.audit,dict) else None
+            if isinstance(related,list):
+                source_audits.extend(entry for entry in related if isinstance(entry,dict))
+        data = {"ticker": request.ticker, canonical_source: result.value, "source_audit": source_audits}
+        if source == 'alternative_data':
+            from alternative_source_refresh import IDENTITY_FIELDS
+            data.update({k: deepcopy(context['data'][k]) for k in IDENTITY_FIELDS if k in context['data']})
         return self._build_result(request, data, max(0, int((time.time() - started) * 1000)))
 
     def fetch(self, request: FetchRequest) -> FetchResult:

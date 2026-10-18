@@ -107,6 +107,9 @@ _PAYLOAD_KEYS = (
     "roe_history",
     "total_equity_history",
     "total_assets_history",
+    "sector_specific_financials",
+    "financial_history_basis",
+    "net_revenue_history",
     "price_history",
     "price_history_ranges",
     "daily_market_data",
@@ -132,6 +135,9 @@ def build_yfinance_payload_vars(fetch_scope: dict) -> tuple[dict, dict]:
     """Apply final quality updates and return legacy payload variables."""
     context = dict(fetch_scope)
     quality_inputs = {key: context[key] for key in _QUALITY_INPUT_KEYS}
+    from .financial_history_basis import is_ordinary_individual_basis
+    if is_ordinary_individual_basis(context):
+        quality_inputs['annual_group_basis_verified'] = False
     context.update(apply_market_fallbacks_and_quality_calibration(**quality_inputs))
     payload_vars = {key: context[key] for key in _PAYLOAD_KEYS}
     return payload_vars, context

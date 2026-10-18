@@ -26,6 +26,7 @@ from report_history_storage_keys import (
 )
 from report_index import is_safe_report_filename, parse_recommendation_summary as parse_report_recommendation_summary
 from report_index_maintenance import cleanup_empty_report_directories
+from report_paths import report_storage_candidates_for_filename
 from report_history_storage import (
     existing_storage_key,
     load_storage_item,
@@ -58,18 +59,28 @@ def cleanup_expired_reports(
 
     cutoff = time.time() - retention_days * 24 * 60 * 60
     deleted = []
+    bundles = {}
     for item in content_storage.list_reports():
-        key = item.key
-        if not key.endswith((".html", ".md", ".data.json")):
+        if not item.key.endswith((".html", ".md", ".data.json", ".review.json")):
             continue
-        if item.updated_at.timestamp() >= cutoff:
+        html_key = _html_key_for_related_storage_key(item.key)
+        filename = _basename_for_storage_key(html_key)
+        # Legacy flat and canonical partitioned artifacts can be one report.
+        # Other storage layouts retain their existing same-directory identity.
+        candidates = {key for kind in ("html", "md", "data", "review")
+                      for key in report_storage_candidates_for_filename(filename, kind=kind)}
+        identity = filename if item.key in candidates else html_key
+        bundles.setdefault(identity, []).append(item)
+    for items in bundles.values():
+        # A source-only refresh writes the data snapshot, leaving original
+        # analysis text untouched. Retain or expire the whole bundle together.
+        if max(item.updated_at.timestamp() for item in items) >= cutoff:
             continue
-        if key.endswith(".html"):
-            for bundle_key in _bundle_keys_for_html_key(key):
-                _delete_storage_key(content_storage, bundle_key, deleted)
-            repository.delete(_basename_for_storage_key(key), output_dir)
-        else:
-            _delete_storage_key(content_storage, key, deleted)
+        for item in items:
+            _delete_storage_key(content_storage, item.key, deleted)
+        for filename in {_basename_for_storage_key(item.key) for item in items
+                         if item.key.endswith(".html")}:
+            repository.delete(filename, output_dir)
 
     if deleted:
         if report_cache is not None:
@@ -94,7 +105,10 @@ def cleanup_orphan_markdown_reports(output_dir: str, storage: ReportStorage | No
         key = item.key
         if not key.endswith((".md", ".data.json", ".review.json")):
             continue
-        if _html_key_for_related_storage_key(key) in report_keys:
+        html_key = _html_key_for_related_storage_key(key)
+        filename = _basename_for_storage_key(html_key)
+        html_candidates = {html_key, *report_storage_candidates_for_filename(filename)}
+        if html_candidates & report_keys:
             continue
         _delete_storage_key(content_storage, key, deleted)
     if deleted:

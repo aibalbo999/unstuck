@@ -47,6 +47,8 @@ def _load_source_freshness_seconds() -> dict[str, int]:
         "macro_indicators": 24 * 60 * 60,
         "chip_data": 6 * 60 * 60,
         "alternative_data": 24 * 60 * 60,
+        "annual_workforce": 24 * 60 * 60,
+        "esg_occupational_safety": 24 * 60 * 60,
         "social_sentiment": 30 * 60,
         "sec_edgar": 24 * 60 * 60,
         "taiwan_open_data": 24 * 60 * 60,

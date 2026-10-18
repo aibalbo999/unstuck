@@ -12,12 +12,14 @@ from types import FrameType
 from typing import Literal
 
 from analysis_job_service import RQ_ABANDONED_JOB_REASON, analysis_task_id, task_queue_has_task
+from annual_disclosure_refresh_scheduler import run_annual_disclosure_refresh_scheduler
 from decision_tracking_scheduler import run_decision_tracking_scheduler
 from job_store import append_event, create_job, find_active_job, list_active_jobs, mark_jobs_abandoned, update_job
 from runtime_dependencies import RuntimeSettings, WorkerRuntime, create_worker_runtime
 from runtime_events import emit_log
 from storage_inventory import ensure_runtime_storage
 from watchlist_scheduler import run_watchlist_scheduler
+from watchlist_dispatch_store import pending_job_ids as pending_watchlist_dispatch_job_ids
 from worker_maintenance import run_maintenance_process
 from worker_rq_reconciliation import (
     RQ_WORKER_HEARTBEAT_GRACE_SECONDS,
@@ -93,7 +95,9 @@ def reconcile_abandoned_rq_jobs(runtime: WorkerRuntime) -> int:
         emit_log(f"queue reconciliation skipped: could not inspect RQ registries: {exc}")
         return 0
 
-    abandoned_job_ids, retrying_job_ids = _rq_reconciliation_job_lists(rq_states, list_active_jobs())
+    pending_dispatches = pending_watchlist_dispatch_job_ids()
+    abandoned_job_ids, retrying_job_ids = _rq_reconciliation_job_lists(
+        rq_states, [job for job in list_active_jobs() if job["job_id"] not in pending_dispatches])
 
     if retrying_job_ids:
         reason = "Redis/RQ 已排入重試佇列，等待 Worker 接續。"
@@ -116,6 +120,8 @@ def find_queue_backed_active_job(task_queue, ticker: str, pipeline_id: str = "v1
     task_id = analysis_task_id(str(job.get("job_id") or ""))
     if task_queue_has_task(task_queue, task_id) is not False:
         return job
+    if job["job_id"] in pending_watchlist_dispatch_job_ids():
+        return job
     mark_jobs_abandoned([job["job_id"]], RQ_ABANDONED_JOB_REASON)
     return {}
 async def run_scheduler_process(runtime: WorkerRuntime) -> None:
@@ -125,7 +131,7 @@ async def run_scheduler_process(runtime: WorkerRuntime) -> None:
     tasks = [
         asyncio.create_task(
             run_watchlist_scheduler(
-                create_job=lambda ticker, pipeline_id: create_job(ticker, pipeline_id),
+                create_job=lambda ticker, pipeline_id, **kwargs: create_job(ticker, pipeline_id, **kwargs),
                 find_active_job=lambda ticker, pipeline_id: find_queue_backed_active_job(runtime.task_queue, ticker, pipeline_id),
                 task_queue=runtime.task_queue,
                 run_stock_analysis_job=_load_stock_analysis_job_runner(),
@@ -138,6 +144,12 @@ async def run_scheduler_process(runtime: WorkerRuntime) -> None:
                 get_output_dir=lambda: runtime.settings.output_dir,
                 get_refresh_service=lambda: runtime.data_refresh_service,
                 emit_log=emit_log,
+            )
+        ),
+        asyncio.create_task(
+            run_annual_disclosure_refresh_scheduler(
+                runtime,
+                emit=emit_log,
             )
         ),
     ]

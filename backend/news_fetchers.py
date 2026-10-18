@@ -85,11 +85,22 @@ def _duckduckgo_news_rows(query: str, max_results: int):
     global _DDGS_CLIENT, _DDGS_CLIENT_FACTORY
     if DDGS is None:
         return None
+    options = {}
+    window = re.search(r'\s+when:(\d+)d$', query)
+    if window:
+        # Google RSS operators are not portable to the DDGS news engines.
+        # This is only a retrieval hint; exact dates remain subject to the
+        # unchanged downstream time window and company validation.
+        days = max(1, int(window.group(1)))
+        query = query[:window.start()].strip()
+        options['timelimit'] = 'd' if days <= 1 else 'w' if days <= 7 else 'm' if days <= 31 else 'y'
+        if re.search(r'[\u3400-\u9fff]', query) and re.search(r'\b\d{4,6}\b', query):
+            options['region'] = 'tw-tzh'
     with _DDGS_CLIENT_LOCK:
         if _DDGS_CLIENT is None or _DDGS_CLIENT_FACTORY is not DDGS:
             _DDGS_CLIENT = DDGS()
             _DDGS_CLIENT_FACTORY = DDGS
-        return _DDGS_CLIENT.news(query=query, max_results=max_results)
+        return _DDGS_CLIENT.news(query=query, max_results=max_results, **options)
 
 
 def fetch_google_news_rss(query: str, limit: int = 10) -> list[NewsRecord]:
@@ -132,29 +143,38 @@ def fetch_google_news_rss(query: str, limit: int = 10) -> list[NewsRecord]:
         return []
 
 
-def fetch_duckduckgo_news(query: str, limit: int = 10) -> list[NewsRecord]:
-    """Fetch DuckDuckGo news through the current or legacy Python package."""
+def fetch_duckduckgo_news_strict(query: str, limit: int = 10) -> list[NewsRecord]:
+    """Fetch DuckDuckGo news and let transport errors reach audited callers."""
     cleaned_query = _clean_input(query)
     if not cleaned_query:
         return []
     if DDGS is None:
+        raise RuntimeError("DuckDuckGo News dependency unavailable")
+    bounded_limit = _clamp_limit(limit)
+    rows = _duckduckgo_news_rows(cleaned_query, bounded_limit)
+    if rows is None:
+        raise RuntimeError("DuckDuckGo News dependency unavailable")
+    records = []
+    for row in rows or []:
+        record = _record(
+            title=row.get("title", ""),
+            link=row.get("url", row.get("href", "")),
+            published_date=row.get("date", ""),
+            source=row.get("source") or "DuckDuckGo News",
+            summary=row.get("body", row.get("summary", "")),
+        )
+        if record:
+            records.append(record)
+    return _dedupe(records, bounded_limit)
+
+
+def fetch_duckduckgo_news(query: str, limit: int = 10) -> list[NewsRecord]:
+    """Fetch DuckDuckGo news through the current or legacy Python package."""
+    if DDGS is None:
         _warn("DuckDuckGo News", "dependency")
         return []
-    bounded_limit = _clamp_limit(limit)
     try:
-        rows = _duckduckgo_news_rows(cleaned_query, bounded_limit)
-        records = []
-        for row in rows or []:
-            record = _record(
-                title=row.get("title", ""),
-                link=row.get("url", row.get("href", "")),
-                published_date=row.get("date", ""),
-                source=row.get("source") or "DuckDuckGo News",
-                summary=row.get("body", row.get("summary", "")),
-            )
-            if record:
-                records.append(record)
-        return _dedupe(records, bounded_limit)
+        return fetch_duckduckgo_news_strict(query, limit)
     except Exception as exc:
         _warn("DuckDuckGo News", "search", exc)
         return []

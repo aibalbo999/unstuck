@@ -1,0 +1,108 @@
+{
+  "schema": "broker_consolidated.v1",
+  "years": [
+    "2021",
+    "2022",
+    "2023",
+    "2024",
+    "2025"
+  ],
+  "raw_twd_by_year": {
+    "2021": {
+      "reported_revenue": 11621619000,
+      "brokerage_fee_income": 5027229000,
+      "underwriting_revenue": 104035000,
+      "net_income_attributable": 4007435000,
+      "assets": 117687899000,
+      "equity": 31683584000,
+      "operating_cash_flow": 2289188000,
+      "ppe_purchase": -52406000,
+      "intangible_purchase": -46025000,
+      "free_cash_flow": 2190757000
+    },
+    "2022": {
+      "reported_revenue": 6271336000,
+      "brokerage_fee_income": 3278162000,
+      "underwriting_revenue": 86465000,
+      "net_income_attributable": 729368000,
+      "assets": 94890862000,
+      "equity": 29719092000,
+      "operating_cash_flow": 7450422000,
+      "ppe_purchase": -106194000,
+      "intangible_purchase": -51645000,
+      "free_cash_flow": 7292583000
+    },
+    "2023": {
+      "reported_revenue": 9542583000,
+      "brokerage_fee_income": 3518253000,
+      "underwriting_revenue": 104284000,
+      "net_income_attributable": 2878951000,
+      "assets": 140665223000,
+      "equity": 32049492000,
+      "operating_cash_flow": -20879776000,
+      "ppe_purchase": -65232000,
+      "intangible_purchase": -30338000,
+      "free_cash_flow": -20975346000
+    },
+    "2024": {
+      "reported_revenue": 13029981000,
+      "brokerage_fee_income": 4599154000,
+      "underwriting_revenue": 116587000,
+      "net_income_attributable": 4373054000,
+      "assets": 193473197000,
+      "equity": 35288905000,
+      "operating_cash_flow": -7134266000,
+      "ppe_purchase": -95234000,
+      "intangible_purchase": -27915000,
+      "free_cash_flow": -7257415000
+    },
+    "2025": {
+      "reported_revenue": 13541305000,
+      "brokerage_fee_income": 4757564000,
+      "underwriting_revenue": 167352000,
+      "net_income_attributable": 4804426000,
+      "assets": 249775631000,
+      "equity": 39302618000,
+      "operating_cash_flow": -10079035000,
+      "ppe_purchase": -117566000,
+      "intangible_purchase": -33620000,
+      "free_cash_flow": -10230221000
+    }
+  },
+  "ticker": "2855.TW",
+  "report_scope": "consolidated",
+  "documents": [
+    {
+      "year": 2021,
+      "url": "https://mopsov.twse.com.tw/server-java/FileDownLoad?functionName=t164sb01&step=9&co_id=2855&year=2021&season=4&report_id=C",
+      "sha256": "ca045e0ef2a5eef573a4aee6b08188400ca4fa05f5d8dcb95bed765fb437cd19",
+      "report_scope": "consolidated"
+    },
+    {
+      "year": 2022,
+      "url": "https://mopsov.twse.com.tw/server-java/FileDownLoad?functionName=t164sb01&step=9&co_id=2855&year=2022&season=4&report_id=C",
+      "sha256": "9ad0ded392f1c55eebf0504672e819c70e0526d008ceac3063aad2a5026f8df9",
+      "report_scope": "consolidated"
+    },
+    {
+      "year": 2023,
+      "url": "https://mopsov.twse.com.tw/server-java/FileDownLoad?functionName=t164sb01&step=9&co_id=2855&year=2023&season=4&report_id=C",
+      "sha256": "80b6df7acaf36db7b694b2a09cc3b41df8c8465ae9e6d11f5451aada99c40dcf",
+      "report_scope": "consolidated"
+    },
+    {
+      "year": 2024,
+      "url": "https://mopsov.twse.com.tw/server-java/FileDownLoad?functionName=t164sb01&step=9&co_id=2855&year=2024&season=4&report_id=C",
+      "sha256": "068384d2fee89f7fe0fc8c08659737eee8c5817a0455e9d8c1f689097fb949b9",
+      "report_scope": "consolidated"
+    },
+    {
+      "year": 2025,
+      "url": "https://mopsov.twse.com.tw/server-java/FileDownLoad?functionName=t164sb01&step=9&co_id=2855&year=2025&season=4&report_id=C",
+      "sha256": "db6856219241a6b4069a11f7442a084e97889c72b41b05a7244b7d63ff2cfaa5",
+      "report_scope": "consolidated"
+    }
+  ],
+  "source_url": "https://mopsov.twse.com.tw/mops/web/ajax_t203sb01",
+  "comparative_revisions": []
+}

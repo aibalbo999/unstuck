@@ -55,30 +55,89 @@ class MonthlyRevenueProvider(DataProvider):
         from datetime import datetime, timedelta
         from .market_sources.taiwan import DataLoader
 
-        def fetch_records():
-            if DataLoader is None:
-                return []
-            fm_dl = DataLoader()
-            stock_id = _stock_id_from_ticker(request.ticker)
-            start_date = (datetime.now() - timedelta(days=240)).strftime("%Y-%m-%d")
-            df_rev = fm_dl.taiwan_stock_month_revenue(stock_id=stock_id, start_date=start_date)
-            records = []
-            if df_rev is not None and not df_rev.empty:
-                for _, row in df_rev.tail(6).iterrows():
-                    year = row.get("revenue_year")
-                    month = row.get("revenue_month")
-                    value = row.get("revenue")
-                    if year and month and value:
-                        records.append(f"{year}年{month}月: NT${float(value) / 1e8:.2f}億")
-            return records
+        import re
+        from copy import deepcopy
+        from provider_correlation import current_correlation
+        from source_applicability import source_is_applicable
+        from .market_sources.official_monthly_revenue import fetch_official_monthly_revenue, monthly_url
 
-        result = audited_fetch(
-            self.source,
-            self.name,
-            fetch_records,
-            default=[],
-            unavailable_message="FinMind 月營收未回傳可用資料。",
-        )
+        data = (context or {}).get('data') or {}
+        requested = str(request.ticker or '').strip().upper()
+        ticker = str(data.get('ticker') or requested).strip().upper()
+        if re.fullmatch(r'[0-9]{4,6}', ticker):
+            ticker += '.TW'
+        same = requested == ticker or re.fullmatch(r'[0-9]{4,6}', requested) and ticker.split('.')[0] == requested
+        try:
+            monthly_url(ticker)
+            if not same or not source_is_applicable(self.source, data, ticker):
+                raise ValueError('monthly_context_issuer_mismatch')
+        except ValueError:
+            return ProviderResult(self.source, self.name, 'not_applicable', value=[], audit={
+                'source': self.source, 'provider': self.name, 'status': 'not_applicable',
+                'record_count': 0, 'event_kind': 'local_block', 'http_request_sent': False,
+                'reason_code': 'request_context_issuer_or_market_mismatch'})
+
+        # The core collector may already have attempted this exact source in
+        # this fetch. Reuse only that typed failed observation, not an old job,
+        # cache, another ticker or an uncorrelated summary.
+        fetch_id = current_correlation().get('fetch_id')
+        previous = next((entry for entry in reversed(data.get('source_audit') or [])
+                         if isinstance(entry, dict) and fetch_id and entry.get('fetch_id') == fetch_id
+                         and entry.get('ticker') in {requested, ticker}
+                         and entry.get('cache_hit') is False and entry.get('stale') is False
+                         and entry.get('operation_id')
+                         and (entry.get('event_kind') == 'aggregate' or (
+                             entry.get('event_kind') == 'local_block'
+                             and entry.get('provider_admission_blocked') is True
+                             and entry.get('http_request_sent') is False
+                             and type(entry.get('http_request_count')) is int and entry['http_request_count'] == 0
+                             and type(entry.get('provider_attempt_count')) is int and entry['provider_attempt_count'] == 0
+                             and entry.get('provider_attempts') == []))
+                         and entry.get('source') == self.source and entry.get('provider') == self.name
+                         and entry.get('status') in {'error', 'unavailable'}
+                         and type(entry.get('record_count')) is int and entry['record_count'] == 0), None)
+        from .market_sources.finmind_monthly_revenue import fetch_monthly_records
+        result = {'value': [], 'audit': deepcopy(previous)} if previous else fetch_monthly_records(
+            request.ticker, DataLoader, audit_fetch=audited_fetch,
+            force_refresh=request.options.force_refresh)
+        if result.get('value'):
+            return provider_result_from_audited(result, self.source, self.name)
+        import time
+        official_deadline = time.monotonic() + 8
+        fallback = fetch_official_monthly_revenue(ticker)
+        if fallback.get('value'):
+            if ticker == '3324.TWO':
+                from .market_sources.auras_monthly_history import fetch_auras_monthly_history
+                history = fetch_auras_monthly_history(ticker, fallback, deadline=official_deadline)
+            elif ticker == '5314.TWO':
+                from .market_sources.myson_monthly_history import fetch_myson_monthly_history
+                history = fetch_myson_monthly_history(ticker, fallback, deadline=official_deadline)
+            else:
+                from .market_sources.twse_monthly_history import fetch_official_monthly_history
+                history = fetch_official_monthly_history(ticker, fallback, deadline=official_deadline)
+            if history and history.get('value'):
+                history['audit']['related_entries'] = [fallback['audit']]
+                if not previous:
+                    history['audit']['related_entries'].insert(0, result['audit'])
+                else:
+                    history['audit']['primary_failure_operation_id'] = previous['operation_id']
+                return provider_result_from_audited(history, self.source, history['audit']['provider'])
+            if history:
+                fallback['audit']['history_failure_entry'] = history['audit']
+        if fallback.get('value'):
+            fallback['audit']['related_entries'] = [] if previous else [result['audit']]
+            if fallback['audit'].get('history_failure_entry'):
+                fallback['audit']['related_entries'].append(fallback['audit'].pop('history_failure_entry'))
+            if previous:
+                fallback['audit']['primary_failure_operation_id'] = previous['operation_id']
+            return provider_result_from_audited(fallback, self.source, self.name)
+        if previous:
+            # That primary observation is already in the payload. Emit only
+            # this new official failure, not the same FinMind operation twice.
+            fallback['audit']['primary_failure_operation_id'] = previous['operation_id']
+            fallback['audit']['related_entries'] = []
+            return provider_result_from_audited(fallback, self.source, self.name)
+        result['audit']['related_entries'] = [fallback['audit']]
         return provider_result_from_audited(result, self.source, self.name)
 
 

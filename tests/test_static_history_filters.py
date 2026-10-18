@@ -6140,14 +6140,14 @@ def test_candidate_next_actions_assets_use_shared_cache_buster():
     assert "/static/style.css?v=20260911-provider-acquisition" in index_html
     assert "/static/watchlist_freshness_helpers.js?v=20260902-integer-quality-counts" in index_html
     assert "/static/watchlist_current_quality_helpers.js?v=20260902-target-item-scope" in index_html
-    assert "/static/report_quality_evidence_freshness_helpers.js?v=20260902-integer-summary-counts" in index_html
+    assert "/static/report_quality_evidence_freshness_helpers.js?v=20261007-financial-period-unit" in index_html
     assert "/static/watchlist_panel_helpers.js?v=20260902-distribution-scope" in index_html
     assert "/static/watchlist_panel.js?v=20260816-scoped-quality-review-navigation" in index_html
     assert "/static/maintenance_action_helpers.js?v=20260816-maintenance-confirmation" in index_html
     assert "/static/maintenance_panel_helpers.js?v=20260816-maintenance-confirmation" in index_html
     assert "/static/maintenance_panel.js?v=20260816-maintenance-confirmation" in index_html
     assert "/static/operator_dashboard_actions.js?v=20260902-repair-queue-scope" in index_html
-    assert "/static/operator_summary_panel.js?v=20261001-read-performance" in index_html
+    assert "/static/operator_summary_panel.js?v=20261002-research-evidence" in index_html
     assert "/static/app_panels.js?v=20260816-historical-quality-audit" in index_html
     assert "/static/styles/operator_summary.css?v=20260711-candidate-next-actions-v3" in style_css
 
@@ -7810,7 +7810,7 @@ def test_decision_tracking_dense_layout_uses_workspace_efficiently():
     assert "/static/ops_workspace.js?v=20260708-provider-group-health" in index_html
     assert "/static/history_panel.js?v=20260708-tracking-action-notes" in index_html
     assert "/static/decision_tracking_panel.js?v=20260708-tracking-action-notes" in index_html
-    assert "/static/report_preview_helpers.js?v=20260820-shared-evidence-detail" in index_html
+    assert "/static/report_preview_helpers.js?v=20260921-analysis-completeness" in index_html
     assert "/static/report_preview_tracking_helpers.js?v=20260709-report-preview-tracking-helpers" in index_html
     assert "/static/report_preview_panel.js?v=20260820-rerun-execution" in index_html
     assert "provider_sla.css?v=20260628-glass-dark" in style_css

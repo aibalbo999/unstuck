@@ -1,0 +1,22 @@
+{
+  "issuer.html.gz": {
+    "url": "https://ic.tpex.org.tw/company_chain.php?stk_code=3324",
+    "sha256": "f0f13b9a32041e98ee6e78c3e6f9549f99b45104dd3798ec27c07fd27a3a40b4",
+    "bytes": 9480
+  },
+  "segment.html.gz": {
+    "url": "https://ic.tpex.org.tw/introduce.php?ic=F000",
+    "sha256": "d493c9d547ae19398001f6ca7dbc54befa2d02ae09675cb0d212d51a78eb78cb",
+    "bytes": 331394
+  },
+  "listed.json.gz": {
+    "url": "https://openapi.twse.com.tw/v1/opendata/t187ap03_L",
+    "sha256": "1e98b93b7a0f0ba5062eaddf189400303ce3004e9d5a067ec3154b3076fa31ad",
+    "bytes": 1327578
+  },
+  "otc.json.gz": {
+    "url": "https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap03_O",
+    "sha256": "2a88c98473730bb43bb2f109008c2eadf35b0e96df8e8eefd7256fd78eedb5f8",
+    "bytes": 1074417
+  }
+}

@@ -1,0 +1,662 @@
+{
+  "code": 200,
+  "message": "查詢成功",
+  "result": {
+    "marketName": "上市公司",
+    "companyId": "2891",
+    "companyAbbreviation": "中信金",
+    "titles": [
+      {
+        "main": "公司代號",
+        "sub": []
+      },
+      {
+        "main": "公司名稱",
+        "sub": []
+      },
+      {
+        "main": "發言日期",
+        "sub": []
+      },
+      {
+        "main": "發言時間",
+        "sub": []
+      },
+      {
+        "main": "主旨",
+        "sub": []
+      },
+      {
+        "main": "詳細資料",
+        "sub": []
+      }
+    ],
+    "data": [
+      [
+        "2891",
+        "中信金",
+        "115/09/09",
+        "14:26:13",
+        "本公司代子公司中國信託綜合證券(股)公司公告修正\r\n114年度股東會年報部分內容",
+        {
+          "apiName": "t05st01_detail",
+          "parameters": {
+            "companyId": "2891",
+            "marketKind": "sii",
+            "enterDate": "1150909",
+            "serialNumber": "1"
+          }
+        }
+      ],
+      [
+        "2891",
+        "中信金",
+        "115/09/10",
+        "17:57:58",
+        "代子公司中國信託商業銀行公告授信資產之轉讓",
+        {
+          "apiName": "t05st01_detail",
+          "parameters": {
+            "companyId": "2891",
+            "marketKind": "sii",
+            "enterDate": "1150910",
+            "serialNumber": "2"
+          }
+        }
+      ],
+      [
+        "2891",
+        "中信金",
+        "115/09/10",
+        "17:59:00",
+        "代子公司中國信託商業銀行公告授信資產之轉讓",
+        {
+          "apiName": "t05st01_detail",
+          "parameters": {
+            "companyId": "2891",
+            "marketKind": "sii",
+            "enterDate": "1150910",
+            "serialNumber": "3"
+          }
+        }
+      ],
+      [
+        "2891",
+        "中信金",
+        "115/09/11",
+        "18:06:46",
+        "代子公司中國信託商業銀行公告取得漢民測試系統股份有限公司首\r\n次公開發行股票(補充9/8公告)",
+        {
+          "apiName": "t05st01_detail",
+          "parameters": {
+            "companyId": "2891",
+            "marketKind": "sii",
+            "enterDate": "1150911",
+            "serialNumber": "3"
+          }
+        }
+      ],
+      [
+        "2891",
+        "中信金",
+        "115/09/14",
+        "18:14:19",
+        "代子公司中國信託商業銀行美國子行CTBC Bank Corp. (USA)公告授信資產\r\n之轉讓。",
+        {
+          "apiName": "t05st01_detail",
+          "parameters": {
+            "companyId": "2891",
+            "marketKind": "sii",
+            "enterDate": "1150914",
+            "serialNumber": "2"
+          }
+        }
+      ],
+      [
+        "2891",
+        "中信金",
+        "115/09/14",
+        "20:25:28",
+        "中國信託金融控股股份有限公司公告本公司暨主要子公司\r\n115年度八月份自結盈餘",
+        {
+          "apiName": "t05st01_detail",
+          "parameters": {
+            "companyId": "2891",
+            "marketKind": "sii",
+            "enterDate": "1150914",
+            "serialNumber": "1"
+          }
+        }
+      ],
+      [
+        "2891",
+        "中信金",
+        "115/09/15",
+        "16:59:06",
+        "(補充公告)代子公司中國信託綜合證券(股)公司公告變更向關係人\r\n取得使用權資產",
+        {
+          "apiName": "t05st01_detail",
+          "parameters": {
+            "companyId": "2891",
+            "marketKind": "sii",
+            "enterDate": "1150915",
+            "serialNumber": "1"
+          }
+        }
+      ],
+      [
+        "2891",
+        "中信金",
+        "115/09/15",
+        "17:46:37",
+        "代台灣人壽公告核准投資\r\nBessemer Venture Partners XIII Institutional Feeder L.P.",
+        {
+          "apiName": "t05st01_detail",
+          "parameters": {
+            "companyId": "2891",
+            "marketKind": "sii",
+            "enterDate": "1150915",
+            "serialNumber": "2"
+          }
+        }
+      ],
+      [
+        "2891",
+        "中信金",
+        "115/09/15",
+        "17:46:55",
+        "代台灣人壽公告核准投資\r\nBessemer Venture Partners \r\nCentury Fund III Institutional A L.P.",
+        {
+          "apiName": "t05st01_detail",
+          "parameters": {
+            "companyId": "2891",
+            "marketKind": "sii",
+            "enterDate": "1150915",
+            "serialNumber": "3"
+          }
+        }
+      ],
+      [
+        "2891",
+        "中信金",
+        "115/09/15",
+        "17:47:10",
+        "代台灣人壽公告核准投資\r\nThe Resolute Fund VII, L.P.",
+        {
+          "apiName": "t05st01_detail",
+          "parameters": {
+            "companyId": "2891",
+            "marketKind": "sii",
+            "enterDate": "1150915",
+            "serialNumber": "4"
+          }
+        }
+      ],
+      [
+        "2891",
+        "中信金",
+        "115/09/16",
+        "16:21:56",
+        "公告子公司中國信託創業投資股份有限公司董事會代行股東\r\n會重要決議事項",
+        {
+          "apiName": "t05st01_detail",
+          "parameters": {
+            "companyId": "2891",
+            "marketKind": "sii",
+            "enterDate": "1150916",
+            "serialNumber": "1"
+          }
+        }
+      ],
+      [
+        "2891",
+        "中信金",
+        "115/09/18",
+        "17:15:26",
+        "代子公司中國信託商業銀行公告授信資產之轉讓",
+        {
+          "apiName": "t05st01_detail",
+          "parameters": {
+            "companyId": "2891",
+            "marketKind": "sii",
+            "enterDate": "1150918",
+            "serialNumber": "2"
+          }
+        }
+      ],
+      [
+        "2891",
+        "中信金",
+        "115/09/18",
+        "17:18:20",
+        "本公司參加Bank of America舉辦之投資人說明會(2026 Asia Pacific Conference)",
+        {
+          "apiName": "t05st01_detail",
+          "parameters": {
+            "companyId": "2891",
+            "marketKind": "sii",
+            "enterDate": "1150918",
+            "serialNumber": "1"
+          }
+        }
+      ],
+      [
+        "2891",
+        "中信金",
+        "115/09/21",
+        "17:28:04",
+        "代子公司中國信託綜合證券(股)公司公告於116年會計年度開始日後變動會計估計事項。",
+        {
+          "apiName": "t05st01_detail",
+          "parameters": {
+            "companyId": "2891",
+            "marketKind": "sii",
+            "enterDate": "1150921",
+            "serialNumber": "5"
+          }
+        }
+      ],
+      [
+        "2891",
+        "中信金",
+        "115/09/21",
+        "17:29:28",
+        "代子公司中國信託綜合證券(股)公司公告於116年會計年度開始日後變動會計政策。",
+        {
+          "apiName": "t05st01_detail",
+          "parameters": {
+            "companyId": "2891",
+            "marketKind": "sii",
+            "enterDate": "1150921",
+            "serialNumber": "6"
+          }
+        }
+      ],
+      [
+        "2891",
+        "中信金",
+        "115/09/21",
+        "18:01:05",
+        "代子公司Land and Houses Bank Public Company Limited\r\n公告115年第二次股東臨時會召開事宜",
+        {
+          "apiName": "t05st01_detail",
+          "parameters": {
+            "companyId": "2891",
+            "marketKind": "sii",
+            "enterDate": "1150921",
+            "serialNumber": "1"
+          }
+        }
+      ],
+      [
+        "2891",
+        "中信金",
+        "115/09/21",
+        "18:12:04",
+        "中信金控代子公司Land and Houses Bank Public\r\nCompany Limited(LH Bank)公告發行24億泰銖次順位債券",
+        {
+          "apiName": "t05st01_detail",
+          "parameters": {
+            "companyId": "2891",
+            "marketKind": "sii",
+            "enterDate": "1150921",
+            "serialNumber": "2"
+          }
+        }
+      ],
+      [
+        "2891",
+        "中信金",
+        "115/09/21",
+        "18:13:41",
+        "中信金控代子公司Land and Houses Bank Public\r\nCompany Limited(LH Bank)公告發行20億泰銖永續次順位債券",
+        {
+          "apiName": "t05st01_detail",
+          "parameters": {
+            "companyId": "2891",
+            "marketKind": "sii",
+            "enterDate": "1150921",
+            "serialNumber": "3"
+          }
+        }
+      ],
+      [
+        "2891",
+        "中信金",
+        "115/09/21",
+        "18:14:41",
+        "中信金控代子公司LH Bank公告董事會決議提前贖回\r\nLHBANK315A泰銖24億次順位債券",
+        {
+          "apiName": "t05st01_detail",
+          "parameters": {
+            "companyId": "2891",
+            "marketKind": "sii",
+            "enterDate": "1150921",
+            "serialNumber": "4"
+          }
+        }
+      ],
+      [
+        "2891",
+        "中信金",
+        "115/09/22",
+        "16:26:36",
+        "代子公司中國信託商業銀行公告授信資產之轉讓",
+        {
+          "apiName": "t05st01_detail",
+          "parameters": {
+            "companyId": "2891",
+            "marketKind": "sii",
+            "enterDate": "1150922",
+            "serialNumber": "1"
+          }
+        }
+      ],
+      [
+        "2891",
+        "中信金",
+        "115/09/23",
+        "16:09:27",
+        "代子公司中國信託商業銀行公告授信資產之轉讓",
+        {
+          "apiName": "t05st01_detail",
+          "parameters": {
+            "companyId": "2891",
+            "marketKind": "sii",
+            "enterDate": "1150923",
+            "serialNumber": "1"
+          }
+        }
+      ],
+      [
+        "2891",
+        "中信金",
+        "115/09/23",
+        "16:27:58",
+        "代子公司中信創投公告決議投資\r\n25Madison Ventures Fund II, L.P.",
+        {
+          "apiName": "t05st01_detail",
+          "parameters": {
+            "companyId": "2891",
+            "marketKind": "sii",
+            "enterDate": "1150923",
+            "serialNumber": "2"
+          }
+        }
+      ],
+      [
+        "2891",
+        "中信金",
+        "115/09/23",
+        "16:38:58",
+        "(補充公告)代子公司台灣人壽保險股份有限公司\r\n公告變更向關係人取得使用權資產",
+        {
+          "apiName": "t05st01_detail",
+          "parameters": {
+            "companyId": "2891",
+            "marketKind": "sii",
+            "enterDate": "1150923",
+            "serialNumber": "3"
+          }
+        }
+      ],
+      [
+        "2891",
+        "中信金",
+        "115/09/24",
+        "16:50:54",
+        "代子公司中國信託商業銀行公告擬自116年度起將投資性不動產之後續衡量\r\n由成本模式變更為公允價值模式。",
+        {
+          "apiName": "t05st01_detail",
+          "parameters": {
+            "companyId": "2891",
+            "marketKind": "sii",
+            "enterDate": "1150924",
+            "serialNumber": "2"
+          }
+        }
+      ],
+      [
+        "2891",
+        "中信金",
+        "115/09/24",
+        "16:53:18",
+        "代子公司中信銀海外分行公告擬取得Taiwan Life Singapore Pte. \r\nLtd.次順位債券",
+        {
+          "apiName": "t05st01_detail",
+          "parameters": {
+            "companyId": "2891",
+            "marketKind": "sii",
+            "enterDate": "1150924",
+            "serialNumber": "3"
+          }
+        }
+      ],
+      [
+        "2891",
+        "中信金",
+        "115/09/24",
+        "17:35:37",
+        "[更正發行總額]本公司代子公司中國信託商業銀行公告\r\n董事會決議申請無擔保主順位金融債券循環發行額度，發行\r\n總額不超過美金參拾億元整(或等值臺、外幣)",
+        {
+          "apiName": "t05st01_detail",
+          "parameters": {
+            "companyId": "2891",
+            "marketKind": "sii",
+            "enterDate": "1150924",
+            "serialNumber": "1"
+          }
+        }
+      ],
+      [
+        "2891",
+        "中信金",
+        "115/09/24",
+        "17:59:10",
+        "代子公司中國信託商業銀行公告授信資產之轉讓",
+        {
+          "apiName": "t05st01_detail",
+          "parameters": {
+            "companyId": "2891",
+            "marketKind": "sii",
+            "enterDate": "1150924",
+            "serialNumber": "6"
+          }
+        }
+      ],
+      [
+        "2891",
+        "中信金",
+        "115/09/24",
+        "18:06:26",
+        "代台灣人壽公告核准投資\r\nOak Hill Capital Partners VII (Offshore), L.P.",
+        {
+          "apiName": "t05st01_detail",
+          "parameters": {
+            "companyId": "2891",
+            "marketKind": "sii",
+            "enterDate": "1150924",
+            "serialNumber": "4"
+          }
+        }
+      ],
+      [
+        "2891",
+        "中信金",
+        "115/09/24",
+        "18:06:47",
+        "代台灣人壽公告核准投資\r\nAmerican Industrial Partners Capital Fund IX, L.P.",
+        {
+          "apiName": "t05st01_detail",
+          "parameters": {
+            "companyId": "2891",
+            "marketKind": "sii",
+            "enterDate": "1150924",
+            "serialNumber": "5"
+          }
+        }
+      ],
+      [
+        "2891",
+        "中信金",
+        "115/09/24",
+        "19:34:29",
+        "代子公司台灣人壽保險股份有限公司公告受金管會裁罰案",
+        {
+          "apiName": "t05st01_detail",
+          "parameters": {
+            "companyId": "2891",
+            "marketKind": "sii",
+            "enterDate": "1150924",
+            "serialNumber": "9"
+          }
+        }
+      ],
+      [
+        "2891",
+        "中信金",
+        "115/09/25",
+        "09:44:25",
+        "代子公司中國信託商業銀行公告授信資產之轉讓",
+        {
+          "apiName": "t05st01_detail",
+          "parameters": {
+            "companyId": "2891",
+            "marketKind": "sii",
+            "enterDate": "1150925",
+            "serialNumber": "1"
+          }
+        }
+      ],
+      [
+        "2891",
+        "中信金",
+        "115/09/29",
+        "17:32:19",
+        "公告本公司向關係人取得使用權資產",
+        {
+          "apiName": "t05st01_detail",
+          "parameters": {
+            "companyId": "2891",
+            "marketKind": "sii",
+            "enterDate": "1150929",
+            "serialNumber": "1"
+          }
+        }
+      ],
+      [
+        "2891",
+        "中信金",
+        "115/09/30",
+        "17:21:57",
+        "代子公司台灣人壽保險股份有限公司公告\r\n解除經理人競業禁止之限制",
+        {
+          "apiName": "t05st01_detail",
+          "parameters": {
+            "companyId": "2891",
+            "marketKind": "sii",
+            "enterDate": "1150930",
+            "serialNumber": "1"
+          }
+        }
+      ],
+      [
+        "2891",
+        "中信金",
+        "115/09/30",
+        "17:22:13",
+        "代子公司台灣人壽保險股份有限公司公告董事會決議\r\n擬參與國內公共投資",
+        {
+          "apiName": "t05st01_detail",
+          "parameters": {
+            "companyId": "2891",
+            "marketKind": "sii",
+            "enterDate": "1150930",
+            "serialNumber": "2"
+          }
+        }
+      ],
+      [
+        "2891",
+        "中信金",
+        "115/09/30",
+        "17:22:30",
+        "中信金控代子公司台灣人壽保險股份有限公司公告針對\r\n「清水地區自然養生及觀光遊憩園區BOT案」增加投資預算。",
+        {
+          "apiName": "t05st01_detail",
+          "parameters": {
+            "companyId": "2891",
+            "marketKind": "sii",
+            "enterDate": "1150930",
+            "serialNumber": "3"
+          }
+        }
+      ],
+      [
+        "2891",
+        "中信金",
+        "115/09/30",
+        "18:19:18",
+        "代子公司中國信託商業銀行股份有限公司公告\r\n向台灣人壽保險股份有限公司取得不動產使用權資產",
+        {
+          "apiName": "t05st01_detail",
+          "parameters": {
+            "companyId": "2891",
+            "marketKind": "sii",
+            "enterDate": "1150930",
+            "serialNumber": "7"
+          }
+        }
+      ],
+      [
+        "2891",
+        "中信金",
+        "115/09/30",
+        "18:30:07",
+        "代台灣人壽公告核准投資\r\n台灣創新資本有限合夥(暫定)",
+        {
+          "apiName": "t05st01_detail",
+          "parameters": {
+            "companyId": "2891",
+            "marketKind": "sii",
+            "enterDate": "1150930",
+            "serialNumber": "4"
+          }
+        }
+      ],
+      [
+        "2891",
+        "中信金",
+        "115/09/30",
+        "18:30:23",
+        "代子公司台灣人壽公告自115年會計年度開始日後變動會計政策",
+        {
+          "apiName": "t05st01_detail",
+          "parameters": {
+            "companyId": "2891",
+            "marketKind": "sii",
+            "enterDate": "1150930",
+            "serialNumber": "5"
+          }
+        }
+      ],
+      [
+        "2891",
+        "中信金",
+        "115/09/30",
+        "18:30:39",
+        "中信金控代子公司台灣人壽保險股份有限公司\r\n公告董事會決議授權總經理洽談租賃及委託興建合約。",
+        {
+          "apiName": "t05st01_detail",
+          "parameters": {
+            "companyId": "2891",
+            "marketKind": "sii",
+            "enterDate": "1150930",
+            "serialNumber": "6"
+          }
+        }
+      ]
+    ]
+  },
+  "datetime": "115/10/09 13:20:13"
+}

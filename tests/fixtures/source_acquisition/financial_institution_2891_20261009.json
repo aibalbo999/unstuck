@@ -1,0 +1,123 @@
+{
+  "schema": "financial_institution_consolidated.v1",
+  "years": [
+    "2021",
+    "2022",
+    "2023",
+    "2024",
+    "2025"
+  ],
+  "raw_twd_by_year": {
+    "2021": {
+      "interest_income": 123445736000,
+      "net_interest_revenue": 108754328000,
+      "net_fee_revenue": 27840180000,
+      "net_revenue": 186057824000,
+      "net_income_attributable": 54204958000,
+      "assets": 7083525780000,
+      "equity": 430455155000,
+      "operating_cash_flow": -34189900000,
+      "ppe_purchase": -1529999000,
+      "intangible_purchase": -1481753000,
+      "free_cash_flow": -37201652000
+    },
+    "2022": {
+      "interest_income": 159818621000,
+      "net_interest_revenue": 127117180000,
+      "net_fee_revenue": 27467989000,
+      "net_revenue": 139252299000,
+      "net_income_attributable": 31278991000,
+      "assets": 7720493113000,
+      "equity": 369496246000,
+      "operating_cash_flow": 94596682000,
+      "ppe_purchase": -2140294000,
+      "intangible_purchase": -2135731000,
+      "free_cash_flow": 90320657000
+    },
+    "2023": {
+      "interest_income": 220386880000,
+      "net_interest_revenue": 132066423000,
+      "net_fee_revenue": 28599498000,
+      "net_revenue": 136576427000,
+      "net_income_attributable": 56081479000,
+      "assets": 8304134831000,
+      "equity": 441749634000,
+      "operating_cash_flow": -16507465000,
+      "ppe_purchase": -2937149000,
+      "intangible_purchase": -1470461000,
+      "free_cash_flow": -20915075000
+    },
+    "2024": {
+      "interest_income": 243919326000,
+      "net_interest_revenue": 133369772000,
+      "net_fee_revenue": 41736409000,
+      "net_revenue": 189409573000,
+      "net_income_attributable": 72028449000,
+      "assets": 8839609949000,
+      "equity": 483947737000,
+      "operating_cash_flow": -65355927000,
+      "ppe_purchase": -2850051000,
+      "intangible_purchase": -2066853000,
+      "free_cash_flow": -70272831000
+    },
+    "2025": {
+      "interest_income": 252952462000,
+      "net_interest_revenue": 148094257000,
+      "net_fee_revenue": 43628699000,
+      "net_revenue": 244894671000,
+      "net_income_attributable": 80619233000,
+      "assets": 9331086670000,
+      "equity": 518343310000,
+      "operating_cash_flow": 6709387000,
+      "ppe_purchase": -4887751000,
+      "intangible_purchase": -1753834000,
+      "free_cash_flow": 67802000
+    }
+  },
+  "ticker": "2891.TW",
+  "report_scope": "consolidated",
+  "documents": [
+    {
+      "year": 2021,
+      "url": "https://mopsov.twse.com.tw/server-java/FileDownLoad?functionName=t164sb01&step=9&co_id=2891&year=2021&season=4&report_id=C",
+      "sha256": "e43b3cf03753e4979549ea7392915d871a28ca81f98ce7bc9c244d73c4528c18",
+      "report_scope": "consolidated"
+    },
+    {
+      "year": 2022,
+      "url": "https://mopsov.twse.com.tw/server-java/FileDownLoad?functionName=t164sb01&step=9&co_id=2891&year=2022&season=4&report_id=C",
+      "sha256": "2ec562e6036eb370b212fe5cb0d9b8263869740f895faf648feac4758313a515",
+      "report_scope": "consolidated"
+    },
+    {
+      "year": 2023,
+      "url": "https://mopsov.twse.com.tw/server-java/FileDownLoad?functionName=t164sb01&step=9&co_id=2891&year=2023&season=4&report_id=C",
+      "sha256": "361755dfc680f0532650ecbcab42093e8338e76597937075a09acc74bb30fc2d",
+      "report_scope": "consolidated"
+    },
+    {
+      "year": 2024,
+      "url": "https://mopsov.twse.com.tw/server-java/FileDownLoad?functionName=t164sb01&step=9&co_id=2891&year=2024&season=4&report_id=C",
+      "sha256": "8d03067157d3ec3b4dd36f8d5d0c0686a658034ff42c24b9ffaef927e7cd6181",
+      "report_scope": "consolidated"
+    },
+    {
+      "year": 2025,
+      "url": "https://mopsov.twse.com.tw/server-java/FileDownLoad?functionName=t164sb01&step=9&co_id=2891&year=2025&season=4&report_id=C",
+      "sha256": "f074f429ead9fcf6e1dc434638729df2338b9a6dc59f0792d4bfeb8bf4482497",
+      "report_scope": "consolidated"
+    }
+  ],
+  "source_url": "https://mopsov.twse.com.tw/mops/web/ajax_t203sb01",
+  "comparative_revisions": [
+    {
+      "year": 2023,
+      "fact": "ifrs-full:CashFlowsFromUsedInOperatingActivities",
+      "original_twd": -16537839000,
+      "revised_twd": -16507465000,
+      "original_filing_year": 2023,
+      "comparative_filing_year": 2024,
+      "kind": "restatement"
+    }
+  ]
+}

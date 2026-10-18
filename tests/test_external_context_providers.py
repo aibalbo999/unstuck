@@ -57,8 +57,10 @@ def test_optional_http_bundle_merges_additional_free_context_sources():
         refreshed_sources=("social_sentiment", "sec_edgar", "taiwan_open_data"),
     )
 
-    assert merged["social_sentiment"]["dcard"][0]["title"] == "Dcard"
-    assert merged["sentiment_context"]["social_sentiment"]["dcard"][0]["title"] == "Dcard"
+    # A title alone is not an original, dated forum post; merge keeps the
+    # source shape without promoting it to usable social evidence.
+    assert merged["social_sentiment"]["dcard"] == []
+    assert merged["sentiment_context"]["social_sentiment"]["dcard"] == []
     assert merged["sec_edgar"]["recent_filings"][0]["form"] == "10-K"
     assert merged["taiwan_open_data"]["rates"]["USD"]["sell"] == "31.50"
     latest_sources = {entry["source"]: entry for entry in merged["source_audit"]}

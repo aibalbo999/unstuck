@@ -14,6 +14,8 @@ DECISION_RELEVANT_DATA_KEYS = (
     "revenue_ttm_raw", "net_income_ttm_raw", "free_cash_flow_raw", "total_debt_raw", "total_cash_raw",
     "years", "revenue_history", "net_income_history", "gross_profit_history", "operating_income_history",
     "fcf_history", "gross_margin_history", "op_margin_history", "net_margin_history", "roe_history",
+    "financial_history_basis", "sector_specific_financials", "net_revenue_history",
+    "latest_quarter_financials", "latest_quarter_financial_summary",
     "recent_monthly_revenue", "institutional_trading", "pe_river_chart",
 )
 
@@ -103,9 +105,17 @@ def refresh_requires_analysis_rerun(previous_snapshot: dict, refreshed_snapshot:
         return True
     before_data = safe_mapping_dict(dict.get(previous_snapshot_map, "data")) or {}
     after_data = safe_mapping_dict(dict.get(refreshed_snapshot_map, "data")) or {}
+    from source_applicability import instrument_type
+    if instrument_type(before_data) != instrument_type(after_data):
+        return True
     for key in DECISION_RELEVANT_DATA_KEYS:
         if _stable_data_value(before_data, key) != _stable_data_value(after_data, key):
             return True
+    for key in ('recent_catalysts', 'additional_recent_catalysts'):
+        if _stable_news_evidence(before_data, key) != _stable_news_evidence(after_data, key):
+            return True
+    if _stable_call_evidence(before_data.get('earnings_call')) != _stable_call_evidence(after_data.get('earnings_call')):
+        return True
 
     stale_sources_diff = safe_mapping_dict(dict.get(refresh_diff_map, "stale_sources")) or {}
     if dict.get(stale_sources_diff, "removed") or dict.get(stale_sources_diff, "added"):
@@ -127,6 +137,43 @@ def _stable_data_value(data: dict, key: str) -> str:
     if key not in data:
         return "__missing__"
     return json.dumps(data.get(key), ensure_ascii=False, sort_keys=True, default=str)
+
+
+def _stable_news_evidence(data: dict, key: str) -> list[str]:
+    """Compare analyzed news content, excluding receipt refreshes and ordering."""
+    from news_record_utils import canonical_link
+    from news_freshness_policy import publication_datetime, publisher_identity
+
+    rows = []
+    for value in safe_sequence_items(dict.get(data, key, [])):
+        row = safe_mapping_dict(value)
+        if row is None:
+            continue
+        published = publication_datetime(row)
+        evidence = {field: dict.get(row, field, '') for field in ('title', 'summary', 'text')}
+        evidence.update(link=canonical_link(dict.get(row, 'link') or dict.get(row, 'url')),
+                        published_at=published.isoformat() if published else '',
+                        publisher=publisher_identity(row)[1])
+        rows.append(json.dumps(evidence, ensure_ascii=False, sort_keys=True, default=str))
+    return sorted(rows)
+
+
+def _stable_call_evidence(value) -> str:
+    """Preserve call/presentation content; exclude acquisition bookkeeping."""
+    from prompt_evidence import is_internal_prompt_key
+    observed = {'fetched_at', 'fetched_at_epoch', 'retrieved_at', 'retrieved_at_epoch',
+                'fetch_id', 'attempt_id', 'operation_id', 'cache_hit', 'content_sha256'}
+
+    def project(item):
+        mapping = safe_mapping_dict(item)
+        if mapping is not None:
+            return {key: project(child) for key, child in mapping.items()
+                    if key not in observed and not is_internal_prompt_key(key)}
+        if isinstance(item, (list, tuple)):
+            return [project(child) for child in safe_sequence_items(item)]
+        return item
+
+    return json.dumps(project(value), ensure_ascii=False, sort_keys=True, default=str)
 
 
 def _actionable_reason_codes(trust: dict) -> set[str]:

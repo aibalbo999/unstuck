@@ -27,6 +27,14 @@ AGGREGATE_PROVIDERS = {
     "Alternative data providers", "Social Forum Sentiment", "Taiwan Open Data",
     "Free news waterfall",
 }
+# These providers emit native component rows and a separately typed parent.
+# Legacy provider rows often also use "aggregate", so retain their projection.
+NATIVE_COMPONENT_AGGREGATE_PROVIDERS = {
+    "Universal official conference presentation",
+    "TXC official conference presentation",
+    "Hon Hai official conference transcript",
+    "TWSE WebPro conference metadata",
+}
 BASE_AGGREGATE_MESSAGES = {
     "本次重新抓取完成。", "市場價格或估值資料缺漏", "年度財報資料缺漏",
     "非台股或 FinMind 月營收暫無可用資料", "近期催化劑暫無可用資料",
@@ -42,11 +50,21 @@ def observation_kind(row: dict) -> str:
     if details.get('event_kind') == 'local_block':
         return 'local_block_count'
     if (provider in AGGREGATE_PROVIDERS or message in BASE_AGGREGATE_MESSAGES
-            or message.startswith("optional 外部來源")):
+            or message.startswith("optional 外部來源")
+            or provider in NATIVE_COMPONENT_AGGREGATE_PROVIDERS
+            and details.get('event_kind') == 'aggregate'):
         return "aggregate_count"
     if details.get('cache_hit') is True:
         return 'stale_cache_count' if details.get('stale') else 'fresh_cache_count' if count > 0 else 'empty_cache_count'
     if details.get('http_request_sent') is False:
+        return 'local_block_count'
+    if (details.get('error_kind') == 'cooldown'
+            and details.get('http_request_count') == 0
+            and details.get('http_request_sent') is not True
+            and details.get('event_kind') not in {'http_attempt', 'http_request'}):
+        # A cooldown with an explicit zero-request count is a local admission
+        # block even when older aggregate audit rows omitted http_request_sent.
+        # Keep requested/unknown cooldown errors in the failure denominator.
         return 'local_block_count'
     if status == "not_configured":
         return "not_configured_count"
@@ -82,9 +100,26 @@ def _finish_counts(row: dict) -> dict:
     return row
 
 
+def _aggregate_operation_key(row: dict) -> tuple | None:
+    """Identify a provider result projected again by its enclosing fetch."""
+    details = row.get('details', {})
+    fetch_id = details.get('fetch_id')
+    operation_id = details.get('operation_id')
+    if (details.get('event_kind') != 'aggregate'
+            or not isinstance(fetch_id, str) or not fetch_id
+            or not isinstance(operation_id, str) or not operation_id):
+        return None
+    return (
+        row.get('source'), row.get('provider'), fetch_id, operation_id,
+        row.get('status'), row.get('record_count'), row.get('message'),
+        details.get('ticker'), details.get('error_kind'),
+    )
+
+
 def project_acquisition_events(events, *, window: str, now: float) -> dict:
     """Project ordered audit rows; keep repeated actual attempts and all failures."""
     groups = {}
+    attempted_aggregate_operations = set()
     first_at = None
     start = now - WINDOW_SECONDS[window] if window in WINDOW_SECONDS else None
     for raw in events:
@@ -101,6 +136,16 @@ def project_acquisition_events(events, *, window: str, now: float) -> dict:
         source = row["source"]
         group = groups.setdefault(source, dict(source=source, providers={}, **_empty_counts()))
         selection = row['details']
+        aggregate_key = _aggregate_operation_key(row)
+        if aggregate_key and selection.get('http_request_sent') is True:
+            attempted_aggregate_operations.add(aggregate_key)
+        elif aggregate_key and aggregate_key in attempted_aggregate_operations:
+            # The service can persist the same aggregate result once at the
+            # provider boundary and again in the enclosing fetch result. Keep
+            # the original attempt, but do not count its correlation-only copy
+            # as another success, failure, or HTTP request.
+            group['aggregate_count'] += 1
+            continue
         if isinstance(selection.get('usable_count'), int) and isinstance(selection.get('raw_count'), int):
             prior = group.get('last_selection', {})
             if at >= prior.get('at_epoch', 0):

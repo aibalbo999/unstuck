@@ -1,0 +1,39 @@
+{
+  "rss_url": "https://news.google.com/rss/search?q=%22Gogolook%22+6902+when%3A30d&hl=zh-TW&gl=TW&ceid=TW%3Azh-Hant",
+  "rss_sha256": "5036b53fe6edfdf3895e5e0203ddc1ded3fd162e3c12519e779af0de1ead9faf",
+  "rss_retrieved_at": 1791683498.5833302,
+  "roster_url": "https://openapi.twse.com.tw/v1/opendata/t187ap03_L",
+  "roster_sha256": "97fe4e558c5e6dd7dbc4d4f6e9ec9c49d86b8051dcf8878e944d4fa83e18bd81",
+  "captured_current_issuer": {
+    "legal_name": "走著瞧股份有限公司",
+    "short_name": "GOGOLOOK",
+    "published_roc": "1151010",
+    "official_ubn": "53755364"
+  },
+  "company_data": {
+    "ticker": "6902.TW",
+    "company_name": "GOGOLOOK-創 / Gogolook Co., Ltd.",
+    "company_identity": {
+      "ticker": "6902.TW",
+      "stock_id": "6902",
+      "instrument_type": "EQUITY",
+      "official_name": "GOGOLOOK-創",
+      "legal_name": null,
+      "allowed_aliases": [
+        "GOGOLOOK-創",
+        "GOGOLOOK-創 / Gogolook Co., Ltd.",
+        "Gogolook Co., Ltd.",
+        "6902.TW",
+        "6902",
+        "GOGOLOOK CO LTD"
+      ],
+      "english_names": [
+        "Gogolook Co., Ltd.",
+        "GOGOLOOK CO LTD"
+      ],
+      "forbidden_aliases": []
+    }
+  },
+  "current_gap_snapshot_sha256": "eb16eb3addd58449b5ffffcb0c7cafbf90b2535029977d5d8e149a43e3ff4085",
+  "current_gap_filename": "6902_TW_v4_report_job_6291e0991d22.html"
+}

@@ -55,6 +55,24 @@ def _current_rows(rows: list[dict], today: date, master_day: date | None = None)
     return current, None
 
 
+def current_master_industry_categories(ticker: str, rows: list[dict], *, today: date | None = None) -> list[str]:
+    """Use only a fresh, exact-market stock-master classification as a source hint."""
+    today = today or _today()
+    suffix = ".TWO" if ticker.endswith(".TWO") else ".TW" if ticker.endswith(".TW") else ""
+    if not suffix:
+        return []
+    stock_id = ticker.removesuffix(suffix)
+    master_day = max((day for row in rows if isinstance(row, dict)
+                      if (day := parse_observation_date(row.get("date"))) is not None and day <= today), default=None)
+    matched = [row for row in rows if isinstance(row, dict) and str(row.get("stock_id", "")).strip() == stock_id]
+    current, error = _current_rows(matched, today, master_day)
+    expected_market = "tpex" if suffix == ".TWO" else "twse"
+    if error or any(str(row.get("type", "")).lower() != expected_market for row in current):
+        return []
+    return sorted({str(row.get("industry_category") or "").strip() for row in current
+                   if str(row.get("industry_category") or "").strip()})
+
+
 def resolve_legacy_peer_candidates(ticker: str, identity: dict, rows: list[dict], *, today: date) -> tuple[list[dict], dict]:
     grouped = defaultdict(list)
     for row in rows:
@@ -164,21 +182,57 @@ def select_peer_valuation_observation(rows: list[dict], ticker: str, *, today: d
 
 def fetch_peer_valuation_fallback(ticker: str, *, today: date | None = None) -> dict:
     from cache_store import get_cache_json, set_cache_json
+    from .official_peer_valuation import fetch_official_peer_valuation
     from .taiwan import DataLoader
 
     today = today or _today()
-    if DataLoader is None or not re.fullmatch(r"[1-9]\d{3}\.TW[O]?", ticker):
+    if not re.fullmatch(r"[1-9]\d{3}\.TW[O]?", ticker):
         return {"metrics": {}, "status": "not_applicable"}
-    cache_key = f"peer_valuation:v1:{ticker}:{today.isoformat()}"
+    cache_key = f"peer_valuation:v2:{ticker}:{today.isoformat()}"
     cached = get_cache_json(cache_key)
     if isinstance(cached, dict):
         return {**cached, "cache_hit": True}
     try:
+        official = fetch_official_peer_valuation(ticker, today=today)
+    except Exception as exc:
+        official = {"metrics": {}, "status": "download_failed", "error_kind": type(exc).__name__}
+    official_metrics = official.get("metrics") if isinstance(official.get("metrics"), dict) else {}
+    official_metrics = {field: official_metrics[field] for field in ("pe_ttm", "pb") if field in official_metrics}
+    attempts = [{"provider": official.get("source", "TWSE/TPEx official peer valuation OpenAPI"),
+                 "status": official.get("status", "unavailable")}]
+    if len(official_metrics) == 2:
+        result = {**official, "metric_sources": {
+            field: {"provider": official["source"], "observed_at": official.get("observed_at"),
+                    "basis": official.get("metric_basis", {}).get(field),
+                    "cache_hit": bool(official.get("cache_hit"))} for field in official_metrics},
+            "attempts": attempts}
+        set_cache_json(cache_key, result, 1800)
+        return {**result, "cache_hit": False}
+    if DataLoader is None:
+        result = {**official, "metrics": official_metrics, "attempts": attempts}
+        set_cache_json(cache_key, result, 1800 if official_metrics else 300)
+        return {**result, "cache_hit": False}
+    try:
         frame = DataLoader().taiwan_stock_per_pbr(stock_id=ticker.split(".")[0],
                                                 start_date=(today - timedelta(days=10)).isoformat(),
                                                 end_date=today.isoformat(), timeout=8)
-        result = select_peer_valuation_observation(frame.to_dict("records") if frame is not None else [], ticker, today=today)
+        finmind = select_peer_valuation_observation(frame.to_dict("records") if frame is not None else [], ticker, today=today)
     except Exception as exc:
-        result = {"metrics": {}, "status": "download_failed", "error_kind": type(exc).__name__}
+        finmind = {"metrics": {}, "status": "download_failed", "error_kind": type(exc).__name__}
+    attempts.append({"provider": "FinMind TaiwanStockPER", "status": finmind["status"]})
+    finmind_metrics = finmind.get("metrics") or {}
+    metrics = {**finmind_metrics, **official_metrics}
+    metric_sources = {}
+    for field in metrics:
+        source = official if field in official_metrics else finmind
+        metric_sources[field] = {"provider": source.get("source", "FinMind TaiwanStockPER"),
+                                 "observed_at": source.get("observed_at"),
+                                 "basis": source.get("metric_basis", {}).get(field),
+                                 "cache_hit": bool(source.get("cache_hit"))}
+    result = {**(official if official_metrics else finmind), "metrics": metrics,
+              "status": "success" if metrics else finmind["status"],
+              "source": (official.get("source") if official_metrics else finmind.get("source")),
+              "metric_sources": metric_sources, "attempts": attempts,
+              "observed_at": (official.get("observed_at") if official_metrics else finmind.get("observed_at"))}
     set_cache_json(cache_key, result, 1800 if result.get("metrics") else 300)
     return {**result, "cache_hit": False}

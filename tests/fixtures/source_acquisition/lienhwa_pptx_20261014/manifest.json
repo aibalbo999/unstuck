@@ -1,0 +1,25 @@
+{
+  "complete_original_filename": "122920260930E001.pptx",
+  "sha256": "4ab60e7e57d57255e9d93ffcf25e54bab12db5e3718086000ae956a057ba160c",
+  "bytes": 3883370,
+  "native_original_receipt": "original-receipt.json",
+  "native_original_receipt_sha256": "ccd5b5d9c08ef3423fe290973ced3119d55fbcc9662bcdaa5f8950676bd16238",
+  "source_reference": "docs/evidence/source-acquisition/20261014/remaining-gap-next/lienhwa/qualification.json",
+  "source_reference_sha256": "6d87e0674341076f304bc277b19550c1f15a30e59a606cea0d18ffb157dd78a1",
+  "fetched_again_for_fixture": false,
+  "expected_visible_count": 30,
+  "expected_total_count": 32,
+  "expected_hidden_original_numbers": [
+    31,
+    32
+  ],
+  "expected_empty_visible_original_numbers": [
+    2,
+    3,
+    21,
+    29
+  ],
+  "expected_coverage_status": "partial",
+  "expected_external_relationship_count": 11,
+  "expected_omitted_embedded_xlsx_count": 1
+}

@@ -179,6 +179,20 @@ class TradeEventCatalyst(StructuredModel):
     source_refs: list[str] = Field(default_factory=list, max_length=6)
 
 
+class PriceReferenceInput(StructuredModel):
+    ref: str
+    observed_date: str | None = None
+    window_sessions: int | None = Field(default=None, ge=1)
+    price_basis: str | None = None
+
+
+class PriceLevelEvidence(StructuredModel):
+    field: Literal["support_level", "resistance_level"]
+    kind: Literal["direct_reference", "derived"]
+    operation: Literal["identity", "min", "max", "mean"]
+    inputs: list[PriceReferenceInput] = Field(..., min_length=1, max_length=6)
+
+
 class SwingTradeSetup(StructuredModel):
     """Strict 1-2 week trade plan emitted by the v4 decision agent."""
 
@@ -191,6 +205,7 @@ class SwingTradeSetup(StructuredModel):
     entry_zone: str = Field(..., min_length=1)
     target_price: str = Field(..., min_length=1)
     stop_loss: str = Field(..., min_length=1)
+    price_level_evidence: list[PriceLevelEvidence] = Field(default_factory=list, max_length=2, description="每個非N/A支撐壓力分別明示直接引用或可重算推導；inputs按source_refs原順序，日期/交易日窗口/價格基準只複述原來源，未知null。")
     support_level: str = Field(..., min_length=1)
     resistance_level: str = Field(..., min_length=1)
     core_catalyst: str = Field(..., min_length=1)

@@ -9,11 +9,14 @@ from typing import Any
 from data_trust import normalize_data_trust, trust_status_label
 from mapping_fields import safe_mapping_dict
 from trade_price_inputs import optional_execution_text
+from trade_financial_risk import NEGATIVE_FCF_WARNING
 
 from .decision_context import build_decision_context
 from .html_context import display_text
 from .html_sanitizer import sanitize_report_plain_text
 from .target_price_text import target_price_text
+from .trade_price_grid import execution_rows
+from .trade_observation_dates import trade_observation_rows
 
 
 def _text(value: Any, default: str = "資料不足") -> str:
@@ -78,7 +81,14 @@ def build_mode_focus_context(context: dict, parsed: dict, *, pipeline_id: str) -
         ]}
 
     setup = safe_mapping_dict(parsed_map.get("trade_setup")) or {}
+    semantic_rows = []
+    for row in decision["trade_semantic_rows"]:
+        row = dict(row)
+        if row.get("label") == "財務風險" and str(row.get("value") or "") != NEGATIVE_FCF_WARNING and any(token in str(row.get("value") or "").lower() for token in ("自由現金流", "fcf", "free cash flow")):
+            row["value"] = "待查主張：即期FCF期間、合併口徑及完整CapEx尚未核實；原模型FCF判讀不能視為已確認財務壓力，不能作為看多／看空依據。"
+        semantic_rows.append(row)
     return {"rows": [
+        *[_row(row["label"], row["value"]) for row in trade_observation_rows(data)],
         _row("交易方向", decision["trade_direction_label"]),
         _row("進場區間", setup.get("entry_zone")),
         _row("1-2 週目標", setup.get("target_price")),
@@ -87,7 +97,8 @@ def build_mode_focus_context(context: dict, parsed: dict, *, pipeline_id: str) -
         _row("壓力位", setup.get("resistance_level")),
         _row("核心催化劑", setup.get("core_catalyst")),
         _row("波動風險", setup.get("risk_level")),
-        *decision["trade_semantic_rows"],
+        *semantic_rows,
+        *[_row(row["label"], row["value"]) for row in execution_rows(data, setup)],
     ]}
 
 

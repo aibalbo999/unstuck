@@ -9,7 +9,7 @@ import httpx
 import pytest
 
 
-INDEX = '''<html><title>世紀民生科技股份有限公司</title><a href="https://www.myson.com.tw/public/uploads/pdf/new.pdf">1150415世紀民生法說會簡報</a><a href="https://www.myson.com.tw/public/uploads/pdf/old.pdf">1140918世紀民生法說會簡報</a></html>'''.encode()
+INDEX = '''<html><title>世紀民生科技股份有限公司</title><a href="https://www.myson.com.tw/public/uploads/pdf/new.pdf">1150415世紀民生法說會簡報</a><a href="https://youtu.be/IYt2-pqx_Go">1150415世紀民生法說會影音檔</a><a href="https://www.myson.com.tw/public/uploads/pdf/old.pdf">1140918世紀民生法說會簡報</a></html>'''.encode()
 
 
 def test_index_uses_event_anchor_date_not_upload_filename():
@@ -17,6 +17,31 @@ def test_index_uses_event_anchor_date_not_upload_filename():
     selected = select_presentation(INDEX, today=date(2026, 9, 27))
     assert selected['event_date'] == '2026-04-15'
     assert selected['url'].endswith('/new.pdf')
+
+
+def test_index_pairs_only_same_event_official_video_with_presentation():
+    from company_conference_content import select_presentation
+    index = '''<html><title>世紀民生科技股份有限公司</title>
+    <a href="https://www.myson.com.tw/public/uploads/pdf/new.pdf">1150415世紀民生法說會簡報</a>
+    <a href="https://youtu.be/IYt2-pqx_Go">1150415世紀民生法說會影音檔</a>
+    <a href="https://youtu.be/keuEmjGzyfk">1140918上曜集團法說會(世紀民生5314)影音檔</a></html>'''.encode()
+    selected = select_presentation(index, today=date(2026, 9, 27))
+    assert selected['video_url'] == 'https://youtu.be/IYt2-pqx_Go'
+
+
+@pytest.mark.parametrize('url', [
+    'https://youtu.be/IYt2-pqx_Go?redirect=x',
+    'https://youtu.be.evil.example/IYt2-pqx_Go',
+    'https://youtube.com@evil.example/watch?v=IYt2-pqx_Go',
+])
+def test_index_rejects_untrusted_video_url_without_losing_presentation(url):
+    from company_conference_content import select_presentation
+    base = INDEX.decode().replace('<a href="https://youtu.be/IYt2-pqx_Go">1150415世紀民生法說會影音檔</a>', '')
+    html = base.replace('</html>',
+        f'<a href="{url}">1150415世紀民生法說會影音檔</a></html>')
+    selected = select_presentation(html.encode(), today=date(2026, 9, 27))
+    assert selected['url'].endswith('/new.pdf')
+    assert selected.get('video_url') is None
 
 
 @pytest.mark.parametrize('label,url', [
@@ -66,6 +91,9 @@ def test_real_content_is_partial_and_never_a_transcript(source):
     assert value['transcript_available'] is False and value['transcript_excerpt'] == ''
     assert not value.get('content') and not value.get('transcript')
     assert value['date'] == '2026-04-15'
+    assert value['materials'][-1] == {'url': 'https://youtu.be/IYt2-pqx_Go',
+                                      'kind': 'official_video_link', 'content_retrieved': False,
+                                      'transcript_available': False}
     document = value['documents'][0]
     assert document['document_kind'] == 'presentation'
     assert document['missing_text_pages'] == [2] and document['page_count'] == 2

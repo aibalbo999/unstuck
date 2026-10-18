@@ -1,0 +1,41 @@
+{
+  "kind": "complete_native_failure_originals_by_observed_SHA_no_native_epoch_inferred",
+  "parts": {
+    "2023": {
+      "filename": "2023_balance.gz",
+      "year": 2024,
+      "source_event_id": 435668,
+      "sha256": "3eddbc801b37548db41e3a1e5958cafb04d2d79a29d2bc7f551406f39c77ca5d",
+      "bytes": 6402,
+      "source_url": "https://mops.twse.com.tw/mops/api/t164sb03",
+      "original_acquisition_epoch_not_observed": true
+    },
+    "2466": {
+      "filename": "2466_balance.gz",
+      "year": 2023,
+      "source_event_id": 436246,
+      "sha256": "27b6f87f75b86974af42d793d13a7471880bf8b840bc39551bcea993c5239a69",
+      "bytes": 6561,
+      "source_url": "https://mops.twse.com.tw/mops/api/t164sb03",
+      "original_acquisition_epoch_not_observed": true
+    }
+  },
+  "unit": {
+    "filename": "balance_unit_renderer.gz",
+    "sha256": "6d1695de0f0234163792333a4cf07ef9316f01687ef1a0928fa6ddc9feecc7ba",
+    "bytes": 6549,
+    "source_url": "https://mops.twse.com.tw/mops/assets/t164sb03.js"
+  },
+  "other_units": {
+    "IncomeStatement": {
+      "filename": "IncomeStatement_unit_renderer.gz",
+      "sha256": "fbfd5754dd2ce843cadd7a800e188fc84acda6ee61bfb64d5afd3a1ac9cfee23",
+      "bytes": 6507
+    },
+    "CashflowStatement": {
+      "filename": "CashflowStatement_unit_renderer.gz",
+      "sha256": "4f2491487da3489f8cb5cb9acd95dd6ee73981ebbbb0c45e8df4c5e2bfc0b413",
+      "bytes": 6480
+    }
+  }
+}

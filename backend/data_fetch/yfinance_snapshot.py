@@ -57,6 +57,8 @@ def fetch_stock_data_from_snapshot(
     snapshot: dict,
     skip_optional_http: bool = False,
     force_refresh: bool = False,
+    defer_taiwan_yahoo_news: bool = False,
+    radar_refresh: bool = False,
 ) -> dict:
     """Assemble a legacy-compatible payload from a pre-resolved yfinance snapshot."""
     from .yfinance_core_fetch import fetch_stock_data
@@ -78,4 +80,8 @@ def fetch_stock_data_from_snapshot(
     }
     if force_refresh:
         kwargs["force_refresh"] = True
+    if defer_taiwan_yahoo_news:
+        kwargs["defer_taiwan_yahoo_news"] = True
+    if radar_refresh:
+        kwargs["radar_refresh"] = True
     return fetch_stock_data(original_ticker, **kwargs)

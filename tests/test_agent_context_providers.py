@@ -43,7 +43,7 @@ def test_social_sentiment_provider_directly_fetches_ptt_for_taiwan_ticker(monkey
     )
 
     assert ptt_calls == [("2330", 5)]
-    assert len(google_calls) == 3
+    assert google_calls == []
     assert result.status == "success"
     selected = result.value["ptt_stock_direct"]
     assert len(selected) == 1
@@ -84,3 +84,40 @@ def test_job_openings_provider_derives_default_keywords_when_missing(monkeypatch
         ("104", "台積電", "工程師"),
         ("1111", "台積電", "工程師"),
     ]
+
+
+def test_verified_104_company_postings_are_acquired_without_claiming_keyword_or_1111_counts(monkeypatch):
+    import alternative_data_fetcher
+    from data_fetch.agent_context_providers import AlternativeJobOpeningsProvider
+    from data_fetch.types import FetchRequest
+    from data_trust import source_record_count
+
+    url = "https://www.104.com.tw/job/90fw6"
+    monkeypatch.setattr(alternative_data_fetcher, "fetch_104_company_jobs", lambda name: {
+        "status": "success", "source": "104 Company Jobs API", "company_name": name,
+        "query_scope": "exact_company_recent_postings", "evidence_kind": "company_job_postings",
+        "source_url": "https://www.104.com.tw/jobs/search/api/jobs?kwop=2",
+        "response_sha256": "a" * 64,
+        "recent_company_job_count": 1, "job_count": None, "job_postings": [
+            {"title": "稽核儲備主管", "url": url, "published_date": "2026-10-02",
+             "employer": name, "employer_id": "22099815000", "job_no": "15137142"}],
+    })
+    monkeypatch.setattr(alternative_data_fetcher, "fetch_1111_job_openings_count", lambda *a, **k: {
+        "status": "unavailable", "job_count": None, "source": "1111 Job Search"})
+    request = FetchRequest.from_ticker("5314.TWO")
+    data = {"ticker": "5314.TWO", "company_name": "世紀* / Myson Century, Inc.",
+            "company_identity": {"official_name": "世紀*", "legal_name": "世紀民生科技股份有限公司"}}
+    result = AlternativeJobOpeningsProvider()._fetch_uncached(request, {"data": data})
+
+    assert result.status == "success" and result.audit["coverage_status"] == "partial"
+    assert result.audit["record_count"] == 1
+    assert result.value["job_openings_104"]["job_count"] is None
+    assert result.value["job_openings_1111"]["job_count"] is None
+    assert result.value["job_openings_104"]["job_postings"][0]["url"] == url
+    assert source_record_count("alternative_data", {**data, "alternative_data": result.value}) == 1
+    wrong_employer = {**result.value, "job_openings_104": {
+        **result.value["job_openings_104"],
+        "job_postings": [{**result.value["job_openings_104"]["job_postings"][0],
+                          "employer": "別家公司"}],
+    }}
+    assert source_record_count("alternative_data", {**data, "alternative_data": wrong_employer}) == 0

@@ -22,7 +22,7 @@ from .retry_policy import AgentTransientError
 from .routing import get_agent_function_tools
 
 
-GENERATION_POLICY_VERSION = "agent-generation:v5"
+GENERATION_POLICY_VERSION = "agent-generation:v6"
 AGENT7_COMPLETION_POLICY = "research-completion:v1-preview-low"
 _DEFAULT_GENERATION_PROFILE = {
     "temperature": 0.7,
@@ -108,7 +108,7 @@ def _thinking_level(agent_num: int | None, model_id: str) -> str | None:
     # this observed research fallback without changing other routes or roles.
     if agent_num == 7 and model == "gemini-3-flash-preview":
         return "low"
-    if agent_num in {18, 19, 24} and model in _COMPLETION_LOW_THINKING_MODELS:
+    if agent_num in {18, 19, 22, 23, 24} and model in _COMPLETION_LOW_THINKING_MODELS:
         return "low"
     if model_id in _BOUNDED_THINKING_MODELS:
         return "medium" if agent_num in _MEDIUM_THINKING_AGENTS else "low"
@@ -227,6 +227,12 @@ def google_safe_agent_system_instruction(agent_num: int, model_id: str) -> str:
     elif agent_num == 19:
         system_instruction += _AGENT19_COMPLETION_INSTRUCTION
         system_instruction += _agent19_recommendation_contract_instruction()
+    elif agent_num in {22, 23}:
+        system_instruction += ("\n\n證據備忘錄完整性契約：只輸出完整 JSON 與結尾大括號，保留 as_of_date、confidence、"
+                               "evidence_items、analysis_markdown 四個必要欄位。每項證據必須有 finding、source_refs、"
+                               "freshness_note、counterevidence；引用只用實際來源路徑，明示資料日期、期間、單位與限制。"
+                               "正文精煉整合支持、反證、兩週觀察與失效條件；不得僅填資料不足、重貼原始表格或逐字重複前序分析。"
+                               "資料有缺口時具體交代缺少什麼及可驗證的重新評估條件，不補造資料或保證上漲。")
     elif agent_num == 24:
         system_instruction += ("\n\n完整性契約：只輸出完整 JSON。先完成八個核心欄位、三組來源引用及結尾大括號，"
                                "不要重貼原始資料或附加長篇正文；來源只能引用本次完整可見 trade-source 區塊，"

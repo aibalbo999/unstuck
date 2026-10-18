@@ -61,3 +61,35 @@ def test_agent24_repair_keeps_full_guidance_and_exact_state(flag, monkeypatch):
     assert before.split("【trade-source:", 1)[1] == after.split("【trade-source:", 1)[1]
     assert "核對完整來源與反證。" in after
     assert estimate_agent_input_tokens(24, MODEL, after) < estimate_agent_input_tokens(24, MODEL, before) - 1000
+
+
+def test_agent24_lite_fallback_packs_records_without_losing_evidence(monkeypatch):
+    from test_gemma_state_references import financial_payload, state_payload, expand_references
+
+    data, context = _context()
+    context['_prompt_model_id'] = 'gemini-3.5-flash-lite'
+    original = copy.deepcopy((data, context))
+    formatter = prompting.format_data_for_prompt
+
+    def unpacked_format(value, **kwargs):
+        if value.get('_prompt_agent_num') == 24:
+            kwargs.pop('dense', None)
+            kwargs['compact_json'] = True
+        return formatter(value, **kwargs)
+
+    with monkeypatch.context() as patch:
+        patch.setattr(prompting, 'format_data_for_prompt', unpacked_format)
+        before = prompting.build_prompt(24, data, context)
+    after = prompting.build_prompt(24, data, context)
+
+    assert '__record_table__' in after
+    assert financial_payload(after) == financial_payload(before)
+    assert expand_references(state_payload(after), financial_payload(after)) == (
+        expand_references(state_payload(before), financial_payload(before))
+    )
+    assert before.split('【trade-source:', 1)[1] == after.split('【trade-source:', 1)[1]
+    assert estimate_agent_input_tokens(24, context['_prompt_model_id'], after) < (
+        estimate_agent_input_tokens(24, context['_prompt_model_id'], before) - 100
+    )
+    assert data == original[0]
+    assert context['agent_state'] == original[1]['agent_state']

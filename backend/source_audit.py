@@ -39,6 +39,18 @@ def record_count_from_value(value: Any) -> int:
     return 1
 
 
+def _mark_unentered_admission_block(audit: dict, *, lazy_callback: bool = True) -> dict:
+    # The source-operation trace is populated in provider_attempt's finally.
+    # The same exception raised inside a callback therefore has a nonempty
+    # trace; its transport state remains unknown rather than invented as zero.
+    # A prebuilt Task/Future may already have started work outside this trace.
+    if lazy_callback and type(audit.get('provider_attempts')) is list and not audit['provider_attempts']:
+        audit.update(event_kind='local_block', http_request_sent=False,
+                     http_request_count=0, provider_admission_blocked=True,
+                     provider_attempt_count=0)
+    return audit
+
+
 @correlate_source
 def audited_fetch(
     source: str,
@@ -63,7 +75,7 @@ def audited_fetch(
         finished = time.time()
         return {
             "value": default,
-            "audit": build_source_audit_entry(
+            "audit": _mark_unentered_admission_block(build_source_audit_entry(
                 source,
                 provider,
                 AUDIT_STATUS_UNAVAILABLE,
@@ -74,7 +86,7 @@ def audited_fetch(
                 stale=stale,
                 error_kind=exc.__class__.__name__,
                 message=str(exc)[:240],
-            ),
+            )),
         }
     except Exception as exc:
         finished = time.time()
@@ -142,7 +154,7 @@ async def audited_fetch_async(
         finished = time.time()
         return {
             "value": default,
-            "audit": build_source_audit_entry(
+            "audit": _mark_unentered_admission_block(build_source_audit_entry(
                 source,
                 provider,
                 AUDIT_STATUS_UNAVAILABLE,
@@ -153,7 +165,7 @@ async def audited_fetch_async(
                 stale=stale,
                 error_kind=exc.__class__.__name__,
                 message=str(exc)[:240],
-            ),
+            ), lazy_callback=callable(func_or_awaitable) and not inspect.isawaitable(func_or_awaitable)),
         }
     except Exception as exc:
         finished = time.time()

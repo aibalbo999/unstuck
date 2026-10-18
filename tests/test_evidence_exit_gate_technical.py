@@ -97,7 +97,7 @@ def test_compact_final_row_binds_each_horizon_not_neighboring_targets():
         f"rerun_context.parsed.recommendation.{label}" for label in
         ("短期目標（3個月）", "中期目標（6個月）", "長期目標（12個月）")
     ]
-    assert all(item["status"] == "verified" and item["candidate_count"] == 1 for item in claims)
+    assert all(item["status"] == "unverifiable" and item["verification_scope"] == "saved_analysis_consistency" for item in claims)
 
 
 def test_compact_horizon_outside_final_row_is_not_canonical_recommendation():

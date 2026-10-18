@@ -1,0 +1,104 @@
+"""Private exact-original glyph adapter; common warning/resource guards retained."""
+from __future__ import annotations
+
+import hashlib
+import re
+import time
+
+import source_pdf_worker as common
+from sti_presentation_pdf_reader import CMAP_SHA256, ORIGINAL_SHA256, PROGRAM_SHA256, glyph_evidence
+
+FONT_NAME = re.compile(r'/[A-Z]{6}\+Wingdings-Regular')
+SOURCE = '\uf070'
+TARGET = '\u25a1'
+
+
+def _object(value):
+    return value.get_object() if hasattr(value, 'get_object') else value
+
+
+def _verified_font(font):
+    """Pinned bytes prove the qualified CID135 hollow-square, not its font name alone."""
+    try:
+        name = str(font.get('/BaseFont'))
+        if (not FONT_NAME.fullmatch(name) or font.get('/Type') != '/Font'
+                or font.get('/Subtype') != '/Type0' or font.get('/Encoding') != '/Identity-H'):
+            return False
+        children = _object(font.get('/DescendantFonts'))
+        if not isinstance(children, list) or len(children) != 1:
+            return False
+        child = _object(children[0])
+        if (child.get('/Type') != '/Font' or child.get('/Subtype') != '/CIDFontType2'
+                or child.get('/BaseFont') != name or child.get('/CIDToGIDMap') != '/Identity'):
+            return False
+        system = _object(child.get('/CIDSystemInfo'))
+        if (system.get('/Registry') != 'Adobe' or system.get('/Ordering') != 'Identity'
+                or not isinstance(system.get('/Supplement'), int)
+                or system.get('/Supplement') != 0 or isinstance(system.get('/Supplement'), bool)):
+            return False
+        descriptor = _object(child.get('/FontDescriptor'))
+        if descriptor.get('/FontName') != name:
+            return False
+        cmap = _object(font.get('/ToUnicode')).get_data()
+        if len(cmap) != 351 or hashlib.sha256(cmap).hexdigest() != CMAP_SHA256:
+            return False
+        program = _object(descriptor.get('/FontFile2')).get_data()
+        return len(program) == 14348 and hashlib.sha256(program).hexdigest() == PROGRAM_SHA256
+    except (AttributeError, KeyError, TypeError, ValueError, OverflowError):
+        return False
+
+
+def _normalize(text, fragments, page_number, font_cache):
+    if page_number != 5 or fragments is None or ''.join(fragment for fragment, _ in fragments) != text:
+        return text, 0
+    result, count = [], 0
+    for fragment, font in fragments:
+        if font is not None and fragment.strip() == SOURCE:
+            key = ('sti-hollow-square', id(font))
+            if key not in font_cache:
+                font_cache[key] = _verified_font(font)
+            if font_cache[key]:
+                fragment = fragment.replace(SOURCE, TARGET)
+                count += 1
+        result.append(fragment)
+    return ''.join(result), count
+
+
+def _extract(raw, deadline):
+    if hashlib.sha256(raw).hexdigest() != ORIGINAL_SHA256:
+        raise common._Failure('invalid_pdf')
+    import source_pdf_symbols
+    original = source_pdf_symbols.normalize_verified_symbols
+    counts = {}
+
+    def specific(text, fragments, number, font_cache):
+        if time.monotonic() >= deadline:
+            raise common._Failure('timeout')
+        # The exact original uses no other verified private glyph profile.
+        # Unrecognized/mixed fragments remain unchanged and hence partial.
+        text, count = _normalize(text, fragments, number, font_cache)
+        if count:
+            counts[str(number)] = counts.get(str(number), 0) + count
+        if time.monotonic() >= deadline:
+            raise common._Failure('timeout')
+        return text, []
+
+    try:
+        source_pdf_symbols.normalize_verified_symbols = specific
+        result = _GENERIC_EXTRACT(raw, deadline)
+    finally:
+        source_pdf_symbols.normalize_verified_symbols = original
+    if time.monotonic() >= deadline:
+        raise common._Failure('timeout')
+    proof = glyph_evidence()
+    if counts != proof['occurrences_by_page']:
+        raise common._Failure('invalid_pdf')
+    result['sti_glyph_evidence'] = proof
+    return result
+
+
+_GENERIC_EXTRACT = common._extract
+
+if __name__ == '__main__':
+    common._extract = _extract
+    common.main()

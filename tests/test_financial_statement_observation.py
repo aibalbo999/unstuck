@@ -73,6 +73,34 @@ def test_primary_three_table_read_has_one_observation_and_preserves_values():
     assert "response_sha256" not in audit
 
 
+def test_radar_reuses_annual_tables_but_forced_report_still_reads_provider():
+    import cache_store
+    from cache_backends import InMemoryCache
+    from provider_correlation import correlation_scope
+
+    cache_store.set_cache_backend(InMemoryCache())
+    stock = StatementStock()
+    try:
+        with correlation_scope(replace=True, fetch_id="first-fetch"):
+            first = extract_financial_histories(stock, "5314.TWO", [], data_loader_cls=None,
+                                                finmind_use_cache=True)
+        with correlation_scope(replace=True, fetch_id="second-fetch"):
+            second = extract_financial_histories(stock, "5314.TWO", [], data_loader_cls=None,
+                                                 finmind_use_cache=True)
+        forced = extract_financial_histories(stock, "5314.TWO", [], data_loader_cls=None)
+
+        assert stock.calls == {"financials": 2, "cashflow": 2, "balance_sheet": 2}
+        assert first["revenue_history"] == second["revenue_history"] == forced["revenue_history"]
+        assert first["primary_financial_audit"]["status"] == "success"
+        assert second["primary_financial_audit"]["status"] == "skipped_fresh_cache"
+        assert second["primary_financial_audit"]["cache_hit"] is True
+        assert second["primary_financial_audit"]["fetch_id"] == "second-fetch"
+        assert second["primary_financial_audit"]["event_kind"] == "cache_hit"
+        assert forced["primary_financial_audit"]["status"] == "success"
+    finally:
+        cache_store.reset_cache_store_for_tests()
+
+
 @pytest.mark.parametrize("case", ["missing_field", "zero", "nan", "missing_capex", "missing_period",
                                   "balance_order", "invalid_period", "duplicate_year", "year_gap", "future_period"])
 def test_primary_observation_reports_raw_gaps_and_preserved_zero(case):
@@ -263,13 +291,13 @@ def core_fetch_fixture(monkeypatch, stock):
     """Keep real financial extraction/derived/finalization; isolate other sources."""
     import data_fetch.yfinance_core_fetch as core
     import data_fetch.yfinance_payload as payload
-    monkeypatch.setattr(payload, "set_cache_json", lambda *_args: None)
-    monkeypatch.setattr(core, "extract_price_history", lambda *_args: {})
-    monkeypatch.setattr(core, "extract_market_history_bundle", lambda *_args: {
+    monkeypatch.setattr(payload, "set_cache_json", lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(core, "extract_price_history", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(core, "extract_market_history_bundle", lambda *_args, **_kwargs: {
         "price_history_ranges": {}, "daily_market_data": {}, "technical_indicators": {}})
-    monkeypatch.setattr(core, "extract_dividend_history", lambda *_args: {})
-    monkeypatch.setattr(core, "extract_event_calendar", lambda *_args: {})
-    monkeypatch.setattr(core, "fetch_monthly_revenue_records", lambda *_args: ([], None))
+    monkeypatch.setattr(core, "extract_dividend_history", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(core, "extract_event_calendar", lambda *_args, **_kwargs: {})
+    monkeypatch.setattr(core, "fetch_monthly_revenue_records", lambda *_args, **_kwargs: ([], None))
     monkeypatch.setattr(core, "fetch_sync_enrichment_bundle", lambda **_kwargs: {})
     financial_fields = ("years", "revenue_history", "net_income_history", "gross_profit_history",
                         "operating_income_history", "fcf_history", "total_assets_history", "total_equity_history")
@@ -310,9 +338,10 @@ def test_core_to_service_sqlite_projection_preserves_financial_classification(mo
     assert not result.data.get("error")
     primary = [entry for entry in result.source_audit if entry.get("event_kind") == "sdk_operation"]
     assert len(primary) == 1
-    # Capital-structure notes already read balance_sheet again outside the
-    # observed extractor; this slice neither removes nor adds that existing read.
-    assert stock.calls == {"financials": 1, "cashflow": 1, "balance_sheet": 2}
+    # Aligned original SDK balance inputs also supply the capital notes;
+    # malformed/empty inputs retain the legacy fallback read.
+    assert stock.calls == {"financials": 1, "cashflow": 1,
+                           "balance_sheet": 1 if kind in {'complete','partial'} else 2}
     with sqlite3.connect(provider_sla.TASK_DB_PATH) as conn:
         conn.row_factory = sqlite3.Row
         rows = list(conn.execute("SELECT * FROM provider_sla_events WHERE source='financial_statements'"))
@@ -374,3 +403,60 @@ def test_duplicate_fiscal_periods_do_not_inflate_usable_year_count():
     frames["cashflow"].columns = pd.to_datetime(["2025-12-31", "2025-06-30"])
     audit = extract_financial_histories(StatementStock(frames), "AAPL", [], data_loader_cls=None)["primary_financial_audit"]
     assert audit["record_count"] == 2
+
+
+def test_finmind_fills_only_missing_exact_year_cells_without_replacing_primary(monkeypatch):
+    import data_fetch.yfinance_extractors as extractors
+
+    frames = statement_frames()
+    for name, label in (("financials", "Total Revenue"), ("financials", "Net Income"),
+                        ("balance_sheet", "Total Assets"), ("balance_sheet", "Stockholders Equity")):
+        frames[name].loc[label, pd.Timestamp("2024-12-31")] = float("nan")
+    calls = []
+
+    def fallback(*args, **kwargs):
+        calls.append(args)
+        return {"audit": {"source": "financial_statements", "provider": "FinMind financial statement fallback",
+                          "status": "degraded_enrichment", "record_count": 2},
+                "value": {"years": ["2024", "2025"], "rows_by_year": {
+                    "2024": {"statement_date": "2024-12-31", "revenue": 1.1, "net_income": 0.21,
+                             "gross_profit": 0.5, "operating_income": 0.35, "free_cash_flow": None,
+                             "total_assets": 5.1, "total_equity": 2.1},
+                    "2025": {"statement_date": "2025-12-31", "revenue": 99, "net_income": 99,
+                             "gross_profit": 99, "operating_income": 99, "free_cash_flow": None,
+                             "total_assets": 99, "total_equity": 99}}}}
+
+    monkeypatch.setattr(extractors, "audited_finmind_financial_statement_fallback", fallback)
+    result = extract_financial_histories(StatementStock(frames), "5314.TWO", [], data_loader_cls=object)
+
+    assert len(calls) == 1
+    assert result["years"] == ["2024", "2025"]
+    assert result["revenue_history"] == [1.1, 2.0]
+    assert result["net_income_history"] == [0.21, 0.4]
+    assert result["gross_profit_history"] == [0.4, 0.8]
+    assert result["fcf_history"] == [0.2, 0.4]
+    assert result["total_assets_history"] == [5.1, 6.0]
+    assert result["total_equity_history"] == [2.1, 3.0]
+    assert result["primary_financial_audit"]["status"] == "degraded_enrichment"
+
+
+def test_finmind_partial_fill_rejects_other_fiscal_day_and_ambiguous_year(monkeypatch):
+    import data_fetch.yfinance_extractors as extractors
+
+    frames = statement_frames()
+    frames["financials"].loc["Total Revenue", pd.Timestamp("2024-12-31")] = float("nan")
+    calls = []
+
+    def fallback(*_args, **_kwargs):
+        calls.append(True)
+        return {
+        "audit": {"status": "degraded_enrichment"},
+        "value": {"years": ["2024", "2024"], "rows_by_year": {
+            "2024": {"statement_date": "2024-06-30", "revenue": 1.1}}},
+        }
+
+    monkeypatch.setattr(extractors, "audited_finmind_financial_statement_fallback", fallback)
+
+    result = extract_financial_histories(StatementStock(frames), "5314.TWO", [], data_loader_cls=object)
+    assert len(calls) == 1
+    assert result["revenue_history"] == [None, 2.0]

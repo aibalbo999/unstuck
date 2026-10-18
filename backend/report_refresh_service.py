@@ -11,6 +11,7 @@ from fastapi import HTTPException
 from company_display import company_display_name
 from data_fetch import FetchRequest
 from data_trust import build_data_snapshot, data_snapshot_filename_for_report, sanitize_for_snapshot, utc_now_iso
+from data_trust_snapshot_integrity import apply_snapshot_size_governance, set_snapshot_integrity
 from decision_tracking import build_decision_freshness
 from report_refresh_freshness import _stale_sources
 from report_refresh_diff import refresh_data_diff, refresh_requires_analysis_rerun
@@ -28,6 +29,30 @@ from storage.report_storage import ReportStorage
 ANALYSIS_TEXT_STALE_MESSAGE = "資料快照已刷新，但 HTML/Markdown 分析本文未重新執行；投資結論仍以原報告生成時間為準。"
 
 
+def _preserve_saved_analysis_metadata(snapshot: dict, previous_snapshot: dict) -> dict:
+    """Keep the saved analysis verdict/decision contract without re-running it.
+
+    The generic builder intentionally derives OOS inputs from a live analysis
+    context. A data-only refresh has no such context; its saved compact contract
+    may also be the only copy after rerun_context was size-trimmed.
+    """
+    keys = ("analysis_completeness", "oos_evaluation_inputs")
+    if not any(key in previous_snapshot for key in keys):
+        return snapshot
+    for key in keys:
+        if key in previous_snapshot:
+            snapshot[key] = deepcopy(previous_snapshot[key])
+    # Reapply the existing cap with the restored fields included. Its first
+    # pass may already have trimmed source data: retain those omission receipts.
+    omissions = snapshot.get("snapshot_omitted_sections", [])
+    truncated = snapshot.get("snapshot_truncated") is True
+    governed = apply_snapshot_size_governance(snapshot)
+    governed["snapshot_omitted_sections"] = list(dict.fromkeys(
+        [*omissions, *governed.get("snapshot_omitted_sections", [])]))
+    governed["snapshot_truncated"] = truncated or governed.get("snapshot_truncated") is True
+    return set_snapshot_integrity(governed)
+
+
 async def refresh_report_data_snapshot(
     filename: str,
     *,
@@ -36,7 +61,12 @@ async def refresh_report_data_snapshot(
     storage: ReportStorage | None = None,
     refreshed_data: dict | None = None,
     return_refreshed_data: bool = False,
+    source: str | None = None,
 ) -> dict:
+    from report_source_refresh import validate_refresh_source, fetch_report_source_data
+    validate_refresh_source(source)
+    if source is not None and refreshed_data is not None:
+        raise HTTPException(status_code=400, detail="指定來源刷新不能同時提供整份刷新資料")
     if not is_safe_report_filename(filename, ".html"):
         raise HTTPException(status_code=400, detail="Invalid filename")
 
@@ -64,9 +94,13 @@ async def refresh_report_data_snapshot(
         raise HTTPException(status_code=400, detail="資料快照缺少 ticker")
 
     stale_sources = _stale_sources(previous_snapshot)
-    if refreshed_data is None:
+    if source is not None:
+        raw_refreshed_data = await fetch_report_source_data(previous_snapshot, source, refresh_service)
+    elif refreshed_data is None:
+        # This is real provider work for a saved report. Observe it once at the
+        # service boundary; reused payloads below do not perform or record work.
         result = await refresh_service.fetch_async(
-            FetchRequest.from_ticker(ticker, force_refresh=True, record_provider_sla=False)
+            FetchRequest.from_ticker(ticker, force_refresh=True, record_provider_sla=True)
         )
         raw_refreshed_data = getattr(result, "data", None)
     else:
@@ -80,6 +114,20 @@ async def refresh_report_data_snapshot(
     if "error" in refreshed_data:
         message = dict.get(refreshed_data, "error") or "資料刷新失敗"
         raise HTTPException(status_code=502, detail=message)
+
+    # Reused provider payloads are shared by tracking across reports. A saved
+    # report's original evidence must never leak into that shared payload.
+    provider_refreshed_data = refreshed_data
+    if source is None:
+        from report_annual_history_retention import retain_verified_annual_history
+        refreshed_data = retain_verified_annual_history(previous_snapshot, refreshed_data, ticker)
+        from report_conference_retention import retain_verified_conference
+        refreshed_data = retain_verified_conference(previous_snapshot, refreshed_data, ticker)
+        from report_news_retention import retain_verified_news
+        refreshed_data = retain_verified_news(previous_snapshot, refreshed_data, ticker, report_filename=filename)
+    elif source == 'earnings_call':
+        from report_conference_retention import retire_conference_retention
+        refreshed_data = retire_conference_retention(refreshed_data)
 
     refresh_generated_at = utc_now_iso()
     context = {
@@ -112,6 +160,7 @@ async def refresh_report_data_snapshot(
         pipeline_id=pipeline_id,
         generated_at=refresh_generated_at,
     )
+    provisional_snapshot = _preserve_saved_analysis_metadata(provisional_snapshot, previous_snapshot)
     refresh_diff = refresh_data_diff(previous_snapshot, provisional_snapshot)
     analysis_text_stale = refresh_requires_analysis_rerun(previous_snapshot, provisional_snapshot, refresh_diff)
     context.update({
@@ -126,6 +175,7 @@ async def refresh_report_data_snapshot(
         generated_at=refresh_generated_at,
     )
 
+    refreshed_snapshot = _preserve_saved_analysis_metadata(refreshed_snapshot, previous_snapshot)
     content_storage.save_report(
         bundle.data_key,
         json.dumps(refreshed_snapshot, ensure_ascii=False, indent=2).encode("utf-8"),
@@ -151,5 +201,9 @@ async def refresh_report_data_snapshot(
         "metadata": metadata or {},
     }
     if return_refreshed_data:
-        response["refreshed_data"] = deepcopy(refreshed_data)
+        response["refreshed_data"] = deepcopy(provider_refreshed_data)
+    if source is not None:
+        response["refresh_sources"] = ["recent_catalysts" if source == "issuer_news" else source]
+        if source == "issuer_news":
+            response["refresh_component"] = "Verified issuer news"
     return response

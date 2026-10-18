@@ -63,7 +63,10 @@ def build_dcf_scenario_rows(data: dict) -> list[dict]:
 def build_peer_comparison_rows(data: dict) -> list[dict]:
     data = safe_mapping_dict(data) or {}
     rows = [_target_peer_row(data)]
-    for item in safe_dict_list(data.get("dynamic_peer_metrics"))[:5]:
+    for item in (row for row in safe_dict_list(data.get("dynamic_peer_metrics"))
+                 if row.get("business_comparability_verified_current") is not False):
+        if len(rows) >= 6:
+            break
         rows.append({
             "name": _text(item.get("name") or item.get("ticker"), "同業"),
             "ticker": _text(item.get("ticker"), ""),

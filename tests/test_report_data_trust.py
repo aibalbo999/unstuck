@@ -1,4 +1,5 @@
 import sys
+import pytest
 from decimal import Decimal
 from pathlib import Path
 from types import MappingProxyType
@@ -25,6 +26,13 @@ from reporting.evidence import build_key_evidence_html, build_key_evidence_markd
 from reporting.evidence_matrix import build_evidence_matrix_payload, build_evidence_matrix_rows  # noqa: E402
 from reporting.execution_summary import build_execution_summary_html, build_execution_summary_markdown  # noqa: E402
 from reporting.trust_controls import build_trust_controls_html, build_trust_controls_markdown  # noqa: E402
+
+
+@pytest.fixture(autouse=True)
+def isolate_render_revision(monkeypatch):
+    # These are display unit tests. A checkout's live Git identity is not a
+    # deterministic saved report endpoint and must not change their expectations.
+    monkeypatch.setattr("report_reproducibility.runtime_code_identity", lambda: {"commit": None, "dirty": None})
 
 
 class BrokenExecutionSummaryGateGet(dict):
@@ -159,7 +167,7 @@ def test_html_and_markdown_include_data_trust_and_source_audit():
     assert "資料信心分數" in html
     assert "可重現資訊" in html
     assert "gemini-test-model" in html
-    assert "程式碼狀態：abc123（含未提交變更）" in html
+    assert "程式碼狀態：報告產出版本未知" in html
     assert "資料新鮮" in html
     assert "關鍵數據來源對照" in html
     assert "股價與市值" in html
@@ -178,7 +186,7 @@ def test_html_and_markdown_include_data_trust_and_source_audit():
     assert "**資料信心分數:**" in markdown
     assert "**可重現資訊:**" in markdown
     assert "runtime-rules:test" in markdown
-    assert "程式碼狀態：abc123（含未提交變更）" in markdown
+    assert "程式碼狀態：報告產出版本未知" in markdown
     assert "## 關鍵數據來源對照" in markdown
     assert "## 來源審計" in markdown
     assert "## 執行邏輯與模型檢查" in markdown
@@ -931,7 +939,7 @@ def test_trust_controls_do_not_depend_on_generated_at_truthiness():
 
     assert "資料信心分數" in rendered
     assert "gemini-test-model" in rendered
-    assert "abc123" in rendered
+    assert "報告產出版本未知" in rendered
 
 
 def test_trust_controls_markdown_collapses_embedded_newlines_in_reproducibility_fields():
@@ -956,7 +964,7 @@ def test_trust_controls_markdown_collapses_embedded_newlines_in_reproducibility_
     assert reproducibility_line.startswith("- **可重現資訊:**")
     assert "Model gemini 2.5" in reproducibility_line
     assert "Prompt 版本 runtime v2" in reproducibility_line
-    assert "程式碼狀態：abcdef 12345" in reproducibility_line
+    assert "程式碼狀態：報告產出版本未知" in reproducibility_line
     assert "Provider yfinance primary" in reproducibility_line
     assert "資料時間 2026-06-07T00:00:00 +00:00" in reproducibility_line
     assert "\n" not in reproducibility_line
@@ -986,7 +994,7 @@ def test_trust_controls_drop_non_finite_reproducibility_fields():
     assert "Pipeline N/A" in rendered
     assert "Model unknown" in rendered
     assert "Prompt 版本 runtime_rules:unversioned" in rendered
-    assert "程式碼狀態：N/A" in rendered
+    assert "程式碼狀態：報告產出版本未知" in rendered
     assert "Provider N/A" in rendered
     assert "資料時間 N/A" in rendered
     assert "nan" not in rendered.lower()
@@ -1017,7 +1025,7 @@ def test_trust_controls_drop_non_finite_string_reproducibility_fields():
     assert "Pipeline N/A" in rendered
     assert "Model unknown" in rendered
     assert "Prompt 版本 runtime_rules:unversioned" in rendered
-    assert "程式碼狀態：N/A" in rendered
+    assert "程式碼狀態：報告產出版本未知" in rendered
     assert "Provider N/A" in rendered
     assert "資料時間 N/A" in rendered
     assert "nan" not in rendered.lower()
@@ -1855,3 +1863,12 @@ def test_evidence_matrix_limitations_accept_tuple_data_source_notes():
 
     assert "有效 tuple 資料限制說明。" in recommendation_row["limitation"]
     assert "bad-tuple-note" not in recommendation_row["limitation"]
+
+
+def test_saved_revision_endpoints_are_explicitly_distinct():
+    packet = {'revision_provenance_scope':'analysis_start_and_report_render_endpoints_only',
+              'code_commit':'abc123','code_dirty':False,'render_runtime_commit':'def456',
+              'render_runtime_dirty':True,'analysis_start_vs_render_revision_mismatch':True}
+    text = trust_controls._code_status(packet)
+    assert 'abc123' in text and 'def456' in text and '任務起始' in text
+    assert '不代表所有節點使用同一版本' in text

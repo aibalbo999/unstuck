@@ -1,0 +1,32 @@
+{
+  "parts": {
+    "master": {
+      "url": "https://openapi.twse.com.tw/v1/opendata/t187ap03_L",
+      "retrieved_at": 1791665479.241487,
+      "sha256": "ace3e78957b763b9e99b4f3d222b6838c2b176778bc5a7295d3754e1dafe4865",
+      "bytes": 1327578,
+      "filename": "master.json.gz"
+    },
+    "index": {
+      "url": "https://www.guc-asic.com/tw",
+      "retrieved_at": 1791729243.4563332,
+      "sha256": "634ba816d17dc72917d4d03253be75fd9dd4d2a2d641bf1a1867528821ef20b9",
+      "bytes": 168144,
+      "filename": "index.html.gz"
+    },
+    "article0": {
+      "url": "https://www.guc-asic.com/tw/news/PressReleases/202609revenueC",
+      "retrieved_at": 1791729243.798207,
+      "sha256": "d9b545ccc38d9875dbd7e10d2d54eb13f24b4ef58520c9927401bbeab2fb864d",
+      "bytes": 103073,
+      "filename": "article0.html.gz"
+    },
+    "article1": {
+      "url": "https://www.guc-asic.com/tw/news/PressReleases/PR_20260922",
+      "retrieved_at": 1791729244.10897,
+      "sha256": "c2e935879cd208023e525056dc579fd5e0e4cf8747f59df54e87f493deb50ca4",
+      "bytes": 106305,
+      "filename": "article1.html.gz"
+    }
+  }
+}

@@ -414,10 +414,12 @@ def test_content_credibility_uses_trade_setup_alignment_for_mode_d():
 
     result = evaluate_content_credibility(context, _base_snapshot(context))
 
-    assert result["status"] == "passed"
+    assert result["status"] == "blocked"
     alignment = next(check for check in result["checks"] if check["id"] == "trade_setup_alignment")
     assert alignment["status"] == "passed"
     assert "略過方向一致性檢查" not in alignment["message"]
+
+    assert any(issue["id"] == "v4_market_observation_missing" for issue in result["blocking_issues"])
 
 
 def test_content_credibility_warns_when_mode_d_current_price_is_non_positive():
@@ -436,10 +438,12 @@ def test_content_credibility_warns_when_mode_d_current_price_is_non_positive():
 
     result = evaluate_content_credibility(context, _base_snapshot(context))
 
-    assert result["status"] == "warning"
+    assert result["status"] == "blocked"
     check = next(check for check in result["checks"] if check["id"] == "trade_setup_alignment")
     assert check["status"] == "warning"
     assert any(issue["id"] == "missing_trade_setup_price_inputs" for issue in result["warnings"])
+
+    assert any(issue["id"] == "v4_market_observation_missing" for issue in result["blocking_issues"])
 
 
 def test_content_credibility_uses_snapshot_pipeline_when_context_pipeline_is_missing():
@@ -463,6 +467,8 @@ def test_content_credibility_uses_snapshot_pipeline_when_context_pipeline_is_mis
     assert {issue["id"] for issue in result["blocking_issues"]} == {
         "long_target_not_above_current_price",
         "long_stop_not_below_current_price",
+        "v4_market_observation_missing",
+        "v4_market_price_missing",
     }
 
 

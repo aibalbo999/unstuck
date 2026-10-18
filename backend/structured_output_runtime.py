@@ -135,6 +135,26 @@ def process_agent_response(
     if agent_num not in STRUCTURED_AGENT_INSTRUCTIONS:
         return _sanitize_text(raw_text or "")
 
+    final_completion = None
+    if agent_num in {16, 19}:
+        from final_output_completion import assess_final_completion
+        previous = context.get('structured_outputs', {}).get(agent_num) or context.get('structured_outputs', {}).get(str(agent_num)) or {}
+        final_completion = assess_final_completion(agent_num, raw_text, completion_diagnostics, previous.get('output_completion'))
+        outputs = context.setdefault('structured_outputs', {})
+        outputs.pop(agent_num, None)
+        outputs.pop(str(agent_num), None)
+        if final_completion['status'] == 'incomplete':
+            outputs[agent_num] = {'output_completion': final_completion}
+            return _sanitize_text(raw_text or '')
+    memo_completion = None
+    if agent_num in {22, 23}:
+        from memo_output_completion import assess_memo_completion
+        memo_completion = assess_memo_completion(raw_text, completion_diagnostics)
+        if memo_completion['status'] == 'incomplete':
+            context.setdefault('structured_outputs', {}).pop(str(agent_num), None)
+            context['structured_outputs'][agent_num] = {'output_completion': memo_completion}
+            return _sanitize_text(raw_text or '')
+
     if agent_num in {7, 24}:
         context.setdefault("structured_outputs", {}).pop(agent_num, None)
         context["structured_outputs"].pop(str(agent_num), None)
@@ -168,6 +188,11 @@ def process_agent_response(
             context["_trade_incomplete_fields"] = missing
             return _sanitize_text(raw_text or "")
         context.pop("_trade_incomplete_fields", None)
+        # Canonicalize system-owned derived flags before they affect source admission.
+        # Unsupported factual assertions in the catalyst are still checked unchanged.
+        flags = payload.get("financial_risk_flags", [])
+        if isinstance(flags, list) and all(isinstance(flag, str) for flag in flags):
+            payload = enforce_trade_financial_risk(payload, context.get("data", {}))
         payload, trade_assessment = bind_trade_payload(payload, context)
     payload = _decode_google_recommendation(agent_num, payload, model_id)
     sizing_assessment = None
@@ -184,6 +209,12 @@ def process_agent_response(
                 return _sanitize_text(fallback)
 
         return _sanitize_text(raw_text or "")
+
+    if final_completion is not None:
+        structured["output_completion"] = final_completion
+
+    if memo_completion is not None:
+        structured["output_completion"] = memo_completion
 
     if trade_assessment is not None:
         trade_assessment["output_completion"] = {

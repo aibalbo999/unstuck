@@ -74,7 +74,8 @@ def stop_snapshot(value='NT$34.20 (突破 30.8x PER 河流圖壓力位)'):
 def test_cover_stop_matches_only_saved_plan_price_not_valuation_annotation():
     text='- **回補停損:** NT$34.20 (突破 30.8x PER 河流圖壓力位)'
     actual=claims(text,stop_snapshot())[0]
-    assert actual['status']=='verified' and actual['candidate_count']==1
+    assert actual['status']=='unverifiable' and actual['candidate_count']==0
+    assert actual['verification_reason_code']=='generated_analysis_not_independent_evidence'
     assert actual['matched_path']=='rerun_context.parsed.short_setup.cover_stop'
     assert claims('回補停損：30.8',stop_snapshot())[0]['status']=='mismatch'
 

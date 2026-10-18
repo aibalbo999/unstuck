@@ -184,6 +184,68 @@ def test_google_news_rss_is_available_as_free_fallback(monkeypatch):
     assert records[0]["source"] == "Example Wire"
 
 
+def test_bing_news_rss_preserves_publisher_and_unwraps_original_article_url():
+    from external_search_payloads import parse_news_rss_payload
+
+    rss = """<?xml version="1.0" encoding="UTF-8"?>
+    <rss xmlns:news="https://www.bing.com/news/search?q=台泥+1101&amp;format=rss">
+      <channel>
+        <item>
+          <title>台泥公布營運消息</title>
+          <link>http://www.bing.com/news/apiclick.aspx?url=https%3A%2F%2Fmoney.udn.com%2Fmoney%2Fstory%2F5612%2F9814402&amp;c=123</link>
+          <description>公司近期營運摘要。</description>
+          <pubDate>Wed, 14 Oct 2026 08:27:00 GMT</pubDate>
+          <news:Source>經濟日報</news:Source>
+        </item>
+        <item>
+          <title>缺少原發布者的聚合結果</title>
+          <link>http://www.bing.com/news/apiclick.aspx?url=https%3A%2F%2Fnews.example%2Fstory&amp;c=456</link>
+          <description>沒有可核對的發布者欄位。</description>
+          <pubDate>Wed, 14 Oct 2026 08:28:00 GMT</pubDate>
+        </item>
+      </channel>
+    </rss>
+    """
+
+    records = parse_news_rss_payload(rss, provider="bing_news_rss", fallback_source="Bing News RSS")
+
+    assert len(records) == 1
+    assert records[0].source == "經濟日報"
+    assert records[0].link == "https://money.udn.com/money/story/5612/9814402"
+    assert records[0].provider == "bing_news_rss"
+
+
+def test_bing_news_rss_is_a_bounded_free_provider_without_a_key(monkeypatch):
+    provider_clients = importlib.import_module("external_search_provider_clients")
+    calls = []
+    rss = """<rss xmlns:news="https://www.bing.com/news/search?q=台泥&amp;format=rss"><channel>
+      <item><title>台泥公布營運消息</title>
+        <link>http://www.bing.com/news/apiclick.aspx?url=https%3A%2F%2Fmoney.udn.com%2Fstory%2F1&amp;c=1</link>
+        <description>近期營運資訊。</description><pubDate>Wed, 14 Oct 2026 08:27:00 GMT</pubDate>
+        <news:Source>經濟日報</news:Source></item></channel></rss>"""
+
+    class FakeResponse:
+        text = rss
+
+        def raise_for_status(self):
+            return None
+
+    class FakeClient:
+        async def get(self, url, *, params, timeout):
+            calls.append((url, params, timeout))
+            return FakeResponse()
+
+    records = asyncio.run(provider_clients.fetch_provider_results(
+        FakeClient(), "bing_news_rss", "台泥 1101", max_results=5, lookback_days=30,
+    ))
+
+    assert calls == [(provider_clients.BING_NEWS_RSS_URL, {"q": "台泥 1101", "format": "rss"}, 5.0)]
+    assert records[0].source == "經濟日報"
+    assert records[0].link == "https://money.udn.com/story/1"
+    import external_search_providers as search
+    assert search._provider_configured("bing_news_rss") is True
+
+
 def test_catalyst_search_retries_with_broader_company_query(monkeypatch):
     import external_search_providers as search
 
@@ -265,6 +327,53 @@ def test_web_search_expands_when_first_provider_lacks_source_diversity(monkeypat
     assert requested_sizes["google_news_rss"] == 3
     assert len(records) == 5
     assert "fresh.example" in {search._result_source_key(record) for record in records}
+
+
+def test_bing_news_rss_is_tried_after_google_when_recent_search_is_incomplete(monkeypatch):
+    import external_search_providers as search
+
+    calls = []
+    stamp = "Sun, 28 Jun 2026 00:00:00 GMT"
+
+    class FakeClient:
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *_args):
+            return None
+
+    async def fake_fetch(_client, provider, _query, *, max_results, lookback_days):
+        calls.append((provider, max_results))
+        if provider == "google_news_rss":
+            return [search.SearchResult(
+                "台積電最新營收展望", "台積電營運更新", "https://google.example/one",
+                "Google Publisher", stamp, provider,
+            )]
+        if provider == "bing_news_rss":
+            return [
+                search.SearchResult(
+                    f"台積電近期營運消息 {index}", "台積電最新展望", f"https://bing{index}.example/story",
+                    f"Bing Publisher {index}", stamp, provider,
+                )
+                for index in range(1, 4)
+            ]
+        return []
+
+    monkeypatch.setattr(search, "WEB_SEARCH_PROVIDER_ORDER", "google_news_rss,bing_news_rss,gdelt")
+    monkeypatch.setattr(search, "async_client", lambda: FakeClient())
+    monkeypatch.setattr(search, "_provider_configured", lambda _provider: True)
+    monkeypatch.setattr(search, "_fetch_provider_results", fake_fetch)
+
+    records = asyncio.run(search.fetch_web_search_results_async(
+        "台積電營收", max_results=3, require_recent=True,
+        company_context={"ticker": "2330.TW", "company_name": "台積電",
+                         "company_identity": {"official_name": "台積電", "allowed_aliases": ["台積電"]}},
+    ))
+
+    assert [provider for provider, _size in calls] == ["google_news_rss", "bing_news_rss"]
+    assert calls[1][1] == 9  # Bounded RSS candidate headroom precedes final selection.
+    assert len(records) == 3
+    assert {record.provider for record in records} == {"google_news_rss", "bing_news_rss"}
 
 
 def test_web_search_expands_when_first_provider_lacks_relevant_results(monkeypatch):
@@ -361,20 +470,21 @@ def test_custom_search_json_api_providers_are_not_registered():
     assert "Google Search" not in peer_names
 
 
-def test_default_search_provider_order_excludes_retired_bing(monkeypatch):
+def test_default_search_provider_order_uses_free_search_providers(monkeypatch):
     import external_search_providers as search
 
     monkeypatch.setattr(search, "WEB_SEARCH_PROVIDER_ORDER", "")
 
     assert search._provider_order() == [
-        "tavily",
-        "serpapi",
         "google_news_rss",
+        "bing_news_rss",
+        "duckduckgo_news",
         "gdelt",
         "yahoo_rss",
-        "brave",
     ]
     assert "bing" not in search._provider_order()
+    assert "bing_news_rss" in search._provider_order()
+    assert not {"tavily", "serpapi", "brave"}.intersection(search._provider_order())
 
 
 def test_bing_requires_explicit_provider_order_opt_in(monkeypatch):

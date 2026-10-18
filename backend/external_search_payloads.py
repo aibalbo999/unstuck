@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any
-from urllib.parse import urlparse
+from typing import Any, Callable
+from urllib.parse import parse_qs, urlparse, urlsplit
 from xml.etree import ElementTree
 
 from external_search_types import SearchResult
@@ -96,18 +96,61 @@ def parse_news_rss_payload(payload: Any, *, provider: str, fallback_source: str)
         return []
     records = []
     for item in root.findall(".//item"):
-        title = str(item.findtext("title") or "").strip()
-        link = str(item.findtext("link") or "").strip()
-        source = str(item.findtext("source") or "").strip() or domain(link) or fallback_source
+        title = _rss_item_text(item, "title")
+        link = _rss_item_text(item, "link")
+        source_text = _rss_item_text(item, "source")
+        if provider == "bing_news_rss":
+            link = _bing_news_original_link(link)
+            source = source_text
+            # Bing's aggregate host is not the article publisher. Keep only
+            # records whose RSS item supplies both an original URL and source.
+            if not link or not source or source.casefold() in {"bing.com", "bing news rss"}:
+                continue
+        else:
+            source = source_text or domain(link) or fallback_source
         records.append(result_from_fields(
             title,
-            item.findtext("description") or "",
+            _rss_item_text(item, "description"),
             link,
             source,
-            published_at=item.findtext("pubDate") or "",
+            published_at=_rss_item_text(item, "pubDate"),
             provider=provider,
         ))
     return [record for record in records if record.title]
+
+
+def _rss_item_text(item, name: str) -> str:
+    wanted = name.casefold()
+    for child in item:
+        if child.tag.rsplit("}", 1)[-1].casefold() == wanted:
+            return str(child.text or "").strip()
+    return ""
+
+
+def _bing_news_original_link(value: str) -> str:
+    """Unwrap only Bing's known news redirect; do not follow it."""
+    try:
+        parsed = urlsplit(str(value or "").strip())
+        host = (parsed.hostname or "").casefold()
+        if host in {"bing.com", "www.bing.com"}:
+            if parsed.scheme not in {"http", "https"} or parsed.path != "/news/apiclick.aspx":
+                return ""
+            targets = parse_qs(parsed.query, keep_blank_values=True).get("url", [])
+            if len(targets) != 1:
+                return ""
+            original = targets[0].strip()
+            target = urlsplit(original)
+        else:
+            original = str(value or "").strip()
+            target = parsed
+        if (target.scheme not in {"http", "https"} or not target.hostname
+                or target.username or target.password or target.port not in {None, 80, 443}):
+            return ""
+        if (target.hostname or "").casefold() in {"bing.com", "www.bing.com"}:
+            return ""
+        return original
+    except (TypeError, ValueError):
+        return ""
 
 
 def result_from_fields(
@@ -130,13 +173,21 @@ def result_from_fields(
     )
 
 
-def dedupe_results(records: list[SearchResult], *, limit: int) -> list[SearchResult]:
+def result_dedupe_identity(record: SearchResult, verified_event_identity=None) -> tuple[str, str]:
+    """A trusted caller can retain a verified POST event's identity, not a fake URL."""
+    event = verified_event_identity(record) if verified_event_identity is not None else None
+    if isinstance(event, str) and event.strip():
+        return event.strip(), ''
+    return record.link.strip().lower(), record.title.strip().lower()
+
+
+def dedupe_results(records: list[SearchResult], *, limit: int,
+                   verified_event_identity: Callable[[SearchResult], str | None] | None = None) -> list[SearchResult]:
     kept: list[SearchResult] = []
     seen_links: set[str] = set()
     seen_titles: set[str] = set()
     for record in records:
-        link = record.link.strip().lower()
-        title = record.title.strip().lower()
+        link, title = result_dedupe_identity(record, verified_event_identity)
         if (link and link in seen_links) or (title and title in seen_titles) or (not link and not title):
             continue
         kept.append(record)

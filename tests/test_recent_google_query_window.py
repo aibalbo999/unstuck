@@ -57,20 +57,23 @@ def install_client(monkeypatch, payload_for_query):
     return calls
 
 
-def test_real_rss_recovers_eight_recent_records_in_one_existing_query_budget(monkeypatch):
+def test_real_rss_recovers_eight_verified_recent_records_in_one_query(monkeypatch):
     old = (FIXTURES / 'news5314_current_20260927.xml').read_text()
     recent = (FIXTURES / 'news5314_recent_20260927.xml').read_text()
     old_selected, old_audit = select_company_records(records(old), DATA, cutoff=NOW)
-    assert len(old_selected) == 2 and old_audit['rejected_reason_counts'] == {'historical': 6}
-    expected_query = f'"世紀" 5314 when:30d {TOPICS}'
+    assert old_selected == []
+    assert old_audit['rejected_reason_counts'] == {
+        'indexed_non_article_unverified': 1, 'historical': 6, 'issuer_unverified': 1,
+    }
+    expected_query = f'"世紀民生" 5314 when:30d {TOPICS}'
     calls = install_client(monkeypatch, lambda query: recent if query == expected_query else old if TOPICS in query else EMPTY)
     audit = {}
     selected = asyncio.run(search.fetch_alternative_search_catalysts_async(
         DATA['ticker'], DATA['company_name'], DATA['company_identity'], max_results=8, diagnostics=audit))
     assert len(selected) == 8
     assert len(calls) == 1 and calls[0]['q'] == expected_query
-    assert audit['raw_count'] == 8 and audit['usable_count'] == 8
-    assert audit['rejected_count'] == 0 and audit['source_record_archive'] == []
+    assert audit['usable_count'] == 8
+    assert audit['rejected_count'] == len(audit['source_record_archive']) > 0
     assert audit['quality_status'] == 'sufficient_candidates'
     assert len({row['source'] for row in selected}) >= 3
     assert all(row['issuer_match'] and row['content_coverage'] == 'headline_or_snippet' for row in selected)
@@ -91,6 +94,40 @@ def test_google_override_does_not_change_other_provider_queries(monkeypatch):
     assert overrides == {'google_news_rss': 'company 5314 when:30d'}
 
 
+def test_bing_uses_code_anchored_query_and_local_date_gate_stays(monkeypatch):
+    from external_search_types import SearchResult
+
+    monkeypatch.setattr(search, 'WEB_SEARCH_PROVIDER_ORDER', 'google_news_rss,bing_news_rss')
+    monkeypatch.setattr(search, '_provider_configured', lambda _name: True)
+    company = {'ticker':'3703.TW','company_name':'欣陸',
+               'company_identity':{'ticker':'3703.TW','stock_id':'3703','official_name':'欣陸',
+                                   'allowed_aliases':['欣陸'],'instrument_type':'EQUITY'}}
+    calls = []
+    old = SearchResult('欣陸 (3703) old report', 'Historical company report',
+                       'https://news.example/old-report', 'CNA',
+                       'Tue, 01 Jan 2019 00:00:00 GMT')
+
+    async def provider(_client, name, query, *, max_results, lookback_days):
+        calls.append((name, query, lookback_days))
+        return [old]
+
+    monkeypatch.setattr(search, '_fetch_provider_results', provider)
+    install_client(monkeypatch, lambda _query: EMPTY)
+    audit = {}
+    result = asyncio.run(search.fetch_alternative_search_catalysts_async(
+        company['ticker'], company['company_name'], company['company_identity'], diagnostics=audit))
+
+    google_queries = [query for name, query, _days in calls if name == 'google_news_rss']
+    bing_queries = [query for name, query, _days in calls if name == 'bing_news_rss']
+    assert result == []
+    assert len(google_queries) == 2 and len(bing_queries) == 1
+    assert google_queries[0] == f'"欣陸" 3703 when:30d {TOPICS}'
+    assert google_queries[1] == '"欣陸" 3703 when:30d'
+    assert bing_queries == ['"欣陸" 3703']
+    assert all(days == 30 for _name, _query, days in calls)
+    assert audit['rejected_reason_counts']['historical'] >= 1
+
+
 @pytest.mark.parametrize('ticker', ['5314.TW', '5314.TWO'])
 def test_tw_queries_remain_bounded_and_use_configured_lookback(monkeypatch, ticker):
     monkeypatch.setattr(search, 'CATALYST_LOOKBACK_DAYS', 7)
@@ -98,7 +135,8 @@ def test_tw_queries_remain_bounded_and_use_configured_lookback(monkeypatch, tick
     result = asyncio.run(search.fetch_alternative_search_catalysts_async(
         ticker, DATA['company_name'], DATA['company_identity'], max_results=8))
     assert result == [] and len(calls) == 2
-    assert [row['q'] for row in calls] == [f'"世紀" 5314 when:7d {TOPICS}', '"世紀" 5314 when:7d']
+    search_name = '世紀民生' if ticker == '5314.TWO' else '世紀'
+    assert [row['q'] for row in calls] == [f'"{search_name}" 5314 when:7d {TOPICS}', '"世紀" 5314 when:7d']
 
 
 def test_us_catalysts_keep_existing_queries(monkeypatch):
@@ -155,4 +193,4 @@ def test_cancellation_stops_before_the_second_query(monkeypatch):
     with pytest.raises(asyncio.CancelledError):
         asyncio.run(search.fetch_alternative_search_catalysts_async(
             DATA['ticker'], DATA['company_name'], DATA['company_identity']))
-    assert seen == [('google_news_rss', f'"世紀" 5314 when:30d {TOPICS}')]
+    assert seen == [('google_news_rss', f'"世紀民生" 5314 when:30d {TOPICS}')]

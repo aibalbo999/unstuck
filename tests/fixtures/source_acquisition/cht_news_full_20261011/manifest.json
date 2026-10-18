@@ -1,0 +1,53 @@
+{
+  "parts": {
+    "master": {
+      "url": "https://openapi.twse.com.tw/v1/opendata/t187ap03_L",
+      "retrieved_at": 1791665479.241487,
+      "sha256": "ace3e78957b763b9e99b4f3d222b6838c2b176778bc5a7295d3754e1dafe4865",
+      "bytes": 1327578,
+      "filename": "master.json.gz"
+    },
+    "index": {
+      "url": "https://www.cht.com.tw/zh-tw/home/cht/messages",
+      "retrieved_at": 1791727886.995391,
+      "sha256": "89b14b849f55ba076bfe5bf42f7da9070fdbc657001edf38862def09b5f81be4",
+      "bytes": 179344,
+      "filename": "index.html.gz"
+    },
+    "article0": {
+      "url": "https://www.cht.com.tw/zh-tw/home/cht/messages/2026/1008-1400?year=2026&month=10&category=86F3795F01B14D7FADFD148D9FC695EA&list=%7b8DAECF69-AEF0-4F1B-B066-3306E547C0CC%7d",
+      "retrieved_at": 1791727942.27005,
+      "sha256": "1fa99e6fe827485509a35ee0df59f60f56a2ad85e53a7d5d09d30cbf6995370b",
+      "bytes": 154680,
+      "filename": "article0.html.gz"
+    },
+    "article1": {
+      "url": "https://www.cht.com.tw/zh-tw/home/cht/messages/2026/1007-1500?year=2026&month=10&category=86F3795F01B14D7FADFD148D9FC695EA&list=%7b8DAECF69-AEF0-4F1B-B066-3306E547C0CC%7d",
+      "retrieved_at": 1791727943.003863,
+      "sha256": "377f123aba94e67d67ac5a9162cb29e289db27f11ceba091877ffc94a4b17a04",
+      "bytes": 153790,
+      "filename": "article1.html.gz"
+    },
+    "article2": {
+      "url": "https://www.cht.com.tw/zh-tw/home/cht/messages/2026/1006-1000?year=2026&month=10&category=86F3795F01B14D7FADFD148D9FC695EA&list=%7b8DAECF69-AEF0-4F1B-B066-3306E547C0CC%7d",
+      "retrieved_at": 1791727943.797437,
+      "sha256": "5c821ecc1dacda38417b9c816eb99887f5337afb7b6c8700df9bc96f64c951e3",
+      "bytes": 170560,
+      "filename": "article2.html.gz"
+    },
+    "article3": {
+      "url": "https://www.cht.com.tw/zh-tw/home/cht/messages/2026/1006-1420?year=2026&month=10&category=86F3795F01B14D7FADFD148D9FC695EA&list=%7b8DAECF69-AEF0-4F1B-B066-3306E547C0CC%7d",
+      "retrieved_at": 1791727944.534844,
+      "sha256": "c424021bc7e1db1cfbfaafda137d8b740c4eda907a48b2fb4a80277435cc27f4",
+      "bytes": 146628,
+      "filename": "article3.html.gz"
+    },
+    "article4": {
+      "url": "https://www.cht.com.tw/zh-tw/home/cht/messages/2026/1005-1800?year=2026&month=10&category=86F3795F01B14D7FADFD148D9FC695EA&list=%7b8DAECF69-AEF0-4F1B-B066-3306E547C0CC%7d",
+      "retrieved_at": 1791727945.3977349,
+      "sha256": "a289d3791a2810b27434cdaf22bf21e442cc49022c7c9fa7b7958c667e8b8e3a",
+      "bytes": 158068,
+      "filename": "article4.html.gz"
+    }
+  }
+}

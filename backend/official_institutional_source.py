@@ -6,7 +6,8 @@ advance observation age. Partial windows remain partial after recovery.
 """
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from copy import deepcopy
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 import time
 from urllib.parse import urlencode
@@ -26,7 +27,7 @@ TPEX_FIELDS = ['代號', '名稱'] + ['買進股數', '賣出股數', '買賣超
 
 
 def expected_sessions(ticker, now_epoch, count=MAX_REPORTS):
-    """Conservatively wait until 22:30; unknown calendars do not create dates."""
+    """Select only sessions inside the existing conservative publication window."""
     from data_freshness_market import market_calendar
     current = datetime.fromtimestamp(now_epoch, ZoneInfo('Asia/Taipei'))
     day = current.date() if (current.hour, current.minute) >= (22, 30) else current.date()-timedelta(days=1)
@@ -108,14 +109,20 @@ def _url(market, day):
     return 'https://www.tpex.org.tw/www/zh-tw/insti/dailyTrade?'+urlencode({'date':day.replace('-','/'),'type':'Daily','sect':'EW','response':'json'})
 
 
-def _fetch_report(market, day, timeout):
+def _fetch_report(market, day, timeout, *, openapi=False):
     from external_http_client import sync_get
     from search_provider_runtime import (SourceResponseError, cooldown_state, observe_http_response,
                                          record_observation, remember_failure, scope_key, error_details)
-    source=TWSE_SOURCE if market=='TWSE' else TPEX_SOURCE
+    if openapi and market!='TPEX':
+        raise ValueError('TPEx OpenAPI is only valid for the OTC market')
+    if openapi:
+        from tpex_openapi_institutional import SOURCE as source, URL as url, parse_latest_report
+    else:
+        source=TWSE_SOURCE if market=='TWSE' else TPEX_SOURCE
+        url=_url(market,day)
     key=scope_key(source, endpoint='institutional_daily'); started=time.monotonic()
     from search_admission import endpoint_admission
-    timeout = max(0.001, min(float(timeout), 5))
+    timeout = max(0.001, min(float(timeout), 8 if market == 'TWSE' else 5))
     with endpoint_admission(key, timeout_seconds=timeout) as owns:
         if owns is None:
             record_observation(source, started, outcome='busy', source='institutional_trading',
@@ -132,22 +139,51 @@ def _fetch_report(market, day, timeout):
                                details={'error_kind': 'guard_storage_unavailable'}, sent=False)
             raise SourceResponseError('guard_storage_unavailable')
         observe_http_response(None)
+        deadline = time.monotonic() + timeout
+        attempt_started = started
+        fallback_reason = ''
         try:
-            response=sync_get(_url(market,day),timeout=timeout,provider=source)
+            try:
+                response=sync_get(url,timeout=min(5, max(0.001, deadline-time.monotonic())),provider=source)
+            except Exception as primary_exc:
+                primary_details = error_details(primary_exc)
+                remaining = deadline-time.monotonic()
+                if (market != 'TWSE' or openapi or not owns() or remaining <= 0.5
+                        or primary_details['error_kind'] not in {'timeout', 'transport_error', 'server_error'}):
+                    raise
+                record_observation(source,started,outcome='failure',source='institutional_trading',
+                                   details={**primary_details,'parser_version':PARSER_VERSION,
+                                            'requested_date':day,'source_url':url,'attempt_role':'primary_before_mirror'})
+                fallback_reason = primary_details['error_kind']
+                url = url.replace('https://www.twse.com.tw/', 'https://wwwc.twse.com.tw/', 1)
+                attempt_started = time.monotonic()
+                observe_http_response(None)
+                response=sync_get(url,timeout=min(3, max(0.001, deadline-time.monotonic())),provider=source)
             observe_http_response(response)
-            report=_parse_report(response.json(),market,day)
+            report=parse_latest_report(response.content,day) if openapi else _parse_report(response.json(),market,day)
+            from official_response_evidence import archive_response
+            report['raw_evidence']=archive_response(getattr(response,'content',None),source_url=url,retrieved_at=datetime.now(timezone.utc).isoformat(),http_status=getattr(response,'status_code',None))
+            report['source']=source
+            report['source_url']=url
+            if fallback_reason:
+                report['fallback_reason']=fallback_reason
         except Exception as exc:
-            details={**(remember_failure(key,exc) if owns() else {**error_details(exc), 'state_write_skipped': 'lease_lost'}),'parser_version':PARSER_VERSION,'requested_date':day}
-            record_observation(source,started,outcome='failure',source='institutional_trading',details=details)
+            details={**(remember_failure(key,exc) if owns() else {**error_details(exc), 'state_write_skipped': 'lease_lost'}),
+                     'parser_version':PARSER_VERSION,'requested_date':day,'source_url':url}
+            if fallback_reason:
+                details['fallback_reason']=fallback_reason
+                details['attempt_role']='official_mirror'
+            record_observation(source,attempt_started,outcome='failure',source='institutional_trading',details=details)
             raise
         reset_failure_history_after_success(key, observed_failure_state, owns=owns)
-        record_observation(source,started,outcome='results' if report['rows'] else 'valid_empty',count=len(report['rows']),
+        record_observation(source,attempt_started,outcome='results' if report['rows'] else 'valid_empty',count=len(report['rows']),
                            source='institutional_trading',details={'http_status':getattr(response,'status_code',None),
-                           'parser_version':PARSER_VERSION,'observation_date':day})
+                           'parser_version':PARSER_VERSION,'observation_date':day,'source_url':url,
+                           'fallback_reason':fallback_reason})
         return report
 
 
-def recover_institutional_observations(ticker, primary, *, now_epoch, limit):
+def recover_institutional_observations(ticker, primary, *, now_epoch, limit, force_refresh=False):
     """Merge exact day/category once; keep conflicts and acquisition diagnostics."""
     from data_freshness_market import is_taiwan_ticker
     from shared_provider_cache import shared_fetch
@@ -157,16 +193,24 @@ def recover_institutional_observations(ticker, primary, *, now_epoch, limit):
     dates=expected_sessions(ticker,now_epoch)
     if not dates:
         return primary, {'status':'calendar_unknown','checked_dates':[],'added_observation_count':0}
-    if (str(primary.get('latest_date') or '')>=dates[0] and primary.get('window_coverage_status')=='complete'
-            and not primary.get('rejected_record_count')):
-        return primary, {}
     market='TPEX' if str(ticker).upper().endswith('.TWO') else 'TWSE'
     source=TWSE_SOURCE if market=='TWSE' else TPEX_SOURCE
     code=str(ticker).split('.')[0]
     old_records=primary.get('daily_category_observations') or []
     merged={(row['date'],row['category']):dict(row) for row in old_records}
+    required_dates = expected_sessions(ticker, now_epoch, limit)
+    categories = ('foreign', 'investment_trust', 'dealer')
+    missing_dates = [day for day in required_dates
+                     if any((day, category) not in merged for category in categories)]
+    # Always acquire/bind the latest session first. Spend the remaining fixed
+    # five-report budget on actual window gaps before rechecking present rows.
+    # A complete primary window keeps the original latest-five plan.
+    dates = list(dict.fromkeys([dates[0], *missing_dates, *dates[1:]]))[:MAX_REPORTS]
     diagnostics={'status':'unavailable','provider':source,'checked_dates':[], 'reports':[],
                  'added_observation_count':0,'conflicts':[],
+                 'required_window_dates': required_dates, 'missing_expected_dates': missing_dates,
+                 'selected_recovery_dates': dates,
+                 'coverage_scope': 'latest session and selected gaps; not full official window verification',
                  'absence_policy':'Missing security rows are not zero trades or evidence of suspension.'}
     started=time.monotonic()
     for day in dates:
@@ -179,13 +223,29 @@ def recover_institutional_observations(ticker, primary, *, now_epoch, limit):
             if remaining_http <= 0:
                 diagnostics['budget_exhausted'] = True
                 raise TimeoutError('Official acquisition budget exhausted before HTTP')
-            return _fetch_report(market, day, min(5, remaining_http))
+            if market=='TPEX' and day==dates[0] and phase=='post_cutoff':
+                try:
+                    return _fetch_report(market, day, min(5, remaining_http), openapi=True)
+                except Exception as exc:
+                    diagnostics['latest_openapi_fallback_reason']=type(exc).__name__
+                    remaining_http = TOTAL_BUDGET_SECONDS - (time.monotonic() - started)
+                    if remaining_http <= 0:
+                        diagnostics['budget_exhausted'] = True
+                        raise
+            return _fetch_report(market, day, min(8 if market=='TWSE' else 5, remaining_http))
 
-        report,meta=shared_fetch(f'official-institutional:{market}:{day}:v1',
+        from market_evidence_policy import acquisition_phase
+        phase=acquisition_phase(day,datetime.fromtimestamp(now_epoch,ZoneInfo('Asia/Taipei')))
+        report,meta=shared_fetch(f'official-institutional:{market}:{day}:v2:{phase}',
                                 fetch_before_deadline,
-                                freshness_seconds=6*3600,retention_seconds=6*3600,error_retry_seconds=60,lock_wait_seconds=0,
-                                result_ttl=lambda row:6*3600 if row.get('rows') else 300)
-        receipt={'date':day,'source':source,'source_url':_url(market,day),**meta}
+                                freshness_seconds=6*3600 if phase=='post_cutoff' else 300,retention_seconds=6*3600,error_retry_seconds=60,lock_wait_seconds=0,
+                                result_ttl=lambda row:6*3600 if row.get('rows') and phase=='post_cutoff' else 300,
+                                use_cache=not force_refresh)
+        receipt={'date':day,'source':source,'source_url':_url(market,day),'acquisition_phase':phase,'cache_key':f'official-institutional:{market}:{day}:v2:{phase}',**meta}
+        if isinstance(report,dict):
+            receipt['raw_evidence']=report.get('raw_evidence')
+            receipt['source']=report.get('source') or source
+            receipt['source_url']=report.get('source_url') or _url(market,day)
         if not isinstance(report,dict) or meta.get('error_kind'):
             diagnostics['reports'].append({**receipt,'status':'unavailable'})
             break  # One failure opens the endpoint's cooldown; do not issue more days.
@@ -195,10 +255,14 @@ def recover_institutional_observations(ticker, primary, *, now_epoch, limit):
                                        'valid_empty' if not report['rows'] else 'security_absent'})
         if row is None:
             continue
+        report_source=report.get('source') or source
+        report_url=report.get('source_url') or _url(market,day)
+        if day==dates[0]:
+            diagnostics['latest_official_observation']={'date':day,'market':market,'ticker':ticker,'categories':{key:row[key] for key in ('foreign','investment_trust','dealer')},'unit':'shares','acquisition_phase':phase,'raw_evidence':report.get('raw_evidence'),'source_url':report_url}
         for category in ('foreign','investment_trust','dealer'):
             key=(day,category)
-            observed={'date':day,'category':category,'net_buy_shares':row[category],'source':source,
-                      'source_url':_url(market,day),'unit':'shares'}
+            observed={'date':day,'category':category,'net_buy_shares':row[category],'source':report_source,
+                      'source_url':report_url,'unit':'shares'}
             if key in merged:
                 if merged[key]['net_buy_shares']!=row[category]:
                     diagnostics['conflicts'].append({'date':day,'category':category,'primary':merged[key],
@@ -208,13 +272,21 @@ def recover_institutional_observations(ticker, primary, *, now_epoch, limit):
     if diagnostics['added_observation_count']:
         recovered=summarize_observations(list(merged.values()),ticker,limit=limit,
                                         rejected_count=primary.get('rejected_record_count',0))
+        if primary.get('source_provenance'):
+            recovered['_source_record_archive'] = {
+                'primary_sdk': deepcopy(primary['source_provenance']),
+                'primary_observation_dates': sorted({row['date'] for row in old_records}),
+            }
         # Legacy aggregate-only caches cannot be merged without day/category evidence.
         if primary and not old_records:
             recovered['prior_summary_not_merged']={key:primary.get(key) for key in
                                                  ('source','latest_date','lookback_trading_days','total_net_buy_shares')}
         diagnostics['status']='partial_recovery'
+        if diagnostics.get('latest_official_observation'):recovered['latest_official_observation']=diagnostics['latest_official_observation']
         return recovered, diagnostics
     statuses={row['status'] for row in diagnostics['reports']}
     diagnostics['status']=('conflict' if diagnostics['conflicts'] else 'security_absent' if statuses=={'security_absent'}
                            else 'valid_empty' if statuses and statuses<={'valid_empty','security_absent'} else 'unavailable')
+    primary=dict(primary)
+    if diagnostics.get('latest_official_observation'):primary['latest_official_observation']=diagnostics['latest_official_observation']
     return primary,diagnostics

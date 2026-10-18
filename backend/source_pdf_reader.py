@@ -13,6 +13,7 @@ import math
 import os
 from pathlib import Path
 import selectors
+import signal
 import subprocess
 import sys
 import time
@@ -71,11 +72,30 @@ def _memory_sampler():
     raise SourcePdfError('resource_limits_unavailable')
 
 
+
+def _completed_child_peak_bound():
+    # Darwin reports bytes for all terminated, waited-for children. A positive
+    # cumulative peak is a conservative bound for the child just reaped.
+    # This is only a fallback after a successful exit, never for a live child.
+    if sys.platform != 'darwin':
+        raise SourcePdfError('memory_accounting_unavailable')
+    try:
+        import resource
+        if signal.getsignal(signal.SIGCHLD) != signal.SIG_DFL:
+            raise ValueError('completed-child accounting may be unavailable')
+        peak = resource.getrusage(resource.RUSAGE_CHILDREN).ru_maxrss
+        if type(peak) not in (int,float) or not math.isfinite(peak) or peak <= 0:
+            raise ValueError('missing completed-child peak')
+        return peak
+    except (ImportError,AttributeError,OSError,ValueError,OverflowError):
+        raise SourcePdfError('memory_accounting_unavailable') from None
+
+
 def _worker_command(deadline):
     return [sys.executable, '-B', str(Path(__file__).with_name('source_pdf_worker.py')), str(deadline)]
 
 
-def _run_worker(raw, deadline):
+def _run_worker(raw, deadline, *, worker_command=None):
     sample = _memory_sampler()
     proc = None
     selector = selectors.DefaultSelector()
@@ -86,7 +106,8 @@ def _run_worker(raw, deadline):
         if time.monotonic() >= deadline:
             raise SourcePdfError('timeout')
         proc = subprocess.Popen(
-            _worker_command(deadline), stdin=subprocess.PIPE, stdout=subprocess.PIPE,
+            _worker_command(deadline) if worker_command is None else worker_command,
+            stdin=subprocess.PIPE, stdout=subprocess.PIPE,
             stderr=subprocess.PIPE, close_fds=True, shell=False,
             cwd=str(Path(__file__).parent),
             env={name: value for name, value in os.environ.items()
@@ -104,10 +125,27 @@ def _run_worker(raw, deadline):
             if proc.poll() is None:
                 try:
                     resident = sample(proc.pid)
-                except SourcePdfError:
+                except SourcePdfError as exc:
                     if proc.poll() is None:
-                        raise
-                    resident = 0  # The child exited before its process info was read.
+                        # A signalled child can lose its task info just before
+                        # waitpid observes termination. Settle only this failed
+                        # sample for one existing 20 ms sampling interval.
+                        try:
+                            code = proc.wait(timeout=min(.02, max(0, deadline-time.monotonic())))
+                        except subprocess.TimeoutExpired:
+                            raise exc from None
+                        if code != 0:
+                            raise SourcePdfError('worker_failed') from None
+                        if exc.reason != 'memory_accounting_unavailable':
+                            raise exc
+                        # The task may vanish before waitpid observes exit.
+                        # Require a kernel peak covering the reaped child;
+                        # missing or over-limit evidence still rejects.
+                        resident = _completed_child_peak_bound()
+                    else:
+                        if proc.returncode != 0:
+                            raise SourcePdfError('worker_failed') from None
+                        resident = 0  # Exited before its process info was read.
                 if resident > MEMORY_LIMIT:
                     raise SourcePdfError('memory_limit')
             for key, _ in selector.select(min(remaining, .02)):
@@ -164,7 +202,8 @@ def _validate_result(value, digest):
         raise SourcePdfError(reason)
     expected = {'page_count', 'pages', 'empty_pages', 'garbled_pages', 'coverage_status',
                 'parser_version', 'content_sha256'}
-    if set(value) != expected or value['content_sha256'] != digest or value['parser_version'] != PARSER_VERSION:
+    if (not expected <= set(value) <= expected | {'symbol_mapping_evidence', 'native_font_mapping_evidence', 'object_header_whitespace_evidence'}
+            or value['content_sha256'] != digest or value['parser_version'] != PARSER_VERSION):
         raise SourcePdfError('invalid_worker_result')
     pages = value['pages']
     count = value['page_count']
@@ -186,6 +225,21 @@ def _validate_result(value, digest):
             garbled != sorted(set(garbled)) or
             value['coverage_status'] != ('partial' if empty or garbled else 'complete')):
         raise SourcePdfError('invalid_worker_result')
+    if 'symbol_mapping_evidence' in value:
+        from source_pdf_symbols import valid_symbol_evidence
+        if not valid_symbol_evidence(value['symbol_mapping_evidence'], pages):
+            raise SourcePdfError('invalid_worker_result')
+    if 'native_font_mapping_evidence' in value:
+        from source_pdf_delta_ligatures import valid_evidence
+        if not valid_evidence(value['native_font_mapping_evidence'], digest):
+            raise SourcePdfError('invalid_worker_result')
+    from source_pdf_header_whitespace import QUALIFIED_ORIGINALS
+    if digest in QUALIFIED_ORIGINALS and 'object_header_whitespace_evidence' not in value:
+        raise SourcePdfError('invalid_worker_result')
+    if 'object_header_whitespace_evidence' in value:
+        from source_pdf_header_whitespace import valid_evidence
+        if not valid_evidence(value['object_header_whitespace_evidence'], digest):
+            raise SourcePdfError('invalid_worker_result')
     return value
 
 

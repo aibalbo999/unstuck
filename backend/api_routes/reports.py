@@ -104,13 +104,15 @@ def create_reports_router(deps: ReportRouteDeps) -> APIRouter:
         return report_history_service.download_report_file(filename, deps.get_output_dir(), "data", storage=deps.get_report_storage())
 
     @router.post("/api/report/{filename}/refresh/data")
-    async def refresh_report_data_snapshot(filename: str, request: Request):
+    async def refresh_report_data_snapshot(filename: str, request: Request, source: str | None = None):
         deps.require_mutation_authorized(request)
+        source_options = {"source": source} if source is not None else {}
         return await report_refresh_service.refresh_report_data_snapshot(
             filename,
             output_dir=deps.get_output_dir(),
             refresh_service=deps.get_refresh_service(),
             storage=deps.get_report_storage(),
+            **source_options,
         )
 
     @router.post("/api/report/{filename}/rerun")

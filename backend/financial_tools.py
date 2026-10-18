@@ -138,6 +138,26 @@ def build_financial_tool_context(data: dict) -> dict:
         data, wacc_calculator=calculate_wacc, scenario_builder=build_dcf_scenarios,
         dcf_calculator=calculate_dcf,
     )
+    # Representation only: a billion is ten 億, not one 億. Keep the exact
+    # input path/unit/value and make no new period or statement-scope claim.
+    from decimal import Decimal
+    displays = []
+    for field, receipt in tool_context.get("input_provenance", {}).items():
+        if receipt.get("unit") not in {"twd", "billion_twd"}:
+            continue
+        value = finite_number(receipt.get("value"))
+        if value is None:
+            continue
+        raw = Decimal(str(value)) * (Decimal('1000000000') if receipt['unit'] == 'billion_twd' else 1)
+        displays.append({"field": field, "source_path": receipt["path"],
+                         "source_unit": receipt["unit"], "source_value": receipt["value"],
+                         "twd": str(raw), "billion_twd": str(raw / Decimal('1000000000')),
+                         "yi_twd": str(raw / Decimal('100000000')),
+                         "kind": "unit_conversion_only", "period_verified": False,
+                         "limit": "數值換算不驗證財期、合併口徑、CapEx組成或現金流成因；不能由負FCF推定應收/存貨原因。"})
+    tool_context["money_display_receipts"] = displays
+    from data_fetch.financial_history_basis import financial_institution_history_metrics
+    tool_context["calculations"].update(financial_institution_history_metrics(data))
 
     valid_revenue = [safe_float(v) for v in revenue_history if safe_float(v) is not None and safe_float(v) > 0]
     if len(valid_revenue) >= 2:

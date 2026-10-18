@@ -13,7 +13,8 @@ from .market_sources.http_enrichment import (
     fetch_fmp_quote_fallback,
     fetch_recent_catalysts,
 )
-from .market_sources.identity import build_company_identity
+from .market_sources.identity import build_company_identity, load_taiwan_stock_info_records
+from .market_sources.peer_recovery import current_master_industry_categories
 from .market_sources.taiwan import (
     DataLoader,
     fetch_finmind_financial_statement_fallback,
@@ -47,7 +48,8 @@ from .yfinance_sync_enrichment import fetch_sync_enrichment_bundle
 warnings.filterwarnings("ignore", module="yfinance")
 
 
-def fetch_stock_data(ticker: str, skip_optional_http: bool = False, market_data_provider=None, force_refresh: bool = False) -> dict:
+def fetch_stock_data(ticker: str, skip_optional_http: bool = False, market_data_provider=None, force_refresh: bool = False,
+                     defer_taiwan_yahoo_news: bool = False, radar_refresh: bool = False) -> dict:
     """
     從 yfinance 獲取股票完整財務數據
     返回格式化的數據字典
@@ -162,8 +164,13 @@ def fetch_stock_data(ticker: str, skip_optional_http: bool = False, market_data_
         
         # === 歷史財務報表（5年）/ 現金流 / 資產負債 / FinMind 備援 ===
         fund = str(info.get("quoteType") or "").upper() in {"ETF", "MUTUALFUND"}
+        master_industries = current_master_industry_categories(
+            ticker, load_taiwan_stock_info_records()) if ticker.endswith((".TW", ".TWO")) else []
         histories = extract_financial_histories(stock, ticker, data_source_notes, DataLoader,
-                                               **({"quote_type": info["quoteType"]} if fund else {}))
+                                               **({"quote_type": info["quoteType"]} if fund else {}),
+                                               finmind_use_cache=radar_refresh or not force_refresh,
+                                               force_refresh=force_refresh and not radar_refresh,
+                                               industry_context=" ".join((str(sector), str(industry), *master_industries)))
         years = histories["years"]
         revenue_history = histories["revenue_history"]
         net_income_history = histories["net_income_history"]
@@ -174,6 +181,11 @@ def fetch_stock_data(ticker: str, skip_optional_http: bool = False, market_data_
         total_equity_history = histories["total_equity_history"]
         finmind_financial_fallback_audit = histories["finmind_financial_fallback_audit"]
         primary_financial_audit = histories.get("primary_financial_audit")
+        official_financial_audit = histories.get("official_financial_audit")
+        sector_specific_financial_audit = histories.get("sector_specific_financial_audit")
+        sector_specific_financials = histories.get("sector_specific_financials")
+        financial_history_basis = histories.get("financial_history_basis")
+        net_revenue_history = histories.get("net_revenue_history")
         
         # === 計算衍生指標 ===
         margin_histories = calculate_margin_histories(
@@ -198,6 +210,7 @@ def fetch_stock_data(ticker: str, skip_optional_http: bool = False, market_data_
             total_equity_history=total_equity_history,
             market_cap=market_cap,
             total_debt=total_debt,
+            financial_history_data={**histories, "ticker": ticker},
         )
         equity_multiplier = capital_notes["equity_multiplier"]
         equity_multiplier_note = capital_notes["equity_multiplier_note"]
@@ -216,8 +229,11 @@ def fetch_stock_data(ticker: str, skip_optional_http: bool = False, market_data_
         event_calendar = extract_event_calendar(stock, info)
             
         # === FinMind 補充台股每月營收 ===
-        recent_monthly_revenue, monthly_revenue_audit = ([], None) if fund else fetch_monthly_revenue_records(ticker, DataLoader)
+        recent_monthly_revenue, monthly_revenue_audit = ([], None) if fund else fetch_monthly_revenue_records(ticker, DataLoader, force_refresh=force_refresh)
 
+        # Individual ProfitLoss has no verified group/share basis for EPS bands.
+        from .financial_history_basis import is_ordinary_individual_basis
+        individual_history = is_ordinary_individual_basis(histories)
         # === 即時/質性資料擴充 ===
         enrichment_bundle = fetch_sync_enrichment_bundle(
             ticker=ticker,
@@ -227,10 +243,11 @@ def fetch_stock_data(ticker: str, skip_optional_http: bool = False, market_data_
             industry=industry,
             company_identity=company_identity,
             years=years,
-            net_income_history=net_income_history,
+            net_income_history=[] if individual_history else net_income_history,
             shares_outstanding=shares_outstanding,
             skip_optional_http=skip_optional_http,
             force_refresh=force_refresh,
+            defer_taiwan_yahoo_news=defer_taiwan_yahoo_news,
         )
         enrichment_audit = enrichment_bundle.get("audit", [])
         recent_catalysts = enrichment_bundle.get("recent_catalysts", [])
@@ -242,6 +259,13 @@ def fetch_stock_data(ticker: str, skip_optional_http: bool = False, market_data_
             "pe_river_chart",
             {"years": years, "eps_twd": [], "multiples": [10, 12, 15, 18], "bands": {}, "source": "unavailable"},
         )
+
+        if individual_history:
+            pe_river_chart = {"years": [], "eps_twd": [], "multiples": [], "bands": {},
+                "source": "unavailable", "valuation_basis": "unsupported",
+                "historical_quantiles_available": False,
+                "fallback_reason": "ordinary_individual_group_basis_unverified",
+                "coverage_notes": ["個別本期損益未證明可與保留股數形成集團每股盈餘；不生成 P/E 河流圖。"]}
 
         # === 整合所有數據 ===
         payload_vars, payload_context = build_yfinance_payload_vars(locals())
@@ -259,6 +283,8 @@ def fetch_stock_data(ticker: str, skip_optional_http: bool = False, market_data_
             monthly_revenue_audit=monthly_revenue_audit,
             finmind_financial_fallback_audit=finmind_financial_fallback_audit,
             primary_financial_audit=primary_financial_audit,
+            official_financial_audit=official_financial_audit,
+            sector_specific_financial_audit=sector_specific_financial_audit,
         )
 
         emit_log(f"  ✅ {company_name} 核心財務資料完成（後續補充資料另行處理）")

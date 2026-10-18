@@ -1,0 +1,48 @@
+{
+  "source": "complete previously captured originals; byte-for-byte copy",
+  "new_HTTP": 0,
+  "fixtures": [
+    {
+      "symbol": "2330",
+      "fixture": "tests/fixtures/source_acquisition/mops_materials_20261014/2330-index.html",
+      "source_body": "docs/evidence/source-acquisition/20261014/remaining-gap-next/largecap-conference/tsmc-mops-index.body",
+      "receipt": "docs/evidence/source-acquisition/20261014/remaining-gap-next/largecap-conference/tsmc-mops-index.receipt.json",
+      "sha256": "e1b1f2b13b753e04d4ad74051c41f614af06ccaaa5b4b1b766091a96223b93ec",
+      "bytes": 24832,
+      "method": "POST",
+      "url": "https://mopsov.twse.com.tw/mops/web/ajax_t100sb02_1",
+      "request_body": "encodeURIComponent=1&step=1&firstin=1&off=1&TYPEK=sii&co_id=2330&year=115&month=",
+      "retrieved_at_epoch": 1791931591.364309,
+      "research_only": true,
+      "epoch_renewed": false
+    },
+    {
+      "symbol": "1229",
+      "fixture": "tests/fixtures/source_acquisition/mops_materials_20261014/1229-index.html",
+      "source_body": "docs/evidence/source-acquisition/20261014/remaining-gap-next/lienhwa/lienhwa-mops-index.body",
+      "receipt": "docs/evidence/source-acquisition/20261014/remaining-gap-next/lienhwa/lienhwa-mops-index.receipt.json",
+      "sha256": "f9dd944142fd4762f3d6bca11255d4b433197589b79cc0e7b239a41a3f2d5886",
+      "bytes": 11164,
+      "method": "POST",
+      "url": "https://mopsov.twse.com.tw/mops/web/ajax_t100sb02_1",
+      "request_body": "encodeURIComponent=1&step=1&firstin=1&off=1&TYPEK=sii&co_id=1229&year=115&month=",
+      "retrieved_at_epoch": 1791932099.4725828,
+      "research_only": true,
+      "epoch_renewed": false
+    },
+    {
+      "symbol": "2303",
+      "fixture": "tests/fixtures/source_acquisition/mops_materials_20261014/2303-index.html",
+      "source_body": "docs/evidence/source-acquisition/20261014/remaining-gap-next/largecap-conference/umc-mops-index.body",
+      "receipt": "docs/evidence/source-acquisition/20261014/remaining-gap-next/largecap-conference/umc-mops-index.receipt.json",
+      "sha256": "7f0c826eab1906804d097ccc0bf9c3ba163b987ed56f9f4969df21146f841a9e",
+      "bytes": 19383,
+      "method": "POST",
+      "url": "https://mopsov.twse.com.tw/mops/web/ajax_t100sb02_1",
+      "request_body": "encodeURIComponent=1&step=1&firstin=1&off=1&TYPEK=sii&co_id=2303&year=115&month=",
+      "retrieved_at_epoch": 1791931976.638964,
+      "research_only": true,
+      "epoch_renewed": false
+    }
+  ]
+}

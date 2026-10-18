@@ -34,6 +34,114 @@ def _prompt_payload(data: dict) -> dict:
     return json.loads(payload_text)
 
 
+def test_taiwan_yahoo_news_runs_only_when_other_verified_feeds_leave_a_gap(monkeypatch):
+    from types import SimpleNamespace
+
+    calls = []
+    alternative_count = 3
+    alternative_status = "success"
+    providers = [
+        SimpleNamespace(source="recent_catalysts", name="Free news waterfall"),
+        SimpleNamespace(source="recent_catalysts", name="Alternative Search"),
+        SimpleNamespace(source="recent_catalysts", name="Yahoo Finance"),
+    ]
+    monkeypatch.setattr(workflow, "collect_optional_providers", lambda *a, **k: (providers, {"recent_catalysts": True}))
+    monkeypatch.setattr(workflow, "_merge_optional_http_bundle", lambda data, *a, **k: data)
+    monkeypatch.setattr(workflow, "finalize_data_trust", lambda data: None)
+    monkeypatch.setattr(workflow, "cache_financial_payload", lambda *a: None)
+
+    def record(kind, count):
+        return [{"title": f"{kind} {index}", "date": _news_date(), "link": f"https://{kind}.example/{index}"}
+                for index in range(count)]
+
+    def result(provider, count, status="success"):
+        return ProviderResult(source="recent_catalysts", provider=provider, status=status,
+                              value=record(provider.replace(" ", "-"), count),
+                              audit={"source": "recent_catalysts", "provider": provider,
+                                     "status": status, "record_count": count,
+                                     "quality_status": "insufficient_candidates" if provider == "Alternative Search" and status == "degraded_enrichment" else None,
+                                     "usable_count": count})
+
+    async def fetch(request, selected, context):
+        calls.append([provider.name for provider in selected])
+        return [result(provider.name, alternative_count if provider.name == "Alternative Search" else
+                       3 if provider.name != "Yahoo Finance" else 1,
+                       alternative_status if provider.name == "Alternative Search" else "success")
+                for provider in selected]
+
+    monkeypatch.setattr(workflow, "fetch_provider_results", fetch)
+    request = FetchRequest.from_ticker("5314.TWO")
+    rich = {"ticker": "5314.TWO", "recent_catalysts": record("finmind", 3),
+            "source_audit": [{"source": "recent_catalysts", "provider": "FinMind news",
+                              "status": "success", "record_count": 3}]}
+    asyncio.run(workflow._run_optional_provider_plan(request, None, rich))
+    assert calls == [["Free news waterfall"], ["Alternative Search"]]
+
+    calls.clear()
+    alternative_status = "degraded_enrichment"
+    asyncio.run(workflow._run_optional_provider_plan(request, None, rich))
+    assert calls == [["Free news waterfall"], ["Alternative Search"]]
+
+    calls.clear()
+    alternative_count = 1
+    scarce = {"ticker": "5314.TWO", "recent_catalysts": record("finmind", 1),
+              "source_audit": [{"source": "recent_catalysts", "provider": "FinMind news",
+                                "status": "success", "record_count": 1}]}
+    asyncio.run(workflow._run_optional_provider_plan(request, None, scarce))
+    assert calls == [["Free news waterfall"], ["Alternative Search"], ["Yahoo Finance"]]
+
+
+def test_yahoo_fallback_keeps_duplicate_stale_and_degraded_evidence_gaps():
+    from data_fetch.workflow import _sufficient_non_yahoo_catalysts
+
+    def provider(name, links, *, status="success", date=None):
+        value = [{"title": f"Article {index}", "date": date or _news_date(), "link": link}
+                 for index, link in enumerate(links)]
+        return ProviderResult(source="recent_catalysts", provider=name, status=status,
+                              value=value, audit={"source": "recent_catalysts", "provider": name,
+                                                  "status": status, "record_count": len(value)})
+
+    first = provider("Free news waterfall", [f"https://one.example/{i}" for i in range(3)])
+    second = provider("Alternative Search", [f"https://two.example/{i}" for i in range(3)])
+    assert _sufficient_non_yahoo_catalysts([first, second])
+    selected_with_rejected_raw_hits = provider(
+        "Free news waterfall", [f"https://one.example/{i}" for i in range(3)],
+        status="degraded_enrichment")
+    selected_with_rejected_raw_hits.audit["quality_status"] = "eligible_evidence"
+    assert _sufficient_non_yahoo_catalysts([selected_with_rejected_raw_hits, second])
+    selected_with_rejected_raw_hits.audit.pop("quality_status")
+    assert not _sufficient_non_yahoo_catalysts([selected_with_rejected_raw_hits, second])
+    assert not _sufficient_non_yahoo_catalysts([
+        first, provider("Alternative Search", ["https://one.example/0"] * 3)])
+    assert not _sufficient_non_yahoo_catalysts([
+        first, provider("Alternative Search", [f"https://two.example/{i}" for i in range(3)],
+                        date="2020-01-01")])
+    assert not _sufficient_non_yahoo_catalysts([
+        first, provider("Alternative Search", [f"https://two.example/{i}" for i in range(3)],
+                        status="degraded_enrichment")])
+
+
+def test_yahoo_fallback_accepts_verified_joint_coverage_when_search_misses_its_own_capacity_target():
+    from data_fetch.workflow import _sufficient_non_yahoo_catalysts
+
+    def result(name, host, count, *, status, quality):
+        rows = [{"title": f"{name} {i}", "date": _news_date(),
+                 "link": f"https://{host}.example/{i}"} for i in range(count)]
+        return ProviderResult(source="recent_catalysts", provider=name, status=status,
+                              value=rows, audit={"source": "recent_catalysts", "provider": name,
+                                                 "status": status, "record_count": count,
+                                                 "quality_status": quality, "usable_count": count})
+
+    news = result("Free news waterfall", "news", 3,
+                  status="degraded_enrichment", quality="eligible_evidence")
+    search = result("Alternative Search", "search", 3,
+                    status="degraded_enrichment", quality="insufficient_candidates")
+    assert _sufficient_non_yahoo_catalysts([news, search])
+
+    search.audit["usable_count"] = 4
+    assert not _sufficient_non_yahoo_catalysts([news, search])
+
+
 def test_peer_selection_filters_market_cap_outliers_and_scores_business_overlap():
     target = CompanyProfile(
         ticker="2308.TW",

@@ -16,6 +16,8 @@ from .content_credibility_evidence_confidence import evaluate_confidence_evidenc
 from .content_credibility_evidence_matrix import evaluate_evidence_matrix_coverage
 from .content_credibility_final_audit import evaluate_final_audit_alignment, final_audit_from_conformance
 from .content_credibility_horizons import evaluate_horizon_target_sequence
+from .content_credibility_trade_basis import evaluate_trade_basis
+from .content_credibility_observations import evaluate_observation_credibility
 from .content_credibility_market import evaluate_market_context_credibility
 from .content_credibility_scenarios import evaluate_scenario_target_order
 from .content_credibility_scenario_range import evaluate_recommendation_target_scenario_range
@@ -83,6 +85,8 @@ def evaluate_content_credibility(context: dict, snapshot: dict | None = None, ma
     results = [
         alignment,
         evaluate_volume_units(data, pipeline_id),
+        evaluate_observation_credibility(context, snapshot, data, pipeline_id),
+        evaluate_trade_basis(context, data, pipeline_id),
         evaluate_scenario_target_order(parsed),
         evaluate_recommendation_target_scenario_range(parsed),
         evaluate_horizon_target_sequence(parsed),

@@ -244,9 +244,9 @@ def _quality_evidence(row, report: dict) -> dict:
     }
 
 
-def row_to_report(row) -> dict:
+def row_to_report(row, *, snapshot: dict | None = None) -> dict:
     snapshot_path = _snapshot_path(row)
-    snapshot = _read_snapshot(row)
+    snapshot = _read_snapshot(row) if snapshot is None else snapshot
     pipeline_id = resolve_report_pipeline_id(row["filename"], stored_pipeline=row["pipeline_id"] if "pipeline_id" in row.keys() else "", snapshot=snapshot)
     try:
         data_trust = normalize_data_trust(json.loads(row["data_trust_json"]))
@@ -298,7 +298,14 @@ def row_to_report(row) -> dict:
         snapshot=snapshot,
     )
 
+    from report_publication_identity import publication_identity, replay_notice
+    identity = publication_identity(snapshot)
+    if not identity["prediction_eligible"]:
+        preview = {**preview, "title": f"{row["ticker"]} 分析未完整" if identity["kind"] == "partial_analysis" else f"{row["ticker"]} 保存資料修復驗證" if identity["kind"] == "saved_data_repair_validation" else f"{row["ticker"]} 保存分析驗證重播",
+                   "primary": {"label": "用途", "value": "分析未完整" if identity["kind"] == "partial_analysis" else "修復驗證" if identity["kind"] == "saved_data_repair_validation" else "驗證重播", "tone": "is-neutral"},
+                   "summary": replay_notice(snapshot)}
     report = {
+        "publication_identity": identity,
         "filename": row["filename"],
         "ticker": row["ticker"],
         "company_name": _company_name(row, snapshot=snapshot),

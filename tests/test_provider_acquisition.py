@@ -47,6 +47,101 @@ def test_source_and_merge_are_not_counted_twice_and_retries_remain(monkeypatch):
     assert len(row["providers"]) == 2
 
 
+def test_zero_request_cooldown_is_local_block_but_real_request_remains_failure():
+    from provider_acquisition import project_acquisition_events
+
+    events = [
+        {
+            **entry("earnings_call", "Voltronic published conference presentation", "error"),
+            "created_at": 100.0,
+            "details_json": '{"error_kind":"cooldown","http_request_count":0}',
+        },
+        {
+            **entry("earnings_call", "Voltronic published conference presentation", "error"),
+            "created_at": 101.0,
+            "details_json": '{"error_kind":"cooldown","event_kind":"http_attempt","http_request_sent":true,"http_request_count":1}',
+        },
+        {
+            **entry("earnings_call", "Voltronic published conference presentation", "error"),
+            "created_at": 102.0,
+            "details_json": '{"error_kind":"cooldown"}',
+        },
+    ]
+
+    source, = project_acquisition_events(events, window="last_24h", now=103.0)["sources"]
+
+    assert source["local_block_count"] == 1
+    assert source["failed_count"] == 2
+    assert source["fetch_attempts"] == 2
+    assert source["http_attempt_count"] == 1
+    assert source["nonempty_rate"] == 0.0
+
+
+def test_webpro_component_and_parent_result_are_not_double_counted():
+    from provider_acquisition import project_acquisition_events
+
+    events = [
+        {
+            **entry("earnings_call", "TWSE WebPro conference metadata", "success", 3),
+            "created_at": 100.0,
+            "details_json": '{"event_kind":"http_attempt","http_request_sent":true}',
+        },
+        {
+            **entry("earnings_call", "TWSE WebPro conference metadata", "degraded_enrichment", 1,
+                    "MOPS 未取得資料；WebPro 僅補回法說會日期與連結，未取得內容或逐字稿。"),
+            "created_at": 101.0,
+            "details_json": '{"event_kind":"aggregate","http_request_sent":true,"usable_count":3}',
+        },
+    ]
+
+    source, = project_acquisition_events(events, window="last_24h", now=102.0)["sources"]
+    provider, = source["providers"]
+
+    assert source["fetch_attempts"] == provider["fetch_attempts"] == 1
+    assert source["fetched_count"] == provider["fetched_count"] == 1
+    assert source["aggregate_count"] == 1
+    assert source["degraded_count"] == 0
+    assert source["nonempty_rate"] == 1.0
+
+
+def test_same_provider_result_projection_is_counted_once_per_operation():
+    from provider_acquisition import project_acquisition_events
+
+    detailed = {
+        **entry("earnings_call", "Auras official conference presentation", "error"),
+        "created_at": 100.0,
+        "duration_ms": 10999,
+        "details_json": '{"event_kind":"aggregate","fetch_id":"fetch-1",'
+                        '"operation_id":"operation-1","ticker":"3324.TWO",'
+                        '"http_request_sent":true,"http_request_count":3,"error_kind":"timeout"}',
+    }
+    repeated_projection = {
+        **detailed,
+        "created_at": 100.0,
+        "duration_ms": 0,
+        "details_json": '{"event_kind":"aggregate","fetch_id":"fetch-1",'
+                        '"operation_id":"operation-1","ticker":"3324.TWO",'
+                        '"http_request_count":3,"error_kind":"timeout"}',
+    }
+    separate_retry = {
+        **detailed,
+        "created_at": 101.0,
+        "details_json": '{"event_kind":"aggregate","fetch_id":"fetch-1",'
+                        '"operation_id":"operation-2","ticker":"3324.TWO",'
+                        '"http_request_sent":true,"http_request_count":3,"error_kind":"timeout"}',
+    }
+
+    source, = project_acquisition_events(
+        [detailed, repeated_projection, separate_retry], window="last_24h", now=102.0
+    )["sources"]
+
+    assert source["failed_count"] == 2
+    assert source["aggregate_count"] == 1
+    assert source["fetch_attempts"] == 2
+    assert source["http_attempt_count"] == 2
+    assert source["nonempty_rate"] == 0.0
+
+
 def test_failed_provider_cannot_be_covered_by_healthy_provider():
     provider_sla.record_source_audit_entries([
         entry("recent_catalysts", "PTT Stock", "unavailable"),

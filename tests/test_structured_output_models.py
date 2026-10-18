@@ -3575,7 +3575,7 @@ def test_normalize_structured_output_missing_price_targets_use_schema_fallback_b
     assert normalized["valuation_summary"]["double_counting_check"] == "未重複計算成長與多重評價。"
     assert normalized["analysis_markdown"] == "估值正文"
     report_text = structured_output_to_report_text(4, normalized)
-    assert "基本情境: NT$0" in report_text
+    assert "基本情境: N/A" in report_text
 
 
 def test_normalize_structured_output_valuation_summary_uses_safe_text_before_validation():

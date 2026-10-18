@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import time
 import inspect
 from datetime import datetime
@@ -146,7 +147,7 @@ async def monitor_watchlist_triggers(
             queued.append({"ticker": ticker, "pipeline": selected_pipeline, "job_id": job_id, "trigger": event.get("trigger_type")})
 
             # 避免瞬間塞滿 LiteLLM rate limit，每個觸發任務派發後休眠 45 秒
-            time.sleep(45)
+            await asyncio.sleep(45)
     return {"success": not errors, "queued": queued, "skipped": skipped, "errors": errors}
 
 
@@ -155,10 +156,50 @@ def claim_due_watchlist_items(now: datetime | None = None) -> list[dict]:
     return watchlist_claim_store.claim_due_watchlist_items(now)
 
 
-def enqueue_watchlist_items(items: list[dict], *, create_job, find_active_job, task_queue, run_stock_analysis_job) -> dict:
+def enqueue_watchlist_items(items: list[dict], *, create_job, find_active_job, task_queue, run_stock_analysis_job, stop_event=None) -> dict:
     queued = []
     skipped = []
-    for item in items:
+    errors = []
+    for position, item in enumerate(items):
+        if stop_event is not None and stop_event.is_set():
+            # An already committed enqueue stays acknowledged. Only return
+            # unprocessed leases so restart reuses their durable job IDs.
+            import watchlist_dispatch_store
+            for pending in items[position:]:
+                if pending.get('dispatch_id'):
+                    try:
+                        watchlist_dispatch_store.release(pending, 'scheduler_shutdown')
+                    except Exception as exc:
+                        errors.append({'ticker': pending['ticker'], 'pipeline': pending['pipeline'],
+                            'dispatch_id': pending['dispatch_id'], 'error_kind': type(exc).__name__})
+                skipped.append({'ticker': pending.get('ticker'), 'pipeline': pending.get('pipeline'),
+                    'dispatch_id': pending.get('dispatch_id'), 'reason': 'scheduler_shutdown'})
+            return {'success': not errors, 'queued': queued, 'skipped': skipped,
+                    'errors': errors, 'interrupted': True}
+        if item.get("dispatch_id"):
+            from watchlist_dispatch_service import dispatch_item
+            import watchlist_dispatch_store
+            try:
+                outcome = dispatch_item(item, create_job=create_job,
+                    find_active_job=find_active_job, task_queue=task_queue,
+                    run_stock_analysis_job=run_stock_analysis_job)
+                record = {"ticker": item["ticker"], "pipeline": item["pipeline"],
+                    "slot": item["due_slot"], **outcome}
+                if outcome["kind"] == "queued":
+                    queued.append(record)
+                    if outcome.get("newly_enqueued"):
+                        if stop_event is None:
+                            time.sleep(45)
+                        else:
+                            stop_event.wait(45)
+                else:
+                    skipped.append(record)
+            except Exception as exc:
+                watchlist_dispatch_store.release(item, type(exc).__name__)
+                errors.append({"ticker": item["ticker"], "pipeline": item["pipeline"],
+                    "slot": item["due_slot"], "dispatch_id": item["dispatch_id"],
+                    "error_kind": type(exc).__name__})
+            continue
         ticker = str(item.get("ticker") or "").strip().upper()
         pipeline = normalize_pipeline_run_id(item.get("pipeline") or "v1")
         if not ticker:
@@ -174,8 +215,11 @@ def enqueue_watchlist_items(items: list[dict], *, create_job, find_active_job, t
             mark_watchlist_run(ticker, pipeline, item["due_slot"], run_date=item.get("due_date"))
 
         # 避免瞬間塞滿 LiteLLM rate limit，每個任務派發後休眠 45 秒
-        time.sleep(45)
-    return {"success": True, "queued": queued, "skipped": skipped}
+        if stop_event is None:
+            time.sleep(45)
+        else:
+            stop_event.wait(45)
+    return {"success": not errors, "queued": queued, "skipped": skipped, "errors": errors}
 
 
 def _enqueue_watchlist_analysis(task_queue, run_stock_analysis_job, job_id: str, ticker: str, pipeline: str) -> None:

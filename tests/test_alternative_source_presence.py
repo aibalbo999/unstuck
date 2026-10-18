@@ -33,7 +33,7 @@ def count(payload):
 
 
 def article(**updates):
-    return {"title": "世紀招募工程師", "date": datetime.now(timezone.utc).isoformat(),
+    return {"title": "世紀民生招募工程師", "date": datetime.now(timezone.utc).isoformat(),
             "link": "https://example.com/recruitment", **updates}
 
 

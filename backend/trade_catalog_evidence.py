@@ -45,6 +45,9 @@ def add_catalog_observations(value, data):
     records = institutional_evidence_records(data)
     records = [r for r in records if parse_market_date(r.get('observed_at')) is not None
                and 0 <= (as_of-parse_market_date(r['observed_at'])).days <= 7]
+    from institutional_claim_lineage import institutional_claim_lineage
+    records = [{**record, 'lineage_status': institutional_claim_lineage(data, record)['status']}
+               for record in records]
     value['institutional_evidence'] = {'records':records, 'availability':'available' if records else 'unavailable'}
     return value
 
@@ -66,14 +69,23 @@ def ownership_evidence(data, as_of):
     return {'records':records, 'availability':'available' if records else 'unavailable'}
 
 
+def ownership_trend_clauses(text):
+    """Return holder-specific trend claims without borrowing adjacent flow clauses."""
+    clauses = re.split(r'[，。；;\n]', text)
+    return [clause.strip() for clause in clauses
+            if re.search(r'大戶|散戶|持股|ownership', clause, re.I)
+            and re.search(r'增加|減少|上升|下降|集中|連續|持續|增持|減持|加碼|減碼|買超|賣超|improv|increas|decreas', clause, re.I)]
+
+
 def ownership_claim_supported(text, records):
     """One observation cannot establish increasing/decreasing ownership."""
-    if re.search(r'增加|減少|上升|下降|集中|連續|持續|增持|減持|加碼|減碼|買超|賣超|improv|increas|decreas', text, re.I):
+    if ownership_trend_clauses(text):
         return False
+    clauses = re.split(r'[，。；;\n]', text)
     dates = re.findall(r'20\d{2}[-/]\d{1,2}[-/]\d{1,2}', text)
     if any(parse_market_date(day) is None or not any(r.get('observed_at') == parse_market_date(day).isoformat() for r in records) for day in dates):
         return False
-    for clause in re.split(r'[，。；;\n]', text):
+    for clause in clauses:
         if not re.search(r'大戶|散戶', clause):
             continue
         for match in re.finditer(r'(\d[\d,]*(?:\.\d+)?)(千|萬)?(股|張)', clause):
@@ -105,7 +117,7 @@ def ownership_claim_supported(text, records):
 
 def institutional_catalyst_has_numeric_claim(text):
     """Do not turn an arbitrary flow record into proof of a qualitative trend."""
-    if re.search(r'連續|持續|逐日|加速|趨勢|轉買|轉賣', text):
+    if re.search(r'連續|持續|逐日|加速|趨勢|轉買|轉賣|買賣交錯|買賣互見|正負交錯', text):
         return False
     populations = list(re.finditer(r'三大法人|三類法人|法人合計|法人總計|法人(?!說明會)|外資|投信|自營商', text))
     if not populations:

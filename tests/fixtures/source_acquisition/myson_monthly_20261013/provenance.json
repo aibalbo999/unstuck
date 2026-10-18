@@ -1,0 +1,85 @@
+{
+  "usage": "isolated test fixtures only; no production cache seed",
+  "entries": [
+    {
+      "fixture": "index.html.gz",
+      "receipt": {
+        "status": "archived",
+        "source_url": "https://www.myson.com.tw/financial",
+        "retrieved_at": 1791868380.649941,
+        "http_status": 200,
+        "raw_response_sha256": "f5c93064e7871b95baaddf563d03300e887d0c37237873333b86fbeda313fbe3",
+        "raw_response_path": "/Volumes/X10 Pro Mac/stock-agent/backend/cache/official-response-evidence/f5c93064e7871b95baaddf563d03300e887d0c37237873333b86fbeda313fbe3.gz",
+        "raw_response_bytes": 97606,
+        "evidence_kind": "raw_http_response_bytes",
+        "historical_point_in_time_verified": false,
+        "finality_guaranteed": false
+      },
+      "source_sha256": "f5c93064e7871b95baaddf563d03300e887d0c37237873333b86fbeda313fbe3"
+    },
+    {
+      "fixture": "current.html.gz",
+      "receipt": {
+        "status": "archived",
+        "source_url": "https://docs.google.com/spreadsheets/d/1YKWYJ7IsMN4FW5gRf-_uPM5cKkpAGLNRZ_CYOkgNbag/edit?gid=0",
+        "retrieved_at": 1791868381.2615879,
+        "http_status": 200,
+        "raw_response_sha256": "c9c3880f6dac15739133dbaf4a7c8c279d38072031ab38a65c7a053a8faa84c4",
+        "raw_response_path": "/Volumes/X10 Pro Mac/stock-agent/backend/cache/official-response-evidence/c9c3880f6dac15739133dbaf4a7c8c279d38072031ab38a65c7a053a8faa84c4.gz",
+        "raw_response_bytes": 285616,
+        "evidence_kind": "raw_http_response_bytes",
+        "historical_point_in_time_verified": false,
+        "finality_guaranteed": false
+      },
+      "source_sha256": "c9c3880f6dac15739133dbaf4a7c8c279d38072031ab38a65c7a053a8faa84c4"
+    },
+    {
+      "fixture": "previous.html.gz",
+      "receipt": {
+        "status": "archived",
+        "source_url": "https://docs.google.com/spreadsheets/d/1TpOCd6i8iFeEGaJLHUKcZs1i4QyuK1eLfxh1N8xwjkU/edit?usp=sharing",
+        "retrieved_at": 1791868381.8831098,
+        "http_status": 200,
+        "raw_response_sha256": "bb715776caa0f536041a11af85fa734dc189b543c527676fb247c5d666ed3d8e",
+        "raw_response_path": "/Volumes/X10 Pro Mac/stock-agent/backend/cache/official-response-evidence/bb715776caa0f536041a11af85fa734dc189b543c527676fb247c5d666ed3d8e.gz",
+        "raw_response_bytes": 287098,
+        "evidence_kind": "raw_http_response_bytes",
+        "historical_point_in_time_verified": false,
+        "finality_guaranteed": false
+      },
+      "source_sha256": "bb715776caa0f536041a11af85fa734dc189b543c527676fb247c5d666ed3d8e"
+    },
+    {
+      "fixture": "otc.csv.gz",
+      "receipt": {
+        "status": "archived",
+        "source_url": "https://mopsfin.twse.com.tw/opendata/t187ap05_O.csv",
+        "retrieved_at": 1791868382.390507,
+        "http_status": 200,
+        "raw_response_sha256": "938149cc0ed2b462cc992644fcbde5fd1bbda2425a0d64f52f2987adcdfb7896",
+        "raw_response_path": "/Volumes/X10 Pro Mac/stock-agent/backend/cache/official-response-evidence/938149cc0ed2b462cc992644fcbde5fd1bbda2425a0d64f52f2987adcdfb7896.gz",
+        "raw_response_bytes": 166534,
+        "evidence_kind": "raw_http_response_bytes",
+        "historical_point_in_time_verified": false,
+        "finality_guaranteed": false
+      },
+      "source_sha256": "938149cc0ed2b462cc992644fcbde5fd1bbda2425a0d64f52f2987adcdfb7896"
+    },
+    {
+      "fixture": "otc_roster.json.gz",
+      "receipt": {
+        "status": "archived",
+        "source_url": "https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap03_O",
+        "retrieved_at": 1791868384.9697149,
+        "http_status": 200,
+        "raw_response_sha256": "2a88c98473730bb43bb2f109008c2eadf35b0e96df8e8eefd7256fd78eedb5f8",
+        "raw_response_path": "/Volumes/X10 Pro Mac/stock-agent/backend/cache/official-response-evidence/2a88c98473730bb43bb2f109008c2eadf35b0e96df8e8eefd7256fd78eedb5f8.gz",
+        "raw_response_bytes": 1074417,
+        "evidence_kind": "raw_http_response_bytes",
+        "historical_point_in_time_verified": false,
+        "finality_guaranteed": false
+      },
+      "source_sha256": "2a88c98473730bb43bb2f109008c2eadf35b0e96df8e8eefd7256fd78eedb5f8"
+    }
+  ]
+}

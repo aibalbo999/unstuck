@@ -632,7 +632,7 @@
       "title": "動態同業比較規則",
       "rules": [
         "護城河評分請參考 peer_context.dynamic_peer_metrics 的本地與全球同業毛利率、淨利率、P/E、P/B。",
-        "peer_context.search_discovery_results 僅作全球競品 discovery 線索，需與已提供的財務指標分開標示。",
+        "peer_context.search_discovery_results 僅作競品或台股產業候選線索，需與已提供的財務指標分開標示；published_industry_peer_ranking 不證明業務、規模或估值數值可比，不得據此給同業估值或護城河評分。",
         "同業資料只能作比較，不得把同業商業模式或新聞套用到本公司。",
         "高分護城河必須綁定 peer_context.dynamic_peer_metrics、財務利潤率、市佔率、專利/製程或客戶黏著度證據；缺少足以評分的證據時填 null 並標記未評估。",
         "請主動指出一項最弱護城河因素與可被競爭者破壞的路徑。"

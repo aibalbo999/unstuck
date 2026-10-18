@@ -126,6 +126,8 @@ def build_data_snapshot(
         except Exception:
             evidence_matrix = []
     snapshot_generated_at = generated_at or utc_now_iso()
+    from report_publication_identity import replay_context, publication_identity
+    context = replay_context(context, snapshot_generated_at)
     confidence_controls = build_data_confidence_controls(context, data_trust)
     snapshot = {
         "snapshot_schema_version": DATA_SNAPSHOT_SCHEMA_VERSION,
@@ -138,7 +140,8 @@ def build_data_snapshot(
         "pipeline": _first_text(pipeline_id, dict.get(context, "pipeline_id"), dict.get(data, "pipeline_id")),
         "generated_at": snapshot_generated_at,
         "conclusion_generated_at": sanitize_for_snapshot(
-            dict.get(context, "conclusion_generated_at") or snapshot_generated_at
+            dict.get(context, "conclusion_generated_at", "") if not publication_identity(context)["prediction_eligible"]
+            else dict.get(context, "conclusion_generated_at") or snapshot_generated_at
         ),
         "snapshot_refreshed_at": sanitize_for_snapshot(dict.get(context, "snapshot_refreshed_at", "")),
         "decision_validity_status": sanitize_for_snapshot(
@@ -175,6 +178,12 @@ def build_data_snapshot(
         "rerun_context": sanitize_rerun_context(context),
         "data": sanitize_for_snapshot(data),
     }
+    if context.get("saved_data_repair_validation"):
+        snapshot["saved_data_repair_validation"] = sanitize_for_snapshot(context["saved_data_repair_validation"])
+    if not publication_identity(context)["prediction_eligible"]:
+        snapshot["saved_analysis_replay"] = sanitize_for_snapshot(context.get("saved_analysis_replay", {}))
+        snapshot["publication_generated_at"] = context["publication_generated_at"]
+        snapshot["publication_identity"] = sanitize_for_snapshot(context["publication_identity"])
     quality_metadata_refresh_provenance = dict.get(context, "quality_metadata_refresh_provenance", {})
     from market_context_snapshot import snapshot_market_fields
 

@@ -11,6 +11,11 @@ def _peer_comparison(data: dict[str, Any]) -> dict[str, Any]:
     for item in data.get("dynamic_peer_metrics") or []:
         if not isinstance(item, dict):
             continue
+        # A dated underwriting sample can supply issuer-level numeric context,
+        # but is not evidence that today's whole-business valuation is
+        # comparable. Keep it out of the automatic peer multiple.
+        if item.get("business_comparability_verified_current") is False:
+            continue
         row = _peer_row(item, is_target=False)
         if _peer_has_metrics(row):
             peers.append(row)

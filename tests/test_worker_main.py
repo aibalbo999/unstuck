@@ -11,6 +11,7 @@ from types import SimpleNamespace
 import pytest
 
 import decision_tracking_scheduler
+import annual_disclosure_refresh_scheduler
 import watchlist_scheduler
 import worker_maintenance
 import worker_shutdown
@@ -539,16 +540,17 @@ def test_worker_main_rejects_unknown_role():
 def test_scheduler_modules_expose_public_run_coroutines():
     assert inspect.iscoroutinefunction(watchlist_scheduler.run_watchlist_scheduler)
     assert inspect.iscoroutinefunction(decision_tracking_scheduler.run_decision_tracking_scheduler)
+    assert inspect.iscoroutinefunction(annual_disclosure_refresh_scheduler.run_annual_disclosure_refresh_scheduler)
 
 
-def test_scheduler_process_starts_both_schedulers_and_cancels_them(monkeypatch):
+def test_scheduler_process_starts_all_schedulers_and_cancels_them(monkeypatch):
     calls = []
     runtime = FakeWorkerRuntime(calls)
     started = asyncio.Event()
 
     async def fake_watchlist_scheduler(**kwargs):
         calls.append(("watchlist", kwargs["data_service"]))
-        if len(calls) == 2:
+        if len(calls) == 3:
             started.set()
         try:
             await asyncio.sleep(3600)
@@ -558,7 +560,7 @@ def test_scheduler_process_starts_both_schedulers_and_cancels_them(monkeypatch):
 
     async def fake_decision_tracking_scheduler(**kwargs):
         calls.append(("decision", kwargs["get_refresh_service"]()))
-        if len(calls) == 2:
+        if len(calls) == 3:
             started.set()
         try:
             await asyncio.sleep(3600)
@@ -566,8 +568,19 @@ def test_scheduler_process_starts_both_schedulers_and_cancels_them(monkeypatch):
             calls.append("decision-cancelled")
             raise
 
+    async def fake_annual_disclosure_scheduler(value, *, emit):
+        calls.append(("annual-disclosure", value.data_refresh_service, emit))
+        if len(calls) == 3:
+            started.set()
+        try:
+            await asyncio.sleep(3600)
+        except asyncio.CancelledError:
+            calls.append("annual-disclosure-cancelled")
+            raise
+
     monkeypatch.setattr(worker_main, "run_watchlist_scheduler", fake_watchlist_scheduler)
     monkeypatch.setattr(worker_main, "run_decision_tracking_scheduler", fake_decision_tracking_scheduler)
+    monkeypatch.setattr(worker_main, "run_annual_disclosure_refresh_scheduler", fake_annual_disclosure_scheduler)
 
     async def exercise():
         task = asyncio.create_task(worker_main.run_scheduler_process(runtime))
@@ -580,8 +593,10 @@ def test_scheduler_process_starts_both_schedulers_and_cancels_them(monkeypatch):
 
     assert ("watchlist", "refresh-service") in calls
     assert ("decision", "refresh-service") in calls
+    assert any(isinstance(call, tuple) and call[:2] == ("annual-disclosure", "refresh-service") for call in calls)
     assert "watchlist-cancelled" in calls
     assert "decision-cancelled" in calls
+    assert "annual-disclosure-cancelled" in calls
 
 
 def test_scheduler_process_uses_queue_backed_active_job_lookup(monkeypatch):
@@ -607,9 +622,16 @@ def test_scheduler_process_uses_queue_backed_active_job_lookup(monkeypatch):
         except asyncio.CancelledError:
             raise
 
+    async def fake_annual_disclosure_scheduler(*_args, **_kwargs):
+        try:
+            await asyncio.sleep(3600)
+        except asyncio.CancelledError:
+            raise
+
     monkeypatch.setattr(worker_main, "find_queue_backed_active_job", fake_find_queue_backed_active_job)
     monkeypatch.setattr(worker_main, "run_watchlist_scheduler", fake_watchlist_scheduler)
     monkeypatch.setattr(worker_main, "run_decision_tracking_scheduler", fake_decision_tracking_scheduler)
+    monkeypatch.setattr(worker_main, "run_annual_disclosure_refresh_scheduler", fake_annual_disclosure_scheduler)
 
     async def exercise():
         task = asyncio.create_task(worker_main.run_scheduler_process(runtime))

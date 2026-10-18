@@ -17,7 +17,8 @@ def project_evidence_exit_gate(snapshot: Any, markdown: Any) -> dict[str, Any] |
     if not snapshot_map or not markdown_text.strip():
         return None
     try:
-        projected = evaluate_report_evidence(markdown_text, snapshot_map)
+        from .request_projection_reuse import reuse_projection
+        projected = reuse_projection(snapshot_map, markdown_text, lambda: evaluate_report_evidence(markdown_text, snapshot_map))
         freshness = build_decision_freshness(snapshot=snapshot_map)
         if safe_bool(freshness.get("requires_rerun")):
             projected["freshness_context"] = {

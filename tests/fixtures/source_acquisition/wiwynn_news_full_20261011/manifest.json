@@ -1,0 +1,26 @@
+{
+  "kind": "complete_unmodified_native_originals",
+  "parts": {
+    "master": {
+      "filename": "master.gz",
+      "url": "https://openapi.twse.com.tw/v1/opendata/t187ap03_L",
+      "sha256": "ace3e78957b763b9e99b4f3d222b6838c2b176778bc5a7295d3754e1dafe4865",
+      "bytes": 1327578,
+      "retrieved_at": 1791665479.241487
+    },
+    "index": {
+      "filename": "index.gz",
+      "url": "https://www.wiwynn.com/",
+      "sha256": "df84ad3e18905507fd895da3975b3e7b02a2af1df76c5e7644d9a71a3d1b3739",
+      "bytes": 306820,
+      "retrieved_at": 1791707032.166305
+    },
+    "article": {
+      "filename": "article.gz",
+      "url": "https://www.wiwynn.com/news/wiwynn-strengthens-global-supply-chain-resilience-with-grand-opening-of-advanced-manufacturing-facility-in-texas",
+      "sha256": "9b40c5ff6453b3976d7d1b3d6ac1f8b33dd64b2e934927558c2aeb451ae73d07",
+      "bytes": 301223,
+      "retrieved_at": 1791707032.5581708
+    }
+  }
+}

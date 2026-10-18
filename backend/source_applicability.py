@@ -4,9 +4,9 @@ from __future__ import annotations
 from mapping_fields import safe_mapping_dict, safe_text
 from data_freshness_market import is_taiwan_ticker
 
-_TW_ONLY = {"monthly_revenue", "institutional_trading", "chip_data", "alternative_data",
-            "social_sentiment", "taiwan_open_data", "official_disclosures", "company_ir", "twse_official", "twse_official_data"}
-_COMPANY_ONLY = {"financial_statements", "monthly_revenue", "twse_official", "twse_official_data",
+_TW_ONLY = {"monthly_revenue", "institutional_trading", "chip_data", "alternative_data", "annual_workforce",
+            "esg_occupational_safety", "social_sentiment", "taiwan_open_data", "official_disclosures", "company_ir", "twse_official", "twse_official_data"}
+_COMPANY_ONLY = {"financial_statements", "monthly_revenue", "annual_workforce", "esg_occupational_safety", "twse_official", "twse_official_data",
                  "pe_river_chart", "dynamic_peer_metrics", "peer_discovery", "earnings_call", "official_disclosures", "company_ir"}
 _FUND_TYPES = {"ETF", "MUTUALFUND"}
 

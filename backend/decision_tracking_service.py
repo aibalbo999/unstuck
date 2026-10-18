@@ -32,23 +32,11 @@ def latest_report_for_ticker(ticker: str, output_dir: str, *, sync_metadata: boo
 
 
 def latest_reports_for_ticker(ticker: str, output_dir: str, *, sync_metadata: bool = True) -> list[dict]:
-    ticker = str(ticker or "").strip().upper()
-    if not ticker:
-        return []
-    reports = report_history_service.list_reports(
-        page=1,
-        limit=20,
-        q=ticker.split(".", 1)[0],
-        pipeline="all",
-        recommendation="all",
-        data_trust="all",
-        include_versions=False,
-        output_dir=output_dir,
-        report_cache={},
-        sync_metadata=sync_metadata,
-    ).get("reports", [])
-    matched = [report for report in reports if _ticker_matches(report, ticker)]
-    return sorted(matched, key=lambda report: (PIPELINE_ORDER.get(report.get("pipeline_id"), 99), -float(report.get("timestamp") or 0)))
+    from tracking_latest_reports import select_latest_reports
+    return select_latest_reports(
+        ticker, output_dir, sync_metadata=sync_metadata,
+        pipeline_order=PIPELINE_ORDER, ticker_matches=_ticker_matches,
+    )
 
 
 def _sync_report_metadata_once(output_dir: str) -> None:

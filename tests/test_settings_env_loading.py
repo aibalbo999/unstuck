@@ -276,6 +276,9 @@ def test_operational_db_consumers_default_to_task_db(tmp_path):
         "DECISION_TRACKING_DB_PATH",
     )
     old_values = {key: os.environ.get(key) for key in keys}
+    # The rest of the suite retains references to these module instances.
+    module_names = ("config", "decision_tracking_store", "temporal_memory_service", "watchlist_store")
+    original_modules = {name: sys.modules.get(name) for name in module_names}
     for module_name in ("config", "decision_tracking_store", "temporal_memory_service", "watchlist_store"):
         sys.modules.pop(module_name, None)
     try:
@@ -300,6 +303,9 @@ def test_operational_db_consumers_default_to_task_db(tmp_path):
         for module_name in ("config", "decision_tracking_store", "temporal_memory_service", "watchlist_store"):
             sys.modules.pop(module_name, None)
         _reload_grouped_settings()
+        for name, original in original_modules.items():
+            if original is not None:
+                sys.modules[name] = original
 
 
 def test_load_local_env_does_not_reopen_unchanged_file(tmp_path, monkeypatch):

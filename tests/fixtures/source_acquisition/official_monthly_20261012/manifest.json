@@ -1,0 +1,29 @@
+{
+  "purpose": "original complete free official source fixtures; no provider cache seed or SLA acquisition",
+  "entries": [
+    {
+      "file": "listed.csv.gz",
+      "source_url": "https://mopsfin.twse.com.tw/opendata/t187ap05_L.csv",
+      "retrieved_at": 1791800860.619012,
+      "http_status": 200,
+      "sha256": "ecef258370a2dff90f87bfb81dd641086097c34876462b2f19d22d172249922c",
+      "bytes": 163059,
+      "row_count": 869,
+      "periods": [
+        "11509"
+      ]
+    },
+    {
+      "file": "otc.csv.gz",
+      "source_url": "https://mopsfin.twse.com.tw/opendata/t187ap05_O.csv",
+      "retrieved_at": 1791800916.5760589,
+      "http_status": 200,
+      "sha256": "d199bf746d648fa3730abde92b57edc42540ac0ea59cfade7635fe265da8877a",
+      "bytes": 141862,
+      "row_count": 761,
+      "periods": [
+        "11509"
+      ]
+    }
+  ]
+}

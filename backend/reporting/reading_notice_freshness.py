@@ -76,6 +76,9 @@ def label(freshness: dict) -> str:
     status = _status(dict.get(freshness, "status"), "unknown").lower()
     return {
         "current": "目前一致",
+        "saved_analysis_replay": "保存分析驗證重播",
+        "partial_analysis": "分析未完整／待有限復驗",
+        "saved_data_repair_validation": "保存資料修復驗證",
         "unknown": "無法判定",
         "unavailable": "無法判定",
         "not_recorded": "未記錄",

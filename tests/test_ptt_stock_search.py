@@ -74,6 +74,40 @@ def test_article_meta_missing_stale_or_future_not_promoted(runtime, stamp):
     assert events[-1]['outcome'] == 'valid_empty'
 
 
+def test_missing_article_metaline_requires_matching_index_date_and_platform_footer(runtime):
+    install, calls, events, failures = runtime
+    link = 'https://www.ptt.cc' + article_path()
+    body = (f'<div id="main-content">1. 標的：5314 世紀 -- '
+            f'※ 發信站: 批踢踢實業坊(ptt.cc), 來自: 127.0.0.1 '
+            f'※ 文章網址: {link}</div>')
+    search = search_html([(article_path(), '[標的] 5314 世紀')])
+    install([search, body])
+    rows = news_fetchers.fetch_ptt_stock_sentiment('5314')
+    assert len(rows) == 1
+    assert rows[0]['published_date'] == datetime.fromtimestamp(RECENT, NOW.tzinfo).isoformat()
+    assert events[-1]['details']['component_statuses']['article_1']['date_basis'] == 'ptt_url_index_article_footer'
+    assert not failures
+
+
+@pytest.mark.parametrize('change', ['index_date', 'footer_link', 'body_ticker'])
+def test_missing_article_metaline_never_guesses_from_single_signal(runtime, change):
+    install, calls, events, failures = runtime
+    link = 'https://www.ptt.cc' + article_path()
+    search = search_html([(article_path(), '[標的] 5314 世紀')])
+    body = (f'<div id="main-content">1. 標的：5314 世紀 -- '
+            f'※ 發信站: 批踢踢實業坊(ptt.cc), 來自: 127.0.0.1 '
+            f'※ 文章網址: {link}</div>')
+    if change == 'index_date':
+        search = search.replace('9/15', '9/14')
+    elif change == 'footer_link':
+        body = body.replace(link, 'https://www.ptt.cc/bbs/Stock/M.1234567890.A.ABC.html')
+    else:
+        body = body.replace('5314 世紀 --', '15314 unrelated --')
+    install([search, body])
+    assert news_fetchers.fetch_ptt_stock_sentiment('5314') == []
+    assert events[-1]['details']['rejected_reason_counts'] == {'unknown_date': 1}
+
+
 def test_at_most_five_same_host_articles_and_exact_stock_boundary(runtime):
     install, calls, events, failures = runtime
     listed = [('https://evil.example/bbs/Stock/M.1789443883.A.ABC.html', '5314 世紀'),

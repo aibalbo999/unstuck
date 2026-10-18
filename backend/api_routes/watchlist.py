@@ -4,11 +4,14 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from collections.abc import Callable
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from typing import Any
 
 from fastapi import APIRouter, HTTPException, Query, Request
+from fastapi.responses import JSONResponse
+
+from daily_read_timing import DailyReadTiming
 
 import market_screener
 import decision_tracking_service
@@ -119,6 +122,8 @@ class WatchlistRouteDeps:
     create_job: Callable[[str, str], str]
     find_active_job: Callable[[str, str], dict]
     require_mutation_authorized: Callable[[Request], None]
+    read_performance: Callable[[str], Awaitable[dict]] | None = None
+    read_quality_audit: Callable[[str], Awaitable[dict]] | None = None
 
 
 def create_watchlist_router(deps: WatchlistRouteDeps) -> APIRouter:
@@ -187,39 +192,55 @@ def create_watchlist_router(deps: WatchlistRouteDeps) -> APIRouter:
     ):
         return suggest_symbols(q, limit=limit)
 
+    from reporting.request_projection_reuse import with_projection_reuse
+
     @router.get("/daily-dashboard")
+    @with_projection_reuse
     async def get_daily_decision_dashboard():
-        output_dir = deps.get_output_dir()
-        reports, quality_audit_reports, watchlist, screener, performance, ops, notification_delivery = await asyncio.gather(
-            asyncio.to_thread(
-                report_history_service.list_reports,
-                page=1,
-                limit=20,
-                q="",
-                pipeline="all",
-                recommendation="all",
-                data_trust="all",
-                include_versions=False,
-                output_dir=output_dir,
-                report_cache={},
-            ),
-            asyncio.to_thread(_build_quality_audit_or_unavailable, output_dir),
-            asyncio.to_thread(watchlist_service.list_watchlist_with_report_alerts, output_dir, sync_metadata=False),
-            asyncio.to_thread(market_screener.list_auto_screener_watchlist, output_dir, limit=20, offset=0, sync_metadata=False),
-            asyncio.to_thread(decision_tracking_service.compute_tracking_performance_stats, output_dir),
-            asyncio.to_thread(job_observability.build_ops_dashboard_snapshot, completed_limit=200, telemetry_limit=5000),
-            asyncio.to_thread(get_delivery_audit_summary),
-        )
-        ops = {**(ops if isinstance(ops, dict) else {}), "notification_delivery": notification_delivery}
-        return build_daily_decision_dashboard(
-            reports=reports,
-            watchlist=watchlist,
-            screener=screener,
-            performance=performance,
-            free_mode=build_free_mode_contract(),
-            ops=ops,
-            quality_audit=quality_audit_reports,
-        )
+        async with DailyReadTiming() as timing:
+            output_dir = deps.get_output_dir()
+            quality = None
+            if deps.read_quality_audit is not None:
+                quality = await timing.await_read('quality', deps.read_quality_audit, output_dir)
+                if quality.get("read_unavailable") is True:
+                    # Reject before launching six additional CPU/I/O aggregates.
+                    return JSONResponse(quality, status_code=503)
+            async def quality_result():
+                return quality if quality is not None else await timing.thread_read('quality_fallback', _build_quality_audit_or_unavailable, output_dir)
+            timing.mark('fanout', 'start')
+            reports, quality_audit_reports, watchlist, screener, performance, ops, notification_delivery = await asyncio.gather(
+                timing.thread_read(
+                    'reports', report_history_service.list_reports,
+                    page=1,
+                    limit=20,
+                    q="",
+                    pipeline="all",
+                    recommendation="all",
+                    data_trust="all",
+                    include_versions=False,
+                    output_dir=output_dir,
+                    report_cache={},
+                ),
+                quality_result(),
+                timing.thread_read('watchlist', watchlist_service.list_watchlist_with_report_alerts, output_dir, sync_metadata=False),
+                timing.thread_read('screener', market_screener.list_auto_screener_watchlist, output_dir, limit=20, offset=0, sync_metadata=False),
+                timing.await_read('performance', deps.read_performance, output_dir) if deps.read_performance is not None else timing.thread_read('performance_fallback', decision_tracking_service.compute_tracking_performance_stats, output_dir),
+                timing.thread_read('ops', job_observability.build_ops_dashboard_snapshot, completed_limit=200, telemetry_limit=5000),
+                timing.thread_read('delivery', get_delivery_audit_summary),
+            )
+            timing.mark('fanout', 'end')
+            if quality_audit_reports.get("read_unavailable") is True:
+                return JSONResponse(quality_audit_reports, status_code=503)
+            ops = {**(ops if isinstance(ops, dict) else {}), "notification_delivery": notification_delivery}
+            return timing.sync_read('builder', build_daily_decision_dashboard,
+                reports=reports,
+                watchlist=watchlist,
+                screener=screener,
+                performance=performance,
+                free_mode=build_free_mode_contract(),
+                ops=ops,
+                quality_audit=quality_audit_reports,
+            )
 
     @router.get("/current-quality-summary")
     async def get_current_quality_summary():

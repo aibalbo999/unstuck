@@ -160,6 +160,7 @@ def test_report_quality_audit_counts_verified_reports_with_missing_quality_metad
         "scope": "all_indexed_reports",
         "selection_basis": "latest_per_ticker_pipeline",
         "audited_reports": 3,
+        "current_blocked_reports": [],
         "verified_snapshot_reports": 2,
         "snapshot_invalid_reports": 1,
         "snapshot_unverified_reports": 0,

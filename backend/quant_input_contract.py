@@ -77,6 +77,27 @@ def read_quant_inputs(data):
     }
     reasons = {metric: [invalid[field] for field in fields if field in invalid]
                for metric, fields in requirements.items()}
+    from data_fetch.financial_history_basis import (
+        project_financial_institution_histories, INSTITUTION_SCHEMAS,
+        project_insurer_standalone_histories, STANDALONE_SCHEMA,
+    )
+    statement = data.get("sector_specific_financials")
+    basis = safe_mapping_dict(data.get("financial_history_basis")) or {}
+    if ((safe_mapping_dict(statement)or{}).get('schema')=='ordinary_individual.v1'
+            or basis.get('statement_schema')=='ordinary_individual.v1'):
+        reasons['dcf'].append('ordinary_individual_group_basis_unverified')
+    if project_financial_institution_histories(statement, data.get("ticker") or "") is not None:
+        reasons["dcf"].append("financial_institution_fcf_not_normalized_for_dcf")
+    elif ((safe_mapping_dict(statement) or {}).get("schema") in INSTITUTION_SCHEMAS
+          or (basis.get("schema") == "financial_history_basis.v1"
+              and basis.get("statement_schema") in INSTITUTION_SCHEMAS)):
+        reasons["dcf"].append("financial_institution_basis_unverified")
+    if project_insurer_standalone_histories(statement, data.get("ticker") or "") is not None:
+        reasons["dcf"].append("insurer_standalone_fcf_not_normalized_for_dcf")
+    elif ((safe_mapping_dict(statement) or {}).get("schema") == STANDALONE_SCHEMA
+          or (basis.get("schema") == "financial_history_basis.v1"
+              and basis.get("statement_schema") == STANDALONE_SCHEMA)):
+        reasons["dcf"].append("insurer_standalone_basis_unverified")
     return facts, provenance, reasons
 
 

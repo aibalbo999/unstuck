@@ -425,10 +425,19 @@ def test_report_renderer_attaches_conformance_to_snapshot_metadata_and_final_art
         )
     )
 
-    assert bundle.metadata["report_conformance"]["status"] == "passed"
-    assert bundle.data_snapshot["report_conformance"]["status"] == "passed"
-    assert "Report conformance：passed" in bundle.html
-    assert "**Report conformance:** passed" in bundle.markdown
+    # No frozen input receipt exists in this synthetic fixture. The same
+    # evidence available to cold readers must warn before publication too.
+    from evidence_exit_gate import evaluate_report_evidence
+    from reporting.report_conformance_projection import project_report_conformance
+    current = evaluate_report_evidence(bundle.markdown, bundle.data_snapshot)
+    assert current == bundle.data_snapshot["evidence_exit_gate"]
+    assert bundle.data_snapshot["analysis_evidence"]["input_verification"] == "unknown"
+    assert bundle.metadata["report_conformance"]["status"] == "warning"
+    assert bundle.data_snapshot["report_conformance"]["status"] == "warning"
+    assert project_report_conformance(bundle.data_snapshot["report_conformance"], current,
+                                     bundle.data_snapshot["content_credibility"])["status"] == "warning"
+    assert "Report conformance：warning" in bundle.html
+    assert "**Report conformance:** warning" in bundle.markdown
 
 
 def test_report_renderer_does_not_persist_missing_request_pipeline_over_context(monkeypatch):

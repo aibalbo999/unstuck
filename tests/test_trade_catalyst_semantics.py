@@ -8,11 +8,19 @@ import pytest
 from structured_output_runtime import process_agent_response
 from trade_financial_risk import NEGATIVE_FCF_WARNING
 from trade_source_contract import bind_trade_payload
+from trade_catalyst_semantics import trade_semantic_issues
 
 
 def real_case():
     fixture = json.loads((Path(__file__).parent / "fixtures/trade_catalyst_6488_20260925.json").read_text())
-    return copy.deepcopy(fixture["payload"]), copy.deepcopy(fixture["context"])
+    payload, context = copy.deepcopy(fixture["payload"]), copy.deepcopy(fixture["context"])
+    # Bind legacy display levels to their exact cited values; this suite isolates
+    # observation/event/policy semantics, while the original fixture stays intact.
+    from trade_source_contract import resolve_reference
+    catalog = context['_trade_source_manifest']['catalog']
+    for level, refs in (('support_level', 'support_source_refs'), ('resistance_level', 'resistance_source_refs')):
+        payload[level] = str(resolve_reference(catalog, payload[refs][0]))
+    return payload, context
 
 
 def separated_case():
@@ -26,6 +34,24 @@ def separated_case():
         financial_risk_flags=[],
     )
     return payload, context
+
+
+def test_bullish_sma_claim_is_rejected_before_report_rendering():
+    payload = {"observed_signal": "短期均線呈多頭排列，5日均線144.8元、10日均線144.95元、20日均線142.55元"}
+    context = {"data": {"technical_indicators": {"sma_5": 144.8, "sma_10": 144.95, "sma_20": 142.55}}}
+    assert "bullish_sma_alignment_contradiction" in trade_semantic_issues(payload, context)
+    context["data"]["technical_indicators"]["sma_5"] = 145.8
+    payload["observed_signal"] = payload["observed_signal"].replace("144.8元", "145.8元")
+    assert "bullish_sma_alignment_contradiction" not in trade_semantic_issues(payload, context)
+
+
+def test_unverified_raw_fcf_cannot_enter_observed_signal():
+    payload, context = separated_case()
+    context["data"]["free_cash_flow_raw"] = -5_230_528_512
+    payload["observed_signal"] += "，且自由現金流為-5.2305十億新臺幣"
+    _, assessment = bind_trade_payload(payload, context)
+    assert assessment["status"] == "degraded"
+    assert "unverified_fcf_as_observed_claim" in assessment["reason_codes"]
 
 
 def test_real_6488_full_binding_separates_exact_legacy_policy_suffix():
@@ -91,13 +117,14 @@ def test_new_fields_cannot_bypass_claim_checks(field, value):
     "等待成交量有效放大超越20日均量，且股價穩守20日均線後再重新評估",
     "等待成交量有效放大，或股價帶量突破近期高點後再重新評估",
     "等待短線乖離收斂、5日均線未遭有效跌破，且外資轉為買超後再重新評估",
+    "等待成交量回升至 20 日均量（約 2,040 萬股）以上，且 MACD 柱狀體翻紅並站穩 114.0 元壓力位後再重新評估。",
 ])
 def test_coordinated_future_recheck_is_not_mistaken_for_observed_claim(condition):
     payload, context = separated_case()
     payload["core_catalyst"] = condition
     payload["recheck_condition"] = condition
     _, assessment = bind_trade_payload(payload, context)
-    assert assessment["status"] == "observation"
+    assert assessment["status"] == "observation", assessment
     assert "recheck_contains_actual_or_ambiguous_claim" not in assessment["reason_codes"]
     assert "core_catalyst_semantic_mismatch" not in assessment["reason_codes"]
 
@@ -105,6 +132,7 @@ def test_coordinated_future_recheck_is_not_mistaken_for_observed_claim(condition
 @pytest.mark.parametrize("condition", [
     "等待成交量放大，外資買超9999千股後再重新評估",
     "等待成交量放大，且外資已買超9999千股後再重新評估",
+    "等待成交量放大，且 外資已買超9999千股後再重新評估",
     "等待成交量放大；外資買超9999千股後再重新評估",
 ])
 def test_recheck_with_unmarked_or_asserted_fact_still_requires_proof(condition):

@@ -54,6 +54,23 @@ def build_html_chart_context(data: dict, parsed: dict, *, pipeline_id: str = "v1
         "peRiver": pe_river,
         "market": market_context["market_chart_data"],
     }
+    financial_history_chart_title = "年度營收與淨利（億元台幣）"
+    from data_fetch.financial_history_basis import financial_institution_history_metrics, prompt_history_basis
+    institution_metrics = financial_institution_history_metrics(data)
+    if institution_metrics:
+        net_revenue = chart_number_series(data["net_revenue_history"], scale=10)
+        chart_data.update(netRevenue=net_revenue, incomeSeries=net_revenue,
+                          incomeLabel="年度合併淨收益",
+                          netRevenueMargin=institution_metrics["net_income_to_net_revenue_pct_history"]["values"],
+                          netMarginLabel="母公司淨利／合併淨收益")
+        financial_history_chart_title = "年度合併淨收益與母公司淨利（億元台幣）"
+    elif prompt_history_basis(data).get('statement_schema')=='ordinary_individual.v1':
+        chart_data.update(incomeSeries=chart_data['revenue'],incomeLabel='年度個別營業收入',netIncomeLabel='個別本期損益',netMarginLabel='個別本期損益／個別營業收入')
+        financial_history_chart_title='年度個別營業收入與本期損益（億元台幣）'
+    elif prompt_history_basis(data).get("statement_schema") == "insurer_standalone.v1":
+        chart_data.update(incomeSeries=chart_data["revenue"], incomeLabel="保險業個別營業收入",
+                          netIncomeLabel="個別本期損益", netMarginLabel="個別本期損益／保險業營業收入")
+        financial_history_chart_title = "年度保險業個別營業收入與本期損益（億元台幣）"
     return {
         **market_context,
         "moat_scores": moat_scores,
@@ -64,6 +81,7 @@ def build_html_chart_context(data: dict, parsed: dict, *, pipeline_id: str = "v1
         "pe_river": pe_river,
         "pe_river_title": pe_river_title,
         "chart_data": chart_data,
+        "financial_history_chart_title": financial_history_chart_title,
         "current_price_numeric": current_price or 0,
         "metrics_html": build_metric_cards_html(data),
         "price_targets_html": build_price_target_cards_html(price_targets, data.get("current_price", 0)),

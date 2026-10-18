@@ -1,0 +1,29 @@
+{
+  "source_snapshot_sha256": "0ba26f2cf8cc1153371af2111e590e2c562209be44fae3578dcc55d9d1f27254",
+  "observed_failure_at": "2026-10-15T07:45:42.314981+00:00",
+  "component": {
+    "url": "https://mopsov.twse.com.tw/server-java/FileDownLoad",
+    "http_request_sent": true,
+    "cache_hit": false,
+    "request_method": "POST",
+    "request_body": "step=9&filePath=%2Fhome%2Fhtml%2Fnas%2FSTR%2F&fileName=640920260910E001.pdf&functionName=t100sb02_1",
+    "response_complete": false,
+    "http_status": 200,
+    "response_bytes": 753664,
+    "response_sha256": "de431688d7f6779874475e2510f7e532ee1e0a4cce79ac650a43aad90a369ad2",
+    "response_bytes_read": 753664,
+    "response_metadata": {
+      "http_status": null,
+      "effective_url": null,
+      "num_redirects": null,
+      "size_download": null,
+      "content_type": "application/pdf",
+      "content_length": null,
+      "method": null,
+      "proxy_used": null
+    },
+    "http_status_observed": true,
+    "error_kind": "timeout",
+    "request_sha256": "41cabfba9c952b2bfdf48404b4cfcaa35cf65bb846c6861b75558921ec13409e"
+  }
+}

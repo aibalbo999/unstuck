@@ -1,0 +1,132 @@
+{
+  "full_parts": {
+    "9e708b98162f8bf1474f0d1fac1731894bacc27061adbb31546bf8c33959d8f9": {
+      "filename": "9e708b98162f8bf1474f0d1fac1731894bacc27061adbb31546bf8c33959d8f9.gz",
+      "source_url": "https://mops.twse.com.tw/mops/api/t164sb03",
+      "bytes": 4378,
+      "sha256": "9e708b98162f8bf1474f0d1fac1731894bacc27061adbb31546bf8c33959d8f9",
+      "original_retrieved_at": 1791712245.126709
+    },
+    "6d1695de0f0234163792333a4cf07ef9316f01687ef1a0928fa6ddc9feecc7ba": {
+      "filename": "6d1695de0f0234163792333a4cf07ef9316f01687ef1a0928fa6ddc9feecc7ba.gz",
+      "source_url": "https://mops.twse.com.tw/mops/assets/t164sb03.js",
+      "bytes": 6549,
+      "sha256": "6d1695de0f0234163792333a4cf07ef9316f01687ef1a0928fa6ddc9feecc7ba",
+      "original_retrieved_at": 1791709714.206555
+    },
+    "5cc1331565cb63b493fc72bc1396fef3b4b37db346389881da48df02007a6981": {
+      "filename": "5cc1331565cb63b493fc72bc1396fef3b4b37db346389881da48df02007a6981.gz",
+      "source_url": "https://mops.twse.com.tw/mops/api/t164sb04",
+      "bytes": 3202,
+      "sha256": "5cc1331565cb63b493fc72bc1396fef3b4b37db346389881da48df02007a6981",
+      "original_retrieved_at": 1791712245.2069702
+    },
+    "fbfd5754dd2ce843cadd7a800e188fc84acda6ee61bfb64d5afd3a1ac9cfee23": {
+      "filename": "fbfd5754dd2ce843cadd7a800e188fc84acda6ee61bfb64d5afd3a1ac9cfee23.gz",
+      "source_url": "https://mops.twse.com.tw/mops/assets/t164sb04.js",
+      "bytes": 6507,
+      "sha256": "fbfd5754dd2ce843cadd7a800e188fc84acda6ee61bfb64d5afd3a1ac9cfee23",
+      "original_retrieved_at": 1791709714.234696
+    },
+    "afb9948c65cbc98f51d4d9f38c2826c1df53655d9065f6deee08e56013155cde": {
+      "filename": "afb9948c65cbc98f51d4d9f38c2826c1df53655d9065f6deee08e56013155cde.gz",
+      "source_url": "https://mops.twse.com.tw/mops/api/t164sb05",
+      "bytes": 4490,
+      "sha256": "afb9948c65cbc98f51d4d9f38c2826c1df53655d9065f6deee08e56013155cde",
+      "original_retrieved_at": 1791711017.360204
+    },
+    "4f2491487da3489f8cb5cb9acd95dd6ee73981ebbbb0c45e8df4c5e2bfc0b413": {
+      "filename": "4f2491487da3489f8cb5cb9acd95dd6ee73981ebbbb0c45e8df4c5e2bfc0b413.gz",
+      "source_url": "https://mops.twse.com.tw/mops/assets/t164sb05.js",
+      "bytes": 6480,
+      "sha256": "4f2491487da3489f8cb5cb9acd95dd6ee73981ebbbb0c45e8df4c5e2bfc0b413",
+      "original_retrieved_at": 1791709714.266504
+    },
+    "9da7d127497cd68d9e227b5d486cb4c4d14beda94d2f71b2f0e19006074846c1": {
+      "filename": "9da7d127497cd68d9e227b5d486cb4c4d14beda94d2f71b2f0e19006074846c1.gz",
+      "source_url": "https://mopsov.twse.com.tw/mops/web/ajax_t203sb01",
+      "bytes": 30786,
+      "sha256": "9da7d127497cd68d9e227b5d486cb4c4d14beda94d2f71b2f0e19006074846c1",
+      "original_retrieved_at": 1791711300.624279
+    },
+    "5214a08240619b8390e31ea819208f1792562fc56c765d2f1732873a33e7cdcc": {
+      "filename": "5214a08240619b8390e31ea819208f1792562fc56c765d2f1732873a33e7cdcc.gz",
+      "source_url": "https://mops.twse.com.tw/mops/api/t164sb03",
+      "bytes": 4441,
+      "sha256": "5214a08240619b8390e31ea819208f1792562fc56c765d2f1732873a33e7cdcc",
+      "original_retrieved_at": 1791712245.316013
+    },
+    "62f001b93a333a8c4bcbd5d0bf1fdde9f9bd891ed015a97046b0f3c5bd2d52f7": {
+      "filename": "62f001b93a333a8c4bcbd5d0bf1fdde9f9bd891ed015a97046b0f3c5bd2d52f7.gz",
+      "source_url": "https://mops.twse.com.tw/mops/api/t164sb04",
+      "bytes": 3132,
+      "sha256": "62f001b93a333a8c4bcbd5d0bf1fdde9f9bd891ed015a97046b0f3c5bd2d52f7",
+      "original_retrieved_at": 1791712245.475391
+    },
+    "40b816989222a0018336e3de29988e3f7a5f90e3cac934173bc0f3938757d2da": {
+      "filename": "40b816989222a0018336e3de29988e3f7a5f90e3cac934173bc0f3938757d2da.gz",
+      "source_url": "https://mops.twse.com.tw/mops/api/t164sb05",
+      "bytes": 4329,
+      "sha256": "40b816989222a0018336e3de29988e3f7a5f90e3cac934173bc0f3938757d2da",
+      "original_retrieved_at": 1791712244.9424798
+    },
+    "60879f1fc31c6590739d66dac6aa70ee358fcadf93949a0997e0017984a6238d": {
+      "filename": "60879f1fc31c6590739d66dac6aa70ee358fcadf93949a0997e0017984a6238d.gz",
+      "source_url": "https://mops.twse.com.tw/mops/api/t164sb03",
+      "bytes": 4433,
+      "sha256": "60879f1fc31c6590739d66dac6aa70ee358fcadf93949a0997e0017984a6238d",
+      "original_retrieved_at": 1791712245.573374
+    },
+    "d13ebce13c86a673e45ddd1fcb47a2a35a2e71463b58c5d8c3b82ff87a428e91": {
+      "filename": "d13ebce13c86a673e45ddd1fcb47a2a35a2e71463b58c5d8c3b82ff87a428e91.gz",
+      "source_url": "https://mops.twse.com.tw/mops/api/t164sb04",
+      "bytes": 3130,
+      "sha256": "d13ebce13c86a673e45ddd1fcb47a2a35a2e71463b58c5d8c3b82ff87a428e91",
+      "original_retrieved_at": 1791712245.675883
+    },
+    "eac65922534d5d38718f88eed0a33862ade5ba26e251a4390e546edd645557c7": {
+      "filename": "eac65922534d5d38718f88eed0a33862ade5ba26e251a4390e546edd645557c7.gz",
+      "source_url": "https://mops.twse.com.tw/mops/api/t164sb05",
+      "bytes": 4144,
+      "sha256": "eac65922534d5d38718f88eed0a33862ade5ba26e251a4390e546edd645557c7",
+      "original_retrieved_at": 1791712245.777195
+    },
+    "75a3e11084c7680a293921cdf153a4a73d21830a6a0fbc46d39cb1ce866005bf": {
+      "filename": "75a3e11084c7680a293921cdf153a4a73d21830a6a0fbc46d39cb1ce866005bf.gz",
+      "source_url": "https://mops.twse.com.tw/mops/api/t164sb03",
+      "bytes": 4295,
+      "sha256": "75a3e11084c7680a293921cdf153a4a73d21830a6a0fbc46d39cb1ce866005bf",
+      "original_retrieved_at": 1791712245.86349
+    },
+    "41e3734afffb7c0bd50835e2ff00c0303871c7a03cadabacbcb031ee9c8a9938": {
+      "filename": "41e3734afffb7c0bd50835e2ff00c0303871c7a03cadabacbcb031ee9c8a9938.gz",
+      "source_url": "https://mops.twse.com.tw/mops/api/t164sb04",
+      "bytes": 3139,
+      "sha256": "41e3734afffb7c0bd50835e2ff00c0303871c7a03cadabacbcb031ee9c8a9938",
+      "original_retrieved_at": 1791712245.957561
+    },
+    "df0b4b84d3fe501753565f313fbbe8ed38c7a22f64db65a99547290697a538f1": {
+      "filename": "df0b4b84d3fe501753565f313fbbe8ed38c7a22f64db65a99547290697a538f1.gz",
+      "source_url": "https://mops.twse.com.tw/mops/api/t164sb05",
+      "bytes": 4141,
+      "sha256": "df0b4b84d3fe501753565f313fbbe8ed38c7a22f64db65a99547290697a538f1",
+      "original_retrieved_at": 1791712246.0534499
+    }
+  },
+  "source_research_proof": "docs/evidence/source-acquisition/20261011/greatek2441-four-filings-five-complete-periods-native-research-v2.json",
+  "actual_published_filing_years": [
+    2022,
+    2023,
+    2024,
+    2025
+  ],
+  "explicit_fiscal_periods": [
+    2021,
+    2022,
+    2023,
+    2024,
+    2025
+  ],
+  "no_original2021C_filing_claimed": true,
+  "fully_saved_native_bodies": 16
+}

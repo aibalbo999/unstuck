@@ -1,0 +1,42 @@
+{
+  "snapshot_sha256": "1e044c5a2bad1174ff842978303464f1d441f4fdde5c6770971c7f61347e1b24",
+  "snapshot_path": "/Volumes/X10 Pro Mac/stock-agent/backend/output/2026-09/1623.TW/1623_TW_v3_report_20260929_092952.data.json",
+  "observed_record": {
+    "date": "2026-10-12T00:00:00+00:00",
+    "title": "大東電(1623) 個股概覽 | 個股 - 股市 - CMoney",
+    "summary": "",
+    "source": "CMoney",
+    "link": "https://www.cmoney.tw/finance/1623/f00025",
+    "source_type": "finmind_news",
+    "content_coverage": "headline_or_snippet",
+    "publication_date_precision": "day",
+    "publication_date_original": {
+      "finmind_date": "2026-10-12 09:46:49",
+      "timezone": "not_reported"
+    },
+    "finmind_news_receipt": {
+      "stock_id": "1623",
+      "query_date": "2026-10-12",
+      "row_index": 0,
+      "row_sha256": "aeb9e8f8cb0893dd93470a82a9ff4dcfc5cb6ee7db5c4026f316d0af7e82ed68",
+      "raw_http_receipt": {
+        "status": "archived",
+        "source_url": "https://api.finmindtrade.com/api/v4/data?dataset=TaiwanStockNews&data_id=1623&start_date=2026-10-12",
+        "retrieved_at": 1791877978.276693,
+        "http_status": 200,
+        "raw_response_sha256": "c273bf0570267947a53f0010aaa5127a6fcc10ed4200cc6ac86e1beb3dec1109",
+        "raw_response_path": "/Volumes/X10 Pro Mac/stock-agent/backend/cache/official-response-evidence/c273bf0570267947a53f0010aaa5127a6fcc10ed4200cc6ac86e1beb3dec1109.gz",
+        "raw_response_bytes": 458,
+        "evidence_kind": "raw_http_response_bytes",
+        "historical_point_in_time_verified": false,
+        "finality_guaranteed": false
+      }
+    },
+    "published_date": "2026-10-12T00:00:00+00:00",
+    "news_date_status": "recent",
+    "publisher": "CMoney",
+    "publisher_key": "cmoney",
+    "publisher_status": "reported"
+  },
+  "observation": "saved source_type finmind_news points to CMoney stock overview, not an article"
+}

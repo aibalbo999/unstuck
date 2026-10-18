@@ -19,7 +19,7 @@ def _frame(count=80, *, flat=False):
     closes = [100.0 if flat else 100.0 + i for i in range(count)]
     return pd.DataFrame(
         {"Open": closes, "High": [v + 2 for v in closes],
-         "Low": [v - 2 for v in closes], "Close": closes, "Volume": [1000.0] * count},
+         "Low": [v - 2 for v in closes], "Close": closes, "Adj Close": closes, "Volume": [1000.0] * count},
         index=pd.bdate_range(end="2026-09-04", periods=count),
     )
 
@@ -29,7 +29,8 @@ class HistoryStock:
         self.frame = frame
         self.calls = []
 
-    def history(self, period):
+    def history(self, period, *, auto_adjust=True, end=None):
+        assert auto_adjust is False
         self.calls.append(period)
         return self.frame
 
@@ -73,6 +74,7 @@ def test_same_5y_fetch_supplies_bounded_daily_history_and_keeps_legacy_ranges():
     assert daily["bars"][-1] == {"date": "2026-09-04", "open": 249.0, "high": 251.0,
                                  "low": 247.0, "close": 249.0, "volume": 1000.0}
     assert daily["availability"] == "available"
+    assert "auto_adjust=True" in daily["price_adjustment_basis"]
 
 
 def test_indicator_values_use_daily_samples_and_explicit_warmup():
@@ -132,7 +134,7 @@ def test_nullable_dataframe_cells_preserve_close_evidence_without_inventing_ohlc
 
 def test_daily_boundary_drops_future_and_invalid_prices_or_negative_volume():
     frame = _frame(60)
-    frame.loc[pd.Timestamp("2026-09-07")] = [999, 1000, 998, 999, 1000]
+    frame.loc[pd.Timestamp("2026-09-07")] = [999, 1000, 998, 999, 999, 1000]
     frame.iloc[0, frame.columns.get_loc("Close")] = float("inf")
     frame.iloc[1, frame.columns.get_loc("High")] = 1
     frame.iloc[2, frame.columns.get_loc("Volume")] = -1
@@ -145,7 +147,7 @@ def test_daily_boundary_drops_future_and_invalid_prices_or_negative_volume():
 
 def test_invalid_dataframe_date_is_excluded_without_losing_valid_history():
     frame = _frame(60)
-    frame.loc[pd.NaT] = [100, 102, 98, 100, 1000]
+    frame.loc[pd.NaT] = [100, 102, 98, 100, 100, 1000]
     daily = _bundle(frame)["daily_market_data"]
     assert daily["sample_count"] == 60
     assert daily["excluded_row_count"] == 1
@@ -153,7 +155,7 @@ def test_invalid_dataframe_date_is_excluded_without_losing_valid_history():
 
 def test_atr_uses_previous_close_for_gap_risk():
     frame = _frame(15, flat=True)
-    frame.iloc[-1] = [110, 112, 108, 110, 1000]
+    frame.iloc[-1] = [110, 112, 108, 110, 110, 1000]
     indicators = _bundle(frame)["technical_indicators"]
     assert indicators["atr_14"] == pytest.approx((13 * 4 + 12) / 14)
 

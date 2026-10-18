@@ -46,7 +46,15 @@ def test_cached_core_gets_documents_without_refetching_quote_or_news(monkeypatch
     assert result['recent_catalysts'] == []
     assert result['current_price'] == 100
     assert result['source_freshness']['official_disclosures']['fetched_at_epoch'] > 0
-    assert {row['source'] for row in result['source_audit']} == {'official_disclosures'}
+    # Merge summaries and cache observations are not provider acquisitions.
+    # Only the disclosure provider should perform an acquisition.
+    acquired = [row for row in result['source_audit']
+                if row.get('event_kind') != 'aggregate' and row.get('cache_hit') is not True]
+    assert {row['source'] for row in acquired} == {'official_disclosures'}
+    assert all(row.get('record_count') == 0 and
+               (row.get('event_kind') == 'aggregate' or row.get('cache_hit') is True)
+               for row in result['source_audit']
+               if row.get('source') != 'official_disclosures')
 
 
 def test_skip_optional_on_cached_core_never_fetches_documents(monkeypatch):

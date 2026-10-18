@@ -3,7 +3,7 @@ from mapping_fields import safe_mapping_dict, safe_text, safe_text_list
 from reporting.content_credibility_final_audit import evaluate_final_audit_alignment
 
 
-BLOCKING_STATUSES = {"blocked", "failed", "rejected"}
+BLOCKING_STATUSES = {"blocked", "failed", "rejected", "partial"}
 
 
 class ReportPublicationBlockedError(Exception):
@@ -16,6 +16,10 @@ def assert_report_publishable(payload):
     """Share the existing audit semantics; warnings/caution remain publishable."""
     value = safe_mapping_dict(payload) or {}
     issues = safe_text_list(value.get("blocking_issues"))
+    from memo_output_completion import incomplete_memo_notice
+    notice = incomplete_memo_notice(value)
+    if notice:
+        issues.append(notice)
     if safe_text(value.get("status")).strip().lower() in BLOCKING_STATUSES:
         issues.append("分析工作流仍有阻斷問題")
     audit = safe_mapping_dict(value.get("final_audit")) or {}

@@ -7,7 +7,9 @@ from provider_acquisition import get_provider_acquisition_summary
 
 def test_http_and_local_block_are_distinct_and_details_persist():
     common = {'source': 'search_upstream', 'provider': 'Brave', 'status': 'unavailable',
-              'record_count': 0, 'error_kind': 'rate_limited', 'http_status': 429, 'retry_at': 1900000000}
+              'record_count': 0, 'error_kind': 'rate_limited', 'http_status': 429, 'retry_at': 1900000000,
+              'result_quality_satisfied': True, 'result_publisher_count': 3,
+              'qualified_result_status': 'sufficient_qualified_results'}
     provider_sla.record_source_audit_entries([
         {**common, 'event_kind': 'http_attempt', 'http_request_sent': True, 'outcome': 'failure'},
         {**common, 'event_kind': 'local_block', 'http_request_sent': False, 'outcome': 'cooldown',
@@ -18,6 +20,9 @@ def test_http_and_local_block_are_distinct_and_details_persist():
     assert details[1]['retry_at'] == 1900000000
     assert details[1]['http_request_sent'] is False
     assert 'api_key' not in details[1]
+    assert details[0]['result_quality_satisfied'] is True
+    assert details[0]['result_publisher_count'] == 3
+    assert details[0]['qualified_result_status'] == 'sufficient_qualified_results'
     row = get_provider_acquisition_summary()['sources'][0]
     assert row['http_attempt_count'] == 1
     assert row['local_block_count'] == 1

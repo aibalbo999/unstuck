@@ -60,11 +60,16 @@ def build_indexed_report_quality_audit(output_dir: str, *, page_size: int = 100,
         rows.get("reports", []),
         storage,
         cache_namespace=f"latest_per_ticker_pipeline:{output_dir}",
+        project_current_quality=True,
     )
     _annotate_report_version_status(reports, _latest_report_filenames(rows.get("reports", [])))
     from report_quality_review_workflow import attach_quality_reviews
     attach_quality_reviews(reports, output_dir)
-    return attach_full_report_freshness_summary(build_report_quality_audit(reports, scope="all_indexed_reports", item_limit=item_limit, item_offset=item_offset), reports)
+    payload = attach_full_report_freshness_summary(build_report_quality_audit(reports, scope="all_indexed_reports", item_limit=item_limit, item_offset=item_offset), reports)
+    # Carry every status from this exact fresh audit; caution must not fall back
+    # to a different saved gate while only blocked reports receive projection.
+    payload["current_report_projections"] = [_candidate_quality_projection(report) for report in reports]
+    return payload
 
 
 def build_historical_indexed_report_quality_audit(
@@ -197,11 +202,11 @@ def list_indexed_report_quality_rows(
     }
 
 
-def _indexed_quality_reports(rows: list[dict[str, Any]], storage: Any) -> list[dict[str, Any]]:
+def _indexed_quality_reports(rows: list[dict[str, Any]], storage: Any, *, project_current_quality: bool = False) -> list[dict[str, Any]]:
     from report_quality_review_workflow import report_quality_revision
     reports = []
     for row in rows:
-        report = _report_from_index_row(row, storage, project_current_quality=False)
+        report = _report_from_index_row(row, storage, project_current_quality=project_current_quality)
         report["report_quality_revision"] = report_quality_revision(row)
         if quality_metadata_repair_item(report) is not None:
             artifact_cache: dict[tuple[str, str], Any] = {}
@@ -232,8 +237,11 @@ def _cached_indexed_quality_reports(
     storage: Any,
     *,
     cache_namespace: str,
+    project_current_quality: bool = False,
 ) -> list[dict[str, Any]]:
-    cache_key = (cache_namespace, _indexed_rows_fingerprint(rows))
+    # Current rules and stored historical metadata must never share cached rows.
+    projection_mode = "current_rules" if project_current_quality else "stored_metadata"
+    cache_key = (f"{cache_namespace}:{projection_mode}", _indexed_rows_fingerprint(rows))
     now = monotonic()
     with _REPORT_QUALITY_ROWS_CACHE_LOCK:
         cached = _REPORT_QUALITY_ROWS_CACHE.get(cache_key)
@@ -241,7 +249,7 @@ def _cached_indexed_quality_reports(
             _REPORT_QUALITY_ROWS_CACHE.move_to_end(cache_key)
             return cached[1]
 
-    reports = _indexed_quality_reports(rows, storage)
+    reports = _indexed_quality_reports(rows, storage, project_current_quality=project_current_quality)
     with _REPORT_QUALITY_ROWS_CACHE_LOCK:
         _REPORT_QUALITY_ROWS_CACHE[cache_key] = (monotonic(), reports)
         _REPORT_QUALITY_ROWS_CACHE.move_to_end(cache_key)
@@ -347,3 +355,9 @@ def _normalize_review_status_filter(value: Any) -> str:
 def _normalize_quality_field_filter(value: Any) -> str:
     normalized = safe_text(value).strip().lower()
     return normalized if normalized in QUALITY_METADATA_FIELDS else "all"
+
+
+def _candidate_quality_projection(report):
+    gate=report.get('evidence_exit_gate') or {}
+    return {'_quality_projection_basis':'current_rules_readonly',**{key:report.get(key) for key in ('ticker','filename','pipeline_id','report_date','content_credibility','report_conformance','decision_freshness')},
+            'evidence_exit_gate':{key:gate[key] for key in ('verdict','source_admission','technical_reasoning_checks','freshness_context') if key in gate}}

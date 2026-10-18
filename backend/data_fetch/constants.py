@@ -32,6 +32,8 @@ SOURCE_FRESHNESS_SOURCES = (
     "macro_indicators",
     "chip_data",
     "alternative_data",
+    "annual_workforce",
+    "esg_occupational_safety",
     "social_sentiment",
     "sec_edgar",
     "taiwan_open_data",

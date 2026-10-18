@@ -12,6 +12,7 @@ class FetchOptions:
     force_refresh: bool = False
     include_provider_results: bool = True
     record_provider_sla: bool = True
+    radar_refresh: bool = False
 
 
 @dataclass(frozen=True)

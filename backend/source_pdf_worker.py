@@ -41,7 +41,13 @@ def _limits(deadline):
 
 
 class _FailOnWarning(logging.Handler):
+    def __init__(self, qualification=None):
+        super().__init__()
+        self.qualification = qualification
+
     def emit(self, record):
+        if self.qualification is not None and self.qualification.accepts(record):
+            return
         # pypdf can otherwise swallow form/decompression errors and return a
         # plausible partial page. Do not publish that as complete extraction.
         raise _Failure('parser_warning')
@@ -60,8 +66,15 @@ def _extract(raw, deadline):
         raise _Failure('parser_unavailable') from None
     if pypdf.__version__ != PARSER_VERSION:
         raise _Failure('parser_version_mismatch')
+    from source_pdf_header_whitespace import HeaderWhitespaceQualification
+    qualification = HeaderWhitespaceQualification(raw)
+    class OriginalReader(pypdf.PdfReader):
+        def read_object_header(self, stream):
+            with qualification.header(stream):
+                return super().read_object_header(stream)
+
     logger = logging.getLogger('pypdf')
-    logger.handlers = [_FailOnWarning()]
+    logger.handlers = [_FailOnWarning(qualification)]
     logger.setLevel(logging.WARNING)
     logger.propagate = False
     configuration = pypdf.Configuration(
@@ -78,17 +91,32 @@ def _extract(raw, deadline):
     )
     try:
         with pypdf.apply_configuration(configuration):
-            document = pypdf.PdfReader(BytesIO(raw), strict=True)
+            document = OriginalReader(BytesIO(raw), strict=True)
             if document.is_encrypted:
                 raise _Failure('encrypted_pdf')
             if not 1 <= len(document.pages) <= PAGE_LIMIT:
                 raise _Failure('page_limit')
-            pages, empty, garbled = [], [], []
+            from source_pdf_symbols import normalize_verified_symbols
+            from source_pdf_delta_ligatures import qualify_embedded_ligatures
+            font_evidence = qualify_embedded_ligatures(document, hashlib.sha256(raw).hexdigest())
+            pages, empty, garbled, symbol_evidence = [], [], [], []
+            font_cache = {}
             chars = 0
             for number, page in enumerate(document.pages, 1):
                 if time.monotonic() >= deadline:
                     raise _Failure('timeout')
-                text = page.extract_text() or ''
+                fragments = []
+                fragment_chars = 0
+                def collect(fragment, cm, tm, font, size):
+                    nonlocal fragments, fragment_chars
+                    fragment_chars += len(fragment)
+                    if fragment_chars > CHAR_LIMIT:
+                        fragments = None
+                    elif fragments is not None:
+                        fragments.append((fragment, font))
+                text = page.extract_text(visitor_text=collect) or ''
+                text, mapped = normalize_verified_symbols(text, fragments, number, font_cache)
+                symbol_evidence.extend(mapped)
                 chars += len(text)
                 if chars > CHAR_LIMIT:
                     raise _Failure('character_limit')
@@ -101,9 +129,17 @@ def _extract(raw, deadline):
         raise _Failure('stream_limit') from None
     if len(empty) == len(pages):
         raise _Failure('empty_document')
-    return {'page_count': len(pages), 'pages': pages, 'empty_pages': empty,
+    result = {'page_count': len(pages), 'pages': pages, 'empty_pages': empty,
             'garbled_pages': garbled, 'coverage_status': 'partial' if empty or garbled else 'complete',
             'parser_version': pypdf.__version__, 'content_sha256': hashlib.sha256(raw).hexdigest()}
+    header_evidence = qualification.evidence()
+    if header_evidence is not None:
+        result['object_header_whitespace_evidence'] = header_evidence
+    if symbol_evidence:
+        result['symbol_mapping_evidence'] = symbol_evidence
+    if font_evidence:
+        result['native_font_mapping_evidence'] = font_evidence
+    return result
 
 
 def main():

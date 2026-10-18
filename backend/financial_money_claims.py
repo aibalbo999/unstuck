@@ -15,12 +15,15 @@ from output_sanitizer import strip_generated_audit_sections
 
 _NUMBER = r"[+-]?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?"
 _AMOUNT = re.compile(
-    r"(?P<metric>自由現金流|FCF|營業收入|營收|稅後淨利|淨利)"
-    r"(?P<link>(?:(?!自由現金流|FCF|營業收入|營收|稅後淨利|淨利)[^\d。；;，,\n]){0,35}?)"
+    r"(?P<metric>自由現金流|FCF|營業收入|營收|淨收益|本期損益|稅後淨利|淨利)"
+    r"(?P<link>(?:(?!自由現金流|FCF|營業收入|營收|淨收益|本期損益|稅後淨利|淨利)[^\d。；;，,\n]){0,35}?)"
     rf"(?P<number>{_NUMBER})\s*"
     r"(?P<unit>十億元?|billion|百萬元?|million|億元?|萬元?|B|元|TWD)"
     r"(?![A-Za-z])", re.I,
 )
+# Equity is admitted only for the fully replayed ordinary-individual contract;
+# existing schemas keep their original bounded monetary checker.
+_INDIVIDUAL_AMOUNT = re.compile(_AMOUNT.pattern.replace('稅後淨利|淨利','稅後淨利|淨利|權益總額|權益'),re.I)
 _PERIOD = re.compile(
     r"20\d{2}(?:[-/.]\d{1,2}(?:[-/.]\d{1,2})?)?\s*年?(?:\s*(?:\d{1,2}\s*月|Q[1-4]|第?[一二三四1-4]\s*季|[上下]半年))?"
     r"|\d{1,2}\s*月|Q[1-4]|第?[一二三四1-4]\s*季|[上下]半年|TTM|LTM|去年|今年|本季|上季|本月|上月",
@@ -34,6 +37,13 @@ _PARTIAL_YEAR = re.compile(r"前[一二三四五六七八九十0-9]+(?:個)?月|
 _ERROR_EXAMPLE = re.compile(r"錯誤示例|錯誤範例|誤寫|誤稱|錯寫|錯稱|不採用|不可採用|更正前")
 _SCALES = {'十億': 1e9, 'billion': 1e9, 'b': 1e9, '百萬': 1e6, 'million': 1e6,
            '億': 1e8, '萬': 1e4, '元': 1.0, 'twd': 1.0}
+
+_UNIT_DEFINITION = re.compile(r'\bBillion\s+TWD\s*[（(]\s*(?P<number>10)\s*億(?:台幣|新臺幣|元)\s*[)）]', re.I)
+
+
+def is_unit_definition_number(line, start, end):
+    """Only the exact 1-billion = 10-億 definition, never a company amount."""
+    return any(match.span('number') == (start, end) for match in _UNIT_DEFINITION.finditer(line))
 
 
 def _finite(value):
@@ -49,6 +59,16 @@ def _source(data: dict, metric: str, prefix: str):
     # Quote currency alone is not a financial reporting currency declaration.
     if str(data.get('financial_currency') or '').upper() not in {'TWD', 'NTD'}:
         return None
+    statement = data.get('sector_specific_financials')
+    insurer = isinstance(statement, dict) and statement.get('schema') == 'insurer_standalone.v1'
+    individual=isinstance(statement,dict)and statement.get('schema')=='ordinary_individual.v1'
+    if individual:
+        from data_fetch.financial_history_basis import prompt_history_basis
+        if prompt_history_basis(data).get('statement_schema')!='ordinary_individual.v1':return None
+    if insurer or metric == '本期損益' and not individual:
+        from data_fetch.financial_history_basis import prompt_history_basis
+        if prompt_history_basis(data).get('statement_schema') != 'insurer_standalone.v1':
+            return None
     periods = list(_PERIOD.finditer(prefix))
     if _PARTIAL_YEAR.search(prefix):
         return None
@@ -70,7 +90,16 @@ def _source(data: dict, metric: str, prefix: str):
             return None
     year = period.removesuffix('年')
     years = data.get('years')
-    field = 'revenue_history' if metric in {'營收', '營業收入'} else 'net_income_history'
+    if metric in {'權益總額','權益'}:
+        if not individual:return None
+        field='total_equity_history'
+    elif metric == '淨收益':
+        from data_fetch.financial_history_basis import prompt_history_basis, INSTITUTION_SCHEMAS
+        if prompt_history_basis(data).get('statement_schema') not in INSTITUTION_SCHEMAS:
+            return None
+        field = 'net_revenue_history'
+    else:
+        field = 'revenue_history' if metric in {'營收', '營業收入'} else 'net_income_history'
     values = data.get(field)
     if not isinstance(years, list) or not isinstance(values, list) or len(years) != len(values):
         return None
@@ -119,6 +148,28 @@ def _amount_matches(number: str, scale: float, expected: float, negative_word: b
     return True
 
 
+def _target_revenue_scope(data: dict, prefix: str, heading: str) -> bool:
+    """Only target or implicit own-company clauses can borrow its new FI facts."""
+    from source_content_selection import company_aliases
+    scope = _PERIOD.sub('', prefix)
+    explicit = bool(re.search(r'本公司|本集團|本行|本標的', scope))
+    ticker = re.fullmatch(r'(\d{4})\.TW(?:O)?', str(data.get('ticker') or ''))
+    if ticker:
+        code_pattern = r'(?<![0-9A-Za-z])' + ticker[1] + r'(?:\.TW(?:O)?)?(?![0-9A-Za-z])'
+        scope, matches = re.subn(code_pattern, '', scope, flags=re.I)
+        explicit = explicit or bool(matches)
+    for alias in sorted(company_aliases(data), key=len, reverse=True):
+        pattern = (re.escape(alias) if re.search(r'[\u3400-\u9fff]', alias)
+                   else r'(?<!\w)' + re.escape(alias) + r'(?!\w)')
+        scope, matches = re.subn(pattern, '', scope, flags=re.I)
+        explicit = explicit or bool(matches)
+    if re.search(r'同業|同儕|競爭(?:者|對手)|peer|competitor', heading, re.I) and not explicit:
+        return False
+    scope = re.sub(r'本公司|本集團|本行|本標的|根據|依據|按|資料|財報|年報|合併|集團|年度|全年|顯示|指出|公布|公告|實際|記錄|之|的|於|為|年', '', scope)
+    # Remaining entity/prose is ambiguous, never presumed to be our issuer.
+    return not re.sub(r'[\W_]+', '', scope)
+
+
 def financial_money_claim_issues(text: str, data: dict | None) -> list[str]:
     """Return source-bound repair diagnostics; never rewrite a candidate."""
     if not isinstance(data, dict):
@@ -126,7 +177,10 @@ def financial_money_claim_issues(text: str, data: dict | None) -> list[str]:
     clean = unicodedata.normalize('NFKC', strip_generated_audit_sections(text or '')).replace('−', '-')
     clean = re.sub(r'[*`]', '', clean)
     issues = []
-    for match in _AMOUNT.finditer(clean):
+    statement = data.get('sector_specific_financials')
+    insurer = isinstance(statement, dict) and statement.get('schema') == 'insurer_standalone.v1'
+    individual=isinstance(statement,dict)and statement.get('schema')=='ordinary_individual.v1'
+    for match in (_INDIVIDUAL_AMOUNT if individual else _AMOUNT).finditer(clean):
         start, end = match.span(); left, right = sentence_span(clean, start, end)
         prefix = clean[left:start]
         local_prefix = re.split(r'[，,、]|但是|然而|但', prefix)[-1]
@@ -143,8 +197,35 @@ def financial_money_claim_issues(text: str, data: dict | None) -> list[str]:
                 or _NON_ACTUAL.search(section_heading(clean, start))
                 or re.match(r'[」\"）)\s]*(?:是|為|屬於)?(?:假設|預估|預測|目標)', suffix)):
             continue
+        target_scope = None
+        if match['metric'] == '淨收益':
+            target_scope = _target_revenue_scope(data, local_prefix, section_heading(clean, start))
+            if not target_scope:
+                continue
         source = _source(data, match['metric'].upper(), prefix)
+        if individual and source is not None and re.search(r'合併|集團|母公司',local_prefix+match['link']):
+            issuer_prefix=re.sub(r'個別|合併|集團|母公司','',local_prefix)
+            if _target_revenue_scope(data,issuer_prefix,section_heading(clean,start)):
+                issues.append(f'一般業個別財報範圍紅線：{source[-1]} 原文「{claim}」使用合併、集團或母公司口徑；本次原件採個別本期損益及權益，未證明集團口徑。')
+                continue
+        if insurer and source is not None:
+            issuer_prefix = re.sub(r'個別|母公司', '', local_prefix)
+            if not _target_revenue_scope(data, issuer_prefix, section_heading(clean, start)):
+                continue
+            if re.search(r'合併|母公司', local_prefix + match['link']):
+                issues.append(
+                    f'保險業財報範圍紅線：{source[-1]} 原文「{claim}」使用合併或母公司口徑；'
+                    '本次原件逐年明示無子公司，採個別財報營業收入及本期損益。請保留個別範圍。')
+                continue
         if source is None:
+            if match['metric'] in {'營收', '營業收入'}:
+                typed_source = _source(data, '淨收益', prefix)
+                if (typed_source is not None
+                        and _target_revenue_scope(data, local_prefix, section_heading(clean, start))):
+                    issues.append(
+                        f'金融業科目口徑紅線：{typed_source[-1]} 原文「{claim}」稱為{match["metric"]}，'
+                        '本次已驗證序列採金融業獨立淨收益科目，未提供一般產業營收序列。'
+                        '請依 financial_history_basis 與原件科目重新生成，不得將淨收益改稱營業收入。')
             continue
         expected, path, original, unit, period = source
         name = match['unit'].lower()

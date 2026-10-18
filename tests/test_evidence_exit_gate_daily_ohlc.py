@@ -100,7 +100,10 @@ def test_dated_extreme_wording_does_not_reroute_non_price_claims():
     result = evaluate_report_evidence(
         "- 營收：210 億（2026-09-04 當日高點）。", snapshot, sample_ratio=1.0, min_sample=1,
     )
-    assert result["sampled_claims"][0]["matched_path"] == "data.revenue"
+    claim = result["sampled_claims"][0]
+    assert claim["status"] == "unverifiable"
+    assert claim["matched_path"] == ""
+    assert claim["verification_reason_code"] == "financial_period_currency_or_unit_unknown"
 
 
 def test_dated_volume_high_does_not_borrow_same_value_from_price_high():
@@ -119,8 +122,9 @@ def test_cash_flow_word_suffix_is_not_a_daily_low_price_label():
         "- Free Cash Flow：210（2026-09-04）。", snapshot, sample_ratio=1.0, min_sample=1,
     )
     claim = result["sampled_claims"][0]
-    assert claim["status"] == "mismatch"
-    assert claim["matched_path"] == "data.free_cash_flow"
+    assert claim["status"] == "unverifiable"
+    assert claim["matched_path"] == ""
+    assert claim["verification_reason_code"] == "financial_period_currency_or_unit_unknown"
 
 
 def test_dated_high_label_with_explicit_price_history_close_keeps_legacy_basis():

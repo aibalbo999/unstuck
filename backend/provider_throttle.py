@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import os
 import time
+from provider_quota_signals import is_finmind_sdk_request_quota
 
 
 class ProviderRateLimitOpenError(RuntimeError):
@@ -110,9 +111,14 @@ def _exception_status_code(exc: BaseException) -> int | None:
         return None
 
 
+def is_provider_rate_limit_error(exc: BaseException) -> bool:
+    # This semantic SDK signal is separate from the native HTTP status policy.
+    return (_exception_status_code(exc) in _restricted_status_codes()
+            or is_finmind_sdk_request_quota(exc))
+
+
 def mark_rate_limit_cooldown(provider: str, exc: BaseException) -> None:
-    status_code = _exception_status_code(exc)
-    if status_code not in _restricted_status_codes():
+    if not is_provider_rate_limit_error(exc):
         return
     cooldown_seconds = _rate_limit_cooldown_seconds(provider)
     if cooldown_seconds <= 0:

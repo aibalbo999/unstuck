@@ -173,6 +173,11 @@ def test_decision_tracking_lookup_skips_repeated_metadata_sync(monkeypatch, tmp_
 
     monkeypatch.setattr(decision_tracking_service.report_history_service, "list_reports", fake_list_reports)
 
+    import tracking_latest_reports
+    def raw_reports(**kwargs):
+        calls.append(kwargs)
+        return [], 0
+    monkeypatch.setattr(tracking_latest_reports, "query_report_metadata", raw_reports)
     result = decision_tracking_service.list_decision_tracking(str(tmp_path))
 
     assert result["enabled_count"] == 1
@@ -246,6 +251,11 @@ def test_decision_tracking_api_tracks_selected_tickers_and_refreshes_latest_pric
             )
 
     monkeypatch.setattr(api, "get_data_refresh_service", lambda _app: FakeRefreshService())
+    # Per-test database attributes are deliberately monkeypatched in this
+    # process. Inject a local reader; real worker isolation has separate tests.
+    async def local_tracking_reader(request):
+        return decision_tracking_service.list_decision_tracking(request[0], sync_metadata=False)
+    monkeypatch.setattr(api.tracking_reads, "read", local_tracking_reader)
     client = TestClient(api.app)
 
     empty = client.get("/api/decision-tracking")

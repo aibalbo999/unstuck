@@ -1,0 +1,7 @@
+{
+  "fixture_kind": "selected original public HTML sections; not full HTTP bytes or point-in-time history",
+  "original_url": "https://www.cmoney.tw/forum/article/185359540",
+  "reference_now": "2026-10-09T17:00:00+00:00",
+  "selected_html": "<html><head><meta content=\"營收呢？\" data-hid=\"og:title\" property=\"og:title\"/><meta content=\"2026-10-9T22:53:35+08:00\" data-hid=\"article:published_time\" property=\"article:published_time\"/><meta content=\"5314世紀*\" property=\"article:tag\"/></head><body><h2 class=\"articleTags__text text-dark-800 line-clamp\" data-v-5ebd5b09=\"\"><span class=\"stockTagLabel\" data-v-5ebd5b09=\"\" data-v-928dc60c=\"\">世紀*<span class=\"stockTagLabel__stance stockTagLabel__stance--bull\" data-v-928dc60c=\"\">看多</span></span></h2><pre class=\"textRule__text text-dark-800\" data-v-77d58788=\"\">還沒出來是有什麼心事嗎？</pre></body></html>",
+  "raw_receipt_path": "docs/evidence/source-acquisition/20261010/cmoney-5314-original-research-proof.json"
+}

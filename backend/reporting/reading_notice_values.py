@@ -56,6 +56,9 @@ def _status(value: Any, default: str = "") -> str:
 
 
 def _quality_state(context: dict, trust: dict) -> str:
+    from memo_output_completion import incomplete_memo_roles
+    if incomplete_memo_roles(context):
+        return "blocked"
     conformance = _gate(context, "report_conformance")
     evidence = _gate(context, "evidence_exit_gate")
     content = _gate(context, "content_credibility")
@@ -147,6 +150,8 @@ def build_report_reading_notice_values(context: dict) -> dict[str, Any]:
     if freshness_recorded and freshness.requires_rerun(freshness_values):
         freshness_detail = freshness.reason(freshness_values, context) or "資料快照與投資結論不同步，請使用完整重跑。"
         state_note = f"{state_note} {freshness_detail}"
+    elif freshness_recorded and _status(dict.get(freshness_values, "status")).lower() == "saved_analysis_replay":
+        state_note = f"{state_note} 這是保存分析驗證，不作為最新模型預測或績效樣本。"
     elif freshness_recorded and _status(dict.get(freshness_values, "status"), "unknown").lower() != "current":
         state_note = f"{state_note} 目前無法確認投資結論是否對應最新資料。"
     checks = [
@@ -161,6 +166,24 @@ def build_report_reading_notice_values(context: dict) -> dict[str, Any]:
     ])
     if integrity:
         checks.append(("資料快照完整性", snapshot_integrity_label(integrity)))
+    admission = _as_dict(evidence.get("source_admission"))
+    if admission:
+        from report_source_admission import admission_reason_label
+        reasons = [admission_reason_label(reason) for reason in (admission.get("blockers") or admission.get("source_warnings") or [])]
+        matched = all(_as_dict(admission.get(key)).get("eligible") is True for key in ("institutional", "price"))
+        checks.append(("最新來源核驗", "；".join(reasons) if reasons else "已核對保存官方原文，不保證後續不修正" if matched else "來源未完整核驗，不提供可執行建議"))
+        grid = _as_dict(admission.get("price_grid"))
+        levels = grid.get("checked_levels", [])
+        original = "；".join(f"{item.get('field')}={item.get('analysis_price')}" for item in levels if isinstance(item, dict))
+        checks.append(("原分析價參考", original or "商品類型或價位未確認，維持未知"))
+        proposal = _as_dict(admission.get("order_review_proposal"))
+        converted = _as_dict(proposal.get("proposed_levels"))
+        if converted:
+            changes = "；".join(f"{item.get('analysis_price')}→{item.get('proposed_price')}（tick {item.get('tick')}）" for item in proposal.get("conversions", []) if isinstance(item, dict) and item.get('analysis_price') != item.get('proposed_price'))
+            ratio = _as_dict(proposal.get("recomputed_execution")).get("worst_case_risk_reward")
+            checks.append(("換算候選價待審閱", "；".join(f"{key}={value}" for key, value in converted.items()) + f"；{changes or '未改值'}；換算後条件毛風險報酬={ratio}；未明確接受，不可下單，成本與成交未驗證"))
+        else:
+            checks.append(("換算候選價待審閱", "尚無可核驗換算，未知商品類型不以股票代碼猜測"))
     return {
         "state": state,
         "state_label": _STATE_LABELS[state],
