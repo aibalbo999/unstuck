@@ -1,5 +1,6 @@
 """Read-only evidence recovery; never changes financial facts or quality gates."""
 from collections import Counter
+from copy import deepcopy
 from datetime import date
 from functools import lru_cache
 import json
@@ -60,7 +61,7 @@ def _annual_detail(result, value, provider, scope):
     return dict(result, status='annual_originals_verified', period_start=year+'-01-01',
         period_end=year+'-12-31', currency='TWD', scope=scope,
         operating_cash_flow_twd=facts['operating_cash_flow'],
-        ppe_purchase_twd=facts['ppe_purchase' if scope == 'individual' else 'property_purchase'],
+        ppe_purchase_twd=facts['ppe_purchase' if 'ppe_purchase' in facts else 'property_purchase'],
         intangible_purchase_twd=facts['intangible_purchase'],
         free_cash_flow_twd=facts['free_cash_flow'], source=provider,
         reason='年度數字已由保存官方原件、單位契約與比較期間重算；不證明即期數值的所屬期間。')
@@ -72,6 +73,10 @@ def cash_flow_detail(data):
               'raw_scalar_currency': currency if isinstance(currency, str) and currency in {'TWD', 'USD'} else None,
               'raw_scalar_period_verified': False,
               'reason': '未保存可重新核對的完整年度現金流原件；即期數值的期間不能由年度數值推定。'}
+    from source_applicability import instrument_type
+    if instrument_type(data) in {'ETF', 'MUTUALFUND'}:
+        return dict(result, status='not_applicable',
+            reason='標的是 ETF／基金，不適用個別公司的營業現金流與一般企業 FCF 估值；這不是財報來源故障，原失敗紀錄與品質檢查仍保留。')
     schema = _map(data.get('financial_history_basis')).get('statement_schema')
     if schema:
         result['reason'] = '已保存金融業專用年度口徑；本補充檢查未將其改成一般企業現金流，金融業現金流也不直接等於可用於一般企業估值的股東現金流。' if schema != 'ordinary_individual.v1' else '已保存個別財報口徑；不轉換為集團合併財報或代填集團現金流。'
@@ -94,6 +99,27 @@ def cash_flow_detail(data):
             projected = None
         if projected is not None and all(projected.get(key) == data.get(key) for key in HISTORY_FIELDS):
             return _annual_detail(result, statement, PROVIDER, 'individual')
+    strict_financial_schemas = {'bank_consolidated.v1', 'financial_holding_consolidated.v2',
+                                'financial_holding_public_annual.v1', 'financial_holding_audited_annual.v1'}
+    if schema in strict_financial_schemas:
+        statement = _map(data.get('sector_specific_financials'))
+        try:
+            projected = project_source_value(deepcopy(statement), data.get('ticker'))
+        except (OSError, EOFError, AttributeError, ValueError, TypeError, zlib.error):
+            projected = None
+        fields = (*HISTORY_FIELDS, 'net_revenue_history')
+        if (data.get('financial_currency') == 'TWD' and projected is not None
+                and all(projected.get(key) == data.get(key) for key in fields)):
+            detail = _annual_detail(result, statement, statement.get('source_url'), 'consolidated')
+            complete = detail['intangible_purchase_twd'] is not None
+            detail.update(status='sector_annual_originals_verified' if complete else 'sector_annual_components_verified',
+                industrial_dcf_applicable=False, statement_schema=schema,
+                reason='金融業年度科目已按完整官方原件、單位及比較期重播；此算式不證明適用一般企業估值，也不證明即期欄位期間。' if complete else
+                '銀行官方原件已核對營業現金流及設備支出，但未明列無形資產支出；完整年度 FCF 仍未知，不補零或轉作一般企業估值。')
+            return detail
+        result['reason'] = '金融業原件、財報範圍或年度數列未通過重播核對；不以科目算式或舊雜湊取代完整官方原件。'
+    elif schema and schema != 'ordinary_individual.v1':
+        result['reason'] = '已保存金融業年度科目及原件雜湊，但此格式缺少可完整重播的原件憑據；不代表沒有財報，也不將金融業算式升格為一般企業估值現金流。'
     audits = data.get('source_audit')
     financial_rows = [row for row in audits if isinstance(row, dict)
                       and row.get('source') == 'financial_statements'] if isinstance(audits, list) else []
@@ -301,11 +327,14 @@ def institutional_detail(data, supplemental_reports=()):
     return result
 
 
-def evidence_gap_details(data, supplemental_reports=(), supplemental_volume=None, cash_flow_review=None):
+def evidence_gap_details(data, supplemental_reports=(), supplemental_volume=None, cash_flow_review=None, annual_cash_flow_review=None):
     data = _map(data)
     cash = cash_flow_detail(data)
     if cash_flow_review is not None:
         from report_fcf_period_evidence import cash_flow_period_reference
         cash['period_reference'] = cash_flow_period_reference(data, cash_flow_review)
+    if annual_cash_flow_review is not None:
+        from data_fetch.market_sources.official_annual_cash_flow import replay_reference
+        cash['annual_reference'] = replay_reference(data, annual_cash_flow_review)
     return {'cash_flow': cash, 'volume': volume_detail(data, supplemental_volume),
             'institutional': institutional_detail(data, supplemental_reports)}

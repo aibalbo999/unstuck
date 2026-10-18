@@ -310,11 +310,23 @@
     const gapDetails = observations.evidence_gaps || {};
     const cash = gapDetails.cash_flow || {};
     const money = value => Number.isFinite(value) ? value.toLocaleString('zh-TW', { maximumFractionDigits: 0 }) : '尚未核實';
-    if (cash.status === 'annual_originals_verified') {
+    if (cash.status === 'not_applicable') addLimit('不適用｜公司自由現金流', cash.reason || '基金不適用個別公司的自由現金流估值。');
+    if (['annual_originals_verified', 'sector_annual_originals_verified'].includes(cash.status)) {
         addLimit('已補核對｜年度自由現金流', `${cash.period_start} 至 ${cash.period_end}，${cash.scope === 'individual' ? '個別財報（非集團合併）' : '合併財報'}、新臺幣：營業現金流 ${money(cash.operating_cash_flow_twd)} 元，加設備支出 ${money(cash.ppe_purchase_twd)} 元、無形資產支出 ${money(cash.intangible_purchase_twd)} 元，得到年度自由現金流 ${money(cash.free_cash_flow_twd)} 元。支出採負號；由保存官方原件重算，不替換即期數字。原圖表與判斷仍依原分析版本，本次補充不代表已重跑。`);
+        if (cash.industrial_dcf_applicable === false) addLimit('使用限制｜金融業現金流', '金融業的資金流動與一般企業不同；年度科目與算式雖已核對，仍不等於可直接拿來估算股價的股東現金流。原估值限制與品質警示保留。');
+    } else if (cash.status === 'sector_annual_components_verified') {
+        addLimit('尚未確認｜銀行年度自由現金流', `${cash.period_start} 至 ${cash.period_end}，官方合併原件已核對營業現金流 ${money(cash.operating_cash_flow_twd)} 元、設備支出 ${money(cash.ppe_purchase_twd)} 元；未明列無形資產支出，無法核算完整年度自由現金流，不以零代填。金融業資料亦不直接用於一般企業估值，原警示保留。`);
     }
-    if (Number.isFinite(cash.raw_scalar)) {
-        addLimit('尚未確認｜即期自由現金流期間', `原即期數值 ${money(cash.raw_scalar)} ${cash.raw_scalar_currency === 'TWD' ? '新臺幣元' : cash.raw_scalar_currency === 'USD' ? '美元' : '（幣別待核對）'}仍保留；未核實所屬期間與完整支出，不能因年度數字已核對就視為同一期。${cash.status !== 'annual_originals_verified' ? cash.reason || '' : ''}`);
+    if (Number.isFinite(cash.raw_scalar) && cash.status !== 'not_applicable') {
+        addLimit('尚未確認｜即期自由現金流期間', `原即期數值 ${money(cash.raw_scalar)} ${cash.raw_scalar_currency === 'TWD' ? '新臺幣元' : cash.raw_scalar_currency === 'USD' ? '美元' : '（幣別待核對）'}仍保留；未核實所屬期間與完整支出，不能因年度數字已核對就視為同一期。${!['annual_originals_verified', 'sector_annual_originals_verified'].includes(cash.status) ? cash.reason || '' : ''}`);
+    } else if (cash.status === 'unverified') {
+        addLimit('尚未確認｜年度現金流原件', cash.reason || '原資料未保存可重播的官方現金流原件，不能代填數字。');
+    }
+    const annualReference = cash.annual_reference || {};
+    if (annualReference.status === 'official_annual_cash_flow_verified') {
+        addLimit('另列參考｜官方年度現金流', `${annualReference.period_start} 至 ${annualReference.period_end}，另取得官方${annualReference.scope === 'individual' ? '個別財報（非集團合併）' : '合併現金流量表'}（新臺幣）：營業現金流 ${money(annualReference.operating_cash_flow_twd)} 元，加設備支出 ${money(annualReference.ppe_purchase_twd)} 元、無形資產支出 ${money(annualReference.intangible_purchase_twd)} 元，得到年度自由現金流 ${money(annualReference.free_cash_flow_twd)} 元。支出採負號；取得時間 ${annualReference.acquired_at}。${annualReference.five_year_history_verified === true ? '另存個別原件可重播五年，但不改寫原報告序列，也不當作合併集團。' : '只補此年度，不代表五年財報已核實。'}亦不證明近十二個月或原即期數值的期間；原圖表、原值、分析與品質警示均保留。${annualReference.newer_individual_years?.length ? `官方索引另列較新的 ${annualReference.newer_individual_years.join('、')} 年個別財報，不能與本份合併參考混成同一期。` : ''}`);
+    } else if (cash.annual_reference) {
+        addLimit('尚未確認｜官方年度補充原件', annualReference.reason || '補充年度原件未通過核對，原值保留。');
     }
     const periodReference = cash.period_reference || {};
     if (periodReference.status === 'dated_series_original_replayed') {

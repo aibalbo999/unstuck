@@ -41,7 +41,7 @@ def reader_observations(snapshot: dict | None = None) -> dict:
                            for key in ('type', 'label', 'date', 'end_date', 'source')}
                           for event in events if isinstance(event, dict)][:30] if isinstance(events, list) else []
     return {'source_audit': rows, 'event_calendar': calendar,
-            'evidence_gaps': evidence_gap_details(data, snapshot.get('_reader_institutional_reports', ()), snapshot.get('_reader_volume_observation'), snapshot.get('_reader_cash_flow_review')) if data else {},
+            'evidence_gaps': evidence_gap_details(data, snapshot.get('_reader_institutional_reports', ()), snapshot.get('_reader_volume_observation'), snapshot.get('_reader_cash_flow_review'), snapshot.get('_reader_annual_cash_flow_review')) if data else {},
             'analysis_not_rerun': snapshot.get('refreshed_without_analysis_rerun') is True,
             'refreshed_at': snapshot.get('snapshot_refreshed_at') if isinstance(snapshot.get('snapshot_refreshed_at'), str) else ''}
 

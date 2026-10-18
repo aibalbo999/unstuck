@@ -35,6 +35,7 @@ def _reader_snapshot(storage: LocalFileStorage, filename: str):
             snapshot['_reader_institutional_reports'] = review['institutional_reports']
             snapshot['_reader_volume_observation'] = review.get('volume_observation')
             snapshot['_reader_cash_flow_review'] = review.get('cash_flow_period_review')
+            snapshot['_reader_annual_cash_flow_review'] = review.get('annual_cash_flow_review')
             snapshot['_reader_review_reference'] = reference
     return snapshot, data_key, content_hash
 
