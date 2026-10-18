@@ -184,6 +184,7 @@
 #preview-recommendation.is-buy {
     color: #22c55e;
 }
+.history-rec.is-neutral,
 .history-rec.is-hold,
 #preview-recommendation.is-hold {
     color: #f59e0b;

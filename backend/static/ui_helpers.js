@@ -20,12 +20,13 @@
     function pipelineModeLabel(pipelineId) { return pipelineMeta(pipelineId).displayLabel || pipelineMeta(pipelineId).label; }
     function pipelineCtaLabel(pipelineId) { return pipelineMeta(pipelineId).ctaLabel || `開始${pipelineMeta(pipelineId).codeLabel || '模式 A'}分析`; }
     function normalizeRecommendation(value) {
-        const text = String(value || 'N/A');
+        const text = String(value || 'N/A').trim();
         const lower = text.toLowerCase();
+        if (/^(?:觀望|中性|中立|偏多觀察|neutral\b|watch\b|wait\b)/i.test(text)) return '觀望';
         if (text.includes('強烈放空') || text.includes('放空') || text.includes('做空') || text.includes('空方') || ['short', 'strong short'].includes(lower)) return '放空';
         if (text.includes('買入') || text.includes('買進') || text.includes('強烈買入') || text.includes('加碼') || text.includes('增持') || ['buy', 'strong buy'].includes(lower)) return '買入';
         if (text.includes('避免') || text.includes('賣出') || text.includes('減碼') || text.includes('避險觀察') || ['avoid', 'sell', 'reduce'].includes(lower)) return '避免';
-        if (text.includes('持有') || text.includes('觀望') || text.includes('中立') || text.includes('中性') || text.includes('偏多觀察') || ['hold', 'neutral'].includes(lower)) return '持有';
+        if (text.includes('持有') || lower === 'hold') return '持有';
         return text;
     }
     function recommendationTone(value) {
@@ -33,6 +34,7 @@
         if (text === '買入') return 'is-buy';
         if (text === '放空') return 'is-short';
         if (text === '避免') return 'is-avoid';
+        if (text === '觀望') return 'is-neutral';
         return 'is-hold';
     }
     function escapeHtml(value) {

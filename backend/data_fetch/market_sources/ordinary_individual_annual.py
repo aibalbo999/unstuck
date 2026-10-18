@@ -21,6 +21,9 @@ from .mops_public_annual import PublicMopsHttp, _receipt, _fetch_public_annual_h
 SCHEMA='ordinary_individual.v1'
 PROVIDER='TWSE MOPS issuer annual statements'
 ISSUERS={'2646.TW':'星宇航空股份有限公司','2033.TW':'佳大世界股份有限公司'}
+# Short published series are admitted only to separate annual references, not
+# the canonical five-year source or its issuer routing.
+REFERENCE_ISSUERS={'1623.TW':'大東電業廠股份有限公司','7799.TW':'禾榮科技股份有限公司'}
 ISSUER_NAME_ALIASES={
     '2646.TW':frozenset({'星宇航空','星宇航空股份有限公司'}),
     '2033.TW':frozenset({'佳大','佳大世界','佳大世界股份有限公司'}),
@@ -129,9 +132,10 @@ def _investing_cashflow_reconciliation(root,contexts,units,year):
     if detail_total!=statement_total:return None
     return {'detail_sum_twd':detail_total,'statement_total_twd':statement_total,'detail_row_count':row_count}
 
-def parse_individual_filing(raw,issuer,filing_year):
+def parse_individual_filing(raw,issuer,filing_year,*,reference_only=False):
+    admitted={**ISSUERS,**REFERENCE_ISSUERS}if reference_only else ISSUERS
     if (not isinstance(raw,bytes)or not 0<len(raw)<=MAX_BYTES or b'<!DOCTYPE'in raw.upper()or b'<!ENTITY'in raw.upper()
-            or issuer+'.TW'not in ISSUERS or type(filing_year)is not int or not 2013<=filing_year<date.today().year):
+            or issuer+'.TW'not in admitted or type(filing_year)is not int or not 2013<=filing_year<date.today().year):
         raise FilingError('individual filing identity or body invalid')
     try:root=ET.fromstring(raw)
     except ET.ParseError as exc:raise FilingError('individual filing is not complete XML')from exc
@@ -147,8 +151,10 @@ def parse_individual_filing(raw,issuer,filing_year):
         if not key or key in units:raise FilingError('duplicate individual unit')
         units[key]=n.findtext(XBRLI+'measure')
     duration=('duration',f'{filing_year}-01-01',f'{filing_year}-12-31')
-    for tag,expected in {'CompanyID':issuer,'CompanyChineseName':ISSUERS[issuer+'.TW'],'Year':str(filing_year),'Quarter':'4',
-                         'ReportCategory':'Individual report','ReportType':'Financial report (general)',
+    report_type=('Financial report (first time adoption)'if reference_only and issuer=='7799'and filing_year==2023
+                 else'Financial report (general)')
+    for tag,expected in {'CompanyID':issuer,'CompanyChineseName':admitted[issuer+'.TW'],'Year':str(filing_year),'Quarter':'4',
+                         'ReportCategory':'Individual report','ReportType':report_type,
                          'IndustrySector':'Commercial and industrial'}.items():
         matches=[n for n in root.iter(IX+'nonNumeric')if n.get('name')=='tifrs-notes:'+tag]
         if len(matches)!=1 or contexts.get(matches[0].get('contextRef'))!=duration or ''.join(matches[0].itertext()).strip()!=expected:

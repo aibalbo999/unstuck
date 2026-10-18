@@ -61,7 +61,7 @@
             helpers.renderMetrics(elements.decisionRow, decisionMetrics, 'preview-decision', options.escapeHtml);
             helpers.renderMetrics(elements.targets, preview.targets, '', options.escapeHtml);
             elements.summary.textContent = preview.summary || rec.summary || helpers.FALLBACK_SUMMARY;
-            trackingHelpers.renderTracking(report.decision_tracking, elements);
+            trackingHelpers.renderTracking(report.decision_tracking, elements, preview);
             if (window.StockAgentTemporalMemoryPanel) {
                 window.StockAgentTemporalMemoryPanel.render(report.temporal_memory, elements.temporalMemoryRoot, options.escapeHtml);
             }

@@ -62,17 +62,24 @@
         if (value?.matches('.metric-value')) return text(query('.metric-label', value.parentElement));
         if (value?.matches('.trade-catalyst p')) return text(query('.trade-catalyst-label', value.parentElement));
         if (parent?.closest('.verdict-main')) return mode === 'event-swing' ? '交易方向' : '研究評級';
+        // Markdown may split each field label and value across inline elements.
+        for (const current of [node, parent]) {
+            let previous = current?.previousSibling;
+            while (previous?.nodeType === Node.TEXT_NODE && /^[\s：:]*$/.test(previous.textContent)) previous = previous.previousSibling;
+            if (previous?.nodeType === Node.ELEMENT_NODE && previous.matches('strong,b')) return text(previous);
+        }
         return text(parent?.closest('p,li')?.querySelector('strong'));
     };
     const shortObservation = () => /^(?:Neutral|中性(?:\s+Neutral)?|觀望（暫不建立新交易）)$/i.test(decisionRows.get('交易方向') || '');
     const fieldValue = (value, label = '') => {
         const key = label.replace(/[\s:：🛑]/g, '');
+        if (value.trim() === '尚未提供（原報告未填此項，未記錄缺漏原因）') value = 'N/A';
         const direction = /^(?:交易方向|短線研究方向)$/.test(key);
         if (mode === 'event-swing' && direction && /^(?:Neutral|中性(?:\s+Neutral)?)$/i.test(value.trim())) return '觀望（暫不建立新交易）';
         if (/^(?:研究評級|最終建議|空方結論|建議|研究結論)$/.test(key) && /^(?:Neutral|中性(?:\s+Neutral)?)$/i.test(value.trim())) return '觀望（研究尚未形成明確買賣傾向）';
-        if (/^資料不足[，：；]/.test(value.trim())) return value.replace('資料不足', '尚未確認');
-        if (/^未提供[，：；]/.test(value.trim())) return value.replace('未提供', '尚未提供');
-        if (/^(?:未評估|未驗證|未確認|未估計)[，：；]/.test(value.trim())) return value.replace(/未評估|未驗證|未確認|未估計/, '尚未確認');
+        if (/^資料不足[，：；（(]/.test(value.trim())) return value.replace('資料不足', '尚未確認');
+        if (/^未提供[，：；（(]/.test(value.trim())) return value.replace('未提供', '尚未提供');
+        if (/^(?:未評估|未驗證|未確認|未估計)[，：；（(]/.test(value.trim())) return value.replace(/未評估|未驗證|未確認|未估計/, '尚未確認');
         if (!missing(value)) return value;
         const price = /^(?:進場區間|進場價|1[-–]2週目標(?:價)?|目標價|嚴格停損|停損點|停損價|停損條件|每股來回成本|風險報酬)$/.test(key);
         if (mode === 'event-swing' && shortObservation() && /成本/.test(key)) return '不適用（觀望中，暫不估算新交易的執行成本）';
@@ -85,6 +92,34 @@
         if (/成本/.test(key)) return '尚未提供（原報告未列出完整費率或交易成本估計，不以零代替）';
         if (/未評估|未驗證|未確認|未估計/.test(value)) return '尚未確認（原報告未完成此項核實，不能視為已確認結果）';
         return '尚未提供（原報告未填此項，未記錄缺漏原因）';
+    };
+    const narrativeFields = (value, field = '') => {
+        // Only named fields, not market/technical uses of "neutral" or numbers.
+        let result = value.replace(/(交易方向|短線研究方向|交易計畫)(\s*(?:為|是|[：:])\s*[「『“"']?)(Neutral|中性(?:\s+Neutral)?)(?=\s*(?:[」』”"'，,。；;！!？?\n]|$))/gi,
+            (raw, label, separator, direction) => mode === 'event-swing' ? label + separator + fieldValue(direction, '交易方向') : raw);
+        if (mode === 'event-swing') {
+            const directionField = /^(?:交易方向|短線研究方向)/.test(field.trim());
+            if (directionField) result = result.replace(/(目前方向\s*(?:為|是|[：:])\s*)(Neutral|中性(?:\s+Neutral)?)(?=\s*(?:[，,。；;（(]|$))/gi,
+                (_, prefix, direction) => prefix + fieldValue(direction, '交易方向'));
+            const returnToObservation = directionField ? /(回到\s*)(Neutral|中性(?:\s+Neutral)?)(?=\s*(?:[，,。；;（(]|$))/gi : /((?:結論(?:需)?|取消交易或)回到\s*)(Neutral|中性(?:\s+Neutral)?)(?=\s*(?:[，,。；;（(]|$))/gi;
+            result = result.replace(returnToObservation, (_, prefix, direction) => prefix + fieldValue(direction, '交易方向'));
+            if (shortObservation() && missing(decisionRows.get('進場區間') || '')) {
+                if (result.trim() === '進場區間仍有效') result = result.replace('進場區間仍有效', '進場區間（觀望中，暫不設定）');
+                result = result.replace(/只在\s*N\/?A\s*附近等待(?:觸發)?/gi, () => fieldValue('N/A', '進場區間'));
+            }
+        }
+        result = result.replace(/(^|[，,。；;：:\n]\s*)(進場區間|進場價|1[-–]2\s*週目標(?:價)?|目標價|目標|嚴格停損|停損點|停損價|停損條件|停損|每股來回成本|風險報酬)(\s*(?:為|是|[：:])?\s*[「『“"']?)(尚未提供（原報告未填此項，未記錄缺漏原因）|N\/?A|資料不足|未提供|未評估|尚未評估|未驗證|未估計|未確認|--)(?=\s*(?:[」』”"'，,。；;！!？?\n]|（(?:即時|盤中\/收盤|每日收盤後|事件前後)）|$))/gi,
+            (raw, boundary, label, separator, missingValue, offset, input) => {
+                if (label === '目標' && (mode !== 'event-swing' || !/交易計畫|交易方向|進場區間|嚴格停損/.test(value))) return raw;
+                const key = label === '目標' ? '目標價' : label === '停損' ? '停損價' : label;
+                const following = input.slice(offset + raw.length).match(/^\s*([，,；;])\s*(.+)/);
+                if (/^(?:資料不足|未提供|未評估|未驗證|未估計|未確認)$/.test(missingValue) && following && !/^(?:進場|目標|1[-–]2\s*週目標|嚴格停損|停損|每股來回成本|風險報酬)/.test(following[2])) {
+                    const category = fieldValue(missingValue + '，', key).slice(0, -1);
+                    return boundary + label + separator + category;
+                }
+                return boundary + label + separator + fieldValue(missingValue, key);
+            });
+        return result;
     };
     const labels = new Map([
         ['品質 gate 尚未記錄', '報告檢查紀錄不完整'], ['品質 gate 有警示', '報告有待確認事項'],
@@ -120,9 +155,20 @@
         WACC: '平均資金成本', RSI: '相對強弱指標', MACD: '趨勢動能指標',
         ATR: '平均價格波動幅度', Beta: '相對大盤波動程度', CapEx: '資本支出',
     };
+    const compoundPlaceholder = value => value.replace(/(?<![\w/])N\/?A\s*(?:（([^（）()\n]+)）|\(([^（）()\n]+)\))/gi, (raw, wide, ascii) => {
+        const savedReason = (wide || ascii).trim();
+        const classified = savedReason.match(/^(不適用|來源異常|尚未提供|未提供|尚未確認|未確認|資料不足|未評估|未驗證|未估計)\s*[；;：:，,]\s*(.+)$/);
+        // A schedule annotation such as N/A（即時） is not a recorded cause.
+        if (!classified && savedReason !== '本次未重新估計') return raw;
+        const prefix = classified?.[1];
+        const category = prefix === '來源異常' ? '來源異常' : prefix === '不適用' ? '不適用' : /^(?:尚)?未提供$/.test(prefix || '') ? '尚未提供' : '尚未確認';
+        return `${category}（${classified ? classified[2] : savedReason}）`;
+    });
     const plain = (value, label = '') => {
+        value = compoundPlaceholder(value);
+        value = narrativeFields(value, label);
         // Older Markdown often keeps a field and its value in one bold node.
-        const pair = value.match(/^(\s*(?:交易方向|短線研究方向|研究評級|最終建議|空方結論|研究結論|建議|進場區間|1[-–]2\s*週目標(?:價)?|嚴格停損|(?:🛑\s*)?停損點|停損條件|支撐位|壓力位|事件催化|核心催化劑|整體護城河|基本情境估值|風險報酬|信心指數|部位大小|同期間目標|每股來回成本|防軋空停損|下行目標|做空觸發)\s*[：:]\s*)(.+)$/);
+        const pair = value.match(/^(\s*(?:交易方向|短線研究方向|研究評級|最終建議|空方結論|研究結論|建議|進場區間|進場價|目標價|1[-–]2\s*週目標(?:價)?|嚴格停損|(?:🛑\s*)?停損點|停損價|停損條件|支撐位|壓力位|事件催化|核心催化劑|整體護城河|基本情境估值|風險報酬|信心指數|部位大小|同期間目標|每股來回成本|防軋空停損|下行目標|做空觸發)\s*[：:]\s*)(.+)$/);
         const separator = label && value.match(/^(\s*[：:]\s*)(.+)$/);
         let result = pair ? pair[1] + fieldValue(pair[2], pair[1]) : separator ? separator[1] + fieldValue(separator[2], label) : fieldValue(value, label);
         for (const [from, to] of labels) {
@@ -324,7 +370,12 @@
     }
     const annualReference = cash.annual_reference || {};
     if (annualReference.status === 'official_annual_cash_flow_verified') {
-        addLimit('另列參考｜官方年度現金流', `${annualReference.period_start} 至 ${annualReference.period_end}，另取得官方${annualReference.scope === 'individual' ? '個別財報（非集團合併）' : '合併現金流量表'}（新臺幣）：營業現金流 ${money(annualReference.operating_cash_flow_twd)} 元，加設備支出 ${money(annualReference.ppe_purchase_twd)} 元、無形資產支出 ${money(annualReference.intangible_purchase_twd)} 元，得到年度自由現金流 ${money(annualReference.free_cash_flow_twd)} 元。支出採負號；取得時間 ${annualReference.acquired_at}。${annualReference.five_year_history_verified === true ? '另存個別原件可重播五年，但不改寫原報告序列，也不當作合併集團。' : '只補此年度，不代表五年財報已核實。'}亦不證明近十二個月或原即期數值的期間；原圖表、原值、分析與品質警示均保留。${annualReference.newer_individual_years?.length ? `官方索引另列較新的 ${annualReference.newer_individual_years.join('、')} 年個別財報，不能與本份合併參考混成同一期。` : ''}`);
+        const financial = annualReference.statement_taxonomy && annualReference.statement_taxonomy !== 'ordinary_individual';
+        const history = annualReference.five_year_history_verified === true
+            ? financial ? '另存五年金融業原件可重播，但不改寫原報告序列，也不證明可用一般企業方法估值。' : '另存個別原件可重播五年，但不改寫原報告序列，也不當作合併集團。'
+            : '僅另列年度參考，不代表五年財報已核實。';
+        addLimit('另列參考｜官方年度現金流', `${annualReference.period_start} 至 ${annualReference.period_end}，另取得官方${annualReference.scope === 'individual' ? '個別財報（非集團合併）' : '合併現金流量表'}（新臺幣）：營業現金流 ${money(annualReference.operating_cash_flow_twd)} 元，加設備支出 ${money(annualReference.ppe_purchase_twd)} 元、無形資產支出 ${money(annualReference.intangible_purchase_twd)} 元，得到年度自由現金流 ${money(annualReference.free_cash_flow_twd)} 元。支出採負號；取得時間 ${annualReference.acquired_at}。${history}亦不證明近十二個月或原即期數值的期間；原圖表、原值、分析與品質警示均保留。${annualReference.newer_individual_years?.length ? `官方索引另列較新的 ${annualReference.newer_individual_years.join('、')} 年個別財報，不能與本份合併參考混成同一期。` : ''}`);
+        if (annualReference.statement_taxonomy && annualReference.reason) addLimit('核對範圍｜官方年度原件', annualReference.reason.replace(/\bDCF\b/g, '現金流折現估值'));
     } else if (cash.annual_reference) {
         addLimit('尚未確認｜官方年度補充原件', annualReference.reason || '補充年度原件未通過核對，原值保留。');
     }

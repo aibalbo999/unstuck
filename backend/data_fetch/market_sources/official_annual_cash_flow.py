@@ -31,6 +31,9 @@ def replay_reference(data, review):
                 or data.get('financial_currency') != 'TWD' or type(year) is not int
                 or not 2013 <= year < datetime.now(ZoneInfo('Asia/Taipei')).year):
             raise ValueError('Annual reference identity or period not verified')
+        if 'annual_filing_reference' in review:
+            from .annual_filing_reference import cash_flow_reference
+            return cash_flow_reference(data, review)
         if 'individual_history' in review:
             from .ordinary_individual_annual import project_individual_history
             value = review['individual_history']

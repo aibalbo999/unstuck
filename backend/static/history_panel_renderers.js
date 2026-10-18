@@ -40,7 +40,9 @@
         }
         function swingMetricCell(item) {
             const title = `${item?.label || '短線'} ${item?.value || 'N/A'}`;
-            return `<span class="tracking-target-cell tracking-target-chip is-swing" title="${escapeHtml(title)}"><span class="tracking-target-period">${escapeHtml(item?.label || '短線')}</span><strong class="tracking-target-value">${escapeHtml(item?.value || 'N/A')}</strong><span class="tracking-target-label">短線</span></span>`;
+            const categories = { not_applicable: '不適用', not_provided: '尚未提供', unconfirmed: '尚未確認', source_error: '來源異常' };
+            const value = categories[item?.missing_category] || item?.value || 'N/A';
+            return `<span class="tracking-target-cell tracking-target-chip is-swing" title="${escapeHtml(title)}"><span class="tracking-target-period">${escapeHtml(item?.label || '短線')}</span><strong class="tracking-target-value">${escapeHtml(value)}</strong><span class="tracking-target-label">短線</span></span>`;
         }
         function swingMetricGrid(report) {
             const items = swingMetricItems(report);
@@ -60,8 +62,8 @@
             const tracking = report.decision_tracking || {};
             const pipelineLabel = helpers.trackingPipelineLabel(report);
             const swingTrade = isSwingTradeReport(report);
-            const primaryValue = swingTrade ? previewPrimaryValue(report) : (tracking.recommendation || report.recommendation?.recommendation);
-            const primaryTone = swingTrade ? previewPrimaryTone(report) : recommendationTone(primaryValue);
+            const primaryValue = previewPrimaryValue(report) || tracking.recommendation;
+            const primaryTone = previewPrimaryTone(report);
             const statusText = swingTrade ? swingStatusText(report) : (tracking.tracking_summary_status || helpers.formatPct(tracking.return_pct));
             const trackingStatusClass = trackingCompact ? `tracking-compact-note ${helpers.trackingSummaryTone(tracking)}` : helpers.trackingTone(tracking);
             const targetGrid = swingTrade ? swingMetricGrid(report) : `<div class="tracking-target-grid">${helpers.targetComparisonCell(tracking, 'target_3m', escapeHtml)}${helpers.targetComparisonCell(tracking, 'target_6m', escapeHtml)}${helpers.targetComparisonCell(tracking, 'target_12m', escapeHtml)}</div>`;

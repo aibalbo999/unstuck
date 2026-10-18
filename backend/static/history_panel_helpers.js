@@ -1,12 +1,16 @@
 (function () {
+    function finiteNumber(value) {
+        if (typeof value !== 'number' && (typeof value !== 'string' || !value.trim())) return NaN;
+        return Number(value);
+    }
     function formatPct(value) {
-        const number = Number(value);
-        if (!Number.isFinite(number)) return 'N/A';
+        const number = finiteNumber(value);
+        if (!Number.isFinite(number)) return '尚未確認';
         return `${number > 0 ? '+' : ''}${number.toFixed(2)}%`;
     }
     function formatNumber(value) {
-        const number = Number(value);
-        if (!Number.isFinite(number)) return 'N/A';
+        const number = finiteNumber(value);
+        if (!Number.isFinite(number)) return '尚未確認';
         return number.toLocaleString('zh-TW', { maximumFractionDigits: 2 });
     }
     function normalizeTrackingRecommendation(value) {
@@ -15,20 +19,22 @@
             : String(value || '');
     }
     function trackingTone(tracking) {
-        const value = Number(tracking && tracking.return_pct);
+        const value = finiteNumber(tracking && tracking.return_pct);
         if (!Number.isFinite(value) || value === 0) return 'is-neutral';
         if (tracking.status === 'target_hit' || tracking.status === 'avoided_loss') return 'is-positive';
         if (['避免', '放空'].includes(normalizeTrackingRecommendation(tracking.recommendation))) return value < 0 ? 'is-positive' : 'is-negative';
         return value > 0 ? 'is-positive' : 'is-negative';
     }
     function awaitingTrackingPrice(tracking) {
+        const initial = finiteNumber(tracking?.initial_price);
+        const latest = finiteNumber(tracking?.latest_price);
         return tracking?.status === 'tracked'
             && !tracking.snapshot_refreshed_at
-            && Number(tracking.return_pct) === 0
-            && Number(tracking.initial_price) === Number(tracking.latest_price);
+            && finiteNumber(tracking.return_pct) === 0
+            && Number.isFinite(initial) && initial > 0 && initial === latest;
     }
     function renderTrackingBadge(tracking, escapeHtml) {
-        if (!tracking || !tracking.status || tracking.status === 'unavailable' || !Number.isFinite(Number(tracking.return_pct))) return '';
+        if (!tracking || !tracking.status || tracking.status === 'unavailable' || !Number.isFinite(finiteNumber(tracking.return_pct))) return '';
         if (awaitingTrackingPrice(tracking)) return '<span class="history-tracking is-neutral" title="尚待下一筆價格更新">追蹤 待新價格</span>';
         const title = tracking.summary || '決策追蹤';
         return `<span class="history-tracking ${trackingTone(tracking)}" title="${escapeHtml(title)}">追蹤 ${escapeHtml(formatPct(tracking.return_pct))}</span>`;
@@ -58,7 +64,7 @@
         const shortLabel = { below_target: '低於', near_target: '接近', above_target: '高於' }[status] || '無法';
         const className = String(status).replace(/_/g, '-');
         const title = comparison.gap_pct === null || comparison.gap_pct === undefined ? `${fullPeriod} ${label}` : `${fullPeriod} ${label} ${formatPct(comparison.gap_pct)}`;
-        return `<span class="tracking-target-cell tracking-target-chip is-${className}" title="${escapeHtml(title)}"><span class="tracking-target-period">${escapeHtml(period)}</span><strong class="tracking-target-value">${escapeHtml(formatNumber(comparison.target || tracking?.[key]))}</strong><span class="tracking-target-label">${escapeHtml(shortLabel)}</span></span>`;
+        return `<span class="tracking-target-cell tracking-target-chip is-${className}" title="${escapeHtml(title)}"><span class="tracking-target-period">${escapeHtml(period)}</span><strong class="tracking-target-value">${escapeHtml(formatNumber(comparison.target ?? tracking?.[key]))}</strong><span class="tracking-target-label">${escapeHtml(shortLabel)}</span></span>`;
     }
     function trackingSummaryTone(tracking) {
         const comparisons = tracking?.target_comparisons || {};

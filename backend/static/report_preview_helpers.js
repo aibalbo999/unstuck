@@ -15,7 +15,11 @@
     function metricCard(item, className, escapeHtml) {
         const tone = item?.tone ? ` class="${escapeHtml(item.tone)}"` : '';
         const cardClass = className ? ` class="${className}"` : '';
-        return `<div${cardClass}><span class="preview-label">${escapeHtml(item?.label || '')}</span><strong${tone}>${escapeHtml(item?.value || 'N/A')}</strong></div>`;
+        const categories = { not_applicable: '不適用', not_provided: '尚未提供', unconfirmed: '尚未確認', source_error: '來源異常' };
+        const missingLabel = categories[item?.missing_category];
+        const reason = missingLabel && item?.missing_reason
+            ? `<small class="preview-missing-reason">${escapeHtml(item.missing_reason)}</small>` : '';
+        return `<div${cardClass}><span class="preview-label">${escapeHtml(item?.label || '')}</span><strong${tone}>${escapeHtml(missingLabel || item?.value || 'N/A')}</strong>${reason}</div>`;
     }
 
     function renderMetrics(container, metrics, className, escapeHtml) {
