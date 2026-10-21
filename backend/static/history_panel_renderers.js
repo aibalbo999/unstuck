@@ -24,6 +24,7 @@
             return report.preview?.primary?.tone || recommendationTone(previewPrimaryValue(report));
         }
         function previewPrimaryLabel(report) {
+            if (report.history_decision?.display_value) return report.history_decision.display_value;
             const value = previewPrimaryValue(report);
             return report.preview?.kind === 'position_plan' ? value : normalizeRecommendation(value);
         }

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from recommendation_labels import normalize_recommendation_label
+from report_history_decision import HISTORY_FILTER_KEYS
 
 
 PIPELINE_ALIASES = {
@@ -25,7 +26,7 @@ PIPELINE_ALIASES = {
     "momentum": "v4",
 }
 VALID_PIPELINES = {"all", "v1", "v2", "v3", "v4"}
-VALID_RECOMMENDATIONS = {"買入", "持有", "避免", "放空"}
+VALID_RECOMMENDATIONS = {"買入", "持有", "避免", "放空", "觀望", "unknown", *HISTORY_FILTER_KEYS}
 VALID_DATA_TRUST = {"all", "fresh", "partial", "stale", "error", "unknown"}
 
 
@@ -49,7 +50,10 @@ def normalize_report_list_filters(
     if pipeline_filter not in VALID_PIPELINES:
         pipeline_filter = "all"
 
-    recommendation_filter = normalize_recommendation_label(recommendation)
+    requested = str(recommendation or "").strip()
+    recommendation_filter = (requested if requested in HISTORY_FILTER_KEYS or requested == "觀望" else
+                             "unknown" if requested.upper() in {"N/A", "UNKNOWN"} else
+                             normalize_recommendation_label(requested))
     if recommendation_filter not in VALID_RECOMMENDATIONS:
         recommendation_filter = "all"
 

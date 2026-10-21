@@ -102,6 +102,8 @@ def test_recommendation_schema_and_frontend_filter_use_canonical_options():
 
     assert "放空" in schema_text
     assert "強烈放空" not in schema_text
-    assert '<option value="放空">放空</option>' in index_html
+    from pipeline_mode_catalog import build_pipeline_mode_catalog
+    mode_c = next(mode for mode in build_pipeline_mode_catalog() if mode['id'] == 'v3')
+    assert {'value': 'v3:放空', 'label': '放空'} in mode_c['historyFilter']['options']
     assert '<option value="買進">買進</option>' not in index_html
     assert '<option value="強烈放空">強烈放空</option>' not in index_html

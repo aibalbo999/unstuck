@@ -19,6 +19,7 @@ from report_history_storage import storage_for_existing_output_dir
 from report_pipeline_identity import resolve_report_pipeline_id
 from report_paths import report_storage_candidates_for_filename
 from report_preview import build_report_preview, extract_trade_setup
+from report_history_decision import history_decision_from_preview
 from report_quality_evidence import read_artifact_quality_summary
 from report_freshness_summary import safe_bool
 from report_quality_metadata_repair import quality_metadata_provenance_from_reason_codes, quality_metadata_repair_item
@@ -244,14 +245,14 @@ def _quality_evidence(row, report: dict) -> dict:
     }
 
 
-def row_to_report(row, *, snapshot: dict | None = None) -> dict:
-    snapshot_path = _snapshot_path(row)
-    snapshot = _read_snapshot(row) if snapshot is None else snapshot
-    pipeline_id = resolve_report_pipeline_id(row["filename"], stored_pipeline=row["pipeline_id"] if "pipeline_id" in row.keys() else "", snapshot=snapshot)
+def _row_data_trust(row) -> dict:
     try:
-        data_trust = normalize_data_trust(json.loads(row["data_trust_json"]))
+        return normalize_data_trust(json.loads(row["data_trust_json"]))
     except (KeyError, TypeError, json.JSONDecodeError):
-        data_trust = unknown_data_trust()
+        return unknown_data_trust()
+
+
+def _row_recommendation(row, data_trust: dict, pipeline_id: str) -> dict:
     analysis_text_stale = safe_bool(row["analysis_text_stale"]) if "analysis_text_stale" in row.keys() else False
     try:
         recommendation = json.loads(row["recommendation_json"])
@@ -267,7 +268,37 @@ def row_to_report(row, *, snapshot: dict | None = None) -> dict:
         analysis_text_stale=analysis_text_stale,
         pipeline_id=pipeline_id,
     )
-    recommendation = _normalize_recommendation_summary(recommendation)
+    return _normalize_recommendation_summary(recommendation)
+
+
+def _row_preview(row, recommendation: dict, snapshot: dict, pipeline_id: str, markdown_text: str):
+    from report_publication_identity import publication_identity, replay_notice
+    preview = build_report_preview(pipeline_id, row["ticker"], recommendation,
+                                   markdown_text=markdown_text, snapshot=snapshot)
+    identity = publication_identity(snapshot)
+    if not identity["prediction_eligible"]:
+        preview = {**preview, "title": f"{row['ticker']} 分析未完整" if identity["kind"] == "partial_analysis" else f"{row['ticker']} 保存資料修復驗證" if identity["kind"] == "saved_data_repair_validation" else f"{row['ticker']} 保存分析驗證重播",
+                   "primary": {"label": "用途", "value": "分析未完整" if identity["kind"] == "partial_analysis" else "修復驗證" if identity["kind"] == "saved_data_repair_validation" else "驗證重播", "tone": "is-neutral"},
+                   "summary": replay_notice(snapshot)}
+    return preview, identity
+
+
+def row_to_history_decision(row) -> dict:
+    """Read only decision inputs; do not run expensive full quality projections."""
+    snapshot = _read_snapshot(row)
+    pipeline = resolve_report_pipeline_id(row["filename"], stored_pipeline=row["pipeline_id"], snapshot=snapshot)
+    recommendation = _row_recommendation(row, _row_data_trust(row), pipeline)
+    preview, _ = _row_preview(row, recommendation, snapshot, pipeline, _markdown_text(row))
+    return history_decision_from_preview(pipeline, preview)
+
+
+def row_to_report(row, *, snapshot: dict | None = None) -> dict:
+    snapshot_path = _snapshot_path(row)
+    snapshot = _read_snapshot(row) if snapshot is None else snapshot
+    pipeline_id = resolve_report_pipeline_id(row["filename"], stored_pipeline=row["pipeline_id"] if "pipeline_id" in row.keys() else "", snapshot=snapshot)
+    data_trust = _row_data_trust(row)
+    analysis_text_stale = safe_bool(row["analysis_text_stale"]) if "analysis_text_stale" in row.keys() else False
+    recommendation = _row_recommendation(row, data_trust, pipeline_id)
     decision_tracking = _decision_tracking(row, recommendation, snapshot=snapshot)
     report_date = _report_date(row)
     decision_freshness = build_decision_freshness(
@@ -289,21 +320,7 @@ def row_to_report(row, *, snapshot: dict | None = None) -> dict:
         snapshot=dict(snapshot, evidence_exit_gate=projected_evidence_exit_gate) if projected_evidence_exit_gate is not None else snapshot,
         projected=projected_content_credibility,
     )
-    preview = build_report_preview(
-        pipeline_id,
-        row["ticker"],
-        recommendation,
-        markdown_text=markdown_text,
-        snapshot_path=snapshot_path,
-        snapshot=snapshot,
-    )
-
-    from report_publication_identity import publication_identity, replay_notice
-    identity = publication_identity(snapshot)
-    if not identity["prediction_eligible"]:
-        preview = {**preview, "title": f"{row["ticker"]} 分析未完整" if identity["kind"] == "partial_analysis" else f"{row["ticker"]} 保存資料修復驗證" if identity["kind"] == "saved_data_repair_validation" else f"{row["ticker"]} 保存分析驗證重播",
-                   "primary": {"label": "用途", "value": "分析未完整" if identity["kind"] == "partial_analysis" else "修復驗證" if identity["kind"] == "saved_data_repair_validation" else "驗證重播", "tone": "is-neutral"},
-                   "summary": replay_notice(snapshot)}
+    preview, identity = _row_preview(row, recommendation, snapshot, pipeline_id, markdown_text)
     report = {
         "publication_identity": identity,
         "filename": row["filename"],
@@ -315,6 +332,7 @@ def row_to_report(row, *, snapshot: dict | None = None) -> dict:
         "pipeline_label": get_pipeline_definition(pipeline_id)["short_label"],
         "recommendation": recommendation,
         "preview": preview,
+        "history_decision": history_decision_from_preview(pipeline_id, preview),
         "decision_tracking": decision_tracking,
         "decision_freshness": decision_freshness,
         "temporal_memory": _temporal_memory(row, snapshot=snapshot),

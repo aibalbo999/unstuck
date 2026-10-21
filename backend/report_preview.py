@@ -215,8 +215,6 @@ def _short_markdown_field(markdown_text: str, label: str, other: str) -> str:
 
 def _position_preview(ticker: str, recommendation: dict, markdown_text: str, snapshot: dict) -> dict:
     plan = _parsed_setup(snapshot, "position_plan")
-    if not plan:
-        return _investment_preview(ticker, recommendation, markdown_text, snapshot, "v2")
     action = clean_report_text(plan.get("action"), limit=80)
     reason = "本次等待，暫不設定新交易條件" if action == "等待" else ""
     return {

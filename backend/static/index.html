@@ -157,13 +157,9 @@
                                     </select>
                                 </label>
                                 <label class="history-filter-field">
-                                    <span>報告建議</span>
+                                    <span>報告判斷</span>
                                     <select id="history-recommendation-filter" class="history-filter-select">
-                                        <option value="all">全部報告建議</option>
-                                        <option value="買入">買入</option>
-                                        <option value="持有">持有</option>
-                                        <option value="避免">避免</option>
-                                        <option value="放空">放空</option>
+                                        <option value="all">全部報告判斷</option>
                                     </select>
                                 </label>
                                 <label class="history-filter-field">
@@ -171,7 +167,7 @@
                                     <select id="history-data-trust-filter" class="history-filter-select">
                                         <option value="all">全部狀態</option>
                                         <option value="fresh">資料新鮮</option>
-                                        <option value="partial">部分異常</option>
+                                        <option value="partial" title="包括只有來源穩定度提醒的報告">資料需留意／來源提醒</option>
                                         <option value="stale">部分過期</option>
                                         <option value="error">來源異常</option>
                                         <option value="unknown">未記錄</option>
@@ -618,7 +614,7 @@
     <script src="/static/report_automatic_rerun_policy.js?v=20260917-tracking-auto-rerun"></script>
     <script src="/static/report_quality_policy.js?v=20260917-tracking-auto-rerun"></script>
     <script src="/static/ui_data_trust.js?v=20260902-reason-label-parity"></script>
-    <script src="/static/pipeline_mode_fallback.js?v=20260711-pipeline-fallback"></script>
+    <script src="/static/pipeline_mode_fallback.js?v=20261021-history-mode-filters"></script>
     <script src="/static/ui_helpers.js?v=20260711-pipeline-fallback"></script>
     <script src="/static/pipeline_mode_catalog.js?v=20260711-pipeline-fallback"></script>
     <script src="/static/api_request.js?v=20261001-read-performance"></script>
@@ -678,7 +674,7 @@
     <script src="/static/history_panel_quality_helpers.js?v=20260921-analysis-completeness"></script>
     <script src="/static/history_current_quality_helpers.js?v=20260902-target-item-scope"></script>
     <script src="/static/history_panel_helpers.js?v=20260709-history-panel-helpers"></script>
-    <script src="/static/history_panel_renderers.js?v=20260709-history-panel-renderers"></script>
+    <script src="/static/history_panel_renderers.js?v=20261021-history-mode-filters"></script>
     <script src="/static/history_panel.js?v=20260708-tracking-action-notes"></script>
     <script src="/static/temporal_memory_panel.js?v=20260620-event-radar"></script>
     <script src="/static/report_preview_helpers.js?v=20260921-analysis-completeness"></script>
@@ -686,7 +682,8 @@
     <script src="/static/report_preview_rerun_helpers.js?v=20260709-report-preview-rerun-helpers"></script>
     <script src="/static/report_preview_panel.js?v=20260820-rerun-execution"></script>
     <script src="/static/view_controller.js?v=20260607-view-controller"></script>
-    <script src="/static/history_filters.js?v=20260816-history-scope-persistence"></script>
+    <script src="/static/history_decision_filters.js?v=20261021-history-mode-filters"></script>
+    <script src="/static/history_filters.js?v=20261021-history-mode-filters"></script>
     <script src="/static/report_actions.js?v=20260607-report-actions"></script>
     <script src="/static/report_navigation_targets.js?v=20260709-report-nav-targets"></script>
     <script src="/static/report_navigation.js?v=20260709-report-navigation-headroom"></script>

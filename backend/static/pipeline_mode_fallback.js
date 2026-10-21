@@ -15,7 +15,8 @@
       "decisionLabel": "長線研究",
       "ctaLabel": "開始模式 A 分析",
       "reportSuffix": "深度分析報告",
-      "intent": "適合判斷是否納入長線研究清單。"
+      "intent": "適合判斷是否納入長線研究清單。",
+      "historyFilter": {"label":"研究評級","options":[{"value":"v1:買入","label":"買入"},{"value":"v1:持有","label":"持有"},{"value":"v1:觀望","label":"觀望"},{"value":"v1:避免","label":"避免"},{"value":"v1:放空","label":"放空"},{"value":"v1:unknown","label":"尚未確認／未提供"}]}
     },
     {
       "id": "v2",
@@ -29,7 +30,8 @@
       "decisionLabel": "部位決策",
       "ctaLabel": "開始模式 B 分析",
       "reportSuffix": "實戰交易決策報告",
-      "intent": "適合決定進場、續抱或減碼。"
+      "intent": "適合決定進場、續抱或減碼。",
+      "historyFilter": {"label":"部位動作","options":[{"value":"v2:進場","label":"進場"},{"value":"v2:續抱","label":"續抱"},{"value":"v2:減碼","label":"減碼"},{"value":"v2:等待","label":"等待"},{"value":"v2:unknown","label":"尚未確認／未提供"}]}
     },
     {
       "id": "v3",
@@ -43,7 +45,8 @@
       "decisionLabel": "逆勢風控",
       "ctaLabel": "開始模式 C 分析",
       "reportSuffix": "泡沫狙擊研究報告",
-      "intent": "適合檢查泡沫、避險與做空風險。"
+      "intent": "適合檢查泡沫、避險與做空風險。",
+      "historyFilter": {"label":"空方判斷","options":[{"value":"v3:買入","label":"買入"},{"value":"v3:持有","label":"持有"},{"value":"v3:觀望","label":"觀望"},{"value":"v3:避免","label":"避免"},{"value":"v3:放空","label":"放空"},{"value":"v3:unknown","label":"尚未確認／未提供"}]}
     },
     {
       "id": "v4",
@@ -57,7 +60,8 @@
       "decisionLabel": "事件波段",
       "ctaLabel": "開始模式 D 分析",
       "reportSuffix": "極短線交易策略報告",
-      "intent": "適合短線事件與波段交易計畫。"
+      "intent": "適合短線事件與波段交易計畫。",
+      "historyFilter": {"label":"交易方向","options":[{"value":"v4:Long","label":"偏多 Long"},{"value":"v4:Short","label":"偏空 Short"},{"value":"v4:Neutral","label":"觀望 Neutral"},{"value":"v4:unknown","label":"尚未確認／未提供"}]}
     },
     {
       "id": "both",

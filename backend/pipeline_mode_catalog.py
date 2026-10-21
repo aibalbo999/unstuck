@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from typing import Any
+from report_history_decision import history_filter_catalog
 
 from pipeline_modes import (
     PIPELINE_DEFINITIONS,
@@ -60,6 +61,7 @@ def _pipeline_item(pipeline_id: str) -> dict[str, Any]:
         "hint": definition["hint_text"],
         "agentCount": agent_count,
         "optionLabel": f"{presentation['decisionLabel']} · {agent_count} Agent",
+        "historyFilter": history_filter_catalog()[pipeline_id],
         **presentation,
     }
 

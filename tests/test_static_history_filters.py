@@ -34,8 +34,8 @@ def test_history_data_trust_filter_is_wired_to_api_params():
 
     assert 'id="history-data-trust-filter"' in index_html
     assert 'id="history-include-versions"' in index_html
-    assert '<span>報告建議</span>' in index_html
-    assert '<option value="all">全部報告建議</option>' in index_html
+    assert '<span>報告判斷</span>' in index_html
+    assert '<option value="all">全部報告判斷</option>' in index_html
     assert '<span>投資建議</span>' not in index_html
     assert '<option value="all">全部建議</option>' not in index_html
     assert "historyDataTrustFilter" in app_panels_js

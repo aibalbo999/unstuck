@@ -17,7 +17,8 @@ from report_index_parsing import is_safe_report_filename, normalize_recommendati
 from report_index_metadata import build_report_metadata, report_index_mtime
 from report_index_migrations import REPORT_INDEX_MIGRATION_KEY, REPORT_INDEX_SCHEMA_VERSION, run_report_index_migrations
 from report_index_repair import stored_recommendation_needs_rebuild
-from report_index_rows import row_to_report
+from report_index_rows import row_to_report, row_to_history_decision
+from report_history_decision import is_history_decision_filter, matches_history_decision
 from report_pipeline_identity import resolve_report_pipeline_id
 from runtime_paths import current_runtime_paths; CACHE_DB_PATH = str(current_runtime_paths().report_index_db)
 _REPORT_INDEX_LOCK = threading.Lock()
@@ -215,7 +216,8 @@ def query_report_metadata(
 
     clauses = ["output_dir = ?"]
     params: list[object] = [out_dir]
-    if recommendation != "all":
+    decision_filter = is_history_decision_filter(recommendation)
+    if recommendation != "all" and not decision_filter:
         clauses.append("normalized_recommendation = ?")
         params.append(recommendation)
     if data_trust != "all":
@@ -231,9 +233,11 @@ def query_report_metadata(
     order_sql = "report_date DESC, filename DESC, timestamp DESC"
     with _connect() as conn:
         raw_rows = conn.execute(
-            f"SELECT * FROM reports WHERE {where_sql} ORDER BY {order_sql}",
-            params,
+            f"SELECT * FROM reports WHERE output_dir = ? ORDER BY {order_sql}",
+            (out_dir,),
         ).fetchall()
+        matching_names = {row[0] for row in conn.execute(
+            f"SELECT filename FROM reports WHERE {where_sql}", params)}
     canonical_rows = []
     for row in raw_rows:
         row_pipeline = resolve_report_pipeline_id(row["filename"], stored_pipeline=row["pipeline_id"])
@@ -251,6 +255,10 @@ def query_report_metadata(
             seen.add(key)
             latest_rows.append((row, row_pipeline))
         canonical_rows = latest_rows
+    # Pick the actual current report first. Filtering first resurrects an old
+    # matching recommendation even when the user has hidden historical versions.
+    canonical_rows = [(row, mode) for row, mode in canonical_rows if row["filename"] in matching_names
+                      and (not decision_filter or matches_history_decision(row_to_history_decision(row), recommendation))]
     total = len(canonical_rows)
     rows = [row for row, _pipeline in canonical_rows[offset : offset + limit]]
     return [(row_mapper(row) if row_mapper else row_to_report(row)) for row in rows], int(total)
