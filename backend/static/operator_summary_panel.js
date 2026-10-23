@@ -16,9 +16,8 @@
         }
         function actionCountText(items, queueSummary) {
             const displayed = dashboardActions.actionableActionCount(items), total = Number(queueSummary?.total_actionable), summaryDisplayed = Number(queueSummary?.displayed_count);
-            return Number.isInteger(total) && total >= 0 && Number.isInteger(summaryDisplayed) && summaryDisplayed === displayed && total > displayed
-                ? `顯示 ${displayed} / 共 ${total} 件快速操作`
-                : `${displayed} 件快速操作`;
+            if (Number.isInteger(total) && total >= 0 && Number.isInteger(summaryDisplayed) && summaryDisplayed === displayed && total > displayed) return `顯示 ${displayed} / 共 ${total} 件快速操作`;
+            return `${displayed} 件快速操作`;
         }
         function renderActions(items, queueSummary, dashboard) { if (!elements.actionList) return; elements.actionList.innerHTML = `<div class="operator-action-list-header"><strong>今日待處理</strong><span>${escapeHtml(actionCountText(items, queueSummary))}</span></div>${items.map(item => item.type === 'review_candidate' ? renderCandidate(item) : `<div class="operator-action-row"><span><strong>${escapeHtml(item.title)}</strong><em>${escapeHtml(item.detail || '')}</em></span><button class="operator-action-button ${item.action === 'rerun-all-reports' ? 'is-primary' : ''}" type="button" data-operator-action="${escapeHtml(item.action)}" data-filename="${escapeHtml(item.filename || '')}" data-filenames="${escapeHtml(JSON.stringify(item.filenames || []))}" data-ticker="${escapeHtml(item.ticker || '')}" data-pipeline="${escapeHtml(item.pipeline || 'v1')}" data-target-tab="${escapeHtml(item.targetTab || '')}" data-target-panel="${escapeHtml(item.targetPanel || '')}">${escapeHtml(item.label)}</button></div>`).join('')}` + (window.StockAgentDailyCandidateReview?.render(dashboard, escapeHtml) || ''); }
         function parseFilenames(button) { try { const parsed = JSON.parse(button.dataset.filenames || '[]'); return Array.isArray(parsed) ? parsed.filter(Boolean) : []; } catch (err) { return []; } }
@@ -57,13 +56,9 @@
             button.textContent = ({ 'candidate-snapshot': '載入快照中…', 'candidate-watchlist': '加入追蹤中…', 'candidate-prepare-analysis': '準備分析中…' })[button.dataset.candidateAction] || '處理中';
             try {
                 const action = button.dataset.candidateAction, ticker = String(button.dataset.ticker || '').trim();
-                if (!ticker) {
-                    notify.error('候選股票代號遺失，請重新整理後再試。');
-                } else if (typeof candidateCallbacks[action] === 'function') {
-                    await candidateCallbacks[action](ticker);
-                } else {
-                    notify.error('候選操作目前無法使用，請重新整理後再試。');
-                }
+                if (!ticker) notify.error('候選股票代號遺失，請重新整理後再試。');
+                else if (typeof candidateCallbacks[action] === 'function') await candidateCallbacks[action](ticker);
+                else notify.error('候選操作目前無法使用，請重新整理後再試。');
             } catch (err) {
                 console.error('Candidate action failed', err);
                 notify.error('候選操作失敗，請稍後再試。');

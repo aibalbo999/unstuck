@@ -10,6 +10,7 @@ from data_trust import append_source_audit, finalize_data_trust
 from .audit_helpers import _append_cache_audit_entries, _append_source_fetch_audit
 from .constants import DATA_SCHEMA_VERSION, REQUIRED_DATA_SCHEMA_FIELDS
 from .types import ProviderResult
+from .cache_session_alignment import assess_session_aligned_cache
 
 
 def _normalize_annual_coverage(cached: dict) -> dict:
@@ -51,7 +52,8 @@ def schema_compatible_cached_payload(ticker: str) -> dict | None:
 
 def fresh_cached_payload(ticker: str, cached: dict) -> dict | None:
     cache_ticker = str(cached.get("ticker") or ticker).strip().upper()
-    is_fresh, freshness = assess_cached_financial_data(cached, cache_ticker)
+    is_fresh, freshness = assess_session_aligned_cache(
+        cached, cache_ticker, assessor=assess_cached_financial_data)
     if not is_fresh:
         return None
 
@@ -70,7 +72,8 @@ def fallback_cached_payload(ticker: str, cached: dict | None, core_result: Provi
         return None
 
     cache_ticker = str(cached.get("ticker") or ticker).strip().upper()
-    _is_fresh, freshness = assess_cached_financial_data(cached, cache_ticker)
+    _is_fresh, freshness = assess_session_aligned_cache(
+        cached, cache_ticker, assessor=assess_cached_financial_data)
     fallback = _normalize_annual_coverage(dict(cached))
     apply_news_freshness(fallback)
     fallback["_cache_hit"] = True

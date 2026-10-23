@@ -25,6 +25,9 @@ def _deterministic_structured_fallback(
 ) -> tuple[bool, str]:
     """Last-resort structured output so reports do not preserve malformed JSON blobs."""
     structured_outputs = context.setdefault("structured_outputs", {})
+    from memo_output_completion import incomplete_memo_roles
+    if any(role['agent'] == agent_num for role in incomplete_memo_roles(context)):
+        return False, '模型評估截斷或缺少必要欄位；不以保守預設值取代完整評估。'
 
     if agent_num in {2, 13, 18}:
         structured = financial_evidence_fallback(agent_num, data, context)

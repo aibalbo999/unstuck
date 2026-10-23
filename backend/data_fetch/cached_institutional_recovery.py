@@ -16,6 +16,7 @@ from source_applicability import source_is_applicable
 
 from .audit_helpers import _append_cache_audit_entries
 from .provider_execution import fetch_provider_results
+from .cache_session_alignment import assess_session_aligned_cache
 
 
 async def recover_cached_institutional(request, registry, cached):
@@ -28,7 +29,8 @@ async def recover_cached_institutional(request, registry, cached):
     ticker = request.ticker
     if request.options.force_refresh or cached.get('ticker') != ticker:
         return None
-    _, freshness = assess_cached_financial_data(cached, ticker)
+    _, freshness = assess_session_aligned_cache(
+        cached, ticker, assessor=assess_cached_financial_data)
     if (freshness.get('stale_sources') != ['institutional_trading']
             or not source_is_applicable('institutional_trading', cached, ticker)):
         return None

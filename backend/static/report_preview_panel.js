@@ -43,7 +43,7 @@
             const preview = report.preview || helpers.legacyPreview(report, rec, options);
             const decisionMetrics = [preview.primary, ...(preview.metrics || [])].filter(Boolean);
 
-            elements.mode.innerHTML = `${options.renderPipelineModeBadge(pipelineId)}${options.renderDataTrustBadge(report.data_trust)}${helpers.reportQualityBadge(report, options.escapeHtml)}<span class="preview-date">${options.escapeHtml(report.date || '')}</span>`;
+            elements.mode.innerHTML = `${options.renderPipelineModeBadge(pipelineId)}${options.renderDataTrustBadge(report.data_trust)}${helpers.reportQualityBadge(report, options.escapeHtml)}<span class="preview-date">${options.escapeHtml(report.date || '')}</span>${window.StockAgentHistoryNeutralReason?.render(report, options.escapeHtml, { detailed: true }) || ''}`;
             rerunHelpers.configureRerunButtons(elements, pipelineId, options.pipelineMeta);
             const finalRerunBlocked = qualityPolicy().reportNeedsRerun?.(report) === true;
             if (elements.rerunFinalBtn) {

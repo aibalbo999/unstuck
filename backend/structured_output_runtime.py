@@ -95,7 +95,7 @@ def _trade_completion_receipt(raw_text, context, supplied, *, agent_num=24):
         policy = AGENT7_COMPLETION_POLICY
     digest = lambda value: hashlib.sha256(value.encode()).hexdigest()
     raw_hash = digest(raw_text)
-    if agent_num == 7 and isinstance(supplied, dict):
+    if isinstance(supplied, dict):
         observed = _completion_diagnostics(supplied)
         # No finish observation is not evidence that a known-incomplete
         # identical response became complete during a second parsing pass.
@@ -179,10 +179,18 @@ def process_agent_response(
             context["_trade_incomplete_fields"] = ["invalid_json"]
         return _sanitize_text(raw_text or "")
     trade_assessment = None
+    core_resolution = None
     if agent_num == 24:
         outputs = context.setdefault("structured_outputs", {})
         outputs.pop(24, None)
         outputs.pop("24", None)
+        from trade_output_contract_guidance import prepare_core_reference
+        payload, core_resolution = prepare_core_reference(payload, context, raw_text or "")
+        if core_resolution and core_resolution.get("status") != "resolved":
+            context["_trade_incomplete_fields"] = [core_resolution["reason"]]
+            context["_trade_core_reference_rejection"] = core_resolution
+            return _sanitize_text(raw_text or "")
+        context.pop("_trade_core_reference_rejection", None)
         missing = missing_trade_fields(payload, context=context)
         if missing:
             context["_trade_incomplete_fields"] = missing
@@ -224,6 +232,9 @@ def process_agent_response(
             "generation_policy_version": receipt["generation_policy_version"],
         }
         structured["source_assessment"] = trade_assessment
+        # Only this runtime can attest resolution; model-supplied receipts are ignored.
+        if core_resolution is not None:
+            structured["core_catalyst_resolution"] = core_resolution
 
     if agent_num == 24:
         structured = enforce_trade_financial_risk(structured, context.get("data", {}))

@@ -259,11 +259,13 @@ def build_prompt(agent_num: int, data: StockData, context: AnalysisContext) -> s
     from market_context_manifest import market_assessment_workplan
     from trade_catalog_evidence import INSTITUTIONAL_PROMPT_RULE
     from trade_source_guidance import technical_comparison_prompt
+    from trade_output_contract_guidance import trade_fact_output_instruction
     from trade_source_contract import source_catalog
     prompt_parts = [
         INSTITUTIONAL_PROMPT_RULE if agent_num in {15, 18, 23, 24} else "",
         build_institutional_source_prompt(data) if agent_num in {15, 18, 23} else "",
         technical_comparison_prompt(source_catalog(data)) if agent_num == 22 else "",
+        trade_fact_output_instruction(agent_num, data) if agent_num in {22, 23} else "",
         analysis_prompt,
         "\n".join(block["text"] for block in source_blocks),
         market_assessment_workplan(data, source_blocks) if market_contract else "",

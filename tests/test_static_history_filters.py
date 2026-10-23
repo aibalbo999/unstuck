@@ -289,6 +289,7 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "/static/report_rerun_stream.js" in index_html
     assert "/static/report_rerun.js" in index_html
     assert index_html.index("/static/report_rerun_stream.js") < index_html.index("/static/report_rerun.js")
+    assert index_html.index("/static/report_rerun_controls.js") < index_html.index("/static/report_rerun.js")
     assert "/static/analysis_stream_events.js" in index_html
     assert "/static/analysis_stream.js" in index_html
     assert index_html.index("/static/analysis_stream_events.js") < index_html.index("/static/analysis_stream.js")
@@ -488,7 +489,7 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "重跑${shortLabel}最終建議" not in report_preview_js
     assert "完整重跑${shortLabel}" in report_preview_rerun_helpers_js
     assert "模式 C：逆勢交易與泡沫狙擊" in pipeline_mode_fallback_js
-    assert "full_report" in report_rerun_js
+    assert "full_report" in (STATIC_DIR / "report_rerun_controls.js").read_text(encoding="utf-8")
     assert "rerunModeBBtn.hidden = isModeB" in report_preview_rerun_helpers_js
     assert "產生模式 B 報告" in report_preview_rerun_helpers_js
     assert "產生模式 B 報告" in index_html
@@ -667,7 +668,7 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "token_estimate" not in active_jobs_js
     assert "估算 token" not in active_jobs_js
     assert "stage_summary" in active_jobs_js
-    assert "最近完成任務" in active_jobs_js
+    assert "最近結束任務" in active_jobs_js
     assert "模型重試" in active_jobs_js
     assert "模型錯誤" in active_jobs_js
     assert "pipelineModeLabel" in active_jobs_js
@@ -7812,7 +7813,7 @@ def test_decision_tracking_dense_layout_uses_workspace_efficiently():
     assert "/static/decision_tracking_panel.js?v=20260708-tracking-action-notes" in index_html
     assert "/static/report_preview_helpers.js?v=20260921-analysis-completeness" in index_html
     assert "/static/report_preview_tracking_helpers.js?v=20260709-report-preview-tracking-helpers" in index_html
-    assert "/static/report_preview_panel.js?v=20260820-rerun-execution" in index_html
+    assert "/static/report_preview_panel.js?v=20261023-neutral-causes" in index_html
     assert "provider_sla.css?v=20260628-glass-dark" in style_css
     assert "provider_sla_controls.css?v=20260709-provider-sla-controls" in style_css
     assert style_css.index("provider_sla.css?v=20260628-glass-dark") < style_css.index("provider_sla_controls.css?v=20260709-provider-sla-controls")
@@ -8017,6 +8018,7 @@ def test_frontend_static_modules_are_sized():
         "report_navigation_targets.js": 70,
         "home_tabs.js": 60,
         "report_rerun.js": 105,
+        "report_rerun_controls.js": 60,
         "report_rerun_stream.js": 80,
         "analysis_stream.js": 95,
         "analysis_stream_events.js": 120,

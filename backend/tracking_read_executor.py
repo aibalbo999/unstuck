@@ -168,7 +168,13 @@ def _compute_readonly_tracking(request):
     return result
 
 
-tracking_reads = PerformanceReadExecutor(timeout_seconds=20.0, compute_fn=_compute_readonly_tracking, read_name="tracking")
+# Process startup/imports share the first projection's deadline. The formal
+# cold UI burst completed its valid projection in 21.887s, after the old 20s
+# limit. Keep warm reads at 20s and allow a bounded 35s only for a new worker.
+TRACKING_COLD_READ_TIMEOUT_SECONDS = 35.0
+TRACKING_REQUEST_TIMEOUT_SECONDS = 60.0  # preparation <=20s + cold projection <=35s
+tracking_reads = PerformanceReadExecutor(timeout_seconds=20.0, compute_fn=_compute_readonly_tracking,
+    read_name="tracking", cold_start_timeout_seconds=TRACKING_COLD_READ_TIMEOUT_SECONDS)
 
 # Keep tracking and performance availability independent of the full audit.
 quality_reads = PerformanceReadExecutor(timeout_seconds=25.0, compute_fn=_compute_readonly_quality, read_name="quality")
@@ -212,7 +218,7 @@ tracking_preparations = PerformanceReadExecutor(
 
 async def read_tracking_items(output_dir):
     started = monotonic()
-    deadline = asyncio.timeout(30.0)
+    deadline = asyncio.timeout(TRACKING_REQUEST_TIMEOUT_SECONDS)
     try:
         # Caller timeout does not terminate preparation threads or the worker.
         async with deadline:

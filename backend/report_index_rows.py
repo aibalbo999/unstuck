@@ -359,6 +359,11 @@ def row_to_report(row, *, snapshot: dict | None = None) -> dict:
         "snapshot_integrity": report["snapshot_integrity"],
         "decision_freshness": report["decision_freshness"],
     })
+    if pipeline_id == "v4":
+        from report_neutral_reason import build_analysis_age, build_neutral_explanation
+        report["neutral_explanation"] = build_neutral_explanation(
+            snapshot, direction=report["history_decision"]["value"])
+        report["analysis_age"] = build_analysis_age(snapshot, analysis_text_stale=analysis_text_stale)
     quality_refresh_provenance = snapshot.get("quality_metadata_refresh_provenance")
     if isinstance(quality_refresh_provenance, dict) and quality_refresh_provenance:
         report["quality_metadata_refresh_provenance"] = quality_refresh_provenance

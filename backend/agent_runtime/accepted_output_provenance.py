@@ -22,7 +22,8 @@ _capture = ContextVar('final_rerun_model_provenance', default=None)
 @contextmanager
 def final_rerun_provenance_scope(context: dict, agent_num: int):
     """Enable local capture only for this rerun; private state never reaches render."""
-    if agent_num not in (7, 16, 19) or get_structured_agent_num('recommendation', context) != agent_num:
+    role = 'trade_setup' if agent_num == 24 else 'recommendation'
+    if agent_num not in (7, 16, 19, 24) or get_structured_agent_num(role, context) != agent_num:
         yield
         return
     private = (RECEIPT_FIELD, '_node_attempt_telemetry')

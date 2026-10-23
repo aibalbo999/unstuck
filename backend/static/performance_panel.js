@@ -4,35 +4,29 @@
         const num = Number(value);
         return Number.isFinite(num) ? `${num.toFixed(2)}%` : 'N/A';
     }
-
     function fmtPrice(value) {
         if (value === null || value === undefined || value === '') return 'N/A';
         const num = Number(value);
         return Number.isFinite(num) ? num.toLocaleString('zh-TW', { maximumFractionDigits: 2 }) : 'N/A';
     }
-
     function sampleConfidenceLabel(total) {
         const count = Number(total || 0);
         if (!count) return '尚無樣本';
         return count >= 10 ? '樣本基礎可追蹤' : '樣本不足，僅供觀察';
     }
-
     function tone(row) {
         if ((row.outcome || '') === 'hit') return 'ok';
         if (Number(row.strategy_roi_pct || 0) < 0) return 'critical';
         return 'warning';
     }
-
     function horizonLabel(row) {
         return row.horizon_trading_days ? `${row.horizon_trading_days} 交易日` : `${row.horizon_months || '?'}M`;
     }
-
     function statusLabel(row) {
         const labels = {target_first: '先達目標', stop_first: '先觸停損', horizon_exit: '期滿退出',
             not_entered: '未成交', no_trade: '不交易', ambiguous: '日內順序不明', insufficient_data: '資料不足'};
         return labels[row.status] || row.outcome || '未評分';
     }
-
     function render(payload, options) {
         const escapeHtml = options.escapeHtml;
         const summary = payload?.summary || {};
@@ -63,6 +57,5 @@
         `).join('');
         options.listEl.innerHTML = (horizonHtml + tradeHtml + detailHtml) || '<span class="performance-chip is-warning">尚無到期回測結果</span>';
     }
-
     window.StockAgentPerformancePanel = { render };
 })();

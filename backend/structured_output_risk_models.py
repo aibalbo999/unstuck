@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from enum import Enum
 from typing import Any, Literal
 
 from pydantic import ConfigDict, Field, model_validator
@@ -193,6 +194,11 @@ class PriceLevelEvidence(StructuredModel):
     inputs: list[PriceReferenceInput] = Field(..., min_length=1, max_length=6)
 
 
+class TradeCoreReference(str, Enum):
+    """Enum rather than a single Literal: GenAI accepts enum, not JSON const."""
+    observed_signal = "observed_signal"
+
+
 class SwingTradeSetup(StructuredModel):
     """Strict 1-2 week trade plan emitted by the v4 decision agent."""
 
@@ -208,7 +214,8 @@ class SwingTradeSetup(StructuredModel):
     price_level_evidence: list[PriceLevelEvidence] = Field(default_factory=list, max_length=2, description="每個非N/A支撐壓力分別明示直接引用或可重算推導；inputs按source_refs原順序，日期/交易日窗口/價格基準只複述原來源，未知null。")
     support_level: str = Field(..., min_length=1)
     resistance_level: str = Field(..., min_length=1)
-    core_catalyst: str = Field(..., min_length=1)
+    core_catalyst: str = Field(..., min_length=1, description="逐字複述完整observed_signal或純未來等待條件；可用明示@observed_signal配合core_catalyst_reference，禁止改寫任意主張。")
+    core_catalyst_reference: TradeCoreReference | None = Field(default=None, description="僅明示從本次observed_signal逐字複用；core必須為@observed_signal或相同原文，兩組催化/觀測refs須一致；缺觀測不用此欄。")
     risk_level: Literal["High", "Medium", "Low"]
     support_source_refs: list[str] = Field(
         ...,

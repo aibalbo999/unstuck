@@ -84,6 +84,7 @@
                         <strong class="tracking-latest-price">${escapeHtml(helpers.formatNumber(tracking.latest_price))}</strong>
                         <span class="${swingTrade ? 'tracking-compact-note is-swing' : trackingStatusClass}">${escapeHtml(statusText)}</span>
                     </div>
+                    ${window.StockAgentHistoryNeutralReason?.render(report, escapeHtml) || ''}
                     ${trackingCompact ? '' : targetGrid}
                 </div>
             `;
@@ -136,6 +137,7 @@
                             ${previewListValues(r).map(value => `<span>${escapeHtml(value)}</span>`).join('')}
                             ${helpers.renderTrackingBadge(r.decision_tracking, escapeHtml)}
                         </div>
+                        ${window.StockAgentHistoryNeutralReason?.render(r, escapeHtml) || ''}
                     </div>
                     ${trackButton(r)}
                     <button class="delete-btn" title="刪除報告" aria-label="刪除 ${escapeHtml(r.ticker || r.filename)} 報告" data-delete-filename="${escapeHtml(r.filename)}">

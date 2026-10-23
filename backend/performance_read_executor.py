@@ -62,10 +62,13 @@ def _compute_readonly_performance(output_dir: str) -> dict:
 
 class PerformanceReadExecutor:
     """At most one running read; overlapping callers join, results are not cached."""
-    def __init__(self, executor_factory=None, *, timeout_seconds=15.0, compute_fn=None, read_name="performance"):
+    def __init__(self, executor_factory=None, *, timeout_seconds=15.0, compute_fn=None, read_name="performance",
+                 cold_start_timeout_seconds=None):
         self._factory = executor_factory or (lambda: ProcessPoolExecutor(
             max_workers=1, mp_context=multiprocessing.get_context('spawn')))
         self._timeout_seconds = timeout_seconds
+        self._cold_start_timeout_seconds = cold_start_timeout_seconds
+        self._inflight_timeout_seconds = timeout_seconds
         self._compute_fn = compute_fn or _compute_readonly_performance
         self._read_name = read_name
         self._lock = Lock()
@@ -100,13 +103,17 @@ class PerformanceReadExecutor:
                     executor.shutdown(wait=False, cancel_futures=False)
                     raise
                 self._inflight, self._output_dir = future, output_dir
+                self._inflight_timeout_seconds = (
+                    self._cold_start_timeout_seconds if cold_start and self._cold_start_timeout_seconds is not None
+                    else self._timeout_seconds)
                 future.add_done_callback(lambda done: LOGGER.info(
                     "%s_read_complete cold_start=%s seconds=%.3f status=%s",
                     self._read_name, cold_start, monotonic()-started,
                     "failed" if done.cancelled() or done.exception() else "ok"))
+            timeout_seconds = self._inflight_timeout_seconds
         wrapped = asyncio.wrap_future(future)
         wrapped.add_done_callback(lambda done: None if done.cancelled() else done.exception())
-        deadline = asyncio.timeout(self._timeout_seconds)
+        deadline = asyncio.timeout(timeout_seconds)
         try:
             async with deadline:
                 return await asyncio.shield(wrapped)

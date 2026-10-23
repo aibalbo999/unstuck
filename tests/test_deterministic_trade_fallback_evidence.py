@@ -17,7 +17,7 @@ def context_with_prompt():
                "structured_outputs": {}, "blocking_issues": ["Agent 24: invalid output"]}
     block, catalog, fingerprint = source_block(data)
     bind_source_prompt(context, block, block, catalog, fingerprint)
-    context["_trade_completion_receipt"] = {"diagnostics": {"finish_reasons": ["MAX_TOKENS"]}}
+    context["_trade_completion_receipt"] = {"diagnostics": {"finish_reasons": ["STOP"]}}
     return context
 
 
@@ -27,7 +27,7 @@ def run_fallback(context, data=None):
     return context["structured_outputs"][24]
 
 
-@pytest.mark.parametrize("finish", ["STOP", "MAX_TOKENS", None])
+@pytest.mark.parametrize("finish", ["STOP", None])
 def test_local_fallback_records_degraded_origin_without_borrowing_provider_finish(finish, monkeypatch):
     from agent_runtime.quality_structured_outputs import try_parse_structured_output
 
@@ -58,6 +58,22 @@ def test_local_fallback_records_degraded_origin_without_borrowing_provider_finis
     assert try_parse_structured_output(24, context["analyses"][24], context)[0]
     assert context["structured_outputs"][24]["source_assessment"] == assessment
     assert assess_report_analysis_completeness(context)["status"] == "degraded"
+
+
+@pytest.mark.parametrize("diagnostics", [
+    {"finish_reasons": ["MAX_TOKENS"], "stream_completed": True},
+    {"finish_reasons": ["SAFETY"]},
+    {"finish_reasons": ["STOP"], "stream_completed": False},
+])
+def test_observed_provider_incomplete_cannot_be_replaced_by_local_fallback(diagnostics):
+    context = context_with_prompt()
+    context["_trade_completion_receipt"] = {"diagnostics": diagnostics}
+    before = deepcopy(context)
+    ok, _ = _deterministic_structured_fallback(24, context["data"], context, "incomplete draft")
+    assert not ok
+    assert context == before
+    assert context["_trade_completion_receipt"]["diagnostics"] == diagnostics
+    assert not context.get("deterministic_fallbacks")
 
 
 @pytest.mark.parametrize("invalid", ["absent", "hidden", "changed_input", "changed_catalog", "different_argument"])

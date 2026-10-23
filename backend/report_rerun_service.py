@@ -99,6 +99,17 @@ def _build_final_rerun_context(
     pipeline_id = _source_pipeline_id(filename, snapshot=snapshot_map)
     pipeline_def = get_pipeline_definition(pipeline_id)
     final_agent = get_structured_agent_num("recommendation", pipeline_id)
+    if pipeline_id == "v4":
+        final_agent = get_structured_agent_num("trade_setup", pipeline_id)
+        from report_index_parsing import parse_report_filename
+
+        identity = parse_report_filename(filename)
+        saved_context = safe_mapping_dict(dict.get(snapshot_map, "rerun_context")) or {}
+        tickers = {str(value).strip().upper() for value in (
+            identity.get("ticker"), dict.get(snapshot_map, "ticker"), data.get("ticker")) if value}
+        if (identity.get("pipeline_id") != pipeline_id or len(tickers) != 1
+                or saved_context.get("pipeline_id", pipeline_id) != pipeline_id):
+            raise HTTPException(status_code=409, detail="原始報告與資料快照身分不一致；請使用完整重跑。")
     if final_agent is None:
         raise HTTPException(status_code=400, detail="此 pipeline 沒有可重跑的最終建議 Agent")
     if (

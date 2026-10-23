@@ -173,6 +173,7 @@ def source_fact_cards(catalog):
 
 
 def source_guidance_text(catalog):
+    from trade_output_contract_guidance import trade_fact_output_instruction
     cards = source_fact_cards(catalog)
     return ('\n【同一來源的有限事實句示例；不是方向建議】\n'
             '以下僅示範來源可以證明的範圍，不是完整來源清單，也不取代原始資料。'
@@ -182,6 +183,7 @@ def source_guidance_text(catalog):
             '不可在已引用的累計數值後附加「近10日買賣交錯」，也不可在單次持股比例後附加「連續兩週減少」。'
             '下列 unsupported 是目前契約不能由該引用證明的論述；不要把這些論述寫成已觀測事實。'
             '尚待發生的改善只能放 recheck_condition；事件資料 unavailable 時保留未知，不能當成催化證據。\n'
+            + trade_fact_output_instruction(24) + '\n'
             + '\n'.join('- ' + c['fact'] + ' source ref=' + c['ref'] + '；' +
                         json.dumps({k: v for k, v in c.items() if k not in {'fact', 'ref'}},
                                    ensure_ascii=False, separators=(',', ':')) for c in cards)
