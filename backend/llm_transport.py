@@ -28,6 +28,7 @@ from llm_provider_routes import split_model_provider
 from llm_response_diagnostics import ResponseDiagnostics, attach_response_diagnostics, response_diagnostics
 from llm_completion_provenance import completion_is_incomplete
 from llm_tool_rate_guard import closing_stream, generation_client
+from llm_provider_quota_observation import observe_provider_quota
 
 
 def _genai_http_options():
@@ -81,6 +82,7 @@ async def close_cached_clients_async() -> None:
                     await result
 
 
+@observe_provider_quota
 def generate_content(api_key: str, model_id: str, prompt: str, config):
     """Call the configured LLM provider synchronously with an isolated per-key client."""
     cached = None if is_evidence_request() else get_cached_llm_response(model_id, prompt, config)
@@ -113,6 +115,7 @@ def generate_content(api_key: str, model_id: str, prompt: str, config):
     return _cache_generated_response(model_id, prompt, config, response)
 
 
+@observe_provider_quota
 async def generate_content_async(api_key: str, model_id: str, prompt: str, config):
     """Call the configured LLM provider through an async client implementation."""
     cached = None if is_evidence_request() else get_cached_llm_response(model_id, prompt, config)
@@ -145,6 +148,7 @@ async def generate_content_async(api_key: str, model_id: str, prompt: str, confi
     return _cache_generated_response(model_id, prompt, config, response)
 
 
+@observe_provider_quota
 async def generate_content_stream_async(api_key: str, model_id: str, prompt: str, config, *, on_delta=None):
     """Stream provider text deltas when supported, returning a full response object."""
     provider, provider_model = split_model_provider(model_id)

@@ -20,6 +20,9 @@ from prompt_rules import get_task_instruction_lines, get_task_system_instruction
 from llm_key_admission import propagate_admission_cancel
 from runtime_events import emit_context_event, emit_context_event_async, emit_log, make_runtime_event
 from validators import sanitize_model_output, strip_generated_audit_sections
+from llm_quota_details import extract_quota_details
+from agent_runtime.llm_call_metadata import _key_slot_fields
+from agent_runtime.retry_error_classification import provider_status_code
 
 
 def _tear_sheet_model_sequence() -> list[str]:
@@ -89,6 +92,15 @@ def _tear_sheet_event_kwargs(context: dict, model_id: str, phase: str, message: 
     )
 
 
+def _tear_sheet_error_metadata(rotator, api_key, error):
+    return {
+        'error_kind': error.__class__.__name__,
+        'provider_status_code': provider_status_code(error),
+        'provider_quota': extract_quota_details(error),
+        **_key_slot_fields(rotator, api_key),
+    }
+
+
 def ensure_tear_sheet_summary(context: dict, rotator: KeyRotator, progress_callback=None):
     from agent_runtime.llm_waiting import acquire_key, acquire_key_async
     if normalize_pipeline_id(context.get("pipeline_id")) != "v1":
@@ -98,6 +110,7 @@ def ensure_tear_sheet_summary(context: dict, rotator: KeyRotator, progress_callb
     prompt = _build_tear_sheet_prompt(context)
     models = _tear_sheet_model_sequence()
     for model_index, model_id in enumerate(models):
+        api_key = None
         try:
             emit_context_event(
                 context,
@@ -152,10 +165,10 @@ def ensure_tear_sheet_summary(context: dict, rotator: KeyRotator, progress_callb
                 if not has_fallback:
                     return
                 continue
-            message = f"一頁式摘要生成失敗，報表將使用 fallback 摘要：{str(exc)[:120]}"
+            message = "一頁式摘要生成失敗，報表將使用 fallback 摘要。"
             emit_log(f"  ⚠️  {message}")
             event = _tear_sheet_event_kwargs(context, model_id, "tear_sheet_fallback", message, level="warning")
-            event["metadata"] = {**event["metadata"], "error_kind": exc.__class__.__name__}
+            event["metadata"] = {**event["metadata"], **_tear_sheet_error_metadata(rotator, api_key, exc)}
             emit_context_event(context, make_runtime_event("status", **event), progress_callback)
             return
 
@@ -169,6 +182,7 @@ async def ensure_tear_sheet_summary_async(context: dict, rotator: KeyRotator, pr
     prompt = _build_tear_sheet_prompt(context)
     models = _tear_sheet_model_sequence()
     for model_index, model_id in enumerate(models):
+        api_key = None
         try:
             await emit_context_event_async(
                 context,
@@ -223,9 +237,9 @@ async def ensure_tear_sheet_summary_async(context: dict, rotator: KeyRotator, pr
                 if not has_fallback:
                     return
                 continue
-            message = f"一頁式摘要生成失敗，報表將使用 fallback 摘要：{str(exc)[:120]}"
+            message = "一頁式摘要生成失敗，報表將使用 fallback 摘要。"
             emit_log(f"  ⚠️  {message}")
             event = _tear_sheet_event_kwargs(context, model_id, "tear_sheet_fallback", message, level="warning")
-            event["metadata"] = {**event["metadata"], "error_kind": exc.__class__.__name__}
+            event["metadata"] = {**event["metadata"], **_tear_sheet_error_metadata(rotator, api_key, exc)}
             await emit_context_event_async(context, make_runtime_event("status", **event), progress_callback)
             return
