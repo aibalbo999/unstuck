@@ -42,13 +42,19 @@ def _get_job_search_response(
     provider: str,
     session: Any | None = None,
 ):
+    from provider_transport_receipt import record_job_transport_receipt
+    started=time.monotonic()
+    response=None
     try:
         if session is not None:
-            response = session.get(url, params=params, headers=headers, timeout=timeout)
+            response=session.get(url,params=params,headers=headers,timeout=timeout)
             response.raise_for_status()
-            return response
-        return sync_get(url, params=params, headers=headers, timeout=timeout, provider=provider)
+        else:
+            response=sync_get(url,params=params,headers=headers,timeout=timeout,provider=provider)
+        record_job_transport_receipt(provider,started,response=response,native_call=session is None)
+        return response
     except Exception as exc:
+        record_job_transport_receipt(provider,started,response=getattr(exc,'response',response),native_call=session is None)
         raise _JobSearchTransportError from exc
 
 

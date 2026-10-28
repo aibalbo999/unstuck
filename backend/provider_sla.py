@@ -10,6 +10,7 @@ from pathlib import Path
 from api_usage_recorders import record_provider_audit_usage
 from provider_correlation import correlation_metadata
 from provider_observation_details import observation_details
+from provider_transport_receipt import is_transport_receipt
 from data_trust_constants import AUDIT_STATUS_DEGRADED_ENRICHMENT, AUDIT_STATUS_UNAVAILABLE
 from provider_sla_alert_policy import (
     SLA_CRITICAL_SUCCESS_RATE,
@@ -93,6 +94,8 @@ def record_source_audit_entries(entries: list[dict] | tuple[dict, ...]) -> None:
                 ),
             )
             usage_entry["provider_sla_event_id"] = cursor.lastrowid
+            if is_transport_receipt(usage_entry):
+                continue  # Preserve transport evidence without changing data SLA or quota units.
             conn.execute(
                 """
                 INSERT INTO provider_sla_stats (
@@ -133,6 +136,8 @@ def record_source_audit_entries(entries: list[dict] | tuple[dict, ...]) -> None:
                 ),
             )
     for entry in usage_entries:
+        if is_transport_receipt(entry):
+            continue
         try:
             record_provider_audit_usage(entry, created_at=now, db_path=TASK_DB_PATH)
         except Exception:
@@ -229,6 +234,9 @@ def _window_stats_for_provider(conn: sqlite3.Connection, source: str, provider: 
                 SUM(record_count) AS total_records
             FROM provider_sla_events
             WHERE source = ? AND provider = ? AND created_at >= ?
+              AND NOT (record_count=0
+                  AND COALESCE(json_extract(CASE WHEN json_valid(details_json) THEN details_json ELSE '{}' END,'$.event_kind'),'')='http_transport_receipt'
+                  AND COALESCE(json_extract(CASE WHEN json_valid(details_json) THEN details_json ELSE '{}' END,'$.selection_policy'),'')='transport-receipt-only:v1')
             """,
             (source, provider, now - seconds),
         ).fetchone()

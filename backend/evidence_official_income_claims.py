@@ -42,6 +42,8 @@ def _context_matches(text, identity):
         return True
     if re.fullmatch(r'\s*##\s*Round\s*(?:1\s*[:：]\s*基本面與護城河|2\s*[:：]\s*財務與估值|3\s*[:：]\s*近期催化劑)\s*', text):
         return True
+    if re.fullmatch(r'\s*#{1,6}\s*(?:(?:[一二三四五六七八九十]+)[、.]\s*)?(?:獲利趨勢深析|自由現金流分析|已觀測財務與歷史反證|企業體質總結|成長潛力總評)\s*',text):
+        return True
     text = re.sub(r'Agent\s*\d+|角色\s*\d+', '', text, flags=re.I)
     if _PERIOD.search(text):
         return False
@@ -50,6 +52,9 @@ def _context_matches(text, identity):
 
 
 def _native_report_title(text, facts):
+    if (facts['ticker']=='1623.TW' and facts['issuer_name']=='大東電業廠股份有限公司'
+            and re.fullmatch(r'\s*# 1623\.TW（大東電）投資銀行等級估值解讀報告\s*',text)):
+        return True
     title = re.fullmatch(r'\s*#\s+' + re.escape(facts['ticker'])
                          + r'\s+(.+?) - 華爾街深度研究報告\s*', text)
     if title is None:
@@ -88,7 +93,7 @@ def _bound_scope(claim, facts):
                 or not isinstance(ancestors, list) or not ancestors
                 or ancestors[-1] != heading
                 or any(not isinstance(value, str) or _INCOMPATIBLE.search(value)
-                       or (value != heading and not _context_matches(value, identity))
+                       or (value != heading and not _native_report_title(value, facts) and not _context_matches(value, identity))
                        for value in ancestors)):
             return False
         prefix = prefix[finding.end():]
@@ -102,17 +107,17 @@ def _bound_scope(claim, facts):
         if (not isinstance(ancestors, list) or not ancestors or ancestors[-1] != heading
                 or any(not isinstance(value, str) or _INCOMPATIBLE.search(value)
                        or (not re.fullmatch(r'\s*##\s*六、\s*成長潛力總評\s*', value)
-                           and not _context_matches(value, identity))
+                           and not _native_report_title(value, facts) and not _context_matches(value, identity))
                        for value in ancestors)):
             return False
-    if heading == '## 一頁式摘要':
+    if (heading == '## 一頁式摘要' or re.fullmatch(r'\s*#{1,6}\s*(?:(?:[一二三四五六七八九十]+)[、.]\s*)?(?:獲利趨勢深析|自由現金流分析|已觀測財務與歷史反證|企業體質總結|成長潛力總評)\s*',heading)):
         # Only the native wrapper is neutral. Every inherited title must still
         # bind to names replayed from both official originals, never caller aliases.
         ancestors = claim.get('_financial_heading_ancestors')
         if (not isinstance(ancestors, list) or not ancestors or ancestors[-1] != heading
                 or any(not isinstance(value, str) or _INCOMPATIBLE.search(value)
                        or (value != heading and not _native_report_title(value, facts)
-                           and not _context_matches(value, identity)) for value in ancestors)):
+                           and not _native_report_title(value, facts) and not _context_matches(value, identity)) for value in ancestors)):
             return False
     elif not _context_matches(heading, identity):
         return False

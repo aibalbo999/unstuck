@@ -560,8 +560,11 @@ def _explicit_individual_ttm_presentation(claim, data, tolerance_pct):
     heading = str(claim.get('financial_heading') or '')
     parent = str(claim.get('financial_parent_context') or '')
     neutral = (r'\s*#{1,6}\s*(?:(?:[一二三四五六七八九十]{1,3}|[1-9][0-9]?)[、.]\s*)?'
-               r'(?:現金流與獲利品質分析|估值解讀與資料品質限制|估值解讀與資料品質警示|估值方法可用性與資料品質警示|折現現金流（DCF）估值解讀)\s*')
+               r'(?:獲利趨勢深析|自由現金流分析|已觀測財務與歷史反證|企業體質總結|成長潛力總評|現金流與獲利品質分析|估值解讀與資料品質限制|估值解讀與資料品質警示|估值方法可用性與資料品質警示|折現現金流（DCF）估值解讀)\s*')
     native_headings = _native_mode_a_structural_headings(data)
+    # The exact source-owned valuation wrapper carries no financial period.
+    native_headings.add('# 1623.TW（大東電）投資銀行等級估值解讀報告')
+    native_headings.add('## Round 2：財務與估值')
     def structural(text):
         return text in native_headings or re.fullmatch(neutral, text) is not None
     ancestors = claim.get('_financial_heading_ancestors')

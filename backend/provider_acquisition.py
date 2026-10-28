@@ -47,6 +47,9 @@ def observation_kind(row: dict) -> str:
     provider, status = row["provider"], row["status"]
     count, message = row["record_count"], row["message"]
     details = row.get('details', {})
+    if (details.get('event_kind')=='http_transport_receipt'
+            and details.get('selection_policy')=='transport-receipt-only:v1' and count==0):
+        return 'aggregate_count'
     if details.get('event_kind') == 'local_block':
         return 'local_block_count'
     if (provider in AGGREGATE_PROVIDERS or message in BASE_AGGREGATE_MESSAGES
