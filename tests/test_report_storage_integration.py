@@ -217,7 +217,10 @@ def test_persist_report_bundle_rolls_back_saved_content_when_data_save_fails():
     else:
         raise AssertionError("expected data save failure")
 
-    assert storage.deleted == [f"2026-06/2308.TW/{md_filename}", f"2026-06/2308.TW/{filename}"]
+    # A storage write may complete and then raise. Roll back the attempted data
+    # key too, even when this fixture raises before writing its bytes.
+    assert storage.deleted == [data_filename, f"2026-06/2308.TW/{md_filename}", f"2026-06/2308.TW/{filename}"]
+    assert data_filename not in storage.saved
     assert filename not in storage.saved
     assert md_filename not in storage.saved
     assert repository.upserts == []

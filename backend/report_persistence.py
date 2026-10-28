@@ -10,7 +10,8 @@ from typing import Any
 from data_trust import data_snapshot_filename_for_report, sanitize_for_snapshot
 from report_paths import report_markdown_filename_for_report, report_storage_key_for_filename
 from report_repository import DEFAULT_REPORT_REPOSITORY, ReportRepository
-from report_publication_gate import assert_report_publishable
+from report_publication_gate import assert_report_publishable, ReportPublicationBlockedError
+from data_trust_snapshot_integrity import verify_data_snapshot_integrity, set_snapshot_integrity
 from storage.report_storage import ReportStorage
 
 
@@ -59,10 +60,18 @@ def persist_report_bundle(
     """Save report content first, then index metadata after all content is durable."""
 
     assert_report_publishable(data_snapshot)
+    integrity = verify_data_snapshot_integrity(data_snapshot)
+    if not integrity['valid']:
+        raise ReportPublicationBlockedError(integrity['errors'])
     keys = report_bundle_keys_for_filename(filename)
     data_snapshot_payload = sanitize_for_snapshot(data_snapshot)
     if not isinstance(data_snapshot_payload, dict):
         data_snapshot_payload = {}
+    if integrity['expected_hash']:
+        # First validate the original seal. Only then seal the canonical bytes
+        # after the established sanitizer removes private observation fields.
+        # Never repair/reseal a damaged input or invent a seal for legacy data.
+        set_snapshot_integrity(data_snapshot_payload)
     data_trust = data_snapshot_payload.get("data_trust")
     data_bytes = json.dumps(data_snapshot_payload, ensure_ascii=False, indent=2).encode("utf-8")
     # Capture all previous bytes before any mutation. A save may write successfully

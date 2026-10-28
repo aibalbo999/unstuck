@@ -139,7 +139,7 @@ def _agent_settings(agent: int) -> dict:
 def _auxiliary_roles() -> dict:
     from context_digest_runtime import _build_digest_generation_config
     from context_digest_tasks import CONTEXT_DIGEST_TARGET_AGENTS
-    from tear_sheet_tasks import _build_tear_sheet_generation_config
+    from tear_sheet_tasks import _build_tear_sheet_generation_config, _tear_sheet_model_sequence
     from agent_runtime.repair_reflection import _build_reflection_generation_config
     from agent_runtime import gemma_evidence_runtime as batches
     from gemma_evidence_batches import MODEL, TRIGGER_MODEL, ROLES
@@ -157,7 +157,7 @@ def _auxiliary_roles() -> dict:
         "context_digest": {"model_sequence": get_context_digest_model_sequence(),
                            "target_agents": sorted(CONTEXT_DIGEST_TARGET_AGENTS),
                            "generation_config": generation(_build_digest_generation_config)},
-        "tear_sheet": {"model_sequence": [config.TEAR_SHEET_MODEL],
+        "tear_sheet": {"model_sequence": _tear_sheet_model_sequence(),
                        "generation_config": generation(_build_tear_sheet_generation_config)},
         "audit_reflection": {"model_sequence": get_audit_model_sequence(),
                              "generation_config": generation(_build_reflection_generation_config),
