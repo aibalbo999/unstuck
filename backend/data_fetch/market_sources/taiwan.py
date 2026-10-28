@@ -15,7 +15,9 @@ from .common import _run_named_fetches
 from .identity import _stock_id_from_ticker, is_taiwan_ticker
 
 try:
-    from FinMind.data import DataLoader
+    from FinMind.data import DataLoader as _FinMindDataLoader
+    from finmind_transport_receipts import observed_loader_class
+    DataLoader = observed_loader_class(_FinMindDataLoader)
 except ImportError:
     DataLoader = None
 
