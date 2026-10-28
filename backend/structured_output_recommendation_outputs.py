@@ -120,8 +120,10 @@ class MarketSourceAssessment(StructuredModel):
 
 
 class MarketContextAssessment(StructuredModel):
-    global_market_context: MarketSourceAssessment | None = None
-    international_news_context: MarketSourceAssessment | None = None
+    global_market_context: MarketSourceAssessment | None = Field(
+        default=None, description="僅評估 data.global_market_context.items 的完整可見來源；source_refs 只能使用此欄位的 visible_source_refs，不得跨欄混用。與全球市場有關的新聞仍須在 international_news_context 評估。")
+    international_news_context: MarketSourceAssessment | None = Field(
+        default=None, description="僅評估 data.international_news_context.topics 的完整可見來源；source_refs 只能使用此欄位的 visible_source_refs，不得跨欄混用。利率或景氣新聞也屬於本欄，依來源 path 而非主題決定歸屬。")
 
 
 class RecommendationStructuredOutput(NextCatalystsMixin):

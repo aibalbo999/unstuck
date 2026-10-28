@@ -3,8 +3,74 @@ import hashlib
 import json
 from json_utils import _strip_code_fence
 from llm_completion_provenance import completion_diagnostics, completion_is_incomplete
+from pipeline_modes import PIPELINE_DEFINITIONS
 
 _PLACEHOLDERS = {'資料不足', '資料時點未提供', 'N/A', 'null', ''}
+_SPECIAL_COMPLETION_AGENTS = frozenset({3, 4, 7, 11, 14, 16, 19, 21, 22, 23, 24})
+_PIPELINE_AGENTS = frozenset(agent for mode in PIPELINE_DEFINITIONS.values() for agent in mode['agents'])
+PROVIDER_COMPLETION_AGENTS = _PIPELINE_AGENTS - _SPECIAL_COMPLETION_AGENTS
+PROVIDER_COMPLETION_POLICY = 'provider-output-completion:v2-all-pipeline-roles'
+_PROVIDER_COMPLETION_POLICIES = {PROVIDER_COMPLETION_POLICY, 'provider-output-completion:v1'}
+
+
+def provider_output_incomplete(output):
+    receipt = output.get('output_completion') if isinstance(output, dict) else None
+    return (isinstance(receipt, dict) and receipt.get('contract_version') in _PROVIDER_COMPLETION_POLICIES
+            and receipt.get('status') == 'incomplete')
+
+
+def bind_incomplete_text(receipt, raw, rendered):
+    """Bind a specialized receipt to exact parser/sanitizer transformations."""
+    if receipt.get('status') == 'incomplete':
+        from output_sanitizer import sanitize_model_output
+        receipt['reparse_sha256'] = sorted({hashlib.sha256(text.encode()).hexdigest()
+            for text in (raw, rendered, sanitize_model_output(raw), sanitize_model_output(rendered))})
+    return receipt
+
+
+def retain_known_provider_incomplete(agent, raw, context, diagnostics):
+    observed = completion_diagnostics(diagnostics)
+    if observed['finish_reasons'] or completion_is_incomplete(observed):
+        return False
+    outputs = context.get('structured_outputs') or {}
+    prior = (outputs.get(agent, outputs.get(str(agent))) or {}).get('output_completion') or {}
+    prior_observed = prior.get('diagnostics', prior)
+    if prior.get('status') != 'incomplete' or not (
+            completion_is_incomplete(prior_observed) or 'provider_output_incomplete' in prior.get('issues', [])):
+        return False
+    hashes = prior.get('reparse_sha256') or [prior.get('raw_sha256')]
+    return hashlib.sha256(raw.encode()).hexdigest() in hashes
+
+
+def bind_known_provider_incomplete(agent, raw, rendered, context, diagnostics):
+    """Preserve observed truncation through reparse; unknown is never STOP."""
+    if agent not in PROVIDER_COMPLETION_AGENTS:
+        return False
+    outputs = context.setdefault('structured_outputs', {})
+    previous = outputs.get(agent, outputs.get(str(agent))) or {}
+    prior = previous.get('output_completion') if provider_output_incomplete(previous) else None
+    observed = completion_diagnostics(diagnostics)
+    sha = lambda text: hashlib.sha256(text.encode()).hexdigest()
+    receipt = None
+    if completion_is_incomplete(observed):
+        from output_sanitizer import sanitize_model_output
+        receipt = {'contract_version': PROVIDER_COMPLETION_POLICY, 'status': 'incomplete',
+            'agent': agent, 'raw_sha256': sha(raw),
+            'text_sha256': sorted({sha(raw), sha(rendered), sha(sanitize_model_output(raw)),
+                                   sha(sanitize_model_output(rendered))}),
+            'finish_reasons': observed['finish_reasons'], 'diagnostics': observed,
+            'issues': ['provider_output_incomplete'], 'basis': 'observed_provider_finish_only', 'recoverable': True}
+    elif (prior and not observed['finish_reasons']
+          and sha(raw) in prior.get('text_sha256', [])):
+        receipt = prior
+    if receipt:
+        outputs.pop(str(agent), None)
+        outputs[agent] = {'output_completion': receipt}
+        return True
+    if prior:
+        outputs.pop(agent, None)
+        outputs.pop(str(agent), None)
+    return False
 
 
 def assess_memo_completion(raw_text, diagnostics=None):
@@ -53,13 +119,15 @@ def assess_memo_completion(raw_text, diagnostics=None):
 
 
 def incomplete_memo_roles(payload):
+    from industry_output_completion import POLICY as INDUSTRY_POLICY
+    from assessment_output_completion import CONTRACT as ASSESSMENT_POLICY
     root = payload if isinstance(payload, dict) else {}
     rerun=root.get('rerun_context')
     context = {**(rerun if isinstance(rerun,dict) else {}), **root}
     outputs = context.get('structured_outputs') or {}
     outputs=outputs if isinstance(outputs,dict) else {}
     result = []
-    for num in (7, 16, 19, 22, 23, 24):
+    for num in sorted(_PIPELINE_AGENTS):
         role = outputs.get(num, outputs.get(str(num))) or {}
         receipt = (context.get('analysis_output_completions') or {}).get(str(num)) or role.get('output_completion') or {}
         if num in {7, 24}:
@@ -70,7 +138,7 @@ def incomplete_memo_roles(payload):
                            'finish_reasons': observed['finish_reasons'], 'issues': ['provider_output_incomplete'],
                            'raw_sha256': raw.get('raw_sha256'), 'recoverable': True}
 
-        if receipt.get('contract_version') in {'memo-output-completion:v1', 'final-output-completion:v1'} and receipt.get('status') == 'incomplete':
+        if receipt.get('contract_version') in ({'memo-output-completion:v1', 'final-output-completion:v1', INDUSTRY_POLICY, ASSESSMENT_POLICY} | _PROVIDER_COMPLETION_POLICIES) and receipt.get('status') == 'incomplete':
             result.append({'agent': num, 'receipt': receipt})
     return result
 

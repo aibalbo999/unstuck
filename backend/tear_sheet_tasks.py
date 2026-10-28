@@ -20,13 +20,29 @@ from prompt_rules import get_task_instruction_lines, get_task_system_instruction
 from llm_key_admission import propagate_admission_cancel
 from runtime_events import emit_context_event, emit_context_event_async, emit_log, make_runtime_event
 from validators import sanitize_model_output, strip_generated_audit_sections
+from summary_consistency import accept_summary, summary_reference_prompt
+from llm_response_diagnostics import response_diagnostics
 from llm_quota_details import extract_quota_details
 from agent_runtime.llm_call_metadata import _key_slot_fields
 from agent_runtime.retry_error_classification import provider_status_code
 
 
 def _tear_sheet_model_sequence() -> list[str]:
-    return [TEAR_SHEET_MODEL]
+    from agent_runtime.routing import get_audit_model_sequence
+    from llm_provider_routes import split_model_provider
+    # Reuse configured Google routes; do not introduce a paid provider or new key.
+    models = []
+    for route in [TEAR_SHEET_MODEL, *get_audit_model_sequence()]:
+        provider, model = split_model_provider(route)
+        if provider == 'google' and model not in models:
+            models.append(model)
+    return models
+
+
+def _summary_can_use_backup(error, model_index, models):
+    return model_index + 1 < len(models) and (
+        provider_status_code(error) in {429, 500, 502, 503, 504}
+        or isinstance(error, TimeoutError))
 
 
 def _build_tear_sheet_prompt(context: dict) -> str:
@@ -56,6 +72,7 @@ def _build_tear_sheet_prompt(context: dict) -> str:
     instruction_block = f"{instruction_text}\n\n" if instruction_text else ""
     return (
         instruction_block
+        + summary_reference_prompt(context) + '\n\n'
         + f"結構化資料：\n{json.dumps(payload, ensure_ascii=False, indent=2)}\n\n"
         + f"各 Agent 摘要：\n{compact_analyses}"
     )
@@ -127,9 +144,20 @@ def ensure_tear_sheet_summary(context: dict, rotator: KeyRotator, progress_callb
             )
             api_key = acquire_key(rotator, model_id, estimate_text_tokens(prompt, response_budget=900), context, None)
             response = _generate_tear_sheet_content(api_key, model_id, prompt)
-            summary = sanitize_model_output(response_text(response))
+            raw_text = response_text(response)
+            summary = sanitize_model_output(raw_text)
             if summary:
-                context["tear_sheet_summary"] = summary[:900]
+                accepted = accept_summary(summary, context, diagnostics=response_diagnostics(response), raw_text=raw_text)
+                if not accepted:
+                    event = _tear_sheet_event_kwargs(context, model_id, 'tear_sheet_rejected',
+                        '模型摘要未通過金額／分類或完整性核對；有已設定備援時繼續同一檢查，否則使用既有欄位摘要。', level='warning')
+                    event['metadata']['validation'] = context['tear_sheet_validation']
+                    event['metadata']['candidate_text'] = raw_text[:16000]
+                    event['metadata']['candidate_truncated'] = len(raw_text) > 16000
+                    emit_context_event(context, make_runtime_event('status', **event), progress_callback)
+                    if model_index + 1 < len(models):
+                        continue
+                    return
                 emit_log("  🧾 一頁式摘要已生成。")
                 emit_context_event(
                     context,
@@ -165,11 +193,15 @@ def ensure_tear_sheet_summary(context: dict, rotator: KeyRotator, progress_callb
                 if not has_fallback:
                     return
                 continue
-            message = "一頁式摘要生成失敗，報表將使用 fallback 摘要。"
+            has_fallback = _summary_can_use_backup(exc, model_index, models)
+            message = ("一頁式摘要遇到額度或暫時服務錯誤，嘗試已設定備援模型。" if has_fallback
+                       else "一頁式摘要生成失敗，報表將使用 fallback 摘要。")
             emit_log(f"  ⚠️  {message}")
-            event = _tear_sheet_event_kwargs(context, model_id, "tear_sheet_fallback", message, level="warning")
+            event = _tear_sheet_event_kwargs(context, model_id, "model_fallback" if has_fallback else "tear_sheet_fallback", message, level="warning")
             event["metadata"] = {**event["metadata"], **_tear_sheet_error_metadata(rotator, api_key, exc)}
             emit_context_event(context, make_runtime_event("status", **event), progress_callback)
+            if has_fallback:
+                continue
             return
 
 
@@ -199,9 +231,20 @@ async def ensure_tear_sheet_summary_async(context: dict, rotator: KeyRotator, pr
             )
             api_key = await acquire_key_async(rotator, model_id, estimate_text_tokens(prompt, response_budget=900), context, None)
             response = await _generate_tear_sheet_content_async(api_key, model_id, prompt)
-            summary = sanitize_model_output(response_text(response))
+            raw_text = response_text(response)
+            summary = sanitize_model_output(raw_text)
             if summary:
-                context["tear_sheet_summary"] = summary[:900]
+                accepted = accept_summary(summary, context, diagnostics=response_diagnostics(response), raw_text=raw_text)
+                if not accepted:
+                    event = _tear_sheet_event_kwargs(context, model_id, 'tear_sheet_rejected',
+                        '模型摘要未通過金額／分類或完整性核對；有已設定備援時繼續同一檢查，否則使用既有欄位摘要。', level='warning')
+                    event['metadata']['validation'] = context['tear_sheet_validation']
+                    event['metadata']['candidate_text'] = raw_text[:16000]
+                    event['metadata']['candidate_truncated'] = len(raw_text) > 16000
+                    await emit_context_event_async(context, make_runtime_event('status', **event), progress_callback)
+                    if model_index + 1 < len(models):
+                        continue
+                    return
                 emit_log("  🧾 一頁式摘要已生成。")
                 await emit_context_event_async(
                     context,
@@ -237,9 +280,13 @@ async def ensure_tear_sheet_summary_async(context: dict, rotator: KeyRotator, pr
                 if not has_fallback:
                     return
                 continue
-            message = "一頁式摘要生成失敗，報表將使用 fallback 摘要。"
+            has_fallback = _summary_can_use_backup(exc, model_index, models)
+            message = ("一頁式摘要遇到額度或暫時服務錯誤，嘗試已設定備援模型。" if has_fallback
+                       else "一頁式摘要生成失敗，報表將使用 fallback 摘要。")
             emit_log(f"  ⚠️  {message}")
-            event = _tear_sheet_event_kwargs(context, model_id, "tear_sheet_fallback", message, level="warning")
+            event = _tear_sheet_event_kwargs(context, model_id, "model_fallback" if has_fallback else "tear_sheet_fallback", message, level="warning")
             event["metadata"] = {**event["metadata"], **_tear_sheet_error_metadata(rotator, api_key, exc)}
             await emit_context_event_async(context, make_runtime_event("status", **event), progress_callback)
+            if has_fallback:
+                continue
             return

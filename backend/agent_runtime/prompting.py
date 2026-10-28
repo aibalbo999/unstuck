@@ -2,6 +2,7 @@ import json
 
 from analysis_types import AnalysisContext, StockData
 from assistant_context import _format_previous
+from agent_target_confidence import target_confidence_instruction
 from config import GEMMA_STATE_REFERENCE_COMPACTION_ENABLED, PRIMARY_PROMPT_CONTEXT_TOTAL_CHAR_BUDGET, get_agent_context_budgets
 from prompt_builder import format_data_for_prompt, render_prompt_template
 from prompt_evidence import prompt_evidence_copy
@@ -261,6 +262,8 @@ def build_prompt(agent_num: int, data: StockData, context: AnalysisContext) -> s
     from trade_source_guidance import technical_comparison_prompt
     from trade_output_contract_guidance import trade_fact_output_instruction
     from trade_source_contract import source_catalog
+    from research_decision_guidance import decision_arithmetic_prompt
+    from financial_money_claims import ttm_money_reference_prompt
     prompt_parts = [
         INSTITUTIONAL_PROMPT_RULE if agent_num in {15, 18, 23, 24} else "",
         build_institutional_source_prompt(data) if agent_num in {15, 18, 23} else "",
@@ -272,9 +275,12 @@ def build_prompt(agent_num: int, data: StockData, context: AnalysisContext) -> s
         forensic_warning,   # v2 Agent 14 財務排雷品質警示
         state_view_section,
         build_reconciliation_source_prompt(context) if agent_num == 7 else "",
+        decision_arithmetic_prompt(context) if agent_num == 7 else "",
+        ttm_money_reference_prompt(data) if agent_num == 11 else "",
         "" if gemma_prompt and rag_context in analysis_prompt else rag_context,
         "⚠️ 若上方任務文字包含 [護城河評分]、[目標股價]、[投資建議] 等舊式區塊格式，請忽略舊式格式；本次只遵守下方 JSON 結構化輸出規則。" if structured_instruction else "",
         structured_instruction,
+        target_confidence_instruction(agent_num, data),
         position_input_instruction,
         trade_block,
         numeric_tool_instruction,

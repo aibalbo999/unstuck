@@ -198,6 +198,25 @@ def _deterministic_structured_fallback(
         if agent_num == 7:
             from research_assumption_contract import TOPICS, assess_reconciliation
 
+            rejected = previous.get('assumption_reconciliation_assessment') or {}
+            issues = list(rejected.get('issues') or [])
+            failure_reason = (
+                '模型的成長與估值假設引文未通過逐字來源核對，有限次修復後仍無可採用的完整決策；信心未重新評估。'
+                if any(str(issue).startswith('unsupported_') for issue in issues)
+                else '模型未能在有限次修復內提供通過品質檢查的完整決策；信心未重新評估。'
+            )
+            recommendation['信心指數'] = 'N/A（' + failure_reason + '）'
+            structured['assessment_limitations'] = {
+                'origin': 'local_deterministic_fallback', 'reason_codes': issues,
+                'reason': failure_reason, 'confidence_reassessed': False,
+                'rejected_candidate_adopted': False,
+            }
+            structured['analysis_markdown'] = (
+                '## 研究評估限制\n\n' + failure_reason
+                + ' 本段僅保留可辨識的研究分類，不新增部位，也不推定實際持倉。'
+                '目標價缺少可驗證的同期間計算依據，保留未評估；沒有沿用被拒絕候選的信心、價格或市場評估。'
+                '這是模型評估未完成，不代表所有原始財務與市場來源均缺少。'
+            )
             structured["assumption_reconciliation"] = {
                 "status": "unassessed", "pending_recalculation": False,
                 "checks": [{

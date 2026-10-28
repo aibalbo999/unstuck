@@ -173,13 +173,16 @@ class AlternativeJobOpeningsProvider(DataProvider):
         identity = data.get("company_identity") if isinstance(data.get("company_identity"), dict) else {}
         legal_name = str(identity.get("legal_name") or "").strip()
         legal_name_evidence = None
-        if (not legal_name and identity.get("ticker") == request.ticker
+        if (identity.get("ticker") == request.ticker
                 and str(data.get("quote_type") or identity.get("instrument_type") or "").upper() == "EQUITY"
                 and str(identity.get("official_name") or "").strip()):
             from .market_sources.official_company_legal_name import get_official_legal_name
-            legal_name_evidence = get_official_legal_name(request.ticker, identity["official_name"])
-            if legal_name_evidence:
-                legal_name = legal_name_evidence["legal_name"]
+            anchor = get_official_legal_name(request.ticker, identity["official_name"])
+            # A supplied legal name does not carry the roster's UBN receipt.
+            # Recover the same official anchor without replacing a conflicting name.
+            if anchor and (not legal_name or legal_name == anchor.get("legal_name")):
+                legal_name_evidence = anchor
+                legal_name = anchor["legal_name"]
         verified_ubn = ""
         if legal_name_evidence and legal_name:
             from .market_sources.official_company_legal_name import (

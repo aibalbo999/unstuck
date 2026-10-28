@@ -28,8 +28,8 @@ def test_agent19_does_not_expand_policy_to_unknown_or_other_provider_models():
     config = generation.build_generation_config(19, "original system")
     assert generation.apply_model_generation_policy(config, "unknown-model", 19) is config
     assert generation.apply_model_generation_policy(config, "openai:gpt-example", 19) is config
-    assert generation.apply_model_generation_policy(config, "gemini-3.8-flash", 16).thinking_config.thinking_level.value == "MEDIUM"
-    assert generation.apply_model_generation_policy(config, "gemini-3-flash-preview", 16) is config
+    assert generation.apply_model_generation_policy(config, "gemini-3.8-flash", 16).thinking_config.thinking_level.value == "LOW"
+    assert generation.apply_model_generation_policy(config, "gemini-3-flash-preview", 16).thinking_config.thinking_level.value == "LOW"
 
 
 @pytest.mark.parametrize("model", ["gemini-3.8-flash", "gemini-3-flash-preview"])
@@ -108,7 +108,7 @@ def test_agent18_complete_output_keeps_4096_budget_and_explicit_low_thinking(mod
     assert adjusted.system_instruction == "full original system"
     assert adjusted.tools == config.tools
     assert generation.generation_event_metadata(18, model)["thinking_level"] == "low"
-    assert generation.GENERATION_POLICY_VERSION == "agent-generation:v5"
+    assert generation.GENERATION_POLICY_VERSION == "agent-generation:v6"
 
 
 def test_agent18_thinking_policy_stays_within_known_google_routes():

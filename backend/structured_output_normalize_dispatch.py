@@ -111,12 +111,15 @@ def normalize_structured_output(agent_num: int, payload: Any) -> Optional[dict]:
         }
 
     if agent_num in {2, 11, 13, 15, 18, 22, 23}:
-        return {
+        result = {
             "as_of_date": _string_field_text(payload.get("as_of_date"), "資料時點未提供"),
             "confidence": _string_field_text(payload.get("confidence"), "unassessed"),
             "evidence_items": safe_dict_list(payload.get("evidence_items"))[:8],
             "analysis_markdown": _normalized_analysis_markdown(raw_payload, payload),
         }
+        if agent_num == 11 and isinstance(raw_payload.get('output_completion'), dict):
+            result['output_completion'] = copy.deepcopy(raw_payload['output_completion'])
+        return result
 
     if agent_num in {4, 14}:
         raw_targets = safe_mapping_dict(raw_payload.get("price_targets")) or {}
@@ -155,6 +158,9 @@ def normalize_structured_output(agent_num: int, payload: Any) -> Optional[dict]:
                     canonical = mapped
                     break
             if not canonical:
+                continue
+            if raw_value is None:
+                targets[canonical] = None
                 continue
             price = _coerce_number(raw_value, 0, None)
             if price is not None:
@@ -274,6 +280,8 @@ def normalize_structured_output(agent_num: int, payload: Any) -> Optional[dict]:
             normalized["assumption_reconciliation"] = copy.deepcopy(raw_payload["assumption_reconciliation"])
         if agent_num == 7 and "assumption_quote_restoration" in raw_payload:
             normalized["assumption_quote_restoration"] = copy.deepcopy(raw_payload["assumption_quote_restoration"])
+        if agent_num == 7 and "assumption_quote_resolution" in raw_payload:
+            normalized["assumption_quote_resolution"] = copy.deepcopy(raw_payload["assumption_quote_resolution"])
         for receipt in ("assumption_reconciliation_assessment", "position_sizing_assessment"):
             if receipt in raw_payload:
                 normalized[receipt] = copy.deepcopy(raw_payload[receipt])

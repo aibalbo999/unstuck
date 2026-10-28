@@ -6,6 +6,7 @@ from final_audit_helpers import extract_first_price, recommendation_value
 from forward_consistency_checker import run_forward_consistency_checks
 from pipeline_modes import get_structured_agent_num
 from structured_output_parser import parse_structured_data
+from agent_target_confidence import target_confidence_issues
 
 from .state_report_adapter import record_agent_state_report
 from .structured_repair_contracts import structured_output_missing
@@ -31,6 +32,14 @@ def research_repair_feedback(context: dict) -> list[str]:
         return ["假設對照五項 topic 必須各出現一次：" + "、".join(TOPICS) + "；不可用重複項目代替缺項。"]
     rows = {row.topic: row for row in checked.checks}
     feedback = []
+    semantic_by_topic = {}
+    for item in assessment.get('semantic_issues', []):
+        semantic_by_topic.setdefault(item['topic'], []).append(item)
+    for topic, items in semantic_by_topic.items():
+        fields = '、'.join(dict.fromkeys(f"{topic}.{item['field']}" for item in items))
+        reasons = '、'.join(dict.fromkeys(item['reason'] for item in items))
+        feedback.append(f"假設對照 {fields}：引文未直接支持該主題／共同期間或DCF主張（{reasons}）；"
+                        "找不到對應原文時本列標 unassessed，不能由背景敘述推定一致。")
     for item in assessment["quote_issues"]:
         row = rows[item["topic"]]
         reason = ("引文為空，不能支持目前 aligned/conflict 判定。"
@@ -58,6 +67,20 @@ def research_repair_feedback(context: dict) -> list[str]:
 def repair_contract_issues(agent_num: int, context: dict) -> list[str]:
     """Use existing per-agent contracts; the complete report audit still follows."""
     issues = []
+    outputs = context.get('structured_outputs') or {}
+    analyses = context.get('analyses') or {}
+    if agent_num == 6:
+        from debate_output_completion import debate_output_issues
+        issues.extend(debate_output_issues(analyses.get(6, analyses.get('6', ''))))
+    from memo_output_completion import provider_output_incomplete
+    if provider_output_incomplete(outputs.get(agent_num, outputs.get(str(agent_num)))):
+        issues.append(f'Agent {agent_num} 供應商已明示輸出未完整，不能接受為修復候選。')
+    if agent_num == 11:
+        from industry_output_completion import industry_output_issues
+        issues.extend(industry_output_issues(analyses.get(11, analyses.get('11', '')), context.get('data') or {},
+                                             outputs.get(11, outputs.get('11'))))
+    issues.extend(target_confidence_issues(agent_num, analyses.get(agent_num, analyses.get(str(agent_num), '')),
+        context.get('data') or {}, outputs.get(agent_num, outputs.get(str(agent_num)))))
     if agent_num == 24:
         from .trade_audit_source_contract import audit_source_issues
         issues.extend(audit_source_issues(context))

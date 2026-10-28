@@ -1,5 +1,7 @@
 """Replay individual income facts without changing the existing cash-flow contract."""
 from decimal import Decimal
+import re
+import unicodedata
 from hashlib import sha256
 from xml.etree import ElementTree as ET
 
@@ -62,6 +64,18 @@ def _fact(raw, tag, period, *, earnings_per_share=False, optional=False):
             'source_scale': int(scale), 'source_decimals': node.get('decimals')}
 
 
+def _english_name(raw, period):
+    """An optional alias must have one exact, unambiguous original context."""
+    root = ET.fromstring(raw)
+    contexts = {n.get('id'): _context_period(n, '1623') for n in root.iter(XBRLI+'context')}
+    nodes = [n for n in root.iter(IX+'nonNumeric')
+             if n.get('name') == 'tifrs-notes:CompanyEnglishName']
+    if len(nodes) != 1 or contexts.get(nodes[0].get('contextRef')) != period or list(nodes[0]):
+        return None
+    name = ' '.join(unicodedata.normalize('NFKC', nodes[0].text or '').split())
+    return name if re.fullmatch(r"[A-Za-z][A-Za-z .,&'()\-]{2,159}", name) else None
+
+
 def replay_income_reference(value, ticker):
     """Read qualified originals; never certify a provider scalar or combine EPS.
 
@@ -111,8 +125,13 @@ def replay_income_reference(value, ticker):
         capital = {end: _fact(qr, 'IssuedCapital', ('instant', end), optional=True),
                    f'{year}-12-31': _fact(qr, 'IssuedCapital', ('instant', f'{year}-12-31'), optional=True)}
         fcf = base['cashflows']['ttm']['free_cash_flow']
+        annual_english = _english_name(ar, ('duration', f'{year}-01-01', f'{year}-12-31'))
+        quarterly_english = _english_name(qr, ('duration', f'{current}-01-01', end))
+        english = (annual_english if annual_english and quarterly_english
+                   and annual_english.casefold() == quarterly_english.casefold() else None)
         return {**failure, 'status': 'income_originals_verified', 'ticker': ticker,
                 'report_scope': 'individual', 'currency': 'TWD', 'issuer_name': base['issuer_name'],
+                **({'issuer_english_name': english} if english else {}),
                 'capture_boundary': 'archived_official_evidence_replay', 'freshness_status': 'not_revalidated',
                 'period_start': base['period_start'], 'period_end': end, 'annual_rows': annual_rows,
                 'income_components': income, 'net_income_ttm_raw': ttm_net_income,

@@ -34,7 +34,7 @@ def _prior_owner_is_bound(data: dict, prefix: str) -> bool:
             continue
         if has_own and re.fullmatch(r'(?:根據|依據)[^。\n]{1,150}報導', part):
             continue
-        if re.fullmatch(r'(?:根據|依據)?財務(?:資料|數據)|財務與評價方面|反證|支持證據|發現|營收與利潤結構|本業獲利與現金流挑戰|自由現金流持續為負(?:與盈餘含金量背離)?', part):
+        if re.fullmatch(r'(?:根據|依據)?財務(?:資料|數據)|財務與評價方面|反證|支持證據|發現|營收與利潤結構|本業獲利與現金流挑戰|獲利品質與盈餘含金量檢視|自由現金流持續為負(?:與盈餘含金量背離)?', re.sub(r'[*`]', '', part)):
             continue
         return False
     return True
@@ -53,15 +53,19 @@ def _money_unit_mismatches(text: str, comparison: dict) -> list[dict]:
         prefix = re.sub(r'(?:quant_metrics|data|history)(?:\.[\w]+)*\s*(?:與|及|和)?', '', prefix)
         prefix = _AMOUNT.sub('', prefix)
         prefix = re.sub(r'^\s*與|與\s*$', '', prefix)
-        prefix = re.sub(r'對應|雖然|顯示|基於|年度|^\s*[-*]\s*', lambda m: '年' if m[0] == '年度' else '', prefix)
+        prefix = re.sub(r'對應|雖然|儘管|顯示|基於|年度|^\s*[-*]\s*', lambda m: '年' if m[0] == '年度' else '', prefix)
         if not _target_revenue_scope(comparison.get('data') or {}, prefix, claim.get('financial_heading', '')):
             continue
         checked = check_financial_amount(claim, comparison, 1.0)
         if checked['status'] != 'mismatch':
             continue
         scale = _SCALES.get(claim['unit'].lower().removesuffix('元'), _SCALES.get(claim['unit'].lower()))
-        if not scale or _amount_matches(str(claim['reported_value']), scale, checked['expected_value_raw_twd'],
-                                        False, 5e6 if checked['source_unit'] == 'billion_twd' else 0):
+        # The series checker has already resolved every endpoint and its
+        # comparison semantics. A unit-only heuristic must not erase a bound
+        # violation or a wrong second endpoint from the early repair loop.
+        if not scale or (not claim.get('financial_series') and
+                         _amount_matches(str(claim['reported_value']), scale, checked['expected_value_raw_twd'],
+                                         False, 5e6 if checked['source_unit'] == 'billion_twd' else 0)):
             continue
         rows.append({**claim, **checked})
     return rows

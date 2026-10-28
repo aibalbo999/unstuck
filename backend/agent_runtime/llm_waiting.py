@@ -4,6 +4,7 @@ import math
 
 from config import LLM_AGENT_CALL_TIMEOUT_SECONDS, LLM_KEY_ADMISSION_TIMEOUT_SECONDS
 from llm_key_admission import key_admission_scope
+from llm_request_deadline import response_timeout_scope
 from .cancellation import CANCEL_CHECK_CONTEXT_KEY
 from .retry_policy import AgentTransientError
 
@@ -35,9 +36,10 @@ async def acquire_key_async(rotator, model, tokens, context, timeout, **budget):
 
 
 async def await_response(coro, *, model_id, timeout):
-    if timeout <= 0:
-        return await coro
-    try:
-        return await asyncio.wait_for(coro, timeout=timeout)
-    except asyncio.TimeoutError as exc:
-        raise AgentTransientError(f"LLM timeout after {timeout:.1f}s for model {model_id}") from exc
+    with response_timeout_scope(timeout):
+        if timeout <= 0:
+            return await coro
+        try:
+            return await asyncio.wait_for(coro, timeout=timeout)
+        except asyncio.TimeoutError as exc:
+            raise AgentTransientError(f"LLM timeout after {timeout:.1f}s for model {model_id}") from exc

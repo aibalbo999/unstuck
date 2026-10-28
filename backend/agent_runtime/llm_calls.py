@@ -13,6 +13,7 @@ from config import LLM_AGENT_CALL_TIMEOUT_SECONDS
 from llm_client import KeyRotator, estimate_text_tokens
 from llm_congestion import provider_attempt_scope
 from llm_key_admission import propagate_admission_cancel
+from llm_request_deadline import response_timeout_scope
 from llm_response_diagnostics import response_kind, response_diagnostics
 from llm_tool_rate_guard import tool_request_scope
 from runtime_events import (
@@ -84,7 +85,7 @@ def _run_agent_once(
         )
         budget = agent_request_budget_options(agent_num)
         api_key = acquire_key(rotator, model_id, estimate_agent_input_tokens(agent_num, model_id, prompt), context, timeout_seconds, **budget)
-        with provider_attempt_scope(model_id, api_key, record_outcome=False):
+        with response_timeout_scope(timeout_seconds), provider_attempt_scope(model_id, api_key, record_outcome=False):
             emit_context_event(
                 context,
                 llm_provider_request_event(

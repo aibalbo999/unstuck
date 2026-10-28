@@ -127,4 +127,13 @@ def format_recommendation_block(agent_num: int, rec: dict) -> str:
         lines = [f"{key}{separator}{value}" for key, value in display_rec.items() if value]
         if not lines:
             lines = [f"建議{separator}N/A"]
-    return "[投資建議]\n" + "\n".join(lines) + "\n[/投資建議]"
+    block = "[投資建議]\n" + "\n".join(lines) + "\n[/投資建議]"
+    target_keys = ("短期目標（3個月）", "中期目標（6個月）", "長期目標（12個月）", "長期潛力（5年）")
+    if agent_num == 7 and all(
+        _display_line(rec.get(key)) and _display_line(rec.get(key)).upper() not in {"N/A", "NA"}
+        for key in target_keys
+    ):
+        # Label the existing values, including an explicit lack of price evidence.
+        # Missing target content must not be concealed by a generated heading.
+        block = "### 投資建議與目標價可用性\n\n" + block
+    return block

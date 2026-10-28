@@ -19,6 +19,10 @@ _NESTED_SECTIONS = {
 
 
 def structured_output_missing(context: AnalysisContext, agent_num: int) -> bool:
+    from assessment_output_completion import incomplete_output
+    outputs = context.get('structured_outputs') or {}
+    if incomplete_output(outputs.get(agent_num, outputs.get(str(agent_num)))):
+        return True
     assigned_kinds = {
         kind
         for kind in (*_NESTED_SECTIONS, "position_plan", "short_setup", "trade_setup")

@@ -20,6 +20,7 @@ from validators import (
     validate_company_identity,
     validate_prompt_leakage,
 )
+from agent_target_confidence import target_confidence_issues
 from .cancellation import raise_if_cancelled
 from .deferred import AgentDeferredError
 from .deterministic_skips import apply_deterministic_agent_skip
@@ -31,6 +32,8 @@ from .routing import get_runtime_model_sequence, is_agent_execution_failure
 from .single_agent import run_single_agent_async
 
 async def _memo_partial_result(agent_num, result, context, progress_callback):
+    if agent_num == 11:
+        return False  # Use the existing structured/quality retries before the partial-output exit.
     from memo_output_completion import incomplete_memo_roles
     if not any(role['agent'] == agent_num for role in incomplete_memo_roles(context)):
         return False
@@ -120,6 +123,18 @@ async def run_agent_with_quality_gates_async(
     result = await initial_or_checkpointed_draft(agent_num, data, context, rotator, run_single_agent_async)
     raise_if_cancelled(context)
     result = sanitize_model_output(result)
+    from debate_output_completion import recoverable_debate_truncation
+    if agent_num == 6 and recoverable_debate_truncation(context):
+        context['analyses'][agent_num] = result
+        result = await retry_after_agent_quality_issues(
+            agent_num, data, context, rotator, progress_callback,
+            ['輸出遭 token 上限截斷；重新生成完整三輪攻防、主持人總結及未解爭點，'
+             '精簡重複內容並保留原始來源、期間與反證，不接續或拼補截斷草稿。'],
+            agent_position=agent_position, agent_total=agent_total, agent_name=agent_name,
+            pipeline_id=pipeline_id, pipeline_label=pipeline_label,
+            run_agent_async=run_single_agent_async, emit_status=emit_status_async,
+            parse_structured_output=_try_parse_structured_output,
+        )
     if await _memo_partial_result(agent_num, result, context, progress_callback):
         return agent_num, result
     try:
@@ -172,6 +187,16 @@ async def run_agent_with_quality_gates_async(
 
     identity_issues = validate_company_identity(result, data)
     if identity_issues:
+        if agent_num == 6:
+            from debate_output_completion import debate_retry_spent
+            from .quality_retry import record_agent_quality_retry
+            if debate_retry_spent(context):
+                context.setdefault('blocking_issues', []).extend(
+                    f'Agent 6 復驗上限已達，身分仍未通過：{issue}' for issue in identity_issues)
+                context['analyses'][agent_num] = result
+                return agent_num, result
+            record_agent_quality_retry(context, agent_num)
+            await checkpoint_unvalidated_draft(agent_num, result, context)
         await emit_status_async(
             progress_callback,
             f"Agent {agent_num}（{agent_position}/{agent_total}）身分一致性檢查未通過，正在要求重寫...",
@@ -213,7 +238,21 @@ async def run_agent_with_quality_gates_async(
         else:
             emit_log("  ✅ 重寫後通過公司身分一致性檢查。")
 
-    quality_issues = validate_analysis_output(agent_num, result, data)
+    def decision_contract_issues():
+        if agent_num == 6:
+            from debate_output_completion import debate_output_issues
+            return debate_output_issues(result)
+        if agent_num == 11:
+            from industry_output_completion import industry_output_issues
+            outputs = context.get('structured_outputs') or {}
+            return industry_output_issues(result, data, outputs.get(11, outputs.get('11')))
+        if agent_num == 7:
+            from .repair_state import repair_contract_issues
+            return list(dict.fromkeys(repair_contract_issues(7, context)))
+        outputs = context.get('structured_outputs') or {}
+        return target_confidence_issues(agent_num, result, data, outputs.get(agent_num, outputs.get(str(agent_num))))
+
+    quality_issues = validate_analysis_output(agent_num, result, data) + decision_contract_issues()
     if quality_issues:
         await checkpoint_unvalidated_draft(agent_num, result, context)
         context["analyses"][agent_num] = result
@@ -260,6 +299,11 @@ async def run_agent_with_quality_gates_async(
             )
             result = append_identity_warnings(result, retry_identity_issues)
 
+    remaining_issues = decision_contract_issues()
+    if agent_num in {7, 11}:
+        remaining_issues = [issue if issue.startswith(f'Agent {agent_num} ') else f'Agent {agent_num} {agent_name}: {issue}'
+                            for issue in remaining_issues]
+    context.setdefault('blocking_issues', []).extend(remaining_issues)
     if agent_num == 24 and not context.get("blocking_issues"):
         result = await repair_trade_sources(result, data, context, rotator, run_single_agent_async,
             validate_candidate=lambda text: validate_prompt_leakage(text) +

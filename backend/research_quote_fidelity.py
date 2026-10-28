@@ -12,7 +12,7 @@ import re
 
 from research_assumption_contract import reconciliation_sources
 
-POLICY = 'research-quote-format:v1:paired-bold-only'
+POLICY = 'research-quote-format:v2:paired-bold-outside-inline-code'
 _BOLD = re.compile(r'(?<![A-Za-z0-9_\\*])\*\*(?=\S)([^*\n]*?\S)(?<!\\)\*\*(?![A-Za-z0-9_*])')
 
 
@@ -22,6 +22,21 @@ def _hash(value):
 
 def _json_hash(value):
     return _hash(json.dumps(value, ensure_ascii=False, sort_keys=True))
+
+
+def _inline_code_ranges(line):
+    runs = list(re.finditer(r'`+', line))
+    ranges = []
+    index = 0
+    while index < len(runs):
+        opening = runs[index]
+        closing = next((i for i in range(index + 1, len(runs))
+                        if len(runs[i][0]) == len(opening[0])), None)
+        if closing is None:
+            return [(0, len(line))]  # Ambiguous/unclosed markup stays protected.
+        ranges.append((opening.start(), runs[closing].end()))
+        index = closing + 1
+    return ranges
 
 
 def _code_positions(source):
@@ -37,8 +52,11 @@ def _code_positions(source):
         elif marker:
             fence = (marker[1][0], len(marker[1]))
             protected.update(range(offset, offset + len(line)))
-        elif '`' in line or line.startswith(('    ', '\t')):
+        elif line.startswith(('    ', '\t')):
             protected.update(range(offset, offset + len(line)))
+        else:
+            for start, end in _inline_code_ranges(line):
+                protected.update(range(offset + start, offset + end))
         offset += len(line)
     return protected
 
@@ -48,7 +66,7 @@ def _source_view(source):
     pairs = []
     for match in _BOLD.finditer(source):
         start, end = match.span()
-        if start in protected:
+        if any(i in protected for i in range(start, end)):
             continue  # Code or an ambiguous mixed-markup line is not a bold witness.
         pairs.append((start, end))
     removed = {i for start, end in pairs for i in (start, start + 1, end - 2, end - 1)}

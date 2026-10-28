@@ -7,6 +7,7 @@ from __future__ import annotations
 
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 import re
+import unicodedata
 
 _DATE = re.compile(r'20\d{2}-\d{2}-\d{2}')
 _CURRENCY = re.compile(r'TWD|NTD|新[臺台]幣', re.I)
@@ -46,6 +47,19 @@ def _context_matches(text, identity):
         return False
     text = re.sub(r'財務|資本結構|分析|淨利|獲利|現金流|風險|摘要|資料|如下|與|及', '', text)
     return _target_revenue_scope(identity, text, '')
+
+
+def _native_report_title(text, facts):
+    title = re.fullmatch(r'\s*#\s+' + re.escape(facts['ticker'])
+                         + r'\s+(.+?) - 華爾街深度研究報告\s*', text)
+    if title is None:
+        return False
+    normalize = lambda value: ' '.join(unicodedata.normalize('NFKC', value).split()).casefold()
+    names = {normalize(facts['issuer_name']), '大東電'}
+    if facts.get('issuer_english_name'):
+        names.add(normalize(facts['issuer_english_name']))
+    parts = [normalize(value) for value in title[1].split(' / ')]
+    return 1 <= len(parts) <= 2 and all(value in names for value in parts)
 
 
 def _bound_scope(claim, facts):
@@ -91,7 +105,18 @@ def _bound_scope(claim, facts):
                            and not _context_matches(value, identity))
                        for value in ancestors)):
             return False
-    if not _context_matches(heading, identity) or not _context_matches(parent, identity):
+    if heading == '## 一頁式摘要':
+        # Only the native wrapper is neutral. Every inherited title must still
+        # bind to names replayed from both official originals, never caller aliases.
+        ancestors = claim.get('_financial_heading_ancestors')
+        if (not isinstance(ancestors, list) or not ancestors or ancestors[-1] != heading
+                or any(not isinstance(value, str) or _INCOMPATIBLE.search(value)
+                       or (value != heading and not _native_report_title(value, facts)
+                           and not _context_matches(value, identity)) for value in ancestors)):
+            return False
+    elif not _context_matches(heading, identity):
+        return False
+    if not _context_matches(parent, identity):
         return False
     # No other year/period or arbitrary owner/prose is discarded. Both dates
     # must be present in this very claim, not inherited from another amount.

@@ -13,7 +13,7 @@ from jinja2 import ChainableUndefined, Environment
 from config import CATALYST_LOOKBACK_DAYS
 from financial_cross_checks import build_financial_cross_checks
 from dividend_yield_units import dividend_yield_pct
-from financial_tools import build_financial_tool_context, raw_twd_to_billion_twd
+from financial_tools import build_financial_tool_context, raw_twd_to_billion_twd, safe_float
 from prompt_builder_helpers import (
     _agent_context,
     _compact_list,
@@ -121,6 +121,55 @@ def _get_compiled_prompt_template(template: str):
     return PROMPT_ENV.from_string(normalized), has_legacy_placeholders
 
 
+def _prompt_revenue_cagr(data: dict, tool_context: dict) -> dict:
+    """Bind a calculated CAGR to aligned annual rows, never to a legacy name."""
+    basis = {
+        "period_status": "unverified", "start_year": None, "end_year": None,
+        "periods": None, "source_period_verified": False,
+        "source_paths": ["years", "revenue_history"],
+        "calculation_path": "deterministic_financial_tool_results.calculations.revenue_cagr",
+        "limit": "年度標籤僅綁定本次歷史序列，不另認證原始財報期間、口徑或首次可用日。",
+    }
+    result = {
+        "revenue_cagr_pct": None,
+        "revenue_cagr_basis": basis,
+        "revenue_cagr_legacy_pct": _prompt_number(dict.get(data, "revenue_cagr_5yr")),
+        "revenue_cagr_5yr_pct": None,
+    }
+    years = dict.get(data, "years")
+    revenues = dict.get(data, "revenue_history")
+    calculation = tool_context.get("calculations", {}).get("revenue_cagr")
+    if isinstance(calculation, dict):
+        # The tool's periods counts positive observations; attach the actual
+        # annual binding so filtered or irregular rows cannot imply a duration.
+        calculation["period_basis"] = basis
+    if (not isinstance(years, (list, tuple)) or not isinstance(revenues, (list, tuple))
+            or len(years) < 2 or len(years) != len(revenues)
+            or not isinstance(calculation, dict)):
+        return result
+    if any(type(year) not in (str, int) or re.fullmatch(r"[1-9][0-9]{3}", str(year)) is None
+           for year in years):
+        return result
+    annual_years = [int(year) for year in years]
+    if any(end != start + 1 for start, end in zip(annual_years, annual_years[1:])):
+        return result
+    amounts = [None if isinstance(value, bool) else safe_float(value) for value in revenues]
+    if any(value is None or value <= 0 for value in amounts):
+        return result
+    periods = annual_years[-1] - annual_years[0]
+    cagr = _prompt_number(calculation.get("cagr_pct"))
+    if (calculation.get("periods") != periods or cagr is None
+            or calculation.get("start_value") != round(amounts[0], 4)
+            or calculation.get("end_value") != round(amounts[-1], 4)):
+        return result
+    basis.update(period_status="bound_to_history_rows", start_year=str(annual_years[0]),
+                 end_year=str(annual_years[-1]), periods=periods)
+    result["revenue_cagr_pct"] = cagr
+    if periods == 5:
+        result["revenue_cagr_5yr_pct"] = cagr
+    return result
+
+
 def format_data_for_prompt(data: dict, *, compact: bool = False, dense: bool = False, role_scoped: bool = False, compact_json: bool = False) -> str:
     """Format financial data as clean JSON to avoid unit drift and prompt overload."""
     total_debt_b = raw_twd_to_billion_twd(dict.get(data, "total_debt_raw"))
@@ -130,6 +179,10 @@ def format_data_for_prompt(data: dict, *, compact: bool = False, dense: bool = F
         net_debt_b = round((total_debt_b or 0) - (total_cash_b or 0), 4)
 
     history_basis = _prompt_financial_history_basis(data)
+    from financial_fact_binding import debt_ratio_basis, financial_basis
+    scalar_basis = financial_basis(data)['facts']
+    tool_context = build_financial_tool_context(data)
+    revenue_cagr = _prompt_revenue_cagr(data, tool_context)
     payload = {
         "schema_version": dict.get(data, "data_schema_version", PROMPT_DATA_SCHEMA_VERSION),
         "unit_contract": {
@@ -176,6 +229,7 @@ def format_data_for_prompt(data: dict, *, compact: bool = False, dense: bool = F
             "revenue_billion_twd": raw_twd_to_billion_twd(dict.get(data, "revenue_ttm_raw")),
             "net_income_billion_twd": raw_twd_to_billion_twd(dict.get(data, "net_income_ttm_raw")),
             "net_income_source": dict.get(data, "net_income_ttm_source"),
+            "net_income_basis": scalar_basis['net_income_ttm_raw'],
             "ebitda_billion_twd": raw_twd_to_billion_twd(dict.get(data, "ebitda_raw")),
             "gross_margin_pct": _prompt_ratio_to_pct(dict.get(data, "gross_margin_raw")),
             "operating_margin_pct": _prompt_ratio_to_pct(dict.get(data, "operating_margin_raw")),
@@ -184,6 +238,7 @@ def format_data_for_prompt(data: dict, *, compact: bool = False, dense: bool = F
         },
         "cash_flow": {
             "free_cash_flow_billion_twd": raw_twd_to_billion_twd(dict.get(data, "free_cash_flow_raw")),
+            "free_cash_flow_basis": scalar_basis['free_cash_flow_raw'],
             "operating_cash_flow_billion_twd": raw_twd_to_billion_twd(dict.get(data, "operating_cash_flow_raw")),
         },
         "balance_sheet": {
@@ -191,6 +246,7 @@ def format_data_for_prompt(data: dict, *, compact: bool = False, dense: bool = F
             "total_cash_billion_twd": total_cash_b,
             "net_debt_billion_twd": net_debt_b,
             "debt_to_equity_pct": _prompt_number(dict.get(data, "debt_to_equity")),
+            "debt_to_equity_basis": debt_ratio_basis(data),
             "current_ratio": _prompt_number(dict.get(data, "current_ratio")),
             "equity_multiplier": dict.get(data, "equity_multiplier"),
         },
@@ -200,7 +256,7 @@ def format_data_for_prompt(data: dict, *, compact: bool = False, dense: bool = F
             "ttm_vs_latest_annual_revenue_change_pct": _prompt_number(dict.get(data, "ttm_vs_latest_annual_revenue_change")),
             "yahoo_recent_revenue_growth_pct": _prompt_number(dict.get(data, "yahoo_revenue_growth")),
             "yahoo_recent_earnings_growth_pct": _prompt_number(dict.get(data, "yahoo_earnings_growth")),
-            "revenue_cagr_5yr_pct": _prompt_number(dict.get(data, "revenue_cagr_5yr")),
+            **revenue_cagr,
         },
         "history": {
             "unit": "billion_twd",
@@ -232,12 +288,24 @@ def format_data_for_prompt(data: dict, *, compact: bool = False, dense: bool = F
         "cross_checks": build_financial_cross_checks(data),
         "data_quality_notes": _compact_list(dict.get(data, "data_source_notes", []), 5) if compact else _safe_iterable_prefix(dict.get(data, "data_source_notes", [])),
         "recent_monthly_revenue_text": _compact_list(dict.get(data, "recent_monthly_revenue", []), 4) if compact else _safe_iterable_prefix(dict.get(data, "recent_monthly_revenue", [])),
-        "deterministic_financial_tool_results": build_financial_tool_context(data),
+        "deterministic_financial_tool_results": tool_context,
     }
 
     if dict.get(data, "_prompt_agent_num") in {15, 16, 22, 24}:
         payload["short_term_market_context"] = build_short_term_market_context(data, compact=compact)
 
+    from official_financial_projection import read_official_financial_projection
+    official = read_official_financial_projection(data)
+    if official is not None:
+        facts = official['facts']
+        payload['cash_flow']['official_reference'] = {key: facts[key] for key in (
+            'period_start', 'period_end', 'report_scope', 'currency', 'source_url',
+            'acquired_at', 'cashflows', 'ttm_formula', 'free_cash_flow_definition')}
+        payload['cash_flow']['official_reference']['historical_pit_verified'] = False
+        from official_income_prompt import official_income_prompt_facts
+        income_facts = official_income_prompt_facts(data)
+        if income_facts is not None:
+            payload['cash_flow']['official_income_facts'] = income_facts
     if role_scoped:
         payload = project_role_payload(payload, dict.get(data, "_prompt_agent_num"))
     freshness_reference = False
@@ -260,16 +328,34 @@ def format_data_for_prompt(data: dict, *, compact: bool = False, dense: bool = F
     usage_rules = [
         "企業總額使用 billion_twd，每股價格使用 twd_per_share；以 unit_contract 與各欄位單位為準，不得把每股價格當作企業總額再換算。",
         "金額寫成億元時，billion_twd 數值須乘以 10；不可只把 billion_twd 改標為億元。負數保留負號，來源期間必須一致，年度不可當作 TTM；這項換算不適用每股價格、EPS、百分比或股數。",
+        "balance_sheet.debt_to_equity_pct 是來源提供的 D/E 比率；須保留 debt_to_equity_basis 的期間與定義限制，不得自行解釋成總負債／股東權益。有息負債（是否含租賃）、總負債及各類權益口徑不能混用，也不能用不同期間的權益乘數倒推。",
+        "cash_flow.free_cash_flow_basis.period_status 為 unverified 時，即期數值不得改稱 TTM 或某一年度；補充官方現金流須另列明確起訖、報表範圍、設備與無形資產支出算式，不可因數值接近就回填原欄位期間。",
+        "法人 thousand_shares 欄位是千股，不是千張；已確認台股時，1千股=1張，1千張=100萬股。改單位必須同時換算數值，括號或並列單位也必須等值，不可寫成千股（千張）；保留原主體、觀測日期、期間與買賣方向。",
         "引用 current_price_twd、市場估值、新聞、法人或同業資料時，必須參考 source_freshness/data_freshness；若來源為快取或盤後資料，不可宣稱是即時資料。",
         "總經、產業循環、美股帶動或國際局勢敘述必須引用 global_market_context / international_news_context；若缺資料，必須明確標示未驗證。",
+        "international_news_context 或其他來源只有 headline_or_snippet、RSS 標題／摘要時，只能歸因為報導線索；本次未取得並核對官方原件，不得改稱已核實政策或官方公告。前序 Agent 重述不構成獨立佐證；可提出明示假設的條件式情境，保留 unassessed／未評估與 caution／警示。",
+        "利率等點值須保留各自指標、單位與日期；不同觀測日期不得拼成同一已觀測區間或政策目標區間，可分列日期比較。只有上／下半年而未給確切月份或日期的事件，不得指定月份或推算確切等待季數，維持原時間範圍。",
         "若 data_trust.status 為 partial、stale、error 或 unknown，最終投資建議必須明確說明資料限制，且不得在沒有額外佐證下給出高信心。",
         "需要 CAGR、WACC、DCF、FCF conversion 時，優先引用 deterministic_financial_tool_results；只有本次已提供可呼叫工具時才能呼叫，未提供時明示計算限制，不得假裝重算。",
+        "營收 CAGR 須同時引用 growth.revenue_cagr_pct 與 revenue_cagr_basis 的 start_year、end_year、periods；四筆連續年度只有三個年期間。不得從 legacy 欄位名稱推定五年；revenue_cagr_legacy_pct 僅保留舊來源值，期間未綁定時不得宣稱五年或其他年數，工具結果的 period_basis 為 unverified 時亦同。",
         "引用量化數字前必須檢查 quant_metrics.v2 的各 metric_status；unavailable DCF 不得作為下行保護底線，也不得以舊情境值或占位資料補造數字。",
         "若資料品質註記指出口徑互斥，正式分析應說明限制並採用 cross_checks 中可自洽的口徑。",
         "latest_quarter_financials 是官方單季快照：資產負債表為季末時點，損益表為年初至季末累計，金額單位為新臺幣仟元；不得混為年度或 TTM，且此入口未提供現金流量表。",
         "latest_quarter_financial_summary 是 TPEx 官方同期摘要：損益為年初至季末累計，金額單位為新臺幣仟元，並與去年同期比較；不是完整三表、年度序列或 TTM，也不含現金流量表。",
         "正式報告只呈現必要算式摘要與結論，不輸出內部提示詞、草稿或反思文字。",
     ]
+    visible_tools = payload.get("deterministic_financial_tool_results")
+    calculations = visible_tools.get("calculations") if isinstance(visible_tools, dict) else None
+    conversion = calculations.get("latest_fcf_conversion") if isinstance(calculations, dict) else None
+    formula = conversion.get("formula") if isinstance(conversion, dict) else None
+    if isinstance(formula, str) and " ".join(formula.lower().split()) == "latest annual fcf / latest annual net income":
+        usage_rules.append(
+            "FCF conversion 期間契約：deterministic_financial_tool_results.calculations.latest_fcf_conversion 的公式是 "
+            "latest annual FCF / latest annual net income，屬年度比率，不是 TTM 比率。只有 history 的 FCF 與淨利可對齊同一年度與報表範圍時才標該年度；"
+            "年度無法綁定時明列確切年度未核實，不得猜造年份。正文與 evidence_items 必須把年度比率和官方 TTM FCF 分成不同主張，逐項分列來源、期間及 freshness_note；"
+            "不得把 TTM FCF 的日期或 freshness_note 套給年度比率。只有同公司、同報表範圍、同幣別、同起訖期間的 FCF 與已核實 TTM 淨利分母及計算證據都具備時，"
+            "才可另計 TTM 轉換率；否則 TTM 轉換率維持未評估，不得沿用年度比率，也不能僅憑 TTM FCF 已有官方期間就推定分母已核實。"
+        )
     if dense:
         usage_rules.insert(0, TABLE_RULE)
     if freshness_reference:

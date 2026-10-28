@@ -19,11 +19,13 @@ from structured_output_models import STRUCTURED_AGENT_INSTRUCTIONS, get_structur
 
 from .prompt_config import SYSTEM_PROMPTS
 from .retry_policy import AgentTransientError
+from debate_output_completion import POLICY as AGENT6_COMPLETION_POLICY, INSTRUCTION as _AGENT6_COMPLETION_INSTRUCTION
 from .routing import get_agent_function_tools
 
 
 GENERATION_POLICY_VERSION = "agent-generation:v6"
-AGENT7_COMPLETION_POLICY = "research-completion:v1-preview-low"
+AGENT7_COMPLETION_POLICY = "research-completion:v4-topic-period-binding"
+AGENT16_COMPLETION_POLICY = "trading-completion:v1-low-thinking"
 _DEFAULT_GENERATION_PROFILE = {
     "temperature": 0.7,
     "top_p": 0.95,
@@ -34,12 +36,12 @@ _DEFAULT_GENERATION_PROFILE = {
 # variable and expensive as the debate role.  Keep one explicit profile per
 # numbered agent so report provenance can identify the policy actually used.
 AGENT_GENERATION_PROFILES = {
-    1: {"temperature": 0.45, "top_p": 0.90, "max_output_tokens": 4096},
-    2: {"temperature": 0.25, "top_p": 0.90, "max_output_tokens": 4096},
+    1: {"temperature": 0.45, "top_p": 0.90, "max_output_tokens": 8192},
+    2: {"temperature": 0.25, "top_p": 0.90, "max_output_tokens": 8192},
     3: {"temperature": 0.30, "top_p": 0.90, "max_output_tokens": 4096},
     4: {"temperature": 0.20, "top_p": 0.85, "max_output_tokens": 6144},
-    5: {"temperature": 0.45, "top_p": 0.90, "max_output_tokens": 4096},
-    6: {"temperature": 0.60, "top_p": 0.95, "max_output_tokens": 4096},
+    5: {"temperature": 0.45, "top_p": 0.90, "max_output_tokens": 8192},
+    6: {"temperature": 0.25, "top_p": 0.95, "max_output_tokens": 8192},
     7: {"temperature": 0.25, "top_p": 0.90, "max_output_tokens": 6144},
     11: {"temperature": 0.40, "top_p": 0.90, "max_output_tokens": 3072},
     12: {"temperature": 0.30, "top_p": 0.90, "max_output_tokens": 4096},
@@ -67,6 +69,10 @@ _AGENT7_COMPLETION_INSTRUCTION = (
     f"assumption_reconciliation 必須涵蓋 {'、'.join(RESEARCH_ASSUMPTION_TOPICS)} 五項，並明確填寫 pending_recalculation；"
     "valuation_quote 與 growth_quote 只能逐字引用對應角色的完整可見來源，不改數字、單位或補造引文，"
     "找不到同語意來源時如實保留缺口，不以概述代替引文。"
+    "引文優先選擇短而完整的連續原文，保留 Markdown、空格與反斜線，僅按 JSON 語法跳脫；"
+    "不可把公式的反斜線加倍成不同原文字元，不可用省略號或拼接跨句內容。"
+    "也可填寫當前來源片段的 quote_ref，並把對應 quote 留空，由系統逐字取回；不可以編號代替推論與缺口判斷。"
+    "完成推薦前，按實際現價與12個月目標算出報酬，核對分類契約與正文；持有不等同暫時觀望。"
     "market_context_assessment 必須評估完整可見的全球市場與國際新聞來源，保留具體 reason 與有效 source_refs；"
     "不得為省字略過來源評估或刪減必要引用。"
 )
@@ -83,6 +89,15 @@ _AGENT19_COMPLETION_INSTRUCTION = (
     "若選擇 AVOID 且確實不建立部位，entry_trigger 須明確寫目前不建立空方部位；"
     "cover_stop 須保留不適用及目前不建立空方部位的原因，不能只寫 N/A；並保留軋空風險及重新評估條件。"
     "若包含既有部位、減碼或條件下單，須如實保留，不可改寫成無部位以通過檢查。"
+)
+_AGENT16_COMPLETION_INSTRUCTION = (
+    "\n\nAgent 16 完整性契約：只輸出一份完整 JSON 與結尾大括號，先完成 response_schema 所有必要欄位，"
+    "包括 recommendation、position_plan、confidence_basis、scenario_triggers、analysis_markdown。"
+    "analysis_markdown 以 800–1200 字精煉整合，避免逐字重複前序分析、原始表格或其他 JSON 欄位；"
+    "完整證據與品質規則優先於篇幅目標，不得刪減必要引用或以資料不足代替可驗證分析。"
+    "保留支持、反證、失效條件、倉位與現金比例、成本及風險限制；不為完成欄位補造價格或改變研究分類。"
+    "market_context_assessment 必須評估完整來源，保留具體 reason 與有效 source_refs；"
+    "來源與資料缺口如實保留，不靠省略必要內容避免截斷。"
 )
 
 
@@ -104,11 +119,11 @@ def _agent19_recommendation_contract_instruction() -> str:
 
 def _thinking_level(agent_num: int | None, model_id: str) -> str | None:
     model = model_id.removeprefix("google:").removeprefix("models/")
-    # Preview defaults to high thinking within the same output budget. Bound
-    # this observed research fallback without changing other routes or roles.
-    if agent_num == 7 and model == "gemini-3-flash-preview":
+    # Keep observed truncating evidence/assessment roles within their existing
+    # output budgets; completion and financial gates still validate every reply.
+    if agent_num in {1, 2, 3, 4, 5, 6, 7, 11, 12, 13, 14, 20, 21} and model in _COMPLETION_LOW_THINKING_MODELS:
         return "low"
-    if agent_num in {18, 19, 22, 23, 24} and model in _COMPLETION_LOW_THINKING_MODELS:
+    if agent_num in {16, 18, 19, 22, 23, 24} and model in _COMPLETION_LOW_THINKING_MODELS:
         return "low"
     if model_id in _BOUNDED_THINKING_MODELS:
         return "medium" if agent_num in _MEDIUM_THINKING_AGENTS else "low"
@@ -123,9 +138,19 @@ def generation_profile(agent_num: int) -> dict[str, int | float]:
 
 def generation_event_metadata(agent_num: int, model_id: str) -> dict[str, int | float | str]:
     metadata = generation_profile(agent_num)
+    if agent_num == 6:
+        metadata['completion_policy_version'] = AGENT6_COMPLETION_POLICY
+    if agent_num == 11:
+        from industry_output_completion import POLICY
+        metadata['completion_policy_version'] = POLICY
     level = _thinking_level(agent_num, model_id)
     if level is not None:
         metadata["thinking_level"] = level
+    if agent_num == 16:
+        metadata['completion_policy_version'] = AGENT16_COMPLETION_POLICY
+    from assessment_output_completion import AGENTS, CONTRACT
+    if agent_num in AGENTS:
+        metadata['completion_policy_version'] = CONTRACT
     return metadata
 
 
@@ -222,8 +247,23 @@ def _response_text(response) -> str:
 
 def google_safe_agent_system_instruction(agent_num: int, model_id: str) -> str:
     system_instruction = SYSTEM_PROMPTS.get(agent_num, "")
-    if agent_num == 7:
+    if agent_num == 6:
+        system_instruction += _AGENT6_COMPLETION_INSTRUCTION
+    elif agent_num == 7:
         system_instruction += _AGENT7_COMPLETION_INSTRUCTION
+    elif agent_num == 11:
+        from industry_output_completion import industry_instruction
+        system_instruction += industry_instruction()
+    elif agent_num in {3, 4, 14, 21}:
+        system_instruction += (
+            "\n\n評估完整性契約：只輸出完整 JSON，先完成 schema 必要欄位與結尾大括號。"
+            "正文精煉整合，不重貼原始表格或重複 JSON 推論；必要證據與品質規則優先於篇幅。"
+            "護城河各維度、三情境價格、估值理由及風險須實際評估，不能以省略欄位代替資料不足。"
+            "確實缺少證據時保留 null 與具體原因，不能補零、用現價或任意倍率補造目標。"
+            "DCF 不可用不代表其他方法必然可用；相對估值同樣須有本次可驗證來源、期間、公式與假設。"
+        )
+    elif agent_num == 16:
+        system_instruction += _AGENT16_COMPLETION_INSTRUCTION
     elif agent_num == 19:
         system_instruction += _AGENT19_COMPLETION_INSTRUCTION
         system_instruction += _agent19_recommendation_contract_instruction()

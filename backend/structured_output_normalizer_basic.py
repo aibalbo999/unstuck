@@ -173,8 +173,9 @@ def _normalized_analysis_markdown(raw_payload: Any, payload: dict, default: str 
 
 
 def _display_price_target(value: Any) -> str:
-    price = _coerce_number(value)
-    return f"NT${price:,.0f}" if price is not None and price > 0 else "N/A"
+    from report_price_format import format_report_price
+    price = _number_text(value) if isinstance(value, str) else value if isinstance(value, (int, float)) else None
+    return format_report_price(price)
 
 
 def _report_body_text(analysis_markdown: Any, fallback_text: Any) -> str:

@@ -28,6 +28,7 @@ from llm_provider_routes import split_model_provider
 from llm_response_diagnostics import ResponseDiagnostics, attach_response_diagnostics, response_diagnostics
 from llm_completion_provenance import completion_is_incomplete
 from llm_tool_rate_guard import closing_stream, generation_client
+from llm_request_deadline import apply_response_timeout
 from llm_provider_quota_observation import observe_provider_quota
 
 
@@ -110,7 +111,7 @@ def generate_content(api_key: str, model_id: str, prompt: str, config):
         response = client.models.generate_content(
             model=provider_model,
             contents=frame_source_prompt(prompt) if is_evidence_request() else sanitize_google_prompt(prompt),
-            config=sanitize_google_generation_config(config),
+            config=sanitize_google_generation_config(apply_response_timeout(config)),
         )
     return _cache_generated_response(model_id, prompt, config, response)
 
@@ -143,7 +144,7 @@ async def generate_content_async(api_key: str, model_id: str, prompt: str, confi
         response = await client.aio.models.generate_content(
             model=provider_model,
             contents=frame_source_prompt(prompt) if is_evidence_request() else sanitize_google_prompt(prompt),
-            config=sanitize_google_generation_config(config),
+            config=sanitize_google_generation_config(apply_response_timeout(config)),
         )
     return _cache_generated_response(model_id, prompt, config, response)
 
@@ -168,7 +169,7 @@ async def generate_content_stream_async(api_key: str, model_id: str, prompt: str
             stream = stream_call(
                 model=provider_model,
                 contents=sanitize_google_prompt(prompt),
-                config=sanitize_google_generation_config(config),
+                config=sanitize_google_generation_config(apply_response_timeout(config)),
             )
             if isawaitable(stream):
                 stream = await stream

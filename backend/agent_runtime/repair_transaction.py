@@ -11,7 +11,23 @@ from analysis_dependencies import (
     output_fingerprint, pipeline_agent_order, record_result_provenance, stale_agent_numbers,
 )
 from .cancellation import raise_if_cancelled
+from .deferred import AgentDeferredError
 from .state_report_adapter import record_agent_state_report
+
+
+_AUDIT_TRANSACTION = object()
+REPAIR_METADATA_FIELDS = (
+    "audit_repair_log", "repair_attempt_counts", "repair_candidate_history",
+    "agent_quality_retry_counts", "_llm_model_circuits", "llm_token_usage",
+    "_runtime_events", "deterministic_fallbacks", "execution_trace",
+)
+
+
+def _preserve_repair_metadata(context: dict, candidate: dict) -> None:
+    """A deferred attempt spends budget even though no analysis is committed."""
+    for key in (*REPAIR_METADATA_FIELDS, "repair_iteration_count"):
+        if key in candidate:
+            context[key] = copy.deepcopy(candidate[key])
 
 
 def clone_repair_context(context: dict) -> dict:
@@ -40,6 +56,9 @@ def repair_requests(audit: dict) -> dict[int, list[str]]:
 
 
 def _finish_audit_transaction(context: dict, candidate: dict, audit: dict) -> dict:
+    candidate.pop("_repair_transaction_scope", None)
+    candidate.pop("_repair_pending_audit", None)
+    initial_findings = candidate.pop("_repair_initial_findings", {})
     stale = stale_agent_numbers(candidate)
     if stale or audit.get("critical") or candidate.get("_repair_round_failed"):
         audit = {**audit, "repair_transaction": {
@@ -47,15 +66,23 @@ def _finish_audit_transaction(context: dict, candidate: dict, audit: dict) -> di
             "audited_output_hashes": {str(agent): output_fingerprint(agent, candidate) for agent in pipeline_agent_order(candidate)},
             "accepted_output_hashes": {str(agent): output_fingerprint(agent, context) for agent in pipeline_agent_order(context)},
         }}
+        previous_audit = context.get("final_audit") or {}
+        for field in ("warnings", "critical"):
+            audit[field] = list(dict.fromkeys([
+                *previous_audit.get(field, []), *initial_findings.get(field, []), *audit.get(field, [])
+            ]))
+        audit["status"] = "needs_attention"
         candidate["final_audit"] = audit
         candidate["status"] = "blocked"
         if stale:
             candidate.setdefault("blocking_issues", []).append("final_audit:stale_dependencies")
         if audit.get("critical"):
             candidate.setdefault("blocking_issues", []).append("final_audit:unresolved_critical")
+        candidate["blocking_issues"] = list(dict.fromkeys(
+            [*context.get("blocking_issues", []), *candidate.get("blocking_issues", [])]
+        ))
         # Failure metadata can advance a blocked state; analysis versions cannot.
-        for key in ("status", "blocking_issues", "audit_repair_log", "repair_attempt_counts", "repair_candidate_history",
-                    "repair_iteration_count", "final_audit", "_runtime_events"):
+        for key in ("status", "blocking_issues", "repair_iteration_count", "final_audit", *REPAIR_METADATA_FIELDS):
             if key in candidate:
                 context[key] = copy.deepcopy(candidate[key])
         context["_replace_analysis_state"] = True
@@ -75,18 +102,28 @@ def atomic_final_audit(function):
         @functools.wraps(function)
         async def asynchronous(context, *args, **kwargs):
             candidate = clone_repair_context(context)
+            candidate["_repair_transaction_scope"] = _AUDIT_TRANSACTION
             candidate.pop("_repair_round_failed", None)
             initialize_result_provenance(candidate)
-            result = await function(candidate, *args, **kwargs)
+            try:
+                result = await function(candidate, *args, **kwargs)
+            except AgentDeferredError:
+                _preserve_repair_metadata(context, candidate)
+                raise
             return _finish_audit_transaction(context, candidate, result)
         return asynchronous
 
     @functools.wraps(function)
     def synchronous(context, *args, **kwargs):
         candidate = clone_repair_context(context)
+        candidate["_repair_transaction_scope"] = _AUDIT_TRANSACTION
         candidate.pop("_repair_round_failed", None)
         initialize_result_provenance(candidate)
-        result = function(candidate, *args, **kwargs)
+        try:
+            result = function(candidate, *args, **kwargs)
+        except AgentDeferredError:
+            _preserve_repair_metadata(context, candidate)
+            raise
         return _finish_audit_transaction(context, candidate, result)
     return synchronous
 
@@ -154,6 +191,7 @@ COPY_FIELDS = set(RESULT_FIELDS) | {
     "agent_quality_retry_counts", "agent_step_cache", "deterministic_fallbacks", "_model_sequence_override",
     "_market_context_attempt_manifests", "_audit_retry_instruction", "_audit_reflection_instruction",
     "_identity_retry_instruction", "_quality_retry_instruction", "source_audit", "execution_trace",
+    "_repair_pending_audit", "_repair_initial_findings",
 }
 
 
@@ -170,6 +208,7 @@ class RepairRound:
         self.required = {int(agent) for agent in audit.get("repair_agent_issues", {})}
         self.before = {agent: output_fingerprint(agent, self.context) for agent in pipeline_agent_order(self.context)}
         self.failed = []
+        self.completed = set()
 
     def steps(self):
         for agent in pipeline_agent_order(self.context):
@@ -185,13 +224,14 @@ class RepairRound:
 
     def accept(self, agent: int, candidate: dict, ok: bool, message: str):
         if not ok:
-            for key in ("repair_attempt_counts", "repair_candidate_history", "agent_quality_retry_counts", "_llm_model_circuits", "llm_token_usage"):
+            for key in REPAIR_METADATA_FIELDS:
                 if key in candidate:
                     self.context[key] = candidate[key]
-            if agent in self.required or agent in self.context.get("invalidated_agents", []):
+            if agent in self.required or agent in stale_agent_numbers(self.context):
                 self.failed.append(f"Agent {agent}: {message}")
             return
         raise_if_cancelled(candidate)
+        self.completed.add(agent)
         self.context = candidate
         from analysis_dependencies import agent_value
         record_agent_state_report(candidate.get("agent_state"), agent,
@@ -204,19 +244,33 @@ class RepairRound:
             self.pending.update(descendants)
             invalidate_analysis_results(candidate, descendants)
 
+    def defer(self, candidate: dict) -> None:
+        _preserve_repair_metadata(self.context, candidate)
+        _preserve_repair_metadata(self.original, self.context)
+
     def finish(self) -> bool:
         stale = stale_agent_numbers(self.context)
         if self.failed or stale:
+            # Only the enclosing atomic node may keep qualified intermediate
+            # versions. Standalone repair callers still see an all-or-none round.
+            if self.original.get("_repair_transaction_scope") is _AUDIT_TRANSACTION:
+                _restore_result_fields(self.original, self.context, (*RESULT_FIELDS, "blocking_issues"))
+                self.original["_repair_pending_audit"] = {
+                    "repair_agent_issues": {agent: issues for agent, issues in self.requests.items()
+                                            if agent in self.required and agent not in self.completed},
+                    "coverage_repair_agent_issues": {agent: issues for agent, issues in self.requests.items()
+                                                     if agent not in self.required and agent not in self.completed},
+                }
             self.original["status"] = "blocked"
             issues = self.original.setdefault("blocking_issues", [])
             if "final_audit:dependency_rebuild_failed" not in issues:
                 issues.append("final_audit:dependency_rebuild_failed")
-            self.original["audit_repair_log"] = list(self.context.get("audit_repair_log", []))
-            self.original["audit_repair_log"].extend(self.failed or [f"尚未完成依賴重建：{stale}"])
-            for key in ("repair_attempt_counts", "repair_candidate_history", "agent_quality_retry_counts", "_llm_model_circuits", "llm_token_usage"):
+            self.context.setdefault("audit_repair_log", []).extend(self.failed or [f"尚未完成依賴重建：{stale}"])
+            for key in REPAIR_METADATA_FIELDS:
                 if key in self.context:
                     self.original[key] = self.context[key]
             self.original["_repair_round_failed"] = True
             return False
+        self.context.pop("_repair_pending_audit", None)
         commit_repair_context(self.original, self.context)
         return True

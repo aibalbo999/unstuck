@@ -17,6 +17,11 @@ from financial_claim_context import (
 )
 from short_term_output_validator import short_term_evidence_issues
 from financial_money_claims import financial_money_claim_issues
+from financial_ratio_claims import debt_ratio_claim_issues, provider_margin_claim_issues
+from fcf_conversion_period_validator import fcf_conversion_period_issues
+from financial_projection_amounts import forward_cross_check_money_issues
+from revenue_growth_claim_guard import yahoo_growth_claim_issues
+from institutional_evidence import institutional_evidence_diagnostics
 from output_sanitizer import strip_generated_audit_sections
 
 
@@ -281,28 +286,21 @@ def validate_analysis_output(agent_num: int, text: str, data: Optional[dict] = N
                 "不可單靠低本益比推論低估；需先判斷是否處於獲利高峰與循環反轉風險。"
             )
 
-    yahoo_growth = str(data.get("yahoo_revenue_growth", "")).replace("%", "").strip()
-    if yahoo_growth and yahoo_growth != "N/A" and yahoo_growth in normalized:
-        if any(word in normalized for word in ["營收年增率", "TTM營收成長", "TTM營收年增", "營收成長率高達"]):
-            if not any(word in normalized for word in ["Yahoo近期", "季度口徑", "近期口徑", "不可直接稱為"]):
-                issues.append(
-                    "成長率口徑紅線：Yahoo revenueGrowth 通常是近期/季度口徑，不可直接寫成 TTM 或年度營收年增率；"
-                    "請改用年度財報 YoY 或 TTM 相對最新年度 run-rate 檢查。"
-                )
+    issues.extend(yahoo_growth_claim_issues(text or '', data))
 
-    provider_margin = str(data.get("profit_margin_provider", "")).replace("%", "").strip()
-    calibrated_margin = str(data.get("profit_margin", "")).replace("%", "").strip()
-    if provider_margin and provider_margin != "N/A" and calibrated_margin and provider_margin != calibrated_margin:
-        if provider_margin in normalized and "淨利率" in normalized:
-            if not any(word in normalized for word in ["Yahoo原始", "資料源對照", "口徑互斥", "不採用"]):
-                issues.append(
-                    "淨利率口徑紅線：Yahoo 原始 profitMargins 與 P/E/EPS 推回淨利互斥時，"
-                    "正式分析必須採用校準後淨利率，原始值只能作為資料品質警示。"
-                )
+    issues.extend(provider_margin_claim_issues(text or '', data))
+    issues.extend(fcf_conversion_period_issues(text or '', data))
 
     append_deep_numeric_consistency_issues(issues, normalized)
     issues.extend(short_term_evidence_issues(agent_num, text or "", data))
+    if agent_num not in {23, 24}:
+        # Other modes gain source-bound numeric checks; mode D retains its full
+        # population/date/period gate, including missing-evidence rejections.
+        issues.extend(item['reason'] for item in institutional_evidence_diagnostics(
+            strip_generated_audit_sections(text or ""), data) if item['same_scope_sources'])
     issues.extend(financial_money_claim_issues(text or "", data))
+    issues.extend(debt_ratio_claim_issues(text or "", data))
+    issues.extend(forward_cross_check_money_issues(text or "", data))
 
     return list(dict.fromkeys(issues))
 

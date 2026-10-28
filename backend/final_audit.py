@@ -61,6 +61,23 @@ def run_final_report_audit(context: AnalysisContext, append_section: bool = True
 
     for agent_num, text in analyses.items():
         agent_name = AGENT_NAMES.get(agent_num, f"Agent {agent_num}")
+        from assessment_output_completion import incomplete_output
+        output = structured_outputs.get(agent_num, structured_outputs.get(str(agent_num)))
+        from memo_output_completion import provider_output_incomplete
+        if provider_output_incomplete(output):
+            message = '供應商已明示輸出未完整；不能將截斷或安全中止的回應視為有效分析。'
+            _add_unique_issue(critical, f'Agent {agent_num} {message}')
+            add_agent_repair_issue(agent_num, message)
+        if agent_num == 11 and isinstance(output, dict) and output.get('output_completion'):
+            from industry_output_completion import industry_output_issues
+            for issue in industry_output_issues(str(text), data, output):
+                _add_unique_issue(critical, f'Agent 11 {issue}')
+                add_agent_repair_issue(11, issue)
+        if incomplete_output(output):
+            receipt = output['output_completion']
+            message = '模型評估未完整：' + '、'.join(receipt.get('issues') or []) + '；不得用預設缺值視為完成評估。'
+            _add_unique_issue(critical, f'Agent {agent_num} {message}')
+            add_agent_repair_issue(agent_num, message)
         audited_text = strip_generated_audit_sections(str(text))
         if _is_agent_execution_failure(str(text)):
             _add_unique_issue(critical, f"{agent_name} 輸出為失敗訊息，不能產生正式報告。")

@@ -25,13 +25,13 @@ def test_preview_research_completion_bounds_thinking_without_raising_token_budge
     assert delivered.response_schema == sanitize_google_generation_config(base).response_schema
 
 
-def test_research_change_leaves_other_routes_and_roles_unchanged():
+def test_research_completion_leaves_non_google_routes_unchanged():
     config = generation.build_generation_config(7)
-    for model in ['gemini-3.6-flash', 'gemma-4-31b-it', 'unknown-model', 'openai:gemini-3-flash-preview']:
+    for model in ['gemma-4-31b-it', 'unknown-model', 'openai:gemini-3-flash-preview']:
         assert generation.apply_model_generation_policy(config, model, 7) is config
-    assert generation.apply_model_generation_policy(config, 'gemini-3.8-flash', 7).thinking_config.thinking_level.value == 'MEDIUM'
-    assert generation.apply_model_generation_policy(config, 'gemini-3.5-flash-lite', 7).thinking_config.thinking_level.value == 'MEDIUM'
-    assert generation.apply_model_generation_policy(config, 'gemini-3-flash-preview', 16) is config
+    for model in ['gemini-3.6-flash', 'gemini-3.8-flash', 'gemini-3.5-flash-lite']:
+        assert generation.apply_model_generation_policy(config, model, 7).thinking_config.thinking_level.value == 'LOW'
+    assert generation.apply_model_generation_policy(config, 'gemini-3-flash-preview', 16).thinking_config.thinking_level.value == 'LOW'
 
 
 @pytest.mark.parametrize('mode', ['sync', 'async', 'stream'])
@@ -74,7 +74,7 @@ def test_research_system_rule_preserves_quality_priority_and_other_preview_roles
     assert list(TOPICS) == schema_topics
     assert '、'.join(schema_topics) in system
     assert 'pending_recalculation' in system
-    assert 'comprehensive, highly detailed, and complete analysis' in generation.google_safe_agent_system_instruction(6, 'gemini-3-flash-preview')
+    assert 'comprehensive, highly detailed, and complete analysis' in generation.google_safe_agent_system_instruction(15, 'gemini-3-flash-preview')
 
 
 def test_research_step_identity_changes_with_completion_policy_only_for_agent7(monkeypatch):

@@ -86,6 +86,12 @@ async def retry_after_agent_quality_issues(
     emit_status,
     parse_structured_output: Callable[[int, str, AnalysisContext], tuple[bool, str]],
 ) -> str:
+    if agent_num == 6:
+        from debate_output_completion import debate_retry_spent
+        if debate_retry_spent(context):
+            context.setdefault('blocking_issues', []).extend(
+                f'Agent 6 復驗上限已達，仍未通過：{issue}' for issue in issues)
+            return str((context.get('analyses') or {}).get(6, (context.get('analyses') or {}).get('6', '')))
     await emit_status(
         progress_callback,
         f"Agent {agent_num}（{agent_position}/{agent_total}）觸發品質紅線，正在帶著具體問題重寫一次...",
@@ -120,6 +126,14 @@ async def retry_after_agent_quality_issues(
 
     previous = install_quality_retry_context(context, agent_num, issues, data=data)
     try:
+        if agent_num == 6:
+            from workflow_quality_drafts import checkpoint_unvalidated_draft
+            # Persist the spent slot with the original completion receipt before
+            # any provider call. A crash cannot reopen the recovery allowance.
+            outputs.update(original_structured)
+            await checkpoint_unvalidated_draft(agent_num, original, context)
+            outputs.pop(agent_num, None)
+            outputs.pop(str(agent_num), None)
         raise_if_cancelled(context)
         retry_result = await run_agent_async(agent_num, data, context, rotator)
         retry_result = sanitize_model_output(retry_result)

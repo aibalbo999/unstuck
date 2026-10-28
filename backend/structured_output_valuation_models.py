@@ -14,6 +14,7 @@ from structured_output_model_base import (
     _VALUATION_PRIMARY_METHODS,
     _safe_bool,
     _safe_mapping_value,
+    _safe_mapping_has_key,
     _safe_number,
     _safe_required_text_list,
     _safe_string_text_list,
@@ -100,9 +101,9 @@ class PriceTargets(StructuredModel):
     dcf_reasoning: str = Field(..., min_length=1, description="DCF 假設、normalized FCF、WACC 與終值推論摘要。")
     peer_reasoning: str = Field(..., min_length=1, description="同業本益比、P/B 或 EV/EBITDA 比較推論摘要。")
     scenario_reasoning: str = Field(..., min_length=1, description="熊市、基本與牛市情境差異及風險折讓推論摘要。")
-    bear_case: float = Field(..., ge=0, alias="熊市情境")
-    base_case: float = Field(..., ge=0, alias="基本情境")
-    bull_case: float = Field(..., ge=0, alias="牛市情境")
+    bear_case: float | None = Field(..., ge=0, alias="熊市情境")
+    base_case: float | None = Field(..., ge=0, alias="基本情境")
+    bull_case: float | None = Field(..., ge=0, alias="牛市情境")
 
     @model_validator(mode="before")
     @classmethod
@@ -113,14 +114,18 @@ class PriceTargets(StructuredModel):
         bear_case = _safe_mapping_value(targets, "熊市情境", "bear_case")
         base_case = _safe_mapping_value(targets, "基本情境", "base_case")
         bull_case = _safe_mapping_value(targets, "牛市情境", "bull_case")
+        def price(value, *keys):
+            if value is None and any(_safe_mapping_has_key(targets, key) for key in keys):
+                return None
+            return _safe_number(value, minimum=0)
         return {
             **targets,
             "dcf_reasoning": _safe_string_text(_safe_mapping_value(targets, "dcf_reasoning"), "資料不足"),
             "peer_reasoning": _safe_string_text(_safe_mapping_value(targets, "peer_reasoning"), "資料不足"),
             "scenario_reasoning": _safe_string_text(_safe_mapping_value(targets, "scenario_reasoning"), "資料不足"),
-            "熊市情境": _safe_number(bear_case, minimum=0),
-            "基本情境": _safe_number(base_case, minimum=0),
-            "牛市情境": _safe_number(bull_case, minimum=0),
+            "熊市情境": price(bear_case, "熊市情境", "bear_case"),
+            "基本情境": price(base_case, "基本情境", "base_case"),
+            "牛市情境": price(bull_case, "牛市情境", "bull_case"),
         }
 
 

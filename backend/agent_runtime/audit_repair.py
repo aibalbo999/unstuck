@@ -16,6 +16,7 @@ from .deterministic_fallbacks import (
     _deterministic_structured_fallback,
 )
 from .prompt_config import FINAL_AUDIT_REPAIR_PASSES
+from .deferred import AgentDeferredError
 from .repair_circuit_breaker import clear_repair_429_circuit
 from .repair_transaction import RepairRound, atomic_final_audit, repair_requests
 from .single_agent import run_single_agent, run_single_agent_async
@@ -77,7 +78,11 @@ def attempt_final_audit_repair(context: AnalysisContext, audit: AuditResult, rot
     data = context.get("data", {})
     for agent_num, issues, candidate in repair_round.steps():
         agent_name = AGENT_NAMES.get(agent_num, f"Agent {agent_num}")
-        ok, message = _repair_agent_output(agent_num, data, candidate, rotator, issues)
+        try:
+            ok, message = _repair_agent_output(agent_num, data, candidate, rotator, issues)
+        except AgentDeferredError:
+            repair_round.defer(candidate)
+            raise
         repair_round.accept(agent_num, candidate, ok, message)
         _record_repair_result(repair_round.context, progress_callback, agent_num, agent_name, ok, message)
     return repair_round.finish()
@@ -112,7 +117,11 @@ async def attempt_final_audit_repair_async(context: AnalysisContext, audit: Audi
     data = context.get("data", {})
     for agent_num, issues, candidate in repair_round.steps():
         agent_name = AGENT_NAMES.get(agent_num, f"Agent {agent_num}")
-        ok, message = await _repair_agent_output_async(agent_num, data, candidate, rotator, issues)
+        try:
+            ok, message = await _repair_agent_output_async(agent_num, data, candidate, rotator, issues)
+        except AgentDeferredError:
+            repair_round.defer(candidate)
+            raise
         repair_round.accept(agent_num, candidate, ok, message)
         await _record_repair_result_async(repair_round.context, progress_callback, agent_num, agent_name, ok, message)
     return repair_round.finish()
@@ -166,9 +175,14 @@ def _summarize_audit_issues(audit: AuditResult, limit: int = 3) -> str:
 def _audit_current_context(context: AnalysisContext, *, append_section: bool) -> AuditResult:
     stale = stale_agent_numbers(context)
     if stale:
+        pending = context.get("_repair_pending_audit") or {}
+        requests = {int(agent): list(issues) for agent, issues in pending.get("repair_agent_issues", {}).items()}
+        for agent in stale:
+            requests.setdefault(agent, []).append("請以目前上游重新產生分析。")
         return {"status": "needs_attention", "critical": [f"分析依賴版本尚未重建：{stale}"],
                 "warnings": [], "corrections": [], "report_preserved": False,
-                "repair_agent_issues": {agent: ["請以目前上游重新產生分析。"] for agent in stale}}
+                "repair_agent_issues": requests,
+                "coverage_repair_agent_issues": pending.get("coverage_repair_agent_issues", {})}
     context["parsed"] = parse_structured_data(context)
     return run_final_report_audit(context, append_section=append_section)
 
@@ -182,8 +196,12 @@ def finalize_final_audit(
 ) -> AuditResult:
     """Run final audit, repair repairable failures, re-audit, then preserve report state."""
     last_audit = None
-    for repair_pass in range(max_repair_passes + 1):
+    used_passes = max(0, int(context.get("repair_iteration_count") or 0))
+    for repair_pass in range(used_passes, max(used_passes, max_repair_passes) + 1):
         last_audit = _audit_current_context(context, append_section=False)
+        if repair_pass == used_passes:
+            context["_repair_initial_findings"] = {field: list(last_audit.get(field) or [])
+                                                  for field in ("warnings", "critical")}
         if not last_audit.get("critical") and not stale_agent_numbers(context) and (not repair_requests(last_audit) or repair_pass >= max_repair_passes):
             context["final_audit"] = _audit_current_context(context, append_section=True)
             return context["final_audit"]
@@ -211,8 +229,12 @@ async def finalize_final_audit_async(
 ) -> AuditResult:
     """Async final audit flow with repair and mandatory re-audit before rendering."""
     last_audit = None
-    for repair_pass in range(max_repair_passes + 1):
+    used_passes = max(0, int(context.get("repair_iteration_count") or 0))
+    for repair_pass in range(used_passes, max(used_passes, max_repair_passes) + 1):
         last_audit = _audit_current_context(context, append_section=False)
+        if repair_pass == used_passes:
+            context["_repair_initial_findings"] = {field: list(last_audit.get(field) or [])
+                                                  for field in ("warnings", "critical")}
         if not last_audit.get("critical") and not stale_agent_numbers(context) and (not repair_requests(last_audit) or repair_pass >= max_repair_passes):
             context["final_audit"] = _audit_current_context(context, append_section=True)
             return context["final_audit"]

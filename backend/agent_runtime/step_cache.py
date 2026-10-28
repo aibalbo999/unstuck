@@ -40,6 +40,12 @@ def build_agent_step_cache_key(
         "upstream_input_hash": upstream_input_hash(agent_num, context),
         "market_context_contract_version": context.get("market_context_contract_version"),
     }
+    if agent_num == 6:
+        from .generation_config import generation_profile
+        key_parts['generation_profile'] = generation_profile(6)
+    from memo_output_completion import PROVIDER_COMPLETION_AGENTS, PROVIDER_COMPLETION_POLICY
+    if agent_num in PROVIDER_COMPLETION_AGENTS:
+        key_parts['provider_completion_policy'] = PROVIDER_COMPLETION_POLICY
     if agent_num in {22, 23}:
         key_parts["memo_completion_contract"] = "memo-output-completion:v1-low-thinking"
     if agent_num in {23, 24}:
@@ -50,6 +56,12 @@ def build_agent_step_cache_key(
         key_parts["financial_risk_policy_version"] = FINANCIAL_RISK_POLICY_VERSION
     if agent_num in _OUTPUT_CONTRACT_AGENTS:
         key_parts["output_contract_version"] = AGENT_OUTPUT_CONTRACT_VERSION
+    if agent_num in {4, 14}:
+        from report_price_format import POLICY as PRICE_DISPLAY_POLICY
+        key_parts['valuation_price_display_policy'] = PRICE_DISPLAY_POLICY
+    from assessment_output_completion import AGENTS, CONTRACT
+    if agent_num in AGENTS:
+        key_parts['assessment_completion_policy'] = CONTRACT
     if agent_num == 7:
         from .generation_config import AGENT7_COMPLETION_POLICY
         key_parts["research_completion_policy"] = AGENT7_COMPLETION_POLICY
@@ -57,6 +69,16 @@ def build_agent_step_cache_key(
         key_parts["research_quote_policy"] = POLICY
         from research_prompt_encoding import POLICY as RESEARCH_PROMPT_POLICY
         key_parts["research_prompt_policy"] = RESEARCH_PROMPT_POLICY
+        from research_quote_catalog import POLICY as QUOTE_CATALOG_POLICY
+        key_parts['research_quote_catalog_policy'] = QUOTE_CATALOG_POLICY
+    if agent_num == 11:
+        from financial_money_claims import TTM_MONEY_PROMPT_POLICY
+        key_parts['industry_money_contract'] = TTM_MONEY_PROMPT_POLICY
+        from industry_output_completion import POLICY as INDUSTRY_POLICY
+        key_parts['industry_completion_policy'] = INDUSTRY_POLICY
+    if agent_num == 16:
+        from .generation_config import AGENT16_COMPLETION_POLICY
+        key_parts['trading_completion_policy'] = AGENT16_COMPLETION_POLICY
     if agent_num == 19:
         key_parts["no_position_contract_version"] = "explicit-cover-stop:v3-fundamental-rechecks-action-consistency"
         key_parts["short_setup_feedback_contract"] = "schema-price-fields:v1"
@@ -83,6 +105,21 @@ def get_cached_agent_step(cache_key: str, observation: dict | None = None) -> di
     if cached is None:
         observe("miss", "no_entry")
         return None
+    from memo_output_completion import provider_output_incomplete
+    if isinstance(cached, dict) and provider_output_incomplete(cached.get('structured_output')):
+        observe('reject', 'known_provider_incomplete')
+        return None
+    if isinstance(cached, dict) and str(cached.get('agent_num')) == '11':
+        from industry_output_completion import cached_industry_valid
+        if not cached_industry_valid(cached):
+            observe('reject', 'industry_completion_unconfirmed')
+            return None
+    from assessment_output_completion import AGENTS, CONTRACT
+    if isinstance(cached, dict) and str(cached.get('agent_num')) in {str(n) for n in AGENTS}:
+        receipt = (cached.get('structured_output') or {}).get('output_completion') or {}
+        if receipt.get('contract_version') != CONTRACT or receipt.get('status') != 'complete':
+            observe('reject', 'assessment_completion_unconfirmed')
+            return None
     if not isinstance(cached, dict) or not str(cached.get("text") or "").strip():
         observe("reject", "invalid_entry")
         return None
@@ -115,6 +152,15 @@ def store_cached_agent_step(
 ) -> None:
     if not AGENT_STEP_CACHE_ENABLED or AGENT_STEP_CACHE_SECONDS <= 0:
         return
+    if agent_num == 11:
+        from industry_output_completion import industry_output_issues
+        if industry_output_issues(text, context.get('data') or {}, _structured_output_for_agent(context, 11)):
+            return
+    from assessment_output_completion import AGENTS, CONTRACT
+    if agent_num in AGENTS:
+        receipt = (_structured_output_for_agent(context, agent_num) or {}).get('output_completion') or {}
+        if receipt.get('contract_version') != CONTRACT or receipt.get('status') != 'complete':
+            return
     from memo_output_completion import incomplete_memo_roles
     if any(role["agent"] == agent_num for role in incomplete_memo_roles(context)):
         return

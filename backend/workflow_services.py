@@ -31,7 +31,7 @@ from workflow_context import (
     legacy_context_from_graph,
 )
 from workflow_quarters import latest_closed_quarter_for_reconciliation
-from workflow_quality_drafts import quality_draft_node
+from workflow_quality_drafts import final_audit_metadata, quality_draft_node
 from workflow_state import (
     AgentGraphState,
     agent_state_from_graph,
@@ -96,7 +96,8 @@ def create_default_workflow_services(
 
     async def final_audit(state: AgentGraphState) -> dict[str, Any]:
         context = legacy_context_from_graph(state, holder["services"])
-        await finalize_final_audit_async(context, active_rotator, progress_callback=progress_callback)
+        async with final_audit_metadata(state, context):
+            await finalize_final_audit_async(context, active_rotator, progress_callback=progress_callback)
         return graph_delta_from_legacy_context(context)
 
     async def chief_editor(state: AgentGraphState) -> dict[str, Any]:

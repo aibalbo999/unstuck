@@ -26,10 +26,20 @@ def is_structured_agent(agent_num: int, context: AnalysisContext) -> bool:
 
 def try_parse_structured_output(agent_num: int, result: str, context: AnalysisContext) -> tuple[bool, str]:
     """Parse structured output immediately when a structured agent did not persist one."""
+    from memo_output_completion import provider_output_incomplete
+    outputs = context.get('structured_outputs') or {}
+    if provider_output_incomplete(outputs.get(agent_num, outputs.get(str(agent_num)))):
+        return False, result
     if not is_structured_agent(agent_num, context):
         return True, result
     structured_outputs = context.setdefault("structured_outputs", {})
     existing = structured_outputs.get(agent_num, structured_outputs.get(str(agent_num)))
+    if agent_num == 11 and isinstance(existing, dict) and 'analysis_markdown' not in existing:
+        if (existing.get('output_completion') or {}).get('status') == 'incomplete':
+            return False, result
+    from assessment_output_completion import incomplete_output
+    if incomplete_output(existing):
+        return False, result
     if existing:
         if agent_num == 24 and isinstance(existing, dict):
             guarded = enforce_trade_financial_risk(existing, context.get("data", {}))
@@ -41,6 +51,8 @@ def try_parse_structured_output(agent_num: int, result: str, context: AnalysisCo
 
     parsed_result = process_agent_response(agent_num, result, context)
     parsed = structured_outputs.get(agent_num, structured_outputs.get(str(agent_num)))
+    if incomplete_output(parsed):
+        return False, parsed_result
     if parsed:
         return True, parsed_result
     return False, parsed_result

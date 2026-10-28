@@ -205,7 +205,8 @@ def _coerce_price_target_payload(value: Any) -> Any:
     }
     for key, aliases in _PRICE_TARGET_ALIASES.items():
         price = _coerce_number(_pick_mapping_value(targets, *aliases), 0, None)
-        normalized_targets[key] = price if price is not None else 0.0
+        explicit_null = any(type(k) is str and k in aliases and v is None for k, v in targets.items())
+        normalized_targets[key] = None if explicit_null else price if price is not None else 0.0
 
     normalized = {
         **payload,

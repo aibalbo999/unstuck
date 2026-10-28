@@ -132,14 +132,51 @@ def process_agent_response(
     completion_diagnostics: dict | None = None,
 ) -> str:
     """Persist JSON structured output and return report-ready text."""
+    from memo_output_completion import (
+        bind_known_provider_incomplete, bind_incomplete_text, retain_known_provider_incomplete,
+    )
+    if retain_known_provider_incomplete(agent_num, raw_text or '', context, completion_diagnostics):
+        return _sanitize_text(raw_text or '')
+    if bind_known_provider_incomplete(agent_num, raw_text or '', _sanitize_text(raw_text or ''),
+                                     context, completion_diagnostics):
+        return _sanitize_text(raw_text or '')
+    industry_completion = None
+    if agent_num == 11:
+        from industry_output_completion import assess_industry_completion
+        outputs = context.setdefault('structured_outputs', {})
+        previous = outputs.get(11, outputs.get('11')) or {}
+        industry_completion = assess_industry_completion(raw_text, context.get('data') or {}, completion_diagnostics,
+                                                        previous.get('output_completion'), bind_financials=True)
+        bind_incomplete_text(industry_completion, raw_text or '', _sanitize_text(raw_text or ''))
+        outputs.pop('11', None)
+        outputs.pop(11, None)
+        if (not industry_completion['raw_json_complete'] or not industry_completion.get('raw_schema_complete')
+                or any(reason.startswith('provider_')
+                for reason in industry_completion['issues'])):
+            outputs[11] = {'output_completion': industry_completion}
+            return _sanitize_text(raw_text or '')
     if agent_num not in STRUCTURED_AGENT_INSTRUCTIONS:
         return _sanitize_text(raw_text or "")
+
+    assessment_completion = None
+    from assessment_output_completion import AGENTS, assess_completion
+    if agent_num in AGENTS:
+        outputs = context.setdefault('structured_outputs', {})
+        previous = outputs.get(agent_num, outputs.get(str(agent_num))) or {}
+        assessment_completion = assess_completion(agent_num, raw_text, completion_diagnostics, previous.get('output_completion'))
+        bind_incomplete_text(assessment_completion, raw_text or '', _sanitize_text(raw_text or ''))
+        outputs.pop(agent_num, None)
+        outputs.pop(str(agent_num), None)
+        if assessment_completion['status'] == 'incomplete':
+            outputs[agent_num] = {'output_completion': assessment_completion}
+            return _sanitize_text(raw_text or '')
 
     final_completion = None
     if agent_num in {16, 19}:
         from final_output_completion import assess_final_completion
         previous = context.get('structured_outputs', {}).get(agent_num) or context.get('structured_outputs', {}).get(str(agent_num)) or {}
         final_completion = assess_final_completion(agent_num, raw_text, completion_diagnostics, previous.get('output_completion'))
+        bind_incomplete_text(final_completion, raw_text or '', _sanitize_text(raw_text or ''))
         outputs = context.setdefault('structured_outputs', {})
         outputs.pop(agent_num, None)
         outputs.pop(str(agent_num), None)
@@ -150,6 +187,7 @@ def process_agent_response(
     if agent_num in {22, 23}:
         from memo_output_completion import assess_memo_completion
         memo_completion = assess_memo_completion(raw_text, completion_diagnostics)
+        bind_incomplete_text(memo_completion, raw_text or '', _sanitize_text(raw_text or ''))
         if memo_completion['status'] == 'incomplete':
             context.setdefault('structured_outputs', {}).pop(str(agent_num), None)
             context['structured_outputs'][agent_num] = {'output_completion': memo_completion}
@@ -221,6 +259,14 @@ def process_agent_response(
     if final_completion is not None:
         structured["output_completion"] = final_completion
 
+    if assessment_completion is not None:
+        structured['output_completion'] = assessment_completion
+
+    if industry_completion is not None:
+        structured['output_completion'] = industry_completion
+        from financial_fact_binding import bind_industry_financials
+        bind_industry_financials(structured, context.get('data') or {})
+
     if memo_completion is not None:
         structured["output_completion"] = memo_completion
 
@@ -242,11 +288,20 @@ def process_agent_response(
     if agent_num == 7:
         from research_assumption_contract import assess_reconciliation
         from research_quote_fidelity import restore_reconciliation_quotes
+        from research_quote_catalog import resolve_quote_references
         # A model or a reused snapshot cannot attest a conversion for this response.
         structured.pop("assumption_quote_restoration", None)
-        value, restoration = restore_reconciliation_quotes(
+        structured.pop("assumption_quote_resolution", None)
+        resolved, resolution = resolve_quote_references(
             structured.get("assumption_reconciliation"), context, raw_text or "")
+        value, restoration = restore_reconciliation_quotes(
+            resolved, context, raw_text or "")
         structured["assumption_reconciliation"] = value
+        if isinstance(value, dict):
+            from research_quote_semantics import POLICY
+            value['semantic_contract_version'] = POLICY
+        if resolution is not None:
+            structured["assumption_quote_resolution"] = resolution
         if restoration is not None:
             structured["assumption_quote_restoration"] = restoration
         structured["assumption_reconciliation_assessment"] = assess_reconciliation(
@@ -275,6 +330,9 @@ def process_agent_response(
         ).encode()).hexdigest()
     final_text = structured_output_to_report_text(agent_num, structured, raw_text)
     result = _sanitize_text(final_text)
+    if agent_num == 11:
+        from industry_output_completion import text_hash
+        structured['output_completion']['text_sha256'] = text_hash(result)
     if agent_num == 7:
         from output_sanitizer import sanitize_model_output
         rendered_hashes = sorted({hashlib.sha256(value.encode()).hexdigest()

@@ -68,7 +68,7 @@ def read_report_publication_identity(report: dict, output_dir: str, *, snapshot=
 
 def replay_context(context: dict, published_at: str) -> dict:
     identity = publication_identity(context)
-    if identity["kind"] == "saved_data_repair_validation":
+    if identity["kind"] in {"saved_data_repair_validation", "partial_analysis"}:
         return {**context, "publication_generated_at": published_at,
                 "decision_validity_status": identity["kind"],
                 "publication_identity": {**identity, "published_at": published_at}}

@@ -2,6 +2,7 @@
 from datetime import date, datetime
 from types import SimpleNamespace
 import time
+import pytest
 from zoneinfo import ZoneInfo
 
 from data_fetch.market_sources.taiwanjobs_company_jobs import (
@@ -61,7 +62,8 @@ def test_saved_claim_rejects_wrong_identity_or_expired_receipt():
     assert verified_taiwanjobs_job_count(value, "3023.TW", "信邦電子股份有限公司", "23542766", now=1000+86401) == 0
 
 
-def test_provider_keeps_taiwanjobs_separate_from_104_and_trust_counts_only_verified(monkeypatch):
+@pytest.mark.parametrize("existing_legal_name", ["", "信邦電子股份有限公司", "其他股份有限公司"])
+def test_provider_keeps_taiwanjobs_separate_from_104_and_trust_counts_only_verified(monkeypatch, existing_legal_name):
     import alternative_data_fetcher
     from data_fetch.agent_context_providers import AlternativeJobOpeningsProvider
     from data_fetch.market_sources import official_company_legal_name as identity_source
@@ -86,8 +88,13 @@ def test_provider_keeps_taiwanjobs_separate_from_104_and_trust_counts_only_verif
     monkeypatch.setattr(government_jobs, "fetch_taiwanjobs_company_jobs", lambda *a: sample)
     data = {"ticker": "3023.TW", "company_name": "信邦", "quote_type": "EQUITY",
             "company_identity": {"ticker": "3023.TW", "official_name": "信邦",
-                                 "instrument_type": "EQUITY"}}
+                                 "instrument_type": "EQUITY", "legal_name": existing_legal_name}}
     result = AlternativeJobOpeningsProvider()._fetch_uncached(FetchRequest.from_ticker("3023.TW"), {"data": data})
+    if existing_legal_name == "其他股份有限公司":
+        assert result.status != "success"
+        assert result.value["job_openings_taiwanjobs"] is None
+        assert result.audit["record_count"] == 0
+        return
     assert result.status == "success"
     assert result.value["job_openings_104"]["status"] == "unavailable"
     assert result.value["job_openings_taiwanjobs"]["current_open_job_count"] == 1

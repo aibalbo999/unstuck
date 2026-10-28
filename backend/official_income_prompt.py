@@ -14,6 +14,7 @@ def official_income_prompt_facts(data):
     if income.get('status') != 'income_originals_verified':
         return None
     return {'monetary_amount_unit': 'TWD', 'ratio_unit': 'percent',
+        **({'issuer_english_name': income['issuer_english_name']} if income.get('issuer_english_name') else {}),
         **{key: income[key] for key in (
         'status', 'ticker', 'issuer_name', 'report_scope', 'currency',
         'period_start', 'period_end', 'income_components', 'net_income_ttm_raw',
