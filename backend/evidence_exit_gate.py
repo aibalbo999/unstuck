@@ -94,7 +94,7 @@ def evaluate_report_evidence(
     claims = [claim for claim in claims if claim.get("claim_type") != "analysis_score"]
     sample = sample_numeric_claims(claims, sample_ratio=sample_ratio, min_sample=min_sample, max_sample=len(claims) if max_sample is None else max_sample, seed=seed)
     from evidence_financial_amounts import financial_comparison_snapshot
-    financial_snapshot = financial_comparison_snapshot(snapshot) if any(claim.get('financial_amount') for claim in sample) else {}
+    financial_snapshot = financial_comparison_snapshot(snapshot)
     checked = [
         _check_financial_or_other_claim(claim, financial_snapshot, snapshot_values,
                                        tolerance_pct=tolerance_pct, normalized_paths=normalized_snapshot_paths)
@@ -102,6 +102,8 @@ def evaluate_report_evidence(
     ]
     from evidence_derived_claims import derived_pe_claims
     derived = derived_pe_claims(markdown, snapshot)
+    from evidence_official_financial_claims import official_debt_component_claims
+    derived.extend(official_debt_component_claims(markdown, snapshot, tolerance_pct))
     derived = [{"id": len(claims) + index + 1, **item} for index, item in enumerate(derived)]
     claims.extend(derived)
     checked.extend(derived)
@@ -341,9 +343,37 @@ def flatten_snapshot_numbers(snapshot: Any, *, eligible_only: bool = False, _nor
     walk(snapshot, "")
     return values
 def _check_financial_or_other_claim(claim, snapshot, snapshot_values, **kwargs):
+    if claim.get('river_value_path') == 'pe_river_chart.eps_twd':
+        return _check_year_bound_river_eps(claim, snapshot, tolerance_pct=kwargs['tolerance_pct'])
     from evidence_financial_amounts import check_financial_amount
+    from evidence_official_financial_claims import official_ratio_claim
+    official = official_ratio_claim(claim, snapshot, kwargs['tolerance_pct'])
+    if official is not None:
+        return official
     financial = check_financial_amount(claim, snapshot, kwargs['tolerance_pct'])
     return financial if financial is not None else _check_claim(claim, snapshot_values, **kwargs)
+
+
+
+def _check_year_bound_river_eps(claim: dict[str, Any], snapshot: dict[str, Any], *, tolerance_pct: float) -> dict[str, Any]:
+    """Compare only the EPS slot belonging to the claim's explicit annual basis."""
+    data = snapshot.get('data')
+    river = data.get('pe_river_chart') if isinstance(data, dict) else None
+    years = river.get('years') if isinstance(river, dict) else None
+    values = river.get('eps_twd') if isinstance(river, dict) else None
+    year = claim.get('river_reference_year')
+    valid = (type(year) is str and re.fullmatch(r'20\d{2}', year)
+             and type(years) is list and type(values) is list and len(years) == len(values)
+             and all(type(item) is str and re.fullmatch(r'20\d{2}', item) for item in years)
+             and len(set(years)) == len(years) and year in years)
+    index = years.index(year) if valid else None
+    value = values[index] if index is not None else None
+    if type(value) not in (int, float) or not math.isfinite(value):
+        checked = _check_claim({**claim, 'eps_river_binding_unverified': True}, [], tolerance_pct=tolerance_pct)
+        return {**checked, 'verification_reason_code': 'river_eps_year_unbound'}
+    # Supply a single exact same-year slot; never choose another year by value.
+    return _check_claim(claim, [{'path': f'data.pe_river_chart.eps_twd[{index}]', 'value': float(value)}],
+                        tolerance_pct=tolerance_pct)
 
 
 def _check_claim(claim: dict[str, Any], snapshot_values: list[dict[str, Any]], *,
@@ -405,6 +435,12 @@ def _check_claim(claim: dict[str, Any], snapshot_values: list[dict[str, Any]], *
         verification_reason_code = "matched_snapshot_value"
     else:
         verification_reason_code = "snapshot_value_mismatch"
+    # A provider D/E scalar has no same-period numerator/denominator receipt.
+    # Matching its digits cannot certify a claim that it is total liabilities / equity.
+    if ("debt_to_equity" in path_markers
+            and re.search(r"總負債\s*[／/]\s*(?:股東)?權益", raw_claim_text)):
+        status = "unverifiable"
+        verification_reason_code = "financial_ratio_definition_unverified"
     return {
         **{key: value for key, value in claim.items() if key not in {"context_text", "series_context_text", "technical_context_text", "_price_history_months", "_legacy_conclusion_context_missing", "_technical_as_of", "_technical_default_atr14"}},
         "status": status, "verification_reason_code": verification_reason_code, "candidate_count": len(candidate_values),

@@ -41,9 +41,16 @@ def section_heading(text: str, start: int) -> str:
     return headings[-1].group() if headings else ""
 
 
+def _factual_counterevidence(text: str, start: int) -> bool:
+    """An explicitly factual bullet ends the preceding hypothesis's scope."""
+    line_start = text.rfind('\n', 0, start) + 1
+    return bool(re.match(r'\s*[-*]\s*[*`]*反證事實[*`]*[：:]', text[line_start:start]))
+
+
 def is_conditional_claim(text: str, start: int, end: int) -> bool:
     left, right = sentence_span(text, start, end)
-    prefix = text[left:start]
+    from financial_local_amounts import observation_prefix
+    prefix = observation_prefix(text[left:start])
     clause_prefix = re.split(r"[，,|]|但是|然而|但", prefix)[-1]
     # A later comma-separated condition must not negate an already stated actual.
     suffix = re.split(r"[，,|]", text[end:right], maxsplit=1)[0]
@@ -62,7 +69,8 @@ def is_actual_claim(text: str, start: int, end: int) -> bool:
     return not (
         is_conditional_claim(text, start, end)
         or PROJECTION.search(prefix + text[start:end] + suffix)
-        or PROJECTION.search(section_heading(text, start))
+        or (PROJECTION.search(section_heading(text, start))
+            and not _factual_counterevidence(text, start))
     )
 
 

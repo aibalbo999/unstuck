@@ -273,7 +273,7 @@ def test_cache_rebuilding_never_replays_sdk_operation(monkeypatch, path):
     cached.update({field: cached.get(field) for field in REQUIRED_DATA_SCHEMA_FIELDS})
     cached["data_schema_version"] = DATA_SCHEMA_VERSION
     saved = deepcopy(cached)
-    assess = lambda *_args: (path != "workflow_fallback", {"source_freshness": {}})
+    assess = lambda *_args, **_kwargs: (path != "workflow_fallback", {"source_freshness": {}})
     monkeypatch.setattr(workflow_cache, "assess_cached_financial_data", assess)
     if path == "core_fresh":
         result, _, _ = build_fresh_cache_payload("AAPL", cached, assess_cached=assess,

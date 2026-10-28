@@ -43,6 +43,10 @@ _EPS_VALUE_RE = re.compile(
     rf"(?:EPS|每股盈餘)[^\d\n]{{0,24}}?(?P<num>-?\d[\d,]*(?:\.\d+)?)\s*(?P<unit>{_NUMERIC_UNIT_PATTERN})?(?![\dA-Za-z.])",
     re.IGNORECASE,
 )
+_RIVER_PAIR_RE = re.compile(
+    rf'(?P<multiple>{NUMBER_TOKEN})\s*(?:倍|x)\s*[（(]\s*'
+    rf'(?P<price>{NUMBER_TOKEN})\s*(?:元|TWD)\s*[)）]', re.I,
+)
 _NON_CLAIM_SUFFIX_RE = re.compile(r"^\s*(?:[A-Za-z\u4e00-\u9fff]|週|周|個月|月|年|天|日)")
 _SNAPSHOT_METADATA_PATH_MARKERS = (
     "cache_generated_at_epoch", "conclusion_generated_at", "conclusion_guardrails", "content_hash", "data_snapshot_hash",
@@ -71,7 +75,7 @@ _FIELD_HINTS: tuple[tuple[tuple[str, ...], tuple[str, ...]], ...] = (
     (("毛利率", "grossmargin", "gross_margin"), ("gross_margin", "gross_margin_raw")), (("殖利率", "dividendyield", "dividend_yield"), ("dividend_yield", "dividend_yield_raw")), (("營收", "收入", "revenue", "sales"), ("revenue", "monthly_revenue", "sales")),
     (("淨利", "netincome", "net_income"), ("net_income", "netincome")),
     (("operating cash flow", "operating_cash_flow", "營業現金流"), ("operating_cash_flow",)), (("fcf", "自由現金流", "freecashflow", "free_cash_flow"), ("fcf", "free_cash_flow", "freecashflow")),
-    (("市值", "marketcap", "market_cap"), ("market_cap", "marketcap")), (("流動比率", "current ratio", "currentratio"), ("current_ratio",)), (("債務權益比", "權益負債比率", "debt to equity", "debt-to-equity", "debtequity"), ("debt_to_equity",)),
+    (("市值", "marketcap", "market_cap"), ("market_cap", "marketcap")), (("流動比率", "current ratio", "currentratio"), ("current_ratio",)), (("負債權益比", "債務權益比", "權益負債比率", "debt to equity", "debt-to-equity", "debtequity"), ("debt_to_equity",)),
     (("eps", "每股盈餘"), ("eps", "earnings_per_share")),
     (("護城河", "moat"), ("moat", "moat_score", "moat_scores")),
     (("營業利益率", "operatingmargin", "operating_margin"), ("operating_margin", "operatingincome", "operating_income")),
@@ -100,7 +104,12 @@ def extract_numeric_claims(markdown: str) -> list[dict[str, Any]]:
         else:
             table_headers = []
         series_matches = list(_DATE_SERIES_RE.finditer(line)) if "觀察近三個月價格" in line else []
+        river_eps = [match for match in _EPS_VALUE_RE.finditer(line) if match['unit'] == '元'] if '河流圖' in line else []
+        river_pairs = list(_RIVER_PAIR_RE.finditer(line)) if river_eps else []
         for match in list(_KV_RE.finditer(line)) + list(_TABLE_CELL_RE.finditer(line)):
+            if (river_pairs and match.start('num') == river_pairs[0].start('multiple')
+                    and _label_has_eps_hint(match['label'])):
+                continue
             if is_unit_definition_number(line, *match.span('num')):
                 continue
             if is_non_claim_match(line, match, table_cell=match.re is _TABLE_CELL_RE):
@@ -136,6 +145,8 @@ def extract_numeric_claims(markdown: str) -> list[dict[str, Any]]:
                 continue
             seen.add(key)
             claims.append({
+                **(_river_eps_binding(next((eps for eps in river_eps if eps.start('num') == match.start('num')), None), line, river_pairs)
+                   if river_pairs and _label_has_eps_hint(label) else {}),
                 **({"scenario_projection": True} if scenario_projection else {}),
                 "id": len(claims) + 1,
                 "label": label,
@@ -156,6 +167,24 @@ def extract_numeric_claims(markdown: str) -> list[dict[str, Any]]:
                     seen.add(secondary_key)
                     secondary_text = secondary.group(0).strip()
                     claims.append({"id": len(claims) + 1, "label": secondary_label, "reported_value": secondary_number, "unit": (secondary.group("unit") or "").strip(), "line_number": line_number, "raw_text": f"{label}: {secondary_text}"[:160], "secondary_context_text": line})
+        if river_pairs:
+            # Keep every explicit EPS in the denominator, including a forecast
+            # preceding a later river-chart sentence; only a local annual basis
+            # may inherit the historical river EPS path.
+            values = [('EPS', eps['num'], '元', _river_eps_binding(eps, line, river_pairs))
+                      for eps in river_eps]
+            for pair in river_pairs:
+                values.extend([
+                    ('河流圖 PER', pair['multiple'], '倍', {'river_value_path': 'pe_river_chart.multiples'}),
+                    ('河流圖價位', pair['price'], '元', {'river_value_path': f"pe_river_chart.bands.{pair['multiple']}x"}),
+                ])
+            for label, value, unit, binding in values:
+                number = _clean_number(value)
+                if number is not None and _valid_claim_number(number):
+                    claims.append({'id': len(claims) + 1, 'label': label, 'reported_value': number,
+                                   'unit': unit, 'claim_type': 'financial', 'line_number': line_number,
+                                   'raw_text': line,
+                                   **binding})
         for series_match in series_matches[1:]:
             series_label = f"{series_match.group('month')}/{series_match.group('day')}"
             series_number = _clean_number(series_match.group("num"))
@@ -171,6 +200,35 @@ def extract_numeric_claims(markdown: str) -> list[dict[str, Any]]:
         claim.setdefault("claim_type", "financial")
     from evidence_financial_amounts import extract_financial_amounts
     return extract_financial_amounts(markdown, claims)
+
+
+
+def _local_annual_river_eps(line: str, eps: re.Match[str], pairs: list[re.Match[str]]) -> str | None:
+    """A same-line river mention is not an EPS source or period relationship."""
+    boundaries = list(re.finditer(r"[。；;！？!?]|(?<![\dA-Za-z])\.(?=\s|$)", line))
+    start = max((mark.end() for mark in boundaries if mark.end() <= eps.start()), default=0)
+    end = min((mark.start() for mark in boundaries if mark.start() >= eps.end()), default=len(line))
+    local_pairs = [pair for pair in pairs if eps.end() <= pair.start() < end]
+    if not local_pairs:
+        return None
+    # A preceding clause may describe another EPS basis. Never inherit it.
+    prefix = re.split(r"[，,：:]", line[start:eps.start()])[-1]
+    suffix = line[eps.end():local_pairs[0].start()]
+    basis = prefix + eps.group(0) + suffix
+    if re.search(r"forward|trailing|TTM|預估|預測|預期|未來", basis, re.I):
+        return None
+    years = re.findall(r"(?<!\d)(20\d{2})\s*年", prefix)
+    if len(years) != 1:
+        return None
+    if re.search(r"對應(?:之|的)?\s*(?:歷史\s*)?(?:P/?E\s*)?河流圖", suffix, re.I) or '河流圖' in prefix:
+        return years[0]
+    return None
+
+
+def _river_eps_binding(eps: re.Match[str] | None, line: str, pairs: list[re.Match[str]]) -> dict[str, Any]:
+    year = _local_annual_river_eps(line, eps, pairs) if eps is not None else None
+    return ({'river_value_path': 'pe_river_chart.eps_twd', 'river_reference_year': year}
+            if year else {'eps_river_binding_unverified': True})
 
 
 def _claim_value(match: re.Match[str], label: str, line: str) -> tuple[float | None, str]:
@@ -194,6 +252,10 @@ def _label_has_eps_hint(label: str) -> bool:
 
 
 def _path_markers_for_claim(claim: dict[str, Any]) -> tuple[str, ...]:
+    if claim.get('eps_river_binding_unverified'):
+        return ()
+    if path := claim.get('river_value_path'):
+        return (path,)
     claim_text = str(claim.get("raw_text") or "")
     raw_label = str(claim.get("label") or "").lower()
     series_context = str(claim.get("series_context_text") or "")
