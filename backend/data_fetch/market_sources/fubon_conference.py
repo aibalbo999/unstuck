@@ -84,7 +84,8 @@ def select_presentation(raw, epoch, *, as_of_epoch=None):
     selected=select_published_material(raw,TICKER,as_of_epoch=epoch,company_name='富邦金')
     current=select_published_material(raw,TICKER,as_of_epoch=time.time()if as_of_epoch is None else as_of_epoch,company_name='富邦金')
     if not selected or current!=selected or {k:v for k,v in selected.items()if k!='index_sha256'}!=CURRENT_DESCRIPTOR:
-        raise ValueError('latest published event or attachment changed')
+        from .fubon_october_conference import select_presentation as select_october
+        return select_october(raw,epoch,as_of_epoch=as_of_epoch)
     day=date.fromisoformat(selected['event_date'])
     if not day<=_today(epoch)<=_today(as_of_epoch)or not 0<=(_today(as_of_epoch)-day).days<=370:
         raise ValueError('published event date invalid')
@@ -119,6 +120,9 @@ def _context(selected,native,proof):
         'fetched_at_epoch':proof['pdf']['retrieved_at'],'fubon_conference_receipt':proof}
 
 def role_pages(document):
+    if isinstance(document,dict) and document.get('projection_policy')=='fubon-presentation-role-20261014-v1':
+        from .fubon_october_conference import role_pages as october_pages
+        return october_pages(document)
     if not isinstance(document,dict):return []
     try:
         native={k:document[k]for k in ('pages','parser_version')}
@@ -139,6 +143,9 @@ def _originals_fresh(proof, max_age):
 
 
 def verify_context(value, ticker, *, deadline=None, max_age=86400):
+    if isinstance(value,dict) and isinstance(value.get('fubon_conference_receipt'),dict) and value['fubon_conference_receipt'].get('policy')=='fubon-original-presentation-20261014-v1':
+        from .fubon_october_conference import verify_context as verify_october
+        return verify_october(value,ticker,deadline=deadline,max_age=max_age)
     deadline = deadline if deadline is not None else time.monotonic()+10.
     try:
         _check(deadline)
@@ -171,10 +178,16 @@ def fetch_fubon_context(ticker, *, diagnostics=None, force_refresh=False, use_ca
     deadline = time.monotonic()+25.
     http = ConferenceHttp(deadline,force_refresh=force_refresh,use_cache=use_cache)
     details = {'actual_provider':PROVIDER,'fubon_presentation_workflow':True}
+    delegated=False
     try:
         http.check_index_guard()
         raw,identity = http.get_receipt(MASTER_URL);parse_master(raw,identity['retrieved_at'],identity['source_url']);_check(deadline)
         selected,index = http.get_receipt(INDEX_URL,parser=lambda raw,r:select_presentation(raw,r['retrieved_at']));_check(deadline)
+        if selected != QUALIFIED_SELECTED:
+            from .fubon_october_conference import fetch_fubon_context as fetch_october
+            delegated=True
+            return fetch_october(ticker,diagnostics=diagnostics,force_refresh=force_refresh,use_cache=use_cache,
+                                 _prefix=(identity,index,selected,http.components,http.http_request_count,deadline))
         native,pdf = http.get_receipt(PDF_URL,parser=lambda raw,r:native_presentation(raw,selected,deadline))
         proof = {'policy':POLICY,'identity':identity,'index':index,'pdf':pdf,'selected':selected}
         value = _context(selected,native,proof)
@@ -195,6 +208,7 @@ def fetch_fubon_context(ticker, *, diagnostics=None, force_refresh=False, use_ca
         if not _originals_fresh(proof,RAW_TTL):raise SourceResponseError('original_expired')
         _check(deadline)
     except Exception as original:
+        if delegated:raise
         if time.monotonic() >= deadline:
             exc = SourceResponseError('timeout')
         else:
