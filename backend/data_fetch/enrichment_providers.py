@@ -803,7 +803,6 @@ class InternationalNewsContextProvider(DataProvider):
 
         context = context or {}
         data = context.get("data", {}) or {}
-        cache_hit = safe_bool(data.get("_cache_hit"))
         result = await audited_fetch_async(
             self.source,
             self.name,
@@ -814,10 +813,29 @@ class InternationalNewsContextProvider(DataProvider):
             ),
             default={"lookback_days": 7, "topics": [], "coverage_notes": ["國際新聞脈絡暫無可用資料。"]},
             record_counter=lambda value: len(value.get("topics", [])) if isinstance(value, dict) else 0,
-            cache_hit=cache_hit,
+            cache_hit=False,  # Core-package reuse does not describe this separate source call.
             empty_status="degraded_enrichment",
             unavailable_message="GDELT 未回傳國際新聞脈絡。",
         )
+        value = result.get("value")
+        origin = value.get("_retrieval") if isinstance(value, dict) else None
+        if (isinstance(origin, dict) and origin.get("schema_version") == "international-news-origin:v1"
+                and origin.get("kind") in {"cache_only", "cache_fallback", "fresh_or_mixed", "empty"}):
+            kind = origin["kind"]
+            audit = result["audit"]
+            audit["retrieval_origin"] = dict(origin)
+            audit["cache_hit"] = kind == "cache_only"
+            if kind in {"cache_only", "cache_fallback"}:
+                # Legacy topic cache has no acquisition timestamp. Never date it
+                # as this call; published article dates remain in the content.
+                audit["fetched_at"] = None
+                audit["fetched_at_epoch"] = None
+                audit["cache_origin_unknown"] = True
+            if kind == "cache_fallback":
+                # A failed/empty new attempt remains in the denominator even
+                # when usable cached content survives for the caller.
+                audit["status"] = "degraded_enrichment"
+                audit["message"] = "當次未取得新國際新聞；保留快取內容及原有失敗觀測。"
         return provider_result_from_audited(result, self.source, self.name)
 
 

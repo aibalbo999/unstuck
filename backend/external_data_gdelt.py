@@ -62,6 +62,7 @@ async def fetch_gdelt_international_news_context(
     coverage_notes = []
     query_items = list(_topic_queries_for_context(sector, industry).items())[: max(1, int(max_topics))]
     gdelt_attempts = 0
+    cache_topic_count = fresh_topic_count = attempted_topic_count = 0
     cooldown_seconds = _rate_limit_cooldown_seconds(rate_limit_cooldown_seconds)
     async with async_client() as client:
         for tag, query in query_items:
@@ -70,9 +71,12 @@ async def fetch_gdelt_international_news_context(
             cache_key = _gdelt_topic_cache_key(tag, query, lookback_days, max_records_per_topic)
             parsed_topics = _cached_gdelt_topics(cache_key)
             if parsed_topics:
+                cache_topic_count += 1
                 topics.extend(parsed_topics)
                 coverage_notes.append(f"{tag} 使用 GDELT 快取。")
                 continue
+            attempted_topic_count += 1
+            cached_fallback = False
             shared_cooldown = cooldown_state(scope_key('gdelt'))
             if _gdelt_rate_limited() or shared_cooldown:
                 fallback_reason = 'GDELT ' + str(shared_cooldown.get('error_kind') or '429') + ' cooldown'
@@ -102,6 +106,7 @@ async def fetch_gdelt_international_news_context(
                         _mark_gdelt_rate_limited(cooldown_seconds)
                         fallback_reason = "GDELT 429 rate limited"
                         parsed_topics = _cached_gdelt_topics(cache_key)
+                        cached_fallback = bool(parsed_topics)
                     else:
                         log_http_warning("GDELT", f"international news {quote(tag)}", exc)
             if not parsed_topics:
@@ -119,10 +124,21 @@ async def fetch_gdelt_international_news_context(
                     coverage_notes.append(f"{tag} 未回傳可用新聞。")
             elif fallback_reason:
                 coverage_notes.append(f"{tag} {fallback_reason}，使用 GDELT 快取。")
+            if parsed_topics:
+                if cached_fallback:
+                    cache_topic_count += 1
+                else:
+                    fresh_topic_count += 1
             topics.extend(parsed_topics)
+    kept = _dedupe_topics(topics, limit=8)
+    origin = ("empty" if not kept else "fresh_or_mixed" if fresh_topic_count else
+              "cache_fallback" if attempted_topic_count else "cache_only")
     return {
         "lookback_days": int(lookback_days),
-        "topics": _dedupe_topics(topics, limit=8),
+        "topics": kept,
+        "_retrieval": {"schema_version": "international-news-origin:v1", "kind": origin,
+                       "cached_topic_count": cache_topic_count, "fresh_topic_count": fresh_topic_count,
+                       "attempted_topic_count": attempted_topic_count},
         "coverage_notes": coverage_notes[:6],
     }
 
