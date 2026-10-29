@@ -3,6 +3,21 @@ from pathlib import Path
 import subprocess
 
 
+def test_observation_panel_keeps_actual_models_and_quality_unknown():
+    helper=Path(__file__).resolve().parents[1]/'backend'/'static'/'api_quota_usage_helpers.js'
+    script='global.window={};require('+json.dumps(str(helper))+');console.log(JSON.stringify(window.StockAgentApiQuotaUsage.observationLines('+json.dumps({
+        'available':True,'model_request_events':{'gemma-4-26b-a4b-it':142},
+        'totals':{'agent_request_events':307,'local_preflight_events':195},
+        'quota':{'events':44,'classified_pct':0,'kinds':{'unknown':44}},'quality':{},'sample_truncated':True,
+    })+')));'
+    result=subprocess.run(['node','-e',script],check=True,capture_output=True,text=True)
+    lines=' '.join(json.loads(result.stdout))
+    assert 'gemma-4-26b-a4b-it 142 次' in lines
+    assert '195 次事件' in lines
+    assert '歷史品質決策未完整記錄' in lines
+    assert '已達讀取上限' in lines
+
+
 def test_daily_panel_uses_provider_errors_and_keeps_local_blocks_separate():
     static = Path(__file__).resolve().parents[1] / "backend" / "static"
     script = """

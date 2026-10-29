@@ -130,7 +130,7 @@ def test_unknown_quota_and_unregistered_key_are_not_invented(rig):
     error.headers = {}
     with pytest.raises(QuotaError):
         transport.generate_content('unregistered-key', 'gemma-4-26b-a4b-it', 'prompt', None)
-    meta = events[0]['metadata']
+    meta = next(e['metadata'] for e in events if e['operation']=='llm_provider_quota_observation')
     assert meta['provider_quota'] == {'violations': [], 'retry_delay_seconds': None}
     assert meta['quota_detail_status'] == 'unspecified' and 'key_slot' not in meta
 
@@ -140,7 +140,7 @@ def test_non_429_error_does_not_create_quota_observation(rig):
     error.code = 503
     with pytest.raises(QuotaError):
         transport.generate_content('private-key', 'gemma-4-26b-a4b-it', 'prompt', None)
-    assert events == []
+    assert not any(e['operation']=='llm_provider_quota_observation' for e in events)
 
 
 @pytest.mark.parametrize('provider', ['openai', 'anthropic'])
@@ -171,7 +171,7 @@ def test_parallel_tasks_and_subsequent_calls_do_not_share_suppression(rig):
         await asyncio.gather(fail(), fail())
         await fail()
     asyncio.run(run())
-    assert len(events) == 3
+    assert len([e for e in events if e['operation']=='llm_provider_quota_observation']) == 3
 
 
 def test_persisted_observation_does_not_inflate_existing_usage_counts():

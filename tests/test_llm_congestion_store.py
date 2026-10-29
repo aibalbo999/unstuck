@@ -109,7 +109,9 @@ def test_redis_failure_preserves_known_wait_and_fails_closed_once():
 @pytest.mark.parametrize('action', ['admit', 'peek', 'failure', 'success', 'release'])
 def test_result_has_safe_fixed_schema(action):
     store, _ = rig()
-    assert set(store.operate('model', action, key_hash='hash')) == {'generation', 'wait', 'probe', 'admitted', 'transition'}
+    assert set(store.operate('model', action, key_hash='hash')) == {
+        'generation', 'wait', 'probe', 'admitted', 'transition', 'observation_generation',
+        'observation_opened_at', 'observation_now', 'cooldown_until', 'probe_until'}
 
 
 def test_required_shared_unavailable_initially_quarantines_only_once():

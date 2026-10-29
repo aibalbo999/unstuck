@@ -36,7 +36,30 @@ def assert_report_publishable(payload):
         if safe_text(section.get(field)).strip().lower() in BLOCKING_STATUSES:
             issues.append(f"{label}未通過")
     if issues:
+        _observe_gate(value, 'gate_blocked')
         raise ReportPublicationBlockedError(issues)
+    _observe_gate(value, 'gate_passed')
+
+
+def _observe_gate(value, outcome):
+    """Observe this exact decision without changing or re-running its predicates."""
+    try:
+        from llm_observation_context import record_observation
+        import hashlib
+        import json
+        allowed = {'passed', 'approved', 'clean', 'warning', 'caution', 'failed', 'blocked', 'rejected', 'partial'}
+        gates = {}
+        for name, field in (('final_audit','status'),('report_lint','status'),('content_credibility','status'),
+                            ('report_conformance','status'),('evidence_exit_gate','verdict')):
+            section = safe_mapping_dict(value.get(name)) or {}
+            status = safe_text(section.get(field)).strip().lower()
+            gates[name] = status if status in allowed else 'not_recorded'
+        record_observation('llm_report_quality_observation', 'unknown', outcome,
+                           pipeline_id=value.get('pipeline_id') if value.get('pipeline_id') in {'v1','v2','v3','v4'} else None,
+                           gates=gates, quality_fingerprint=hashlib.sha256(json.dumps(gates,sort_keys=True).encode()).hexdigest(),
+                           decision_basis='assert_report_publishable', publication_verified=False)
+    except Exception:
+        pass
 
 
 def publication_blocked_event(exc, **context):

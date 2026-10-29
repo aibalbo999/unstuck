@@ -23,6 +23,7 @@ from validators import sanitize_model_output, strip_generated_audit_sections
 from summary_consistency import accept_summary, summary_reference_prompt
 from llm_response_diagnostics import response_diagnostics
 from llm_quota_details import extract_quota_details
+from llm_observation_context import observe_purpose
 from agent_runtime.llm_call_metadata import _key_slot_fields
 from agent_runtime.retry_error_classification import provider_status_code
 
@@ -87,10 +88,12 @@ def _build_tear_sheet_generation_config():
     )
 
 
+@observe_purpose('tear_sheet')
 def _generate_tear_sheet_content(api_key: str, model_id: str, prompt: str):
     return generate_content(api_key, model_id, prompt, _build_tear_sheet_generation_config())
 
 
+@observe_purpose('tear_sheet')
 async def _generate_tear_sheet_content_async(api_key: str, model_id: str, prompt: str):
     return await generate_content_async(api_key, model_id, prompt, _build_tear_sheet_generation_config())
 

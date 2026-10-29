@@ -13,10 +13,12 @@ from llm_errors import is_requests_per_day_error, retry_delay_seconds
 from llm_model_circuits import ModelCircuitOpenError
 from llm_provider_routes import split_model_provider
 from llm_congestion_telemetry import observe_transition
+from llm_congestion_telemetry import cooldown_fields
 
 _store = None
 _store_lock = threading.Lock()
 _active = ContextVar("llm_provider_congestion_attempt", default=None)
+_last_observation = ContextVar('llm_congestion_last_observation', default=None)
 
 
 class ProviderCongestionError(ModelCircuitOpenError):
@@ -53,7 +55,16 @@ def congestion_wait(model_id):
     model = _identity(model_id)
     if not _enabled() or model is None:
         return 0.0
-    return max(0.0, float(_get_store().operate(model, "peek")["wait"]))
+    result = _get_store().operate(model, "peek")
+    _last_observation.set((model, result))
+    return max(0.0, float(result['wait']))
+
+
+def current_cooldown_fields(model_id):
+    value = _last_observation.get()
+    if value and value[0] == _identity(model_id) and float(value[1].get('wait') or 0) > 0:
+        return cooldown_fields(value[0], value[1])
+    return {}
 
 
 def _actual_provider_status(exc):

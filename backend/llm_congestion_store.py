@@ -14,6 +14,7 @@ CONGESTION_LUA = r"""
 local raw = redis.call('GET', KEYS[1])
 local s = raw and cjson.decode(raw) or {generation=0, stage=0, active=false, until_at=0, probe_until=0, owner='', failures={}, hint_until=0}
 local previous_generation, was_active = s.generation, s.active
+local previous_opened_at = s.observation_opened_at or 0
 local stamp = redis.call('TIME')
 local now = tonumber(stamp[1]) + tonumber(stamp[2])/1000000
 local action, key, owner = ARGV[1], ARGV[2], ARGV[3]
@@ -27,6 +28,7 @@ local function reopen(seconds, increase)
   s.generation = s.generation + 1
   if increase then s.stage = math.min(s.stage+1, 4) end
   s.active = true
+  s.observation_opened_at = now
   s.until_at = now + seconds
   s.owner = ''
   s.probe_until = 0
@@ -66,6 +68,7 @@ elseif action == 'success' and owned then
   s.generation = s.generation+1
   s.stage, s.until_at, s.probe_until, s.hint_until = 0, 0, 0, 0
   s.active, s.owner, s.failures = false, '', {}
+  s.observation_opened_at = 0
 elseif action == 'release' and owned then
   reopen(30, false)
 end
@@ -80,6 +83,11 @@ elseif action == 'failure' and matched and not was_active and key ~= '' then
   transition = 'failure_observed'
 end
 local result = {generation=s.generation, wait=wait(), probe=probe, admitted=admitted, transition=transition}
+result.observation_generation = transition == 'recovered' and previous_generation or s.generation
+result.observation_opened_at = transition == 'recovered' and previous_opened_at or (s.observation_opened_at or 0)
+result.observation_now = now
+result.cooldown_until = s.until_at
+result.probe_until = s.probe_until
 -- Keep the generation tombstone beyond the longest admitted request; expired
 -- state must not let an old generation-zero completion become current again.
 local ttl = math.ceil(math.max(86400, s.until_at-now+86400, s.probe_until-now+86400, lease+86400)*1000)
@@ -90,7 +98,7 @@ return cjson.encode({result=result,state=s,now=now})
 
 def _state():
     return dict(generation=0, stage=0, active=False, until_at=0.0,
-                probe_until=0.0, owner='', failures={}, hint_until=0.0)
+                probe_until=0.0, owner='', failures={}, hint_until=0.0, observation_opened_at=0.0)
 
 
 def _wait(state, now):
@@ -101,11 +109,12 @@ def _reopen(state, now, seconds, *, increase):
     state.update(generation=state['generation']+1,
                  stage=min(state['stage']+1, 4) if increase else state['stage'],
                  active=True, until_at=now+seconds, owner='', probe_until=0.0,
-                 failures={}, hint_until=0.0)
+                 failures={}, hint_until=0.0, observation_opened_at=now)
 
 
 def _local_operate(state, now, action, key, owner, generation, delay, lease, jitter):
     previous_generation, was_active = state['generation'], state['active']
+    previous_opened_at = state.get('observation_opened_at', 0.0)
     admitted = probe = False
     owned = (generation == state['generation'] and bool(owner) and owner == state['owner']
              and state['probe_until'] > now)
@@ -146,7 +155,10 @@ def _local_operate(state, now, action, key, owner, generation, delay, lease, jit
                       else 'reopened' if was_active else 'opened')
     elif action == 'failure' and generation == previous_generation and not was_active and key:
         transition = 'failure_observed'
-    return dict(generation=state['generation'], wait=_wait(state, now), probe=probe, admitted=admitted, transition=transition)
+    return dict(generation=state['generation'], wait=_wait(state, now), probe=probe, admitted=admitted, transition=transition,
+                observation_generation=previous_generation if transition == 'recovered' else state['generation'],
+                observation_opened_at=previous_opened_at if transition == 'recovered' else state.get('observation_opened_at', 0.0),
+                observation_now=now, cooldown_until=state['until_at'], probe_until=state['probe_until'])
 
 
 def _finite(value, *, minimum=0.0):
@@ -197,7 +209,8 @@ class CongestionStore:
                     payload = json.loads(encoded)
                     mirrored = copy.deepcopy(payload['state'])
                     offset = float(self._clock())-float(payload['now'])
-                    for field in ('until_at', 'probe_until', 'hint_until'):
+                    for field in ('until_at', 'probe_until', 'hint_until', 'observation_opened_at'):
+                        mirrored.setdefault(field, 0.0)
                         if mirrored[field]:
                             mirrored[field] += offset
                     mirrored['failures'] = {k: at+offset for k, at in (mirrored['failures'] or {}).items()}

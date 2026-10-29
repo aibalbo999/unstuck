@@ -16,6 +16,8 @@ from .generation_config import (
 from .llm_call_metadata import _key_slot_fields, _record_llm_token_usage
 from .retry_error_classification import provider_status_code
 from .attempt_telemetry import record_node_model_call, record_node_model_response
+from llm_observation_context import current_fields
+from llm_quota_observation_details import observe_quota_details
 
 
 def _model_event_fields(context: AnalysisContext, agent_num: int, model_id: str, prompt: str, **metadata) -> dict:
@@ -41,6 +43,7 @@ def _model_event_fields(context: AnalysisContext, agent_num: int, model_id: str,
             "effective_settings_sha256": process_settings_sha256(),
             "settings_snapshot_scope": "executing_process",
             "generation_config": generation_config,
+            **current_fields(),
             **{key: value for key, value in metadata.items() if value is not None},
         },
     }
@@ -97,6 +100,7 @@ def llm_model_error_fields(
         error_message="LLM call failed." if error is not None else None,
         provider_status_code=provider_status_code(error),
         provider_quota=extract_quota_details(error) if error is not None else None,
+        quota_observation=observe_quota_details(error) if provider_status_code(error) == 429 else None,
         input_capacity={"estimated_input_tokens": error.estimated_input_tokens, "limit": error.limit, "basis": error.basis}
         if isinstance(error, InputCapacityExceededError) else None,
         **_key_slot_fields(rotator, api_key),

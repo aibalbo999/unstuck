@@ -16,6 +16,7 @@ from llm_key_admission import propagate_admission_cancel
 from llm_request_deadline import response_timeout_scope
 from llm_response_diagnostics import response_kind, response_diagnostics
 from llm_tool_rate_guard import tool_request_scope
+from llm_observation_context import observe_attempt
 from runtime_events import (
     emit_context_error,
     emit_context_error_async,
@@ -67,6 +68,7 @@ async def _await_with_agent_timeout(coro, *, model_id: str, timeout_seconds: flo
     return await await_response(coro, model_id=model_id, timeout=timeout)
 
 
+@observe_attempt
 def _run_agent_once(
     agent_num: int,
     context: AnalysisContext,
@@ -148,6 +150,7 @@ def _run_agent_once(
     return result
 
 
+@observe_attempt
 async def _run_agent_once_async(
     agent_num: int,
     context: AnalysisContext,

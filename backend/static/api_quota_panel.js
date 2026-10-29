@@ -68,6 +68,7 @@
             ? services.map(service => {
                 const usage = usageLabel(service.usage || {});
                 const budget = window.StockAgentApiQuotaUsage?.budgetLabel(service.usage?.daily_budget) || '';
+                const observationLines = window.StockAgentApiQuotaUsage?.observationLines(service.usage?.execution_observation) || [];
                 const notes = Array.isArray(service.notes) ? service.notes.slice(0, 2).join('；') : '';
                 return `
                     <article class="provider-sla-chip provider-sla-insight is-${quotaHealth(service).tone}">
@@ -80,9 +81,10 @@
                         <span class="provider-sla-meta">下次重置（台灣時間）${escapeHtml(formatDateTime(service.next_reset_taipei))}</span>
                         <details class="provider-sla-technical">
                             <summary>用量與設定明細</summary>
-                            <div>key ${escapeHtml(service.key_count ?? 0)} · ${service.usage?.daily_budget?.enforced === false ? '本機數字只供參考，不會攔截' : service.limit_basis ? '本機每日預算' : '方案限制'} ${escapeHtml(limitLabel(service.daily_limit))}</div>
+                            <div>key ${escapeHtml(service.key_count ?? 0)} · ${service.usage?.daily_budget?.enforced === false ? '本機每日預算只供參考；暫時冷卻與容量檢查另行運作' : service.limit_basis ? '本機每日預算' : '方案限制'} ${escapeHtml(limitLabel(service.daily_limit))}</div>
                             <div>${escapeHtml(usage)}</div>
                             ${budget ? `<div>${escapeHtml(budget)}</div>` : ''}
+                            ${observationLines.map(line => `<div>${escapeHtml(line)}</div>`).join('')}
                             ${notes ? `<div>${escapeHtml(notes)}</div>` : ''}
                         </details>
                     </article>
