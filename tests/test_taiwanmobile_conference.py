@@ -79,6 +79,8 @@ def acquisition(monkeypatch):
 def test_acquired_native_text_preserves_partial_truth_and_warm_cache(acquisition):
  diagnostic={};v=source.fetch_context('3045.TW',diagnostics=diagnostic)
  assert len(v['documents'][0]['pages'])==12 and v['transcript_available']
+ assert v['documents'][0]['event_time_Taipei']is None and v['documents'][0]['event_timezone']is None
+ assert v['documents'][0]['source_declared_time_label']=='04:00 p.m.'
  assert not v['documents'][0]['transcript_accuracy_independently_verified']
  assert v['coverage_status']=='partial'and not v['documents'][0]['full_content_coverage_verified']
  assert v['period']=='2026Q2'and v['upcoming_event']['period']=='2026Q3'
