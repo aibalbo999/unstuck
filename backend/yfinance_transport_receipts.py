@@ -1,12 +1,40 @@
 """Observe the SDK's existing native session without replacing it or caches."""
 import threading,time,re,inspect
+from contextlib import contextmanager
+from contextvars import ContextVar
 from hashlib import sha256
 from urllib.parse import urlsplit,unquote,parse_qs
 _LOCK=threading.Lock()
+_GLOBAL_PROXY=ContextVar('yfinance_global_proxy_transport',default=None)
+
+
+@contextmanager
+def observe_global_proxy(symbol):
+    """Bind one actual global-context SDK call; never borrow another operation."""
+    from provider_correlation import current_correlation,current_source_identity
+    binding=None
+    try:
+        from data_fetch.market_sources.global_context import TECH_PROXY_SYMBOLS,BROAD_PROXY_SYMBOLS
+        allowed={row[0] for row in (*TECH_PROXY_SYMBOLS,*BROAD_PROXY_SYMBOLS)}
+        context=current_correlation()
+        if (isinstance(symbol,str) and symbol in allowed and context.get('ticker')
+                and context.get('operation_id') and context.get('fetch_id')
+                and current_source_identity()==('global_market_context','yfinance global context')):
+            binding=(symbol,{key:context[key] for key in ('ticker','operation_id','fetch_id')})
+    except Exception:
+        pass
+    token=_GLOBAL_PROXY.set(binding)
+    try:
+        if binding is not None:
+            try:observe_yfinance()
+            except Exception:pass
+        yield
+    finally:
+        _GLOBAL_PROXY.reset(token)
 
 
 def _record(method,url,params,response,started,stream):
-    from provider_correlation import current_correlation
+    from provider_correlation import current_correlation,current_source_identity
     from provider_sla import record_source_audit_entries
     context=current_correlation();ticker=context.get('ticker','')
     if method!='GET' or not ticker or stream:return
@@ -20,15 +48,27 @@ def _record(method,url,params,response,started,stream):
         values=parse_qs(actual.query).get('symbols',[])
         symbol=values[0]if len(values)==1 else(params or{}).get('symbols','')
     else:return
-    if not isinstance(symbol,str)or symbol.upper()!=ticker.upper():return
+    source='market_data';provider='yfinance native HTTP'
+    message='Native Yahoo transport receipt only; parsed market data is separately audited.'
+    binding=_GLOBAL_PROXY.get()
+    if binding is not None:
+        selected,owner=binding
+        if (current_source_identity()!=('global_market_context','yfinance global context')
+                or any(context.get(key)!=value for key,value in owner.items())
+                or symbol!=selected or not request.path.startswith('/v8/finance/chart/')):return
+        source='global_market_context';provider='yfinance global proxy native HTTP'
+        message=f'Native Yahoo global proxy {selected} transport only; parsed global context is separately audited.'
+    elif current_source_identity()==('global_market_context','yfinance global context'):
+        return
+    elif not isinstance(symbol,str)or symbol.upper()!=ticker.upper():return
     body=response.content
     if not isinstance(body,bytes):return
-    record_source_audit_entries([{**context,'source':'market_data','provider':'yfinance native HTTP',
+    record_source_audit_entries([{**context,'source':source,'provider':provider,
         'event_kind':'http_transport_receipt','selection_policy':'transport-receipt-only:v1',
         'record_count':0,'status':'success'if response.status_code<400 else'error',
         'http_request_sent':True,'http_status':response.status_code,'response_bytes':len(body),
         'response_sha256':sha256(body).hexdigest(),'duration_ms':max(0,int((time.monotonic()-started)*1000)),
-        'message':'Native Yahoo transport receipt only; parsed market data is separately audited.'}])
+        'message':message}])
 
 
 def observe_session(session):

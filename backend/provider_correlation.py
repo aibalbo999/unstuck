@@ -40,6 +40,11 @@ def current_correlation():
     return dict(_CURRENT.get() or {})
 
 
+def current_source_identity():
+    """Return the actual bounded source operation, without inferring from IDs."""
+    return _SOURCE.get()
+
+
 @contextmanager
 def correlation_scope(*, replace=False, **values):
     current = {} if replace else current_correlation()

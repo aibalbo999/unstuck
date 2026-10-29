@@ -2,12 +2,14 @@ import hashlib,json,copy
 from official_institutional_source import TWSE_FIELDS,_url
 from official_institutional_verification import prepare_archived_verification,evaluate_official_verification,attach_cached_verification
 from institutional_claim_lineage import institutional_claim_lineage
+from official_response_evidence import archive_response
 
 
 def fixture():
     row=['1301','台塑']+['0']*17;row[4]='1234';row[18]='1234'
     body=json.dumps({'stat':'OK','date':'20261002','fields':TWSE_FIELDS,'hints':'單位：股','data':[row]}).encode()
-    manifest={'ticker':'1301.TW','as_of':'2026-10-02','population':'foreign_including_foreign_dealer','unit':'shares','window_dates':['2026-10-02'],'reports':[{'date':'2026-10-02','source_url':_url('TWSE','2026-10-02'),'http_status':200,'raw_response_path':'public-test-response.json','raw_response_sha256':hashlib.sha256(body).hexdigest(),'retrieved_at':'2026-10-03T00:00:00+00:00'}]}
+    raw=archive_response(body,source_url=_url('TWSE','2026-10-02'),retrieved_at='2026-10-03T00:00:00+00:00')
+    manifest={'ticker':'1301.TW','as_of':'2026-10-02','population':'foreign_including_foreign_dealer','unit':'shares','window_dates':['2026-10-02'],'reports':[{'date':'2026-10-02',**raw}]}
     proof=prepare_archived_verification(manifest,lambda _:body)
     data={'ticker':'1301.TW','institutional_trading':{'daily_category_observations':[{'date':'2026-10-02','category':'foreign','net_buy_shares':1234,'unit':'shares','source':'FinMind'}],'official_verification':proof}}
     record={'population':'foreign','window':{'kind':'day','date':'2026-10-02'},'observed_at':'2026-10-02','provider':'FinMind','value':1.23,'unit':'thousand_shares'}

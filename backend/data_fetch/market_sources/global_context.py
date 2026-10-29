@@ -99,7 +99,9 @@ def fetch_global_market_context(
 
 def _market_proxy_item(symbol: str, label: str, category: str, *, lookback_days: int, fetched_at: str) -> dict:
     try:
-        history = yf.Ticker(symbol).history(period=f"{max(2, int(lookback_days))}d")
+        from yfinance_transport_receipts import observe_global_proxy
+        with observe_global_proxy(symbol):
+            history = yf.Ticker(symbol).history(period=f"{max(2, int(lookback_days))}d")
     except Exception:
         return {}
     closes = []

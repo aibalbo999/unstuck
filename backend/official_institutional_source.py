@@ -240,7 +240,7 @@ def recover_institutional_observations(ticker, primary, *, now_epoch, limit, for
                                 fetch_before_deadline,
                                 freshness_seconds=6*3600 if phase=='post_cutoff' else 300,retention_seconds=6*3600,error_retry_seconds=60,lock_wait_seconds=0,
                                 result_ttl=lambda row:6*3600 if row.get('rows') and phase=='post_cutoff' else 300,
-                                use_cache=not force_refresh)
+                                use_cache=True, force_refresh=force_refresh, preserve_cache_on_force_error=True)
         receipt={'date':day,'source':source,'source_url':_url(market,day),'acquisition_phase':phase,'cache_key':f'official-institutional:{market}:{day}:v2:{phase}',**meta}
         if isinstance(report,dict):
             receipt['raw_evidence']=report.get('raw_evidence')

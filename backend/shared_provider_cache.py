@@ -22,7 +22,8 @@ def shared_fetch(key: str, fetch: Callable, *, freshness_seconds: int,
                  retention_seconds: int | None = None, error_retry_seconds: int = 60,
                  use_cache: bool = True, result_ttl: Callable | None = None,
                  lock_wait_seconds: float | None = None,
-                 force_refresh: bool = False) -> tuple[object, dict]:
+                 force_refresh: bool = False,
+                 preserve_cache_on_force_error: bool = False) -> tuple[object, dict]:
     """Return payload and acquisition metadata, preserving errors and stale state.
 
     A supplied lock budget bounds both thread and process waiting together; zero
@@ -30,6 +31,8 @@ def shared_fetch(key: str, fetch: Callable, *, freshness_seconds: int,
     The caller's HTTP budget remains separate from this acquisition wait budget.
     force_refresh bypasses this key's saved observation under the same lock and
     writes its replacement for later normal readers; provider guards still apply.
+    preserve_cache_on_force_error returns the actual failed force result without
+    falling back to or changing a previously saved observation or its deadlines.
     """
     if not use_cache or freshness_seconds <= 0:
         return _uncached(fetch)
@@ -77,6 +80,8 @@ def shared_fetch(key: str, fetch: Callable, *, freshness_seconds: int,
                 'retry_after_epoch': row['retry_after_epoch'],
             }
         value_new, meta = _uncached(fetch)
+        if force_refresh and preserve_cache_on_force_error and 'error_kind' in meta:
+            return None, meta
         now = time.time()
         if 'error_kind' not in meta:
             fresh_ttl = max(1, min(freshness_seconds, int(result_ttl(value_new)))) if result_ttl else freshness_seconds
