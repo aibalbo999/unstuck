@@ -81,6 +81,14 @@ def evaluate_report_evidence(
     technical = data.get("technical_indicators") if isinstance(data, dict) else None
     technical = technical if isinstance(technical, dict) else {}
     claims = [{**claim, "_technical_as_of": valid_technical_date(technical.get("as_of")), "_technical_default_atr14": explicit_atr14_policy(technical)} for claim in claims]
+    from evidence_operational_time_claims import operational_time_claim
+    timestamp_claims = []
+    retained = []
+    for claim in claims:
+        temporal = operational_time_claim(claim, snapshot)
+        if temporal is None:retained.append(claim)
+        else:timestamp_claims.append(temporal)
+    claims = retained
     policy_claims = []
     financial_and_score_claims = []
     for claim in claims:
@@ -150,6 +158,15 @@ def evaluate_report_evidence(
             summary += "需確認：" + "、".join(reasons) + "。"
     if policy_claims:
         summary += f"另核對 {len(policy_claims)} 筆研究等待政策值，不計入財務證據，也不代表實際持倉。"
+    timestamp_invalid = sum(item['status']=='invalid' for item in timestamp_claims)
+    timestamp_unknown = sum(item['status']=='unverifiable' for item in timestamp_claims)
+    if timestamp_claims:
+        summary += (f"另逐項核對 {len(timestamp_claims)} 筆時間中繼資料（矛盾 {timestamp_invalid}、依據不足 {timestamp_unknown}）；"
+                    "僅核對保存標示，不計入財務證據，也不代表重新抓取或來源採用通過。")
+    if timestamp_invalid:
+        verdict='rejected'
+    elif timestamp_unknown and verdict=='approved':
+        verdict='caution'
     source_admission=None
     context=snapshot.get("rerun_context") or {}
     context=context if isinstance(context,dict) else {}
@@ -196,6 +213,13 @@ def evaluate_report_evidence(
         "coverage_policy": "all_extracted_numeric_claims" if coverage_complete else "diagnostic_sample",
         "coverage_complete": coverage_complete,
         "unchecked_count": len(claims) - len(checked),
+        "timestamp_claim_count": len(timestamp_claims),
+        "timestamp_checked_count": len(timestamp_claims),
+        "timestamp_invalid_count": timestamp_invalid,
+        "timestamp_unverifiable_count": timestamp_unknown,
+        "timestamp_claims": timestamp_claims,
+        "all_numeric_claim_count": len(claims)+len(metadata_claims)+len(policy_claims)+len(timestamp_claims),
+        "all_numeric_checked_count": len(checked)+len(metadata_claims)+len(policy_claims)+len(timestamp_claims),
         "policy_claim_count": len(policy_claims),
         "policy_checked_count": len(policy_claims),
         "policy_claims": policy_claims,

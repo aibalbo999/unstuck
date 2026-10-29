@@ -30,6 +30,10 @@ def _identity(facts):
 def _context_matches(text, identity):
     """Only structural headings/preambles may surround this explicit clause."""
     from financial_money_claims import _PERIOD, _target_revenue_scope
+    # These exact debate stance labels identify a speaker position only.
+    # Issuer/year/FX/forecast qualifiers and every ancestor retain their gates.
+    if re.fullmatch(r'\s*(?:🐻\s*空頭|🐂\s*多頭)\s*[:：]?\s*', text):
+        return True
     # Agent 2's native prompt mandates this exact structural section name.
     # Match the whole heading; issuer, year, currency and forecast qualifiers
     # in headings or surrounding prose must still pass the existing checks.

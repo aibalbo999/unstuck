@@ -37,20 +37,46 @@ def _parts(row):
     return values
 
 
+def _timestamp_rows(context):
+    gate=context.get('evidence_exit_gate')or{}
+    return gate.get('timestamp_claims',[])if isinstance(gate,dict)else[]
+
+
+def _timestamp_parts(row):
+    reason={'operational_time_matches_saved_metadata':'與指定保存欄位一致',
+            'operational_policy_matches_current_internal_rule':'與內部重查政策一致，非官方發布 SLA',
+            'operational_policy_text_mismatch':'內部政策標示矛盾',
+            'operational_time_value_mismatch':'完整時間、日期或時區矛盾',
+            'operational_time_source_missing_or_naive':'保存時點缺漏或時區未確認',
+            'operational_time_not_qualified_format':'時間格式不完整或有歧義'}.get(row.get('verification_reason_code'),row.get('verification_reason_code',''))
+    return [str(row.get('metadata_field')or row.get('label')or''),str(row.get('reported_time')or'未能解析'),
+            {'valid':'保存標示一致','invalid':'保存標示矛盾','unverifiable':'保存依據不足'}.get(row.get('status'),str(row.get('status',''))),
+            str(row.get('basis_path')or''),str(row.get('expected_display_time')or row.get('expected_time')or'未記錄／時區未確認'),str(reason)]
+
+
 def evidence_ledger_markdown(context):
-    rows = _rows(context)
-    if not rows:
-        return ''
-    def clean(value):
-        return value.replace('|', '\\|').replace('\n', ' ')
-    lines = ['\n<!-- evidence-ledger:start -->', '\n### 數字主張逐項核對', '保存快照一致性核對；來源日期與口徑仍須核實。模型推論不是獨立事實證據。', '\n| 主張 | 報告值 | 結果 | 快照路徑 | 快照值 | 判準 |', '|---|---|---|---|---|---|']
-    lines += ['| ' + ' | '.join(clean(v) for v in _parts(row)) + ' |' for row in rows]
-    return '\n'.join(lines + ['<!-- evidence-ledger:end -->'])
+    rows=_rows(context);timestamps=_timestamp_rows(context)
+    if not rows and not timestamps:return ''
+    def clean(value):return value.replace('|','\\|').replace('\n',' ')
+    lines=['\n<!-- evidence-ledger:start -->','\n### 數字主張逐項核對','保存快照一致性核對；來源日期與口徑仍須核實。模型推論不是獨立事實證據。']
+    if rows:
+        lines+=['\n| 主張 | 報告值 | 結果 | 快照路徑 | 快照值 | 判準 |','|---|---|---|---|---|---|']
+        lines+=['| '+' | '.join(clean(v)for v in _parts(row))+' |'for row in rows]
+    if timestamps:
+        lines+=['\n### 時間中繼資料（非財務證據）','只核對保存標示；不代表重新抓取、原件驗證、來源採用通過或可執行交易。',
+                '\n| 欄位 | 報告時間標示 | 結果 | 保存依據 | 保存時間／政策 | 判準 |','|---|---|---|---|---|---|']
+        lines+=['| '+' | '.join(clean(v)for v in _timestamp_parts(row))+' |'for row in timestamps]
+    return '\n'.join(lines+['<!-- evidence-ledger:end -->'])
 
 
 def evidence_ledger_html(context):
-    rows = _rows(context)
-    if not rows:
-        return ''
-    body = ''.join('<tr>' + ''.join('<td style="overflow-wrap:anywhere">' + escape(v) + '</td>' for v in _parts(row)) + '</tr>' for row in rows)
-    return '<details class="evidence-ledger"><summary>數字主張逐項核對</summary><p>保存快照一致性核對；模型推論不是獨立事實證據，通過不代表預測有效。</p><div style="overflow-x:auto"><table style="min-width:800px"><thead><tr>' + ''.join('<th>'+v+'</th>' for v in ['主張','報告值','結果','快照路徑','快照值','判準']) + '</tr></thead><tbody>' + body + '</tbody></table></div></details>'
+    rows=_rows(context);timestamps=_timestamp_rows(context)
+    if not rows and not timestamps:return ''
+    def table(items,parts,headers):
+        body=''.join('<tr>'+''.join('<td style="overflow-wrap:anywhere">'+escape(v)+'</td>'for v in parts(row))+'</tr>'for row in items)
+        return '<div style="overflow-x:auto"><table style="min-width:800px"><thead><tr>'+''.join('<th>'+v+'</th>'for v in headers)+'</tr></thead><tbody>'+body+'</tbody></table></div>'
+    content=table(rows,_parts,['主張','報告值','結果','快照路徑','快照值','判準'])if rows else''
+    if timestamps:
+        content+='<h3>時間中繼資料（非財務證據）</h3><p>只核對保存標示；不代表重新抓取、原件驗證、來源採用通過或可執行交易。</p>'
+        content+=table(timestamps,_timestamp_parts,['欄位','報告時間標示','結果','保存依據','保存時間／政策','判準'])
+    return '<details class="evidence-ledger"><summary>數字主張逐項核對</summary><p>保存快照一致性核對；模型推論不是獨立事實證據，通過不代表預測有效。</p>'+content+'</details>'
