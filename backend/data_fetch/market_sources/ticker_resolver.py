@@ -17,6 +17,8 @@ class MarketDataProvider:
         return [str(ticker or "").strip().upper()]
 
     def get_valid_info(self, ticker: str):
+        from yfinance_transport_receipts import observe_yfinance
+        observe_yfinance()
         stock = yf.Ticker(ticker)
         info = stock.info
         valid = "currentPrice" in info or "regularMarketPrice" in info or "previousClose" in info
