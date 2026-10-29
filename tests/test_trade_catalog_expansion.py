@@ -5,8 +5,9 @@ from datetime import date, timedelta
 
 def data():
     today=date.today()
+    # Include enough eligible trading sessions for MACD after weekends/holidays.
     return {'ticker':'2033.TW','daily_market_data':{'source':'fixture', 'volume_unit':'shares',
-        'bars':[{'date':(today-timedelta(days=40-i)).isoformat(),'open':20+i/10,'high':21+i/10,'low':19+i/10,'close':20+i/10,'volume':1000+i} for i in range(40)]},
+        'bars':[{'date':(today-timedelta(days=90-i)).isoformat(),'open':20+i/10,'high':21+i/10,'low':19+i/10,'close':20+i/10,'volume':1000+i} for i in range(90)]},
         'recent_catalysts':[{'date':today.isoformat(),'title':'2033 佳大公告營收','source':'company','link':'https://example.org/news'}]}
 
 

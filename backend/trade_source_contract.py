@@ -59,10 +59,14 @@ def missing_trade_fields(payload, *, context=None):
     return missing
 
 
-def source_catalog(data):
+def source_catalog(data, *, as_of=None):
     # Use the existing pure projection; no provider calls, invented events or prices.
+    # New prompts bind a concrete Taipei date. Historical checks must use their
+    # captured manifest, not reinterpret saved positional refs with today's list.
     from trade_catalog_evidence import add_catalog_observations
-    value = add_catalog_observations(build_short_term_market_context(data, compact=True), data)
+    from trade_catalog_date import catalog_day
+    as_of = catalog_day(data, as_of=as_of)
+    value = add_catalog_observations(build_short_term_market_context(data, as_of=as_of, compact=True), data)
     return {"short_term_market_context": value}
 
 
