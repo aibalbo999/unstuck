@@ -122,7 +122,17 @@ def parse_workforce_dataset(raw: bytes | str, ticker: str, *, today: date | None
 
 def _fetch_dataset(url: str) -> str:
     transport_provider = ("TWSE/TPEx annual ESG occupational safety OpenAPI" if "_21" in url else PROVIDER)
-    response = sync_get(url, headers={"User-Agent": "stock-agent/1.0"}, timeout=8, provider=transport_provider)
+    from annual_disclosure_transport import observe_response
+    try:
+        response = sync_get(url, headers={"User-Agent": "stock-agent/1.0"}, timeout=8, provider=transport_provider)
+    except Exception as exc:
+        # HTTP errors may carry a real response. Connection/timeout exceptions
+        # without one remain unknown; never synthesize a status or retry here.
+        failed_response = getattr(exc, "response", None)
+        if failed_response is not None:
+            observe_response(url, failed_response, max_bytes=MAX_BYTES)
+        raise
+    observe_response(url, response, max_bytes=MAX_BYTES)
     raw = response.content
     if not isinstance(raw, bytes) or not 0 < len(raw) <= MAX_BYTES:
         raise ValueError("annual workforce response size invalid")

@@ -156,11 +156,22 @@ def _fred_observations(
 
 
 def _fred_get(session: Any | None, *, params: dict[str, str], timeout: float):
-    if session is not None:
-        response = session.get(FRED_OBSERVATIONS_URL, params=params, timeout=timeout)
-        response.raise_for_status()
-        return response
-    return sync_get(FRED_OBSERVATIONS_URL, params=params, timeout=timeout, provider="FRED")
+    from fred_transport_receipts import observe_response
+    import httpx, requests
+    native_call = session is None or type(session) in (httpx.Client, requests.Session)
+    try:
+        if session is not None:
+            response = session.get(FRED_OBSERVATIONS_URL, params=params, timeout=timeout)
+            response.raise_for_status()
+        else:
+            response = sync_get(FRED_OBSERVATIONS_URL, params=params, timeout=timeout, provider="FRED")
+    except Exception as exc:
+        failed_response = getattr(exc, "response", None)
+        if failed_response is not None:
+            observe_response(failed_response, series_id=params.get("series_id"), native_call=native_call)
+        raise
+    observe_response(response, series_id=params.get("series_id"), native_call=native_call)
+    return response
 
 
 def _first_valid_observation(observations: list[dict[str, Any]]) -> dict[str, Any] | None:
