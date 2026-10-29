@@ -21,7 +21,10 @@ def _contains_allis_no_store(data):
             continue
         seen.add(id(value))
         if isinstance(value, dict):
-            if ('jentech_conference_receipt' in value
+            if ('taiwanmobile_conference_receipt' in value
+                    or value.get('source') == 'Taiwan Mobile official conference transcript'
+                    or value.get('projection_policy') == 'taiwanmobile-transcript-role-v1'
+                    or 'jentech_conference_receipt' in value
                     or value.get('source') == 'Jentech official conference presentation'
                     or value.get('projection_policy') == 'jentech-presentation-role-v1'
                     or isinstance(value.get('url'),str) and (value['url'].startswith('https://www.jentech.com.tw/zh/_files/ugd/') or value['url'].startswith('https://5d4fbe70-bf03-4c9c-9b1d-5e632fda0f7f.filesusr.com/ugd/'))

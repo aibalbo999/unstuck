@@ -25,6 +25,9 @@ def fetch_free_earnings_call_context(ticker: str, *, diagnostics: dict | None = 
                                     use_cache: bool = True, force_refresh: bool = False,
                                     source_context: dict | None = None) -> dict:
     """Prefer verified issuer content; retain the existing index fallback."""
+    from .market_sources.taiwanmobile_conference import supports as supports_twm, fetch_context as fetch_twm
+    if supports_twm(ticker):
+        return fetch_twm(ticker, diagnostics=diagnostics, force_refresh=force_refresh, use_cache=use_cache)
     from company_conference_content import fetch_company_conference, supports_company, AGGREGATE_MESSAGE
     from official_cathay_conference import fetch_cathay_conference_context, supports_cathay
     from search_provider_runtime import SourceResponseError
@@ -1267,6 +1270,11 @@ def apply_earnings_call_audit(result: dict, diagnostic: dict) -> None:
     audit.update({key: value for key, value in diagnostic.items()
                   if key not in {"event_kind", "http_request_sent"}})
     audit["event_kind"] = "aggregate"
+    if diagnostic.get('taiwanmobile_transcript_workflow'):
+        verified = diagnostic.get('taiwanmobile_originals_verified') is True and bool(result.get('value'))
+        audit.update(record_count=int(verified), http_request_sent=diagnostic.get('http_request_sent') is True)
+        if verified and diagnostic.get('cache_hit'):
+            audit.update(status='skipped_fresh_cache', cache_hit=True)
     if diagnostic.get('eclat_presentation_workflow'):
         audit['http_request_sent'] = diagnostic.get('http_request_sent') is True
         audit['record_count'] = int(diagnostic.get('eclat_originals_verified') is True and bool(result.get('value')))

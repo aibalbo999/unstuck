@@ -306,6 +306,16 @@ class EarningsCallProvider(DataProvider):
         data = (context or {}).get("data", {}) if isinstance((context or {}).get("data"), dict) else {}
         ticker = str((context or {}).get("original_ticker") or data.get("ticker") or request.ticker).strip().upper()
         diagnostic = {}
+        from .market_sources.taiwanmobile_conference import supports as supports_twm, validate_context as validate_twm, PROVIDER as TWM_PROVIDER
+        if supports_twm(request.ticker) or supports_twm(ticker):
+            requested = str(request.ticker).strip().upper()
+            if (requested != ticker or context is not None and 'data' in context and not isinstance(context['data'], dict)
+                    or data and not validate_twm(data, requested)):
+                return ProviderResult(self.source, TWM_PROVIDER, 'unavailable', value={}, audit={
+                    'source':self.source, 'provider':TWM_PROVIDER, 'status':'unavailable', 'event_kind':'local_block',
+                    'record_count':0, 'http_request_sent':False, 'http_request_count':0,
+                    'error_kind':'context_unverified', 'message':'股票與台灣大哥大官方逐字稿來源身分不一致，未抓取。'})
+            diagnostic['actual_provider'] = TWM_PROVIDER
         from .market_sources.zdt_conference import supports_zdt, validate_context as validate_zdt_context, PROVIDER as ZDT_PROVIDER
         if supports_zdt(request.ticker) or supports_zdt(ticker):
             requested = str(request.ticker).strip().upper()
