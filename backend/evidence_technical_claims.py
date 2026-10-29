@@ -15,7 +15,7 @@ _OTHER_BASIS = re.compile(r"EMA|指數|volume|成交量|收盤|close|price_histo
 _ASSIGNMENT_OTHER_BASIS = re.compile(_OTHER_BASIS.pattern.replace("收盤|close|", ""), re.I)
 _NON_CURRENT_BASIS = re.compile(r"昨日|前日|前期|預估|預測|假設|如果|若|目標|previous|yesterday|forecast|projected|hypothetical", re.I)
 _PARTIAL_DATE = re.compile(r"(?<!\d)(?:0?[1-9]|1[0-2])\s*[/月]\s*(?:0?[1-9]|[12]\d|3[01])(?:日)?(?!\d)|(?:19|20)\d{2}\s*年")
-_ASSIGNED_VALUE = re.compile(r"\s*[:：=]\s*(?:NT\$|\$|TWD)?\s*(-?\d[\d,]*(?:\.\d+)?)\s*(?:元|TWD)?(?=$|[\s,，;；>><<）)\"。])", re.I)
+_ASSIGNED_VALUE = re.compile(r"\s*[:：=]\s*(?:NT\$|\$|TWD)?\s*(-?\d[\d,]*(?:\.\d+)?)\s*(?:元|TWD)?(?=$|[\s,，、（;；>><<）)\"。])", re.I)
 MACD_FIELDS = frozenset({"macd", "macd_signal", "macd_histogram"})
 CANONICAL_TECHNICAL_FIELDS = MACD_FIELDS | {"atr_14"}
 _MACD_KEY = re.compile(r"(?<![A-Za-z0-9_])(?:macd_signal|macd_histogram|histogram|macd)(?![A-Za-z0-9_])", re.I)

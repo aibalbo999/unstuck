@@ -7,7 +7,7 @@ from evidence_daily_price_claims import DAILY_DATE_RE
 
 _KEY = re.compile(r"(?<![A-Za-z0-9_])(?P<key>Signal|ATR(?:[_ ]?\d+|\(\d+\))?)(?![A-Za-z0-9_])", re.I)
 _ASSIGNMENT_KEY = re.compile(_KEY.pattern.replace('Signal|', 'macd_signal|Signal|'), re.I)
-_VALUE = re.compile(r"\s*[:：=]\s*(?:NT\$|\$|TWD)?\s*(-?\d[\d,]*(?:\.\d+)?)\s*(?:元|TWD)?(?=$|[\s,，;；）)\"。])", re.I)
+_VALUE = re.compile(r"\s*[:：=]\s*(?:NT\$|\$|TWD)?\s*(-?\d[\d,]*(?:\.\d+)?)\s*(?:元|TWD)?(?=$|[\s,，、（;；）)\"。])", re.I)
 _WRONG_BASIS = re.compile(r"昨日|前日|前期|預估|預測|假設|如果|若|目標|previous|yesterday|forecast|projected|hypothetical|新聞|news|券商|factset", re.I)
 _PARTIAL_DATE = re.compile(r"(?<!\d)(?:0?[1-9]|1[0-2])\s*[/月]\s*(?:0?[1-9]|[12]\d|3[01])(?:日)?(?!\d)|(?:19|20)\d{2}\s*年")
 
