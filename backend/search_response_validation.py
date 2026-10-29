@@ -7,7 +7,10 @@ from search_provider_runtime import SourceResponseError, observe_http_response
 
 
 async def observed_json_get(client, url, params, headers=None):
+    from international_news_transport import begin, record
+    binding = begin(url)
     response = await client.get(url, params=params, headers=headers)
+    record(binding, response)
     observe_http_response(response)
     response.raise_for_status()
     return response_json(response)

@@ -128,11 +128,14 @@ async def fetch_gdelt_international_news_context(
 
 
 async def _fetch_google_news_rss_fallback(client, tag: str, query: str) -> list[dict]:
+    from international_news_transport import begin, record
+    binding = begin(GOOGLE_NEWS_RSS_URL)
     try:
         response = await client.get(
             GOOGLE_NEWS_RSS_URL,
             params={"q": query, "hl": "en-US", "gl": "US", "ceid": "US:en"},
         )
+        record(binding, response)
         response.raise_for_status()
     except Exception as exc:
         log_http_warning("Google News RSS", f"international news {quote(tag)}", exc)
