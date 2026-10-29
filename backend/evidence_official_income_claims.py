@@ -71,7 +71,72 @@ def _native_report_title(text, facts):
     return 1 <= len(parts) <= 2 and all(value in names for value in parts)
 
 
-def _bound_scope(claim, facts):
+def _native_moat_income_scope(claim, facts, data):
+    """Bind the complete observed cashflow bullet, including consumed amounts.
+
+    A structural competitive-moat title grants no financial scope by itself.
+    Every owner, period, currency and other monetary fact must bind to replayed
+    originals. The current income is compared by the ordinary mismatch gate.
+    """
+    from official_financial_projection import read_official_financial_projection
+    from evidence_official_financial_claims import _ttm_display_matches
+    if not isinstance(data, dict) or claim.get('unit') != '億元':
+        return False
+    clean = lambda value: re.sub(r'[*`\s]', '', str(value or ''))
+    ancestors = claim.get('_financial_heading_ancestors')
+    names = [facts['issuer_name']]
+    if facts['ticker'] == '1623.TW' and facts['issuer_name'] == '大東電業廠股份有限公司':
+        names.append('大東電')
+    wrapper = '## 護城河逐項證據'
+    heading = '#### 6. 競爭優勢持久性總結'
+    if (not isinstance(ancestors, list) or len(ancestors) not in (3, 4)
+            or ancestors[-3] != wrapper or ancestors[-1] != heading
+            or claim.get('financial_heading') != heading
+            or (len(ancestors) == 4 and not _native_report_title(ancestors[0], facts))
+            or ancestors[-2] not in [f'### {name} ({facts["ticker"]}) 競爭護城河評估報告' for name in names]
+            or clean(claim.get('financial_parent_context'))):
+        return False
+    raw = str(claim.get('raw_text') or '')
+    if not re.match(r'^\* \*\*現金流觀察：\*\*', raw):
+        return False
+    number = r'[+-]?\d+(?:\.\d+)?'
+    pattern = (r'現金流觀察：(?P<issuer>' + '|'.join(map(re.escape, names))
+        + r')官方個別TTM（' + re.escape(facts['period_start']) + r'至'
+        + re.escape(facts['period_end']) + r'）淨利為(?P<income>' + number
+        + r')億元新臺幣；同期間營業現金流為(?P<ocf>' + number
+        + r')億元新臺幣，CapEx（PPE及無形資產取得支出）合計(?P<capex>' + number
+        + r')億元新臺幣，自由現金流為(?P<fcf>' + number
+        + r')億元新臺幣（來源：data.cash_flow.official_reference、'
+        + r'data.cash_flow.official_income_facts及其source_documents）。')
+    match = re.fullmatch(pattern, clean(raw))
+    if not match:
+        return False
+    prefix = clean(raw).split('淨利為', 1)[0]
+    if (clean(claim.get('financial_period_text')) != prefix
+            or clean(claim.get('financial_amount_suffix')) != '新臺幣'
+            or clean(claim.get('financial_owner_text')) != prefix + '為新臺幣'):
+        return False
+    try:
+        if Decimal(match['income']) != Decimal(str(claim['reported_value'])):
+            return False
+        selected = read_official_financial_projection(data)
+        if selected is None:
+            return False
+        source = selected['facts']
+        if any(source.get(key) != facts.get(key) for key in ('period_start', 'period_end', 'currency', 'report_scope', 'ticker')):
+            return False
+        cf = source['cashflows']['ttm']
+        return all(_ttm_display_matches(match[key], value) for key, value in (
+            ('ocf', cf['operating_cash_flow']),
+            ('capex', -(cf['ppe_purchase'] + cf['intangible_purchase'])),
+            ('fcf', cf['free_cash_flow'])))
+    except (KeyError, TypeError, ValueError, InvalidOperation):
+        return False
+
+
+def _bound_scope(claim, facts, data=None):
+    if _native_moat_income_scope(claim, facts, data):
+        return True
     from financial_money_claims import _target_revenue_scope
     prefix = str(claim.get('financial_period_text') or '')
     suffix = str(claim.get('financial_amount_suffix') or '')
@@ -170,7 +235,7 @@ def official_income_claim(claim, data, *, scale, tolerance_pct):
     from official_income_prompt import official_income_prompt_facts
     facts = official_income_prompt_facts(data)
     if (facts is None or facts.get('currency') != 'TWD' or facts.get('report_scope') != 'individual'
-            or facts.get('monetary_amount_unit') != 'TWD' or not _bound_scope(claim, facts)):
+            or facts.get('monetary_amount_unit') != 'TWD' or not _bound_scope(claim, facts, data)):
         return None
     try:
         raw = facts['net_income_ttm_raw']

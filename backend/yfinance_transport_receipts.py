@@ -6,6 +6,7 @@ from hashlib import sha256
 from urllib.parse import urlsplit,unquote,parse_qs
 _LOCK=threading.Lock()
 _GLOBAL_PROXY=ContextVar('yfinance_global_proxy_transport',default=None)
+_ANNUAL=ContextVar('yfinance_annual_statement_transport',default=None)
 
 
 @contextmanager
@@ -33,6 +34,59 @@ def observe_global_proxy(symbol):
         _GLOBAL_PROXY.reset(token)
 
 
+@contextmanager
+def observe_annual_statements(ticker, metadata):
+    """Observe only a bounded existing annual SDK read, preserving its caches."""
+    from provider_correlation import current_correlation, correlation_scope
+    context = current_correlation()
+    binding = None
+    if (isinstance(metadata, dict) and isinstance(ticker, str)
+            and context.get('ticker') == ticker == metadata.get('ticker')
+            and context.get('fetch_id') and context['fetch_id'] == metadata.get('fetch_id')
+            and metadata.get('operation_id') and _GLOBAL_PROXY.get() is None):
+        binding = {key: metadata[key] for key in ('ticker', 'fetch_id', 'operation_id')}
+    token = _ANNUAL.set(binding)
+    try:
+        if binding is None:
+            yield
+        else:
+            try:
+                observe_yfinance()
+            except Exception:
+                pass
+            with correlation_scope(**binding):
+                yield
+    finally:
+        _ANNUAL.reset(token)
+
+
+def _annual_symbol(request, actual, params, binding, context):
+    if any(context.get(key) != value for key, value in binding.items()):
+        return None
+    match = re.fullmatch(r'/ws/fundamentals-timeseries/v1/finance/timeseries/([^/]+)', request.path)
+    if match is None or unquote(match[1]) != binding['ticker']:
+        return None
+    query = parse_qs(request.query)
+    actual_query = parse_qs(actual.query)
+    supplied = params if isinstance(params, dict) else {}
+    def values(key):
+        original = query.get(key)
+        if original is None and key in supplied:
+            raw = supplied[key]
+            original = [raw] if isinstance(raw, str) else raw
+        final = actual_query.get(key, original)
+        return original if original == final else None
+    if values('symbol') != [binding['ticker']]:
+        return None
+    types = values('type')
+    if not isinstance(types, list) or len(types) != 1 or not isinstance(types[0], str):
+        return None
+    from yfinance.const import fundamentals_keys
+    allowed = {'annual' + value for fields in fundamentals_keys.values() for value in fields}
+    fields = types[0].split(',')
+    return binding['ticker'] if fields and all(field in allowed for field in fields) else None
+
+
 def _record(method,url,params,response,started,stream):
     from provider_correlation import current_correlation,current_source_identity
     from provider_sla import record_source_audit_entries
@@ -42,6 +96,23 @@ def _record(method,url,params,response,started,stream):
     if (request.scheme!='https' or actual.scheme!='https' or request.hostname not in {'query1.finance.yahoo.com','query2.finance.yahoo.com'}
         or actual.hostname!=request.hostname or actual.path!=request.path or request.username or request.password
         or request.port not in (None,443) or getattr(response,'from_cache',False)):return
+    annual_binding = _ANNUAL.get()
+    if annual_binding is not None:
+        symbol = _annual_symbol(request, actual, params, annual_binding, context)
+        if symbol is None:
+            return
+        body = response.content
+        if not isinstance(body, bytes):
+            return
+        record_source_audit_entries([{**context, 'source': 'financial_statements',
+            'provider': 'yfinance annual statements native HTTP',
+            'event_kind': 'http_transport_receipt', 'selection_policy': 'transport-receipt-only:v1',
+            'record_count': 0, 'status': 'success' if 200 <= response.status_code < 300 else 'error',
+            'http_request_sent': True, 'http_status': response.status_code,
+            'response_bytes': len(body), 'response_sha256': sha256(body).hexdigest(),
+            'duration_ms': max(0, int((time.monotonic() - started) * 1000)),
+            'message': 'Native Yahoo annual transport only; parsed statements and SDK cache remain separately audited.'}])
+        return
     match=re.fullmatch(r'/v(?:8/finance/chart|10/finance/quoteSummary)/([^/]+)',request.path)
     if match is not None:symbol=unquote(match[1])
     elif request.path=='/v7/finance/quote':

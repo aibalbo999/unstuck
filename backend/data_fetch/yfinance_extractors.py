@@ -407,12 +407,14 @@ def _extract_financial_histories_uncached(stock, ticker: str, data_source_notes:
     primary_started_at = time.time()
     primary_metadata = {**current_correlation(), "ticker": ticker, "operation_id": uuid4().hex}
     primary_metadata.pop("attempt_id", None)
+    from yfinance_transport_receipts import observe_annual_statements
     primary_tables = {}
     primary_errors = {}
     primary_balance_snapshot = None
 
     try:
-        financials = stock.financials
+        with observe_annual_statements(ticker, primary_metadata):
+            financials = stock.financials
         primary_tables["financials"] = financials
         if financials is not None and not financials.empty:
             for col in financials.columns[:5]:
@@ -441,7 +443,8 @@ def _extract_financial_histories_uncached(stock, ticker: str, data_source_notes:
     total_assets_history = [None] * len(income_periods)
     total_equity_history = [None] * len(income_periods)
     try:
-        cashflow = stock.cashflow
+        with observe_annual_statements(ticker, primary_metadata):
+            cashflow = stock.cashflow
         primary_tables["cashflow"] = cashflow
         if cashflow is not None and not cashflow.empty:
             fcf_by_period = {}
@@ -467,7 +470,8 @@ def _extract_financial_histories_uncached(stock, ticker: str, data_source_notes:
     )
 
     try:
-        balance = stock.balance_sheet
+        with observe_annual_statements(ticker, primary_metadata):
+            balance = stock.balance_sheet
         primary_tables["balance_sheet"] = balance
         if balance is not None and not balance.empty:
             equity_by_period = {}
