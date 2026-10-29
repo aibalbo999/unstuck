@@ -8,12 +8,14 @@ _LOCK=threading.Lock()
 _DATASETS={'TaiwanStockMonthRevenue':'monthly_revenue',
  'TaiwanStockInstitutionalInvestorsBuySell':'institutional_trading',
  'TaiwanStockNews':'recent_catalysts','TaiwanStockPER':'pe_river_chart',
- 'TaiwanStockFinancialStatements':'financial_statements'}
+ 'TaiwanStockFinancialStatements':'financial_statements',
+ 'TaiwanStockBalanceSheet':'financial_statements',
+ 'TaiwanStockCashFlowsStatement':'financial_statements'}
 
 
 def _record(session,request,response,started):
     import requests
-    from provider_correlation import current_correlation
+    from provider_correlation import current_correlation,current_source_identity
     from provider_sla import record_source_audit_entries
     parts=urlsplit(request.url);query=parse_qs(parts.query)
     dataset=query.get('dataset',[]);identity=query.get('data_id',query.get('stock_id',[]))
@@ -27,13 +29,18 @@ def _record(session,request,response,started):
     if (type(adapter)is not requests.adapters.HTTPAdapter or adapter.max_retries.total!=0
         or not isinstance(response,requests.Response) or response.request is not request
         or getattr(response,'from_cache',False) or not response._content_consumed):return
-    record_source_audit_entries([{**context,'source':_DATASETS[dataset[0]],
+    source=_DATASETS[dataset[0]]
+    if source=='financial_statements' and current_source_identity()==('twse_official','FinMind TWSE official'):
+        source='twse_official'
+    record_source_audit_entries([{**context,'source':source,
         'provider':'FinMind native HTTP','event_kind':'http_transport_receipt',
         'selection_policy':'transport-receipt-only:v1','status':'success'if response.status_code<400 else'error',
         'record_count':0,'http_request_sent':True,'http_status':response.status_code,
+        'component_statuses':{dataset[0]:{'dataset':dataset[0],
+            'status':'transport_received','http_status':response.status_code}},
         'response_bytes':len(response.content),'response_sha256':sha256(response.content).hexdigest(),
         'duration_ms':max(0,int((time.monotonic()-started)*1000)),
-        'message':'Native SDK transport receipt only; parsed data is separately audited.'}])
+        'message':'Native FinMind SDK transport only, not direct exchange proof; parsed data is separately audited.'}])
 
 
 def observe_loader(loader):

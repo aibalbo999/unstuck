@@ -199,9 +199,13 @@ def _download(url: str, *, deadline: float | None = None) -> bytes:
         raise TimeoutError("forum acquisition deadline exhausted")
     argv = ["/usr/bin/curl", "--disable", "--silent", "--show-error", "--fail-with-body",
             "--max-time", str(remaining), "--connect-timeout", str(min(4.0, remaining)), "--max-filesize", str(MAX_BYTES),
-            "--proto", "=https", "--max-redirs", "0", "--retry", "0", url]
+            "--proto", "=https", "--max-redirs", "0", "--retry", "0",
+            "--dump-header", "/dev/fd/{HEADER_FD}",
+            "--write-out", "%{stderr}\nSTOCK_AGENT_CURL_META:%{json}\n", url]
     parts, rc, error = collect_capped_process(argv, min(time.monotonic() + 10, deadline) if deadline is not None else time.monotonic() + 10,
-                                              body_limit=MAX_BYTES)
+                                              body_limit=MAX_BYTES, headers=True)
+    from cmoney_transport_receipts import observe_download
+    observe_download(url, parts, rc, error, max_bytes=MAX_BYTES)
     if error or rc != 0 or not 0 < len(parts["body"]) <= MAX_BYTES:
         raise RuntimeError(error or "forum HTTP response unavailable")
     return parts["body"]
