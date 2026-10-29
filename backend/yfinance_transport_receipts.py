@@ -7,6 +7,27 @@ from urllib.parse import urlsplit,unquote,parse_qs
 _LOCK=threading.Lock()
 _GLOBAL_PROXY=ContextVar('yfinance_global_proxy_transport',default=None)
 _ANNUAL=ContextVar('yfinance_annual_statement_transport',default=None)
+_PEER=ContextVar('yfinance_selected_peer_transport',default=None)
+
+
+@contextmanager
+def observe_peer_metrics(symbol):
+    """One selected peer quote belongs to its root source operation, not itself."""
+    from provider_correlation import current_correlation,current_source_identity
+    context=current_correlation();binding=None
+    if (isinstance(symbol,str) and re.fullmatch(r'[A-Z0-9][A-Z0-9.^=-]{0,39}',symbol)
+            and symbol!=context.get('ticker') and all(context.get(k)for k in('ticker','fetch_id','operation_id'))
+            and current_source_identity()==('dynamic_peer_metrics','FinMind/yfinance')
+            and _GLOBAL_PROXY.get() is None and _ANNUAL.get() is None):
+        binding=(symbol,{k:context[k]for k in('ticker','fetch_id','operation_id')})
+    token=_PEER.set(binding)
+    try:
+        if binding is not None:
+            try:observe_yfinance()
+            except Exception:pass
+        yield
+    finally:
+        _PEER.reset(token)
 
 
 @contextmanager
@@ -43,7 +64,7 @@ def observe_annual_statements(ticker, metadata):
     if (isinstance(metadata, dict) and isinstance(ticker, str)
             and context.get('ticker') == ticker == metadata.get('ticker')
             and context.get('fetch_id') and context['fetch_id'] == metadata.get('fetch_id')
-            and metadata.get('operation_id') and _GLOBAL_PROXY.get() is None):
+            and metadata.get('operation_id') and _GLOBAL_PROXY.get() is None and _PEER.get() is None):
         binding = {key: metadata[key] for key in ('ticker', 'fetch_id', 'operation_id')}
     token = _ANNUAL.set(binding)
     try:
@@ -121,6 +142,35 @@ def _record(method,url,params,response,started,stream):
     else:return
     source='market_data';provider='yfinance native HTTP'
     message='Native Yahoo transport receipt only; parsed market data is separately audited.'
+    peer_binding=_PEER.get()
+    if peer_binding is not None:
+        selected,owner=peer_binding
+        # Identity-bearing query fields cannot contradict a selected path symbol.
+        for query in (parse_qs(request.query,keep_blank_values=True),
+                      parse_qs(actual.query,keep_blank_values=True),params if isinstance(params,dict) else {}):
+            for key in ('symbol','symbols'):
+                if key in query:
+                    values=query[key]
+                    if ([values] if isinstance(values,str) else values)!=[selected]:return
+        if (current_source_identity()!=('dynamic_peer_metrics','FinMind/yfinance')
+                or any(context.get(key)!=value for key,value in owner.items())
+                or symbol!=selected or not (request.path.startswith('/v10/finance/quoteSummary/')
+                                            or request.path=='/v7/finance/quote')):return
+        body=response.content;code=response.status_code
+        if not isinstance(body,bytes) or type(code)is not int or not 100<=code<=599:return
+        digest=sha256(body).hexdigest()
+        record_source_audit_entries([{**context,'source':'dynamic_peer_metrics',
+            'provider':'yfinance peer native HTTP','event_kind':'http_transport_receipt',
+            'selection_policy':'transport-receipt-only:v1','record_count':0,
+            'status':'success' if 200<=code<300 else 'error','peer_symbol':selected,
+            'http_request_sent':True,'http_status':code,'response_bytes':len(body),
+            'response_sha256':digest,'duration_ms':max(0,int((time.monotonic()-started)*1000)),
+            'component_statuses':{selected:{'status':'transport_received','http_status':code,
+                                           'response_sha256':digest}},
+            'message':'Native selected-peer quote transport only; peer identity, comparability and parsed metrics remain separately checked.'}])
+        return
+    elif (current_source_identity() or (None,))[0]=='dynamic_peer_metrics':
+        return
     binding=_GLOBAL_PROXY.get()
     if binding is not None:
         selected,owner=binding

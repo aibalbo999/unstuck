@@ -98,7 +98,8 @@ def fetch_megabank_exchange_rates() -> dict:
                 if not owns():
                     raise SourceResponseError("lease_lost", parser_version=PARSER_VERSION)
                 observe_http_response(None)
-                response = sync_get(url, timeout=min(8, remaining), provider=PROVIDER)
+                from fx_transport_receipts import native_get
+                response = native_get(sync_get, url, timeout=min(8, remaining), provider=PROVIDER)
                 observe_http_response(response)
                 evidence.append({'source_url': url, 'http_status': response.status_code,
                                  'response_sha256': hashlib.sha256(response.content).hexdigest(),

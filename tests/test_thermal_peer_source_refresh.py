@@ -51,6 +51,13 @@ def test_public_source_refresh_acquires_thermal_metrics_without_core_or_model_ca
     from test_report_refresh_acquisition_audit import init_db, events
     init_db()
     native_boundary(monkeypatch)
+    # The historical replay already freezes time.time; keep this consumer's
+    # datetime clock on the same acquisition day without relaxing live expiry.
+    class ReplayClock(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return cls.fromtimestamp(time.time(), tz)
+    monkeypatch.setattr('thermal_peer_source_refresh.datetime', ReplayClock)
     monkeypatch.setattr(peers, '_today', lambda: TODAY)
     monkeypatch.setattr(peers, 'load_peer_stock_master', lambda: [])
     monkeypatch.setattr(peers.yf, 'Ticker', Stock)

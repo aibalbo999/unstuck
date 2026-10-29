@@ -277,9 +277,11 @@ def fetch_dynamic_peer_metrics_with_diagnostics(ticker: str, company_name: str, 
         symbol = candidate["ticker"]
         yf_status = "success"
         try:
-            stock = yf.Ticker(symbol)
-            stocks_by_symbol[symbol] = stock
-            info = stock.info
+            from yfinance_transport_receipts import observe_peer_metrics
+            with observe_peer_metrics(symbol):
+                stock = yf.Ticker(symbol)
+                stocks_by_symbol[symbol] = stock
+                info = stock.info
             info = info if isinstance(info, dict) else {}
         except Exception as exc:
             info = {}

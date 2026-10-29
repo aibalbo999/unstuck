@@ -28,6 +28,12 @@ class TaiwanOpenDataProvider(DataProvider):
     capabilities = {"taiwan_open_data", "macro_context"}
 
     def fetch(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
+        from provider_correlation import source_operation
+        with source_operation(self.source, self.name):
+            return self._fetch(request, context)
+
+    def _fetch(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
+        from provider_correlation import current_audit_correlation
         from data_trust import AUDIT_STATUS_DEGRADED_ENRICHMENT, AUDIT_STATUS_SUCCESS, AUDIT_STATUS_UNAVAILABLE
         from shared_provider_cache import shared_fetch
 
@@ -43,7 +49,7 @@ class TaiwanOpenDataProvider(DataProvider):
                   AUDIT_STATUS_DEGRADED_ENRICHMENT if value else AUDIT_STATUS_UNAVAILABLE)
         return ProviderResult(
             source=self.source, provider=provider, status=status, value=value,
-            audit={"source": self.source, "provider": provider, "actual_provider": provider,
+            audit={**current_audit_correlation(), "source": self.source, "provider": provider, "actual_provider": provider,
                    "status": status, "record_count": sum(bool(v) for v in value["rates"].values()) if value else 0,
                    "coverage_status": value.get("status") if value else "unavailable",
                    "coverage": value.get("coverage", {}) if value else {},
@@ -156,7 +162,8 @@ def _valid_rate(value) -> bool:
 
 
 def _fetch_bot_exchange_rates() -> dict:
-    r = sync_get(BOT_EXCHANGE_RATE_URL, headers={"User-Agent": "Mozilla/5.0"}, timeout=5, provider="Bank of Taiwan")
+    from fx_transport_receipts import native_get
+    r = native_get(sync_get, BOT_EXCHANGE_RATE_URL, headers={"User-Agent": "Mozilla/5.0"}, timeout=5, provider="Bank of Taiwan")
     content = r.content.decode("utf-8-sig", errors="replace")
     if "<html" in content.lower() or "Challenge Validation" in content:
         raise ValueError("BOT endpoint returned HTML challenge instead of CSV.")
@@ -178,7 +185,8 @@ def _fetch_bot_exchange_rates() -> dict:
 
 
 def _fetch_er_api_usd_twd_rate() -> dict:
-    r = sync_get(ER_API_USD_URL, headers={"User-Agent": "Mozilla/5.0"}, timeout=8, provider="open.er-api.com")
+    from fx_transport_receipts import native_get
+    r = native_get(sync_get, ER_API_USD_URL, headers={"User-Agent": "Mozilla/5.0"}, timeout=8, provider="open.er-api.com")
     payload = r.json()
     if not isinstance(payload, dict) or payload.get("result") != "success":
         raise ValueError("open.er-api.com did not return a success payload.")
@@ -213,7 +221,8 @@ def _fetch_er_api_usd_twd_rate() -> dict:
 
 
 def _fetch_fred_usd_twd_rate() -> dict:
-    r = sync_get(FRED_TWD_USD_URL, headers={"User-Agent": "Mozilla/5.0"}, timeout=FRED_TIMEOUT_SECONDS, provider="FRED DEXTAUS")
+    from fx_transport_receipts import native_get
+    r = native_get(sync_get, FRED_TWD_USD_URL, headers={"User-Agent": "Mozilla/5.0"}, timeout=FRED_TIMEOUT_SECONDS, provider="FRED DEXTAUS")
     rows = csv.DictReader(StringIO(r.content.decode("utf-8-sig", errors="replace")))
     latest = {}
     for row in rows:
