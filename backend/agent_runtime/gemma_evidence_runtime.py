@@ -1,6 +1,7 @@
 """Gemma evidence requests reuse provider quota controls, with per-batch cache."""
 import asyncio
 import time
+import uuid
 
 from google.genai import types
 
@@ -22,6 +23,8 @@ from .llm_call_metadata import _key_slot_fields, _record_llm_token_usage
 from .model_policy import record_model_success
 from .retry_policy import AgentTransientError, _agent_error_category, _raise_agent_call_error
 from .retry_error_classification import provider_status_code
+from llm_observation_context import current_fields, observe_attempt, observed_sleep, observed_sleep_async
+from llm_quota_observation_details import observe_quota_details
 
 TIMEOUT = 60
 CACHE_SECONDS = 3600
@@ -74,6 +77,7 @@ def event(context, batch, phase, rotator=None, key=None, event_message=None, **e
                   "thinking_level": THINKING_LEVEL, "timeout_seconds": TIMEOUT,
                   "estimated_input_tokens": batch_input_tokens(batch),
                   "input_estimate_basis": "batch_prompt_with_system", "source_record_count": len(batch["records"]),
+                  **current_fields(), 'observation_event_id': uuid.uuid4().hex,
                   **(_key_slot_fields(rotator, key) if rotator is not None else {}), **extra},
     ))
 
@@ -97,7 +101,8 @@ def provider_error(batch, context, rotator, key, exc):
     propagate_admission_cancel(exc)
     event(context, batch, "gemma_evidence_error", rotator, key,
           error_category=_agent_error_category(exc), error_kind=type(exc).__name__,
-          provider_status_code=provider_status_code(exc), provider_quota=extract_quota_details(exc))
+          provider_status_code=provider_status_code(exc), provider_quota=extract_quota_details(exc),
+          quota_observation=observe_quota_details(exc) if provider_status_code(exc) == 429 else None)
     _raise_agent_call_error(exc, key, MODEL, rotator, 1)
 
 
@@ -126,7 +131,7 @@ def call_batch_with_retry(batch, context, rotator):
             if attempt >= TRANSIENT_MAX_ATTEMPTS:
                 raise
             retry_event(batch, context, exc, attempt + 1)
-            time.sleep(RETRY_DELAY_SECONDS)
+            observed_sleep(RETRY_DELAY_SECONDS)
 
 
 async def call_batch_with_retry_async(batch, context, rotator):
@@ -137,9 +142,10 @@ async def call_batch_with_retry_async(batch, context, rotator):
             if attempt >= TRANSIENT_MAX_ATTEMPTS:
                 raise
             retry_event(batch, context, exc, attempt + 1)
-            await asyncio.sleep(RETRY_DELAY_SECONDS)
+            await observed_sleep_async(RETRY_DELAY_SECONDS)
 
 
+@observe_attempt
 def call_batch(batch, context, rotator):
     raise_if_cancelled(context)
     key = None
@@ -159,6 +165,7 @@ def call_batch(batch, context, rotator):
     return finish_response(batch, context, rotator, key, response)
 
 
+@observe_attempt
 async def call_batch_async(batch, context, rotator):
     raise_if_cancelled(context)
     key = None

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import re
 import sys
+import uuid
+from llm_observation_context import current_fields
 
 from analysis_types import AnalysisContext
 from runtime_events import emit_context_event, emit_context_event_async, make_runtime_event, emit_log
@@ -80,7 +82,8 @@ def single_agent_event_fields(context: AnalysisContext, agent_num: int, model_id
         "agent_num": agent_num,
         "pipeline_id": context.get("pipeline_id"),
         "pipeline_label": context.get("pipeline_label"),
-        "metadata": {"model_id": model_id, **{k: v for k, v in metadata.items() if v is not None}},
+        "metadata": {"model_id": model_id, **current_fields(), 'observation_event_id': uuid.uuid4().hex,
+                     **{k: v for k, v in metadata.items() if v is not None}},
     }
 
 

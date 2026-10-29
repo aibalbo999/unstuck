@@ -38,12 +38,16 @@ def _record(error, api_key, model_id, entry_point):
         if model is None or provider not in {'google', 'openai', 'anthropic'}:
             return
         quota = extract_quota_details(error)
+        from llm_quota_observation_details import observe_quota_details
+        from llm_observation_context import current_fields, key_identity
         metadata = {
             'schema_version': 1, 'provider_status_code': 429,
             'provider_quota': quota,
             'quota_detail_status': 'provided' if quota['violations'] else 'unspecified',
             'entry_point': entry_point,
             'key_slot_basis': 'executing_process_config',
+            'quota_observation': observe_quota_details(error),
+            **current_fields(), **key_identity(api_key, model_id),
         }
         keys_by_provider = normalize_provider_keys(config.LLM_API_KEYS_BY_PROVIDER)
         keys = [key for group in keys_by_provider.values() for key in group]
@@ -68,6 +72,8 @@ def _record(error, api_key, model_id, entry_point):
         )
     except Exception:
         # The exact provider exception and existing fallback must take precedence.
+        from llm_observation_context import note_dropped
+        note_dropped('llm_provider_quota_observation')
         return
 
 

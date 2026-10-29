@@ -13,6 +13,7 @@ from config import (
 )
 from llm_daily_budget import DailyBudgetBlockedError, DailyBudgetStore
 from api_usage_store import summarize_llm_daily_usage, summarize_llm_usage_since, summarize_provider_usage_since
+from api_usage_store import summarize_llm_execution_observations
 from mapping_fields import safe_mapping_dict, safe_mapping_items, safe_sequence_items, safe_text
 from notification_delivery_audit_context import safe_float, safe_int
 
@@ -165,6 +166,10 @@ def build_api_quota_payload(provider_summary_fetcher) -> dict:
         providers = []
 
     gemini_usage = _llm_usage_since(pacific_prev_utc)
+    try:
+        gemini_usage['execution_observation'] = summarize_llm_execution_observations(pacific_prev_utc)
+    except Exception:
+        gemini_usage['execution_observation'] = {'available':False,'reason':'observation_read_unavailable'}
     try:
         gemini_usage["daily_budget"] = DAILY_BUDGET_STORE.summary(API_KEYS, RPD_LIMITS)
     except DailyBudgetBlockedError:

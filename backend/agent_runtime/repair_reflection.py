@@ -16,6 +16,7 @@ from llm_client import (
 )
 from prompt_rules import get_task_system_instruction
 from llm_key_admission import propagate_admission_cancel
+from llm_observation_context import observe_purpose
 from runtime_events import emit_log
 from validators import sanitize_model_output, strip_generated_audit_sections
 
@@ -57,10 +58,12 @@ def _fallback_audit_reflection(agent_num: int, issues: list[str]) -> str:
     )
 
 
+@observe_purpose('audit_reflection')
 def _generate_reflection_content(api_key: str, model_id: str, prompt: str):
     return generate_content(api_key, model_id, prompt, _build_reflection_generation_config())
 
 
+@observe_purpose('audit_reflection')
 async def _generate_reflection_content_async(api_key: str, model_id: str, prompt: str):
     return await generate_content_async(api_key, model_id, prompt, _build_reflection_generation_config())
 

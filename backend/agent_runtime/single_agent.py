@@ -2,6 +2,7 @@
 
 import asyncio
 import config
+from llm_observation_context import observe_agent, observed_sleep, observed_sleep_async
 from tenacity import AsyncRetrying, Retrying, retry_if_exception_type
 
 from analysis_types import AnalysisContext, StockData
@@ -61,6 +62,7 @@ def _build_model_prompt(agent_num, data, context, model_id, compact_primary):
 
 
 @fresh_candidate_for_retry
+@observe_agent
 def run_single_agent(
     agent_num: int,
     data: StockData,
@@ -139,6 +141,7 @@ def run_single_agent(
                 continue
             record_agent_step_cache_miss(context)
             retryer = Retrying(
+                sleep=observed_sleep,
                 stop=make_model_retry_stop_for_rotator(policy, rotator, model_id),
                 wait=_agent_retry_wait,
                 retry=retry_if_exception_type(AgentRetryableError),
@@ -176,6 +179,7 @@ def run_single_agent(
 
 
 @fresh_candidate_for_retry
+@observe_agent
 async def run_single_agent_async(
     agent_num: int,
     data: StockData,
@@ -249,6 +253,7 @@ async def run_single_agent_async(
                 continue
             record_agent_step_cache_miss(context)
             retryer = AsyncRetrying(
+                sleep=observed_sleep_async,
                 stop=make_model_retry_stop_for_rotator(policy, rotator, model_id),
                 wait=_agent_retry_wait,
                 retry=retry_if_exception_type(AgentRetryableError),

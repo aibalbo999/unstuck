@@ -7,6 +7,7 @@ from llm_key_admission import key_admission_scope
 from llm_request_deadline import response_timeout_scope
 from .cancellation import CANCEL_CHECK_CONTEXT_KEY
 from .retry_policy import AgentTransientError
+from llm_observation_context import wait_scope
 
 
 def key_admission_timeout(timeout=None):
@@ -26,12 +27,12 @@ def _scope(context, model, timeout):
 
 
 def acquire_key(rotator, model, tokens, context, timeout, **budget):
-    with _scope(context, model, timeout):
+    with wait_scope('key_admission', model=model, planned_seconds=key_admission_timeout(timeout)), _scope(context, model, timeout):
         return rotator.get_key(model, tokens, **budget)
 
 
 async def acquire_key_async(rotator, model, tokens, context, timeout, **budget):
-    with _scope(context, model, timeout):
+    with wait_scope('key_admission', model=model, planned_seconds=key_admission_timeout(timeout)), _scope(context, model, timeout):
         return await rotator.async_get_key(model, tokens, **budget)
 
 

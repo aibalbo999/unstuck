@@ -236,6 +236,55 @@ def summarize_llm_usage_since(since_utc: datetime | float | int) -> dict:
     }
 
 
+def summarize_llm_execution_observations(since_utc, *, now=None, event_limit=10000, job_limit=100, db_path=None):
+    """Read current observations and legacy route skips without modifying either ledger."""
+    from llm_execution_observations import build_execution_observations, metadata
+    from llm_observation_context import telemetry_health
+    since = _since_timestamp(since_utc)
+    until = _since_timestamp(now) if now is not None else time.time()
+    limit = max(1,min(int(event_limit),50000))
+    path = Path(db_path) if db_path is not None else _db_path()
+    with sqlite3.connect(path.resolve().as_uri()+'?mode=ro',uri=True,timeout=3) as conn:
+        conn.row_factory=sqlite3.Row
+        tables={r[0] for r in conn.execute("SELECT name FROM sqlite_master WHERE type='table'")}
+        rows=[dict(r) for r in conn.execute(
+            "SELECT id,operation,model_id,status,units,metadata_json,created_at FROM api_usage_events "
+            "WHERE service='Gemini / Google AI' AND created_at>=? AND created_at<=? ORDER BY created_at DESC,id DESC LIMIT ?",
+            (since,until,limit+1))]
+        truncated=len(rows)>limit
+        rows=list(reversed(rows[:limit]))
+        recorded={metadata(row).get('observation_event_id') for row in rows}
+        if 'analysis_events' in tables:
+            legacy=conn.execute(
+                "SELECT id,job_id,phase,payload,created_at FROM analysis_events WHERE created_at>=? AND created_at<=? "
+                "AND phase IN ('model_circuit_open','model_input_capacity','model_config_error',"
+                "'gemma_evidence_appendix_prepared','gemma_evidence_cache_hit','report_quality_blocked') "
+                "ORDER BY created_at DESC,id DESC LIMIT ?",(since,until,limit+1)).fetchall()
+            truncated |= len(legacy)>limit
+            for row in reversed(legacy[:limit]):
+                payload=metadata({'metadata_json':row['payload']})
+                raw=payload.get('metadata');m=dict(raw) if isinstance(raw,dict) else {}
+                if m.get('observation_event_id') and m['observation_event_id'] in recorded:
+                    continue
+                phase=row['phase']
+                m.update(job_id=row['job_id'],phase=phase,agent_num=payload.get('agent_num'),pipeline_id=payload.get('pipeline_id'))
+                operation='llm_evidence_progress' if phase.startswith('gemma_') else 'llm_admission_decision'
+                status='observed'
+                if phase=='report_quality_blocked':operation,status='llm_report_quality_observation','gate_blocked'
+                rows.append({'id':f"legacy-analysis-{row['id']}",'operation':operation,'model_id':m.get('model_id') or 'unknown',
+                             'status':status,'units':0,'metadata_json':json.dumps(m),'created_at':row['created_at']})
+        jobs=[]
+        if 'analysis_jobs' in tables:
+            jobs=[dict(r) for r in conn.execute(
+                "SELECT job_id,pipeline_id,status,filename,created_at,started_at,finished_at FROM analysis_jobs "
+                "WHERE updated_at>=? ORDER BY updated_at DESC LIMIT ?",(since,max(1,min(int(job_limit),500))))]
+    rows.sort(key=lambda row:row['created_at'])
+    result=build_execution_observations(rows,jobs,truncated=truncated,since=since,until=until)
+    result['telemetry_health']=telemetry_health()
+    result['ledger_source']='api_usage_events_plus_legacy_analysis_events'
+    return result
+
+
 def summarize_provider_usage_since(since_utc: datetime | float | int, provider_names: set[str]) -> dict:
     since_ts = _since_timestamp(since_utc)
     if not provider_names:

@@ -30,6 +30,7 @@ from llm_completion_provenance import completion_is_incomplete
 from llm_tool_rate_guard import closing_stream, generation_client
 from llm_request_deadline import apply_response_timeout
 from llm_provider_quota_observation import observe_provider_quota
+from llm_observation_context import ensure_transport_attempt, transport_scope
 
 
 def _genai_http_options():
@@ -83,6 +84,7 @@ async def close_cached_clients_async() -> None:
                     await result
 
 
+@ensure_transport_attempt
 @observe_provider_quota
 def generate_content(api_key: str, model_id: str, prompt: str, config):
     """Call the configured LLM provider synchronously with an isolated per-key client."""
@@ -108,14 +110,17 @@ def generate_content(api_key: str, model_id: str, prompt: str, config):
         raise ValueError(f"Unsupported LLM provider: {provider}")
     with provider_attempt_scope(model_id, api_key):
         client = generation_client(api_key, model_id, _get_client, genai.Client, _genai_http_options)
-        response = client.models.generate_content(
-            model=provider_model,
-            contents=frame_source_prompt(prompt) if is_evidence_request() else sanitize_google_prompt(prompt),
-            config=sanitize_google_generation_config(apply_response_timeout(config)),
-        )
+        with transport_scope(model_id, api_key, 'generate_content') as observation:
+            response = client.models.generate_content(
+                model=provider_model,
+                contents=frame_source_prompt(prompt) if is_evidence_request() else sanitize_google_prompt(prompt),
+                config=sanitize_google_generation_config(apply_response_timeout(config)),
+            )
+            observation.response = response
     return _cache_generated_response(model_id, prompt, config, response)
 
 
+@ensure_transport_attempt
 @observe_provider_quota
 async def generate_content_async(api_key: str, model_id: str, prompt: str, config):
     """Call the configured LLM provider through an async client implementation."""
@@ -141,14 +146,17 @@ async def generate_content_async(api_key: str, model_id: str, prompt: str, confi
         raise ValueError(f"Unsupported LLM provider: {provider}")
     with provider_attempt_scope(model_id, api_key):
         client = generation_client(api_key, model_id, _get_client, genai.Client, _genai_http_options)
-        response = await client.aio.models.generate_content(
-            model=provider_model,
-            contents=frame_source_prompt(prompt) if is_evidence_request() else sanitize_google_prompt(prompt),
-            config=sanitize_google_generation_config(apply_response_timeout(config)),
-        )
+        with transport_scope(model_id, api_key, 'generate_content_async') as observation:
+            response = await client.aio.models.generate_content(
+                model=provider_model,
+                contents=frame_source_prompt(prompt) if is_evidence_request() else sanitize_google_prompt(prompt),
+                config=sanitize_google_generation_config(apply_response_timeout(config)),
+            )
+            observation.response = response
     return _cache_generated_response(model_id, prompt, config, response)
 
 
+@ensure_transport_attempt
 @observe_provider_quota
 async def generate_content_stream_async(api_key: str, model_id: str, prompt: str, config, *, on_delta=None):
     """Stream provider text deltas when supported, returning a full response object."""
@@ -164,7 +172,7 @@ async def generate_content_stream_async(api_key: str, model_id: str, prompt: str
 
     chunks: list[str] = []
     diagnostics = ResponseDiagnostics(stream=True)
-    with provider_attempt_scope(model_id, api_key):
+    with provider_attempt_scope(model_id, api_key), transport_scope(model_id, api_key, 'generate_content_stream_async') as observation:
         try:
             stream = stream_call(
                 model=provider_model,
@@ -183,21 +191,33 @@ async def generate_content_stream_async(api_key: str, model_id: str, prompt: str
         except (Exception, asyncio.CancelledError) as exc:
             attach_response_diagnostics(exc, diagnostics)
             raise
-    diagnostics.data["stream_completed"] = True
-    snapshot = diagnostics.snapshot()
-    return TextLLMResponse("".join(chunks), snapshot["usage"], snapshot)
+        diagnostics.data["stream_completed"] = True
+        snapshot = diagnostics.snapshot()
+        response = TextLLMResponse("".join(chunks), snapshot["usage"], snapshot)
+        observation.response = response
+    return response
 
 
+@ensure_transport_attempt
+@observe_provider_quota
 def embed_content(api_key: str, model_id: str, contents, config):
     """Call Google GenAI embeddings synchronously with an isolated per-key client."""
     client = _get_client(api_key)
-    return client.models.embed_content(model=model_id, contents=contents, config=config)
+    with transport_scope(model_id, api_key, 'embed_content') as observation:
+        response = client.models.embed_content(model=model_id, contents=contents, config=config)
+        observation.response = response
+        return response
 
 
+@ensure_transport_attempt
+@observe_provider_quota
 async def embed_content_async(api_key: str, model_id: str, contents, config):
     """Call Google GenAI embeddings through the async client implementation."""
     client = _get_client(api_key)
-    return await client.aio.models.embed_content(model=model_id, contents=contents, config=config)
+    with transport_scope(model_id, api_key, 'embed_content_async') as observation:
+        response = await client.aio.models.embed_content(model=model_id, contents=contents, config=config)
+        observation.response = response
+        return response
 
 
 def _cache_generated_response(model_id: str, prompt: str, config, response):

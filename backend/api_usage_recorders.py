@@ -18,6 +18,18 @@ def record_runtime_event_usage(
     db_path: str | Path | None = None,
 ) -> None:
     phase = str(payload.get("phase") or "")
+    if phase in {'model_circuit_open', 'model_input_capacity', 'model_config_error', 'model_fallback',
+                 'gemma_evidence_appendix_prepared', 'gemma_evidence_cache_hit'}:
+        from llm_observation_context import record_observation
+        from llm_congestion import current_cooldown_fields
+        metadata = payload.get('metadata') if isinstance(payload.get('metadata'), dict) else {}
+        model = str(metadata.get('model_id') or 'unknown')
+        operation = 'llm_evidence_progress' if phase.startswith('gemma_') else 'llm_admission_decision'
+        fields = {**current_cooldown_fields(model), **metadata, 'job_id':job_id, 'phase':phase,
+                  'agent_num':payload.get('agent_num'), 'pipeline_id':payload.get('pipeline_id'),
+                  'provider_request_sent':False}
+        record_observation(operation, model, created_at=created_at, db_path=db_path, **fields)
+        return
     phase = {"gemma_evidence_call": "llm_model_call", "gemma_evidence_request": "llm_provider_request",
              "gemma_evidence_response": "llm_model_response", "gemma_evidence_error": "llm_model_error"}.get(phase, phase)
     if phase not in {"llm_model_call", "llm_provider_request", "llm_model_error", "llm_model_response"}:
