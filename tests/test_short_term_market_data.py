@@ -200,7 +200,14 @@ def test_daily_prompt_context_is_not_broadcast_to_other_roles(agent):
 
 
 def test_mode_d_prompt_context_has_bounded_daily_bars_and_technical_values():
-    bundle = _bundle(_frame(120))
+    # Exactly 120 admitted Taiwan sessions, rather than 120 generic weekdays
+    # that also contain exchange holidays and emergency closures.
+    from market_calendar_store import session_day_status
+    days = [day for day in pd.bdate_range(end="2026-09-04", periods=200)
+            if session_day_status(day.date(), market="tw")["state"] == "open"][-120:]
+    frame = _frame(120)
+    frame.index = pd.DatetimeIndex(days)
+    bundle = _bundle(frame)
     payload = _prompt_json(_data(**bundle, _prompt_agent_num=22))
     context = payload["short_term_market_context"]
     assert len(context["daily_market_data"]["bars"]) == 20

@@ -108,6 +108,13 @@ def evaluate_report_evidence(
                                        tolerance_pct=tolerance_pct, normalized_paths=normalized_snapshot_paths)
         for claim in sample
     ]
+    from evidence_bound_technical_claims import prepare_bound_technical, check_bound_technical_claim
+    if any(item.get('verification_reason_code') == 'missing_semantic_path' for item in checked):
+        original_technical = prepare_bound_technical(snapshot)
+        if original_technical is not None:
+            checked = [(check_bound_technical_claim(claim, original_technical, tolerance_pct=tolerance_pct) or item)
+                       if item.get('status') == 'unverifiable' and item.get('verification_reason_code') == 'missing_semantic_path'
+                       else item for claim, item in zip(sample, checked)]
     from evidence_derived_claims import derived_pe_claims
     derived = derived_pe_claims(markdown, snapshot)
     from evidence_official_financial_claims import official_debt_component_claims

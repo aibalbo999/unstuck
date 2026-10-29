@@ -86,7 +86,7 @@ def evaluate_content_credibility(context: dict, snapshot: dict | None = None, ma
         alignment,
         evaluate_volume_units(data, pipeline_id),
         evaluate_observation_credibility(context, snapshot, data, pipeline_id),
-        evaluate_trade_basis(context, data, pipeline_id),
+        evaluate_trade_basis(context, data, pipeline_id, snapshot=snapshot),
         evaluate_scenario_target_order(parsed),
         evaluate_recommendation_target_scenario_range(parsed),
         evaluate_horizon_target_sequence(parsed),

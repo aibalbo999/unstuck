@@ -37,7 +37,7 @@ def extract_market_history_bundle(stock, *, as_of=None) -> dict:
     now = datetime.now(ZoneInfo("Asia/Taipei"))
     today = as_of or now.date()
     moment = datetime.combine(today, datetime.max.time(), ZoneInfo("Asia/Taipei")) if as_of else now
-    expected = completed_session(moment) if ticker.endswith((".TW", ".TWO")) else None
+    expected = completed_session(moment, ticker=ticker) if ticker.endswith((".TW", ".TWO")) else None
     end_date = (date.fromisoformat(expected) if expected else today) + timedelta(days=1)
     query = {"period": "5y", "auto_adjust": False}
     if ticker.endswith((".TW", ".TWO")) or as_of:
@@ -50,22 +50,28 @@ def extract_market_history_bundle(stock, *, as_of=None) -> dict:
     from .market_sources.yfinance_session_recovery import recover_session
     raw, recovery = recover_session(stock, raw, expected, as_of=today)
     hist = _adjusted_history(raw)
-    daily = daily_market_data_from_frame(hist, as_of=today, volume_unit="shares")
+    daily = daily_market_data_from_frame(hist, as_of=today, volume_unit="shares", ticker=ticker)
     daily["price_adjustment_basis"] = "yfinance adjusted OHLC = raw provider OHLC * (Adj Close / Close); equivalent auto_adjust=True basis;not exchange raw"
     daily["price_basis_contract"] = CONTRACT
     daily["volume_basis"] = "yfinance provider shares; provider scope not assumed equal to TWSE totals"
     daily["retrieved_at"] = acquired
     daily["session_recovery"] = recovery
-    daily["history_query"] = {**query, "end_is_exclusive": True, "expected_completed_session": expected, "calendar_verified": expected is not None}
-    raw_daily = daily_market_data_from_frame(raw, as_of=today, volume_unit="shares")
+    daily["history_query"] = {**query, "end_is_exclusive": True, "expected_completed_session": expected,
+                              "calendar_known": expected is not None, "calendar_verified": False,
+                              "verification_scope": "scheduled sessions plus recorded exceptions; no independent whole-window verification"}
+    raw_daily = daily_market_data_from_frame(raw, as_of=today, volume_unit="shares", ticker=ticker)
     last = raw_daily["bars"][-1] if raw_daily["bars"] else {}
     daily["provider_raw_observation"] = {**last, "ticker": ticker, "retrieved_at": recovery.get("retrieved_at") if recovery.get("adopted") else acquired, "volume_unit": "shares", "volume_scope": "provider_unspecified_transaction_scope", "volume_scope_verified": False, "source": "yfinance history auto_adjust=False", "price_basis": "provider_ohlc_auto_adjust_false;historical split raw equivalence not established"}
     daily["official_observation"] = official_observation(ticker, last["date"]) if last else {"status": "unavailable"}
     daily["price_reconciliation"] = reconcile(daily)
+    admitted = not daily.get("calendar_admission_applied") or daily.get("session_integrity", {}).get("eligible")
+    indicators = calculate_technical_indicators(daily if admitted else {**daily, "bars": []})
+    if not admitted:
+        indicators["session_admission_status"] = "unverifiable"
     return {
         "price_history_ranges": _price_history_ranges_from_frame(hist, as_of=today),
         "daily_market_data": daily,
-        "technical_indicators": calculate_technical_indicators(daily),
+        "technical_indicators": indicators,
     }
 
 

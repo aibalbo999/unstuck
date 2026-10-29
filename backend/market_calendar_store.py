@@ -7,6 +7,7 @@ import hashlib
 from datetime import date
 from pathlib import Path
 from typing import Optional
+from urllib.parse import urlsplit
 
 from config import MARKET_CALENDAR_DIR
 
@@ -65,6 +66,37 @@ BUILTIN_MARKET_CALENDARS = {
     },
 }
 
+# Annual schedules do not contain later emergency closures. Keep an explicit
+# dated exception with its announcement; a missing quote/index row is never
+# converted into a holiday. These references establish calendar scope only,
+# not a security's OHLC, publication finality or historical point-in-time proof.
+BUILTIN_SESSION_EXCEPTIONS = {
+    ("tw", 2026): {
+        "2026-07-10": {
+            "state": "closed",
+            "reason": "official_emergency_closure",
+            "published_date": "2026-07-09",
+            "source_url": "https://www.twse.com.tw/staticFiles/news/news/tsecnews/8a8216d69ef76943019f46cb86ae0110.pdf",
+            "title": "臺灣證券交易所集中交易市場115年7月10日休市一天",
+            "scope": "TWSE full-day closure",
+            "exchanges": ["TWSE"],
+        },
+        "2026-10-23": {
+            "state": "closed",
+            "reason": "official_emergency_closure",
+            "published_date": "2026-10-22",
+            "source_url": "https://www.twse.com.tw/staticFiles/news/news/tsecnews/8a8216d6a0fa351b01a1638507940202.pdf",
+            "title": "臺灣證券交易所集中交易市場115年10月23日休市一天",
+            "scope": "TWSE full-day closure",
+            "exchanges": ["TWSE"],
+        },
+    },
+}
+
+CALENDAR_REFERENCE_URLS = {
+    ("tw", 2026): "https://www.twse.com.tw/holidaySchedule/holidaySchedule?response=html",
+}
+
 
 def calendar_path(market: str, year: int, calendar_dir: Optional[str] = None) -> Path:
     root = Path(calendar_dir or MARKET_CALENDAR_DIR)
@@ -93,6 +125,8 @@ def _complete_calendar(calendar: dict) -> bool:
     holidays, early = calendar['holidays'], calendar['early_closes']
     if not isinstance(holidays, list) or not isinstance(early, dict):
         return False
+    if not isinstance(calendar.get('session_exceptions', {}), dict) or not isinstance(calendar.get('quarantined_dates', []), list):
+        return False
     try:
         from datetime import time
         from zoneinfo import ZoneInfo
@@ -106,10 +140,78 @@ def _complete_calendar(calendar: dict) -> bool:
 
 def _with_provenance(calendar: dict, *, market: str, year: int, source: str) -> dict:
     result = normalize_calendar(calendar, market=market, year=year)
+    # A previously saved annual file must not erase a later known closure.
+    exceptions = dict(result.get("session_exceptions") or {})
+    exceptions.update(BUILTIN_SESSION_EXCEPTIONS.get((market, year), {}))
+    result["session_exceptions"] = exceptions
+    result["holidays"] = sorted(set(result["holidays"]) | {
+        day for day, entry in exceptions.items()
+        if _valid_exception(day, entry, market) and entry["state"] == "closed"
+    })
+    result["calendar_reference_url"] = CALENDAR_REFERENCE_URLS.get((market, year))
+    result["verification_scope"] = "schedule_and_recorded_exceptions; not independent daily-price verification"
+    result["official_price_verified"] = False
+    result["historical_point_in_time_verified"] = False
     result.update(source=source, coverage_status="unknown" if source == "missing" else "available",
                   valid_year=year if source != "missing" else None,
-                  calendar_version=hashlib.sha256(json.dumps(calendar, sort_keys=True).encode()).hexdigest() if calendar else None)
+                  calendar_version=hashlib.sha256(json.dumps(result, sort_keys=True).encode()).hexdigest() if calendar else None)
     return result
+
+
+def _valid_exception(day, entry, market):
+    if (not isinstance(entry, dict) or not isinstance(entry.get("state"), str)
+            or entry["state"] not in {"open", "closed"}
+            or not isinstance(entry.get("source_url"), str)
+            or not isinstance(entry.get("reason"), str)):
+        return False
+    exchanges = entry.get("exchanges", ["TWSE"])
+    if not isinstance(exchanges, list) or not exchanges or any(not isinstance(value, str) for value in exchanges):
+        return False
+    try:
+        event_day = date.fromisoformat(day)
+        published = date.fromisoformat(entry.get("published_date", ""))
+        url = urlsplit(entry.get("source_url", ""))
+    except (TypeError, ValueError):
+        return False
+    hosts = {"tw": {"www.twse.com.tw", "www.tpex.org.tw", "wwwc.twse.com.tw"},
+             "us": {"www.nyse.com", "www.nasdaq.com", "www.nasdaqtrader.com"}}
+    return (published <= event_day and url.scheme == "https"
+            and url.hostname in hosts.get(market, set()) and bool(entry.get("reason")))
+
+
+def session_day_status(day, *, market="tw", calendar=None, exchange=None):
+    """Classify one date without fetching, imputing, or trusting volume size."""
+    try:
+        day = date.fromisoformat(day) if isinstance(day, str) else day
+        if not isinstance(day, date):
+            raise ValueError("missing date")
+    except (TypeError, ValueError):
+        return {"state": "unknown", "reason": "invalid_session_date", "date": None}
+    calendar = load_market_calendar(market, day.year) if calendar is None else calendar
+    if not isinstance(calendar, dict):
+        return {"date": day.isoformat(), "state": "unknown", "reason": "calendar_coverage_unknown"}
+    provenance = {key: calendar.get(key) for key in
+                  ("source", "coverage_status", "valid_year", "calendar_version", "calendar_reference_url")}
+    result = {"date": day.isoformat(), "market": market, "calendar": provenance}
+    if calendar.get("coverage_status") != "available" or calendar.get("year") != day.year:
+        return {**result, "state": "unknown", "reason": "calendar_coverage_unknown"}
+    if day.isoformat() in calendar.get("quarantined_dates", []):
+        return {**result, "state": "unknown", "reason": "session_date_quarantined"}
+    exception = (calendar.get("session_exceptions") or {}).get(day.isoformat())
+    if exception is not None:
+        if not _valid_exception(day.isoformat(), exception, market):
+            return {**result, "state": "unknown", "reason": "session_exception_evidence_missing"}
+        exchange = exchange or ("TWSE" if market == "tw" else None)
+        if exchange and exchange not in exception.get("exchanges", ["TWSE"]):
+            return {**result, "state": "unknown", "reason": "closure_evidence_scope_unverified",
+                    "exception_evidence": dict(exception)}
+        return {**result, "state": exception["state"], "reason": exception["reason"],
+                "exception_evidence": dict(exception)}
+    if day.weekday() >= 5:
+        return {**result, "state": "closed", "reason": "weekend"}
+    if day.isoformat() in calendar.get("holidays", []):
+        return {**result, "state": "closed", "reason": "scheduled_holiday"}
+    return {**result, "state": "open", "reason": "scheduled_session"}
 
 
 def normalize_calendar(calendar: dict, *, market: str, year: int) -> dict:

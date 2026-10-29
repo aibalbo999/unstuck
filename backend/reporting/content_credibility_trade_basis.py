@@ -11,7 +11,7 @@ _NEWS = re.compile(r"新聞|公告|法說|訂單|調價|漲價|收購|併購|出
 _FCF = re.compile(r"自由現金流|(?<![A-Za-z])FCF(?![A-Za-z])|free cash flow", re.I)
 
 
-def evaluate_trade_basis(context, data, pipeline):
+def evaluate_trade_basis(context, data, pipeline, *, snapshot=None):
     result = {"blocking_issues": [], "warnings": [], "checks": []}
     if pipeline != "v4": return result
     parsed = context.get("parsed")
@@ -23,6 +23,13 @@ def evaluate_trade_basis(context, data, pipeline):
     if isinstance(flags, list) and any(flag in flags for flag in (NEGATIVE_FCF_WARNING, LEGACY_NEGATIVE_FCF_WARNING)) and negative_fcf_value(data) is None:
         block("v4_fcf_flag_without_negative_input", "負FCF風險旗標沒有對應負值即期輸入；不得沿用快取財務判斷。")
     catalog = None
+    identity = None
+    lineage_data = data
+    temporal = {}
+    if isinstance(snapshot, dict) and (snapshot.get("analysis_evidence") or snapshot.get("rerun_context")):
+        from saved_trade_source_identity import saved_trade_source_catalog
+        catalog, identity = saved_trade_source_catalog(snapshot)
+        lineage_data = identity.get("analysis_input", {})
     lineage = {}
     for text_key, refs_key in (("core_catalyst", "catalyst_source_refs"), ("observed_signal", "observed_source_refs")):
         text = str(setup.get(text_key) or "")
@@ -39,11 +46,26 @@ def evaluate_trade_basis(context, data, pipeline):
             block("v4_material_news_without_source", "重大新聞或產業主張缺少對應來源，技術或法人路徑不能替訂單、漲價或併購背書。")
         if refs:
             catalog = catalog if catalog is not None else source_catalog(data)
+            if identity:
+                from saved_trade_source_identity import evaluation_day, reference_temporal_status
+                if identity["status"] != "bound_saved_catalog":
+                    block("v4_trade_reason_source_binding_unverified", "保存引用缺少可核對的原始輸入／輸出綁定；不可用今天重新編號的目錄補證。")
+                else:
+                    for ref in refs:
+                        if isinstance(ref, str) and ref not in temporal:
+                            temporal[ref] = reference_temporal_status(catalog, ref, as_of=evaluation_day(context))
+                            state = temporal[ref]["status"]
+                            if state == "stale":
+                                block("v4_trade_reason_source_stale", "原引用身分可追溯，但觀測已超過目前有效窗口；不能當最新方向證據。")
+                            elif state in {"future_at_source_binding", "future_at_evaluation"}:
+                                block("v4_trade_reason_source_future", "引用的觀測日晚於保存來源基準或查核日；不得回填為當時已知。")
+                            elif state == "date_unverified":
+                                block("v4_trade_reason_source_date_unverified", "保存引用缺少可核對的觀測日或來源基準日。")
             for ref in refs:
                 if claim_text.strip() and isinstance(ref,str) and ".institutional_evidence.records[" in ref and ref not in lineage:
                     record = resolve_reference(catalog,ref)
                     if isinstance(record,dict):
-                        lineage[ref] = institutional_claim_lineage(data,record)
+                        lineage[ref] = institutional_claim_lineage(lineage_data,record)
                         if lineage[ref]['status'] != 'recomputed':
                             block("v4_institutional_lineage_"+lineage[ref]['status'], "法人方向理由無法由保存的完整逐日分項重算，或與彙總矛盾。")
             if any(not isinstance(ref, str) or not reference_is_evidence(catalog, ref, "catalyst_source_refs") for ref in refs):
@@ -53,9 +75,20 @@ def evaluate_trade_basis(context, data, pipeline):
     event = setup.get("event_catalyst")
     if event:
         catalog = catalog if catalog is not None else source_catalog(data)
+        if identity and identity["status"] == "bound_saved_catalog":
+            from saved_trade_source_identity import evaluation_day, reference_temporal_status
+            for ref in event.get("source_refs", []) if isinstance(event, dict) and isinstance(event.get("source_refs"), list) else []:
+                if isinstance(ref, str) and ref not in temporal:
+                    temporal[ref] = reference_temporal_status(catalog, ref, as_of=evaluation_day(context))
+                    if temporal[ref]["status"] == "stale":
+                        block("v4_trade_reason_source_stale", "保存事件日期已過，不可沿用為未來兩週的已排定催化。")
         if _event_issues(event, catalog, True):
             block("v4_event_source_scope_mismatch", "事件日、狀態或來源不符保存事件證據；新聞發布日不可冒充未來事件日。")
     result["checks"] = [{"id": "v4_trade_basis", "status": "blocked" if result["blocking_issues"] else "passed", "message": "方向理由重新核對保存資料；非新聞原文獨立驗證。"}]
+    if identity:
+        result["checks"].append({"id": "v4_trade_source_identity", "status": "blocked" if identity["status"] != "bound_saved_catalog" else "warning",
+            "message": "保存來源身分與目前時效分開查核；身分綁定不代表官方原件或歷史PIT已驗證。",
+            "details": {**{key: value for key, value in identity.items() if key != "analysis_input"}, "reference_freshness": temporal}})
     if lineage:
         result['checks'].append({'id':'v4_institutional_claim_lineage','status':'blocked' if any(r['status']!='recomputed' for r in lineage.values()) else 'warning',
                                  'message':'逐日來源重算與官方數值核對；歷史PIT與價格上漲尚未驗證。' if all(r.get('independent_primary_source_verified') for r in lineage.values()) else '逐日來源重算；未獨立核對官方原始來源，不代表價格上漲。', 'details':{'references':lineage}})

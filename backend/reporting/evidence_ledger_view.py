@@ -11,7 +11,7 @@ def _parts(row):
     values = [str(row.get(k, '')) for k in ('label', 'reported_value', 'status', 'matched_path', 'matched_value', 'verification_reason_code')]
     values[2] = {'verified':'快照一致', 'unverifiable':'未能核實', 'mismatch':'數值矛盾'}.get(values[2], values[2])
     values[5] = {'matched_snapshot_value':'對應快照數值', 'generated_analysis_not_independent_evidence':'模型計畫，缺獨立事實證據', 'no_matching_snapshot_path':'沒有對應快照路徑', 'snapshot_value_mismatch':'與快照數值矛盾'}.get(values[5], values[5])
-    values[5] = {'scenario_target_not_observed_fact': '情境推估，非觀測事實',
+    values[5] = {'matched_frozen_technical_arithmetic': '原凍結視窗計算一致（非獨立行情核證）', 'frozen_technical_arithmetic_mismatch': '原凍結視窗計算矛盾', 'scenario_target_not_observed_fact': '情境推估，非觀測事實',
         'financial_original_input_unavailable': '原分析財務輸入未能核實',
         'financial_amount_scope_unbound': '月均、變動端點等金額口徑未綁定',
         'financial_period_currency_or_unit_unknown': '財期、幣別或單位尚未核實',
