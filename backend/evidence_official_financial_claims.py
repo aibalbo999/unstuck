@@ -363,7 +363,14 @@ def official_debt_component_claims(markdown, snapshot, tolerance_pct=1.0):
                                   +number+r'億元。結構包含[:：]短期借款'+number+r'億元、')
             direct_scope = re.fullmatch(identity + preceding, prefix) is not None
             narrative_scope = re.fullmatch(narrative_identity, prefix) is not None
-            if not scale or not (direct_scope or narrative_scope):
+            # A statement citation may precede the issuer and the component list.
+            # Bind all of it locally; a header or neighbouring paragraph cannot
+            # lend its issuer, date, statement scope, or evidence path.
+            cited_identity = (r'依據'+re.escape(date)+r'官方個別財務報表原件'
+                              r'（來源：(data\.)?balance_sheet\.debt_components），'
+                              +owner+r'借款與租賃負債明細為：短期借款'+number+r'億元、')
+            cited_scope = re.fullmatch(cited_identity, prefix) is not None
+            if not scale or not (direct_scope or narrative_scope or cited_scope):
                 results.append(claim); continue
             # Only known adjacent component clauses may inherit the local owner/date.
             # An unknown trailing issuer/scope cannot hide behind the valid prefix.
@@ -374,9 +381,13 @@ def official_debt_component_claims(markdown, snapshot, tolerance_pct=1.0):
                 r'（來源：data\.balance_sheet\.debt_to_equity_basis；'+re.escape(date)+r'官方個別財報(?:申報日|基準日)）；反證：此比率專指借款含租賃，不等於全公司總負債比率。')
             narrative_following = (r'、長期借款'+number+r'億元，以及租賃負債約'+number+r'億元。'
                                    r'短期償債壓力（一年內需償還金額約'+number+r'億元）相對較高。')
+            cited_following = (r'、長期借款'+number+r'億元、流動租賃負債'+number+r'億元、'
+                               r'非流動租賃負債'+number+r'億元，合計'+number+r'億元'
+                               r'（'+number+r'billion_twd）。')
             suffix_bound = (
                 direct_scope and re.fullmatch(r'[。.]?|'+following+r'(?:'+simple_total+'|'+detail_total+')', suffix)
-                or narrative_scope and re.fullmatch(narrative_following, suffix))
+                or narrative_scope and re.fullmatch(narrative_following, suffix)
+                or cited_scope and re.fullmatch(cited_following, suffix))
             if not suffix_bound:
                 results.append(claim); continue
             expected = fact.get('debt_components',{}).get('current_portion_longterm_borrowings')
