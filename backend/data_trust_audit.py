@@ -210,6 +210,9 @@ def _alternative_observation_count(data: dict) -> int:
                                             (source_employer.startswith(latin_prefix)
                                              and bool(re.fullmatch(r"[A-Za-z][A-Za-z0-9 .,&'-]{2,79}",
                                                                    source_employer[len(latin_prefix):]))))
+                            from job_employer_labels import latin_prefix_legal_name
+                            name_matches = name_matches or (2 <= len(short) <= 50 and not any(c in short for c in '()（）\n\r')
+                                                           and latin_prefix_legal_name(source_employer, legal_name))
                             try:
                                 published_text = _safe_text(job.get("published_date"))
                                 published = date.fromisoformat(published_text) if re.fullmatch(r"\d{4}-\d{2}-\d{2}", published_text) else None
@@ -226,6 +229,31 @@ def _alternative_observation_count(data: dict) -> int:
                                 and name_matches and ids_match and 0 <= age <= 30
                                 and item.get("source_url") == f"https://www.104.com.tw/api/companies/{slug}/jobs"
                                 and url == f"https://www.104.com.tw/job/{job_slug}")
+                        elif match_basis == "official_name_ubn_latin_prefix":
+                            from zoneinfo import ZoneInfo
+                            from job_employer_labels import latin_prefix_legal_name
+                            from data_fetch.market_sources.official_company_legal_name import (
+                                verified_legal_name_from_evidence, verified_official_ubn_from_evidence,
+                            )
+                            receipt = safe_mapping_dict(payload.get("company_legal_name_evidence"))
+                            ticker = _safe_text(data.get("ticker"))
+                            short = _safe_text(identity.get("official_name")).strip()
+                            ubn = verified_official_ubn_from_evidence(receipt, ticker, short)
+                            try:
+                                published_text = _safe_text(job.get("published_date"))
+                                published = date.fromisoformat(published_text) if re.fullmatch(r"\d{4}-\d{2}-\d{2}", published_text) else None
+                                age = (datetime.now(ZoneInfo("Asia/Taipei")).date() - published).days if published else -1
+                                job_path = url.rsplit('/', 1)[-1]
+                                job_id_matches = (re.fullmatch(r'[A-Za-z0-9]+', job_path) is not None
+                                                  and str(int(job_path, 36)) == _safe_text(job.get('job_no')))
+                            except (ValueError, TypeError):
+                                age, job_id_matches = -1, False
+                            employer_verified = bool(ubn
+                                and verified_legal_name_from_evidence(receipt, ticker, short) == legal_name
+                                and 2 <= len(short) <= 50 and not any(c in short for c in '()（）\n\r')
+                                and latin_prefix_legal_name(source_employer, legal_name)
+                                and _safe_text(job.get("employer_id")) == str(int(ubn)) + "000"
+                                and job_id_matches and 0 <= age <= 30)
                         elif match_basis in ("official_name_ubn_alias", "official_name_ubn_prefix_alias",
                                            "official_name_ubn_latin_suffix"):
                             from data_fetch.market_sources.official_company_legal_name import verified_official_ubn_from_evidence
