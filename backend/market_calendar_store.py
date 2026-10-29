@@ -80,6 +80,20 @@ BUILTIN_SESSION_EXCEPTIONS = {
             "title": "臺灣證券交易所集中交易市場115年7月10日休市一天",
             "scope": "TWSE full-day closure",
             "exchanges": ["TWSE"],
+            "related_exchange_evidence": {
+                "TPEX": {
+                    "state": "closed",
+                    "reason": "official_emergency_closure",
+                    "published_date": "2026-07-09",
+                    "source_url": "https://www.tpex.org.tw/zh-tw/about/company/press/detail.html?22926",
+                    "title": "因颱風過境，台北市政府宣布7月10日全日停止上班，櫃檯買賣有價證券市場及衍生性金融商品市場休市一日",
+                    "scope": "TPEx full-day closure; separately published market announcement",
+                    "exchanges": [
+                        "TPEX"
+                    ],
+                    "source_response_sha256": "bd30944d20ac6278557ef5f9fe1e645c446d8aa6365eac73c64abf678b30043f"
+                }
+            },
         },
         "2026-10-23": {
             "state": "closed",
@@ -89,6 +103,20 @@ BUILTIN_SESSION_EXCEPTIONS = {
             "title": "臺灣證券交易所集中交易市場115年10月23日休市一天",
             "scope": "TWSE full-day closure",
             "exchanges": ["TWSE"],
+            "related_exchange_evidence": {
+                "TPEX": {
+                    "state": "closed",
+                    "reason": "official_emergency_closure",
+                    "published_date": "2026-10-22",
+                    "source_url": "https://www.tpex.org.tw/zh-tw/about/company/press/detail.html?23117",
+                    "title": "因颱風過境，台北市政府宣布10月23日全日停止上班，櫃檯買賣有價證券市場及衍生性金融商品市場休市一日",
+                    "scope": "TPEx full-day closure; separately published issuer-market announcement",
+                    "exchanges": [
+                        "TPEX"
+                    ],
+                    "source_response_sha256": "5f4f06dbe27a1bf5c4cf8731dda35ad29e15a1338e8cf3e23cef15f53d0bc220"
+                }
+            },
         },
     },
 }
@@ -203,8 +231,19 @@ def session_day_status(day, *, market="tw", calendar=None, exchange=None):
             return {**result, "state": "unknown", "reason": "session_exception_evidence_missing"}
         exchange = exchange or ("TWSE" if market == "tw" else None)
         if exchange and exchange not in exception.get("exchanges", ["TWSE"]):
-            return {**result, "state": "unknown", "reason": "closure_evidence_scope_unverified",
-                    "exception_evidence": dict(exception)}
+            # An exchange's closure never establishes another market's closure.
+            # Admit only separately published evidence for the same date/state.
+            related = exception.get("related_exchange_evidence")
+            proof = related.get(exchange) if isinstance(related, dict) else None
+            host = {"TPEX": "www.tpex.org.tw"}.get(exchange)
+            if (not isinstance(proof, dict) or not host
+                    or not _valid_exception(day.isoformat(), proof, market)
+                    or proof.get("exchanges") != [exchange]
+                    or urlsplit(proof["source_url"]).hostname != host
+                    or proof.get("state") != exception["state"]):
+                return {**result, "state": "unknown", "reason": "closure_evidence_scope_unverified",
+                        "exception_evidence": dict(exception)}
+            exception = proof
         return {**result, "state": exception["state"], "reason": exception["reason"],
                 "exception_evidence": dict(exception)}
     if day.weekday() >= 5:

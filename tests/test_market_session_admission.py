@@ -79,13 +79,14 @@ def test_missing_open_session_is_not_accepted_as_complete_or_imputed_zero():
     assert [bar["date"] for bar in daily["bars"]] == ["2026-10-20", "2026-10-22"]
 
 
-def test_known_closures_do_not_create_expected_missing_rows():
+def test_known_closures_do_not_create_expected_missing_rows(monkeypatch):
+    _without_tpex_closure_evidence(monkeypatch)
     from market_session_admission import assess_daily_session_integrity
     result = assess_daily_session_integrity(_daily("2026-10-22", "2026-10-27"))
     assert result["eligible"] and result["missing_expected_dates"] == []
     # TWSE closure cannot fill an evidence gap for another market.
-    result = assess_daily_session_integrity(_daily("2026-10-22", "2026-10-27", ticker="1234.TWO"))
-    assert not result["eligible"] and "2026-10-23" in result["unverified_dates"]
+    result = assess_daily_session_integrity(_daily("2026-07-09", "2026-07-13", ticker="1234.TWO"))
+    assert not result["eligible"] and "2026-07-10" in result["unverified_dates"]
 
 
 def test_missing_session_scan_is_bounded_for_untrusted_wide_ranges():
@@ -133,24 +134,26 @@ def test_as_of_cannot_renew_old_bars_and_window_dates_must_be_strictly_ordered(d
     assert reason in result["reason_codes"]
 
 
-def test_twse_exception_cannot_be_called_independent_tpex_proof():
+def test_twse_exception_cannot_be_called_independent_tpex_proof(monkeypatch):
+    _without_tpex_closure_evidence(monkeypatch)
     from market_session_admission import assess_daily_session_integrity
-    result = assess_daily_session_integrity(_daily("2026-10-23", ticker="1234.TWO"))
+    result = assess_daily_session_integrity(_daily("2026-07-10", ticker="1234.TWO"))
     assert result["status"] == "unverifiable" and not result["eligible"]
     assert result["closed_dates"] == []
-    assert result["unverified_dates"] == ["2026-10-23"]
+    assert result["unverified_dates"] == ["2026-07-10"]
     assert "closure_evidence_scope_unverified" in result["reason_codes"]
 
 
-def test_unknown_removed_date_remains_a_hole_until_reacquired():
+def test_unknown_removed_date_remains_a_hole_until_reacquired(monkeypatch):
+    _without_tpex_closure_evidence(monkeypatch)
     from market_session_admission import assess_daily_session_integrity
     from short_term_market_data import normalize_daily_market_data, build_short_term_market_context
-    rows = [_bar("2026-10-22"), _bar("2026-10-23"), _bar("2026-10-27")]
-    daily = normalize_daily_market_data(rows, ticker="1234.TWO", as_of=date(2026, 10, 27))
-    assert [row["date"] for row in daily["bars"]] == ["2026-10-22", "2026-10-27"]
+    rows = [_bar("2026-07-09"), _bar("2026-07-10"), _bar("2026-07-13")]
+    daily = normalize_daily_market_data(rows, ticker="1234.TWO", as_of=date(2026, 7, 13))
+    assert [row["date"] for row in daily["bars"]] == ["2026-07-09", "2026-07-13"]
     assert daily["availability"] == "partial"
     assert not assess_daily_session_integrity(daily)["eligible"]
-    context = build_short_term_market_context({"ticker": "1234.TWO", "daily_market_data": daily}, as_of=date(2026, 10, 27))
+    context = build_short_term_market_context({"ticker": "1234.TWO", "daily_market_data": daily}, as_of=date(2026, 7, 13))
     assert not context["daily_market_data"]["session_integrity"]["eligible"]
     assert context["technical_indicators"]["sample_count"] == 0
     # If a previously unknown excluded day becomes scheduled-open, its missing
@@ -237,3 +240,12 @@ def test_malformed_exception_metadata_is_unknown_not_a_calendar_failure(bad_entr
     calendar = load_market_calendar("tw", 2026)
     calendar["session_exceptions"] = {"2026-10-22": bad_entry}
     assert session_day_status("2026-10-22", calendar=calendar)["state"] == "unknown"
+
+
+def _without_tpex_closure_evidence(monkeypatch):
+    from copy import deepcopy
+    import market_calendar_store as store
+    seeds=deepcopy(store.BUILTIN_SESSION_EXCEPTIONS)
+    for entry in seeds[("tw",2026)].values():
+        entry.pop("related_exchange_evidence",None)
+    monkeypatch.setattr(store,"BUILTIN_SESSION_EXCEPTIONS",seeds)
