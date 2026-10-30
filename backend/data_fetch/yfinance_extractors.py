@@ -526,6 +526,7 @@ def _extract_financial_histories_uncached(stock, ticker: str, data_source_notes:
             or not _history_has_values(fcf_history)
             or any(len(history) == len(years) and any(value is None for value in history)
                    for history in (revenue_history, net_income_history,
+                                   gross_profit_history, operating_income_history, fcf_history,
                                    total_assets_history, total_equity_history))
         )
         if needs_finmind_fallback:
