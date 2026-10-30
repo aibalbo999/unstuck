@@ -293,8 +293,8 @@ def _alternative_observation_count(data: dict) -> int:
     if official:
         identity = safe_mapping_dict(data.get("company_identity")) or {}
         ticker = _safe_text(data.get("ticker"))
-        if (ticker in ("2882.TW", "2891.TW", "2855.TW", "2883.TW") and identity.get("ticker") == ticker
-                and _safe_text(identity.get("official_name")).strip() == {"2882.TW": "國泰金", "2891.TW": "中信金", "2855.TW": "統一證", "2883.TW": "凱基金"}[ticker]
+        if (ticker in ("2882.TW", "2891.TW", "2855.TW", "2883.TW", "2412.TW") and identity.get("ticker") == ticker
+                and _safe_text(identity.get("official_name")).strip() == {"2882.TW": "國泰金", "2891.TW": "中信金", "2855.TW": "統一證", "2883.TW": "凱基金", "2412.TW": "中華電"}[ticker]
                 and _safe_text(data.get("quote_type")).upper() == "EQUITY"
                 and _safe_text(identity.get("instrument_type")).upper() == "EQUITY"):
             legal_name = _safe_text(identity.get("legal_name")).strip()
@@ -310,6 +310,15 @@ def _alternative_observation_count(data: dict) -> int:
             elif ticker == "2891.TW":
                 from data_fetch.market_sources.ctbc_careers import verified_ctbc_job_count
                 official_count = verified_ctbc_job_count(official, ticker, legal_name)
+            elif ticker == "2412.TW":
+                from data_fetch.market_sources.cht_careers import verified_job_count, valid_context, UBN
+                receipt = safe_mapping_dict(payload.get("company_legal_name_evidence"))
+                if (valid_context(data) and data.get("instrument_type") in (None, "", "EQUITY")
+                        and data.get("quoteType") in (None, "", "EQUITY")
+                        and identity.get("stock_id") in (None, "", "2412")
+                        and data.get("stock_id") in (None, "", "2412")
+                        and identity.get("official_ubn") in (None, "", UBN)):
+                    official_count = verified_job_count(official, ticker, legal_name, UBN, receipt)
             elif ticker == "2883.TW":
                 from data_fetch.market_sources.kgi_careers import verified_job_count, verified_issuer, UBN
                 receipt = safe_mapping_dict(payload.get("company_legal_name_evidence"))

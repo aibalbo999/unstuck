@@ -151,8 +151,10 @@ class StockDataService:
                 from .market_sources.mops_json_company_history import guard_json_result
             result = guard_json_result(result, context['data'])
         if source == 'alternative_data':
-            from alternative_source_refresh import guard_alternative_result
+            from alternative_source_refresh import guard_alternative_result, record_related_alternative_attempts
             result = guard_alternative_result(result, context['data'])
+            if request.options.record_provider_sla:
+                record_related_alternative_attempts(result)
         # Build the canonical result before the caller rejects a failure. Radar
         # intentionally raises early and cannot retain this failure observation.
         source_audits = [result.audit]

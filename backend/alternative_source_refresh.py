@@ -103,6 +103,28 @@ def _failure_diagnostics(value, depth=0):
     return None
 
 
+
+def record_related_alternative_attempts(result):
+    """Source-only responses keep one merge receipt, but retain child failures.
+
+    The full workflow already flattens related_entries. This adapter serves the
+    source-only path, which cannot add diagnostics to its strict one-row merge.
+    """
+    from provider_sla import record_source_audit_entries
+    entries = result.audit.get('related_entries') if isinstance(result.audit, dict) else None
+    if not isinstance(entries, list):
+        return
+    rows = [entry for entry in entries if isinstance(entry, dict)
+            and entry.get('source') == SOURCE and entry.get('provider') == 'CHT official public careers'
+            and entry.get('status') in {'unavailable', 'error', 'degraded_enrichment'}
+            and type(entry.get('record_count')) is int and entry['record_count'] == 0]
+    if rows:
+        import sqlite3
+        from contextlib import suppress
+        with suppress(sqlite3.Error):
+            record_source_audit_entries(rows)
+
+
 def guard_alternative_result(result, data):
     from data_fetch.types import ProviderResult
     audit = result.audit if isinstance(result.audit, dict) else {}

@@ -140,7 +140,16 @@ class AlternativeJobOpeningsProvider(DataProvider):
 
     def fetch(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
         from .context_provider_cache import cached_context_result
-        return cached_context_result(self, request, context, self._fetch_uncached)
+        from .cht_careers_provider import cht_context_result
+        official = cht_context_result(request, context) if request.ticker == '2412.TW' else None
+        if official is not None and official.status == 'success':
+            return official
+        result = cached_context_result(self, request, context, self._fetch_uncached)
+        if official is not None:
+            result.audit = {**result.audit, 'related_entries': [
+                *(result.audit.get('related_entries') or []), {**official.audit,
+                    'provider': 'CHT official public careers'}]}
+        return result
 
     def _fetch_uncached(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
         from data_trust import AUDIT_STATUS_DEGRADED_ENRICHMENT, AUDIT_STATUS_SUCCESS, source_record_count

@@ -133,7 +133,19 @@ def select_legal_name(roster: dict, ticker: str, expected_short_name: str, *, to
 
 def _fetch_roster(url: str, suffix: str) -> dict:
     response = sync_get(url, headers={"User-Agent": "stock-agent/1.0"}, timeout=8, provider=PROVIDER)
-    return parse_roster(response.content, suffix)
+    raw = response.content
+    roster = parse_roster(raw, suffix)
+    # Existing metadata remains usable if supplemental archival is unavailable.
+    # Consumers requiring complete originals must independently fail closed.
+    import httpx
+    if (type(response) is httpx.Response and response.url == url
+            and response.status_code == 200 and not getattr(response, 'from_cache', False)):
+        from official_response_evidence import archive_response
+        try:
+            archive_response(raw, source_url=url, retrieved_at=time.time(), http_status=200)
+        except (OSError, ValueError):
+            pass
+    return roster
 
 
 def read_cached_listed_roster_bytes() -> tuple[bytes, dict] | None:
