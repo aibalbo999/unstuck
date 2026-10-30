@@ -20,6 +20,7 @@ from runtime_events import emit_log
 from storage_inventory import ensure_runtime_storage
 from watchlist_scheduler import run_watchlist_scheduler
 from watchlist_dispatch_store import pending_job_ids as pending_watchlist_dispatch_job_ids
+from nightly_analysis_store import pending_job_ids as pending_nightly_job_ids
 from worker_maintenance import run_maintenance_process
 from worker_rq_reconciliation import (
     RQ_WORKER_HEARTBEAT_GRACE_SECONDS,
@@ -95,7 +96,7 @@ def reconcile_abandoned_rq_jobs(runtime: WorkerRuntime) -> int:
         emit_log(f"queue reconciliation skipped: could not inspect RQ registries: {exc}")
         return 0
 
-    pending_dispatches = pending_watchlist_dispatch_job_ids()
+    pending_dispatches = pending_watchlist_dispatch_job_ids() | pending_nightly_job_ids()
     abandoned_job_ids, retrying_job_ids = _rq_reconciliation_job_lists(
         rq_states, [job for job in list_active_jobs() if job["job_id"] not in pending_dispatches])
 
@@ -120,7 +121,7 @@ def find_queue_backed_active_job(task_queue, ticker: str, pipeline_id: str = "v1
     task_id = analysis_task_id(str(job.get("job_id") or ""))
     if task_queue_has_task(task_queue, task_id) is not False:
         return job
-    if job["job_id"] in pending_watchlist_dispatch_job_ids():
+    if job["job_id"] in pending_watchlist_dispatch_job_ids() | pending_nightly_job_ids():
         return job
     mark_jobs_abandoned([job["job_id"]], RQ_ABANDONED_JOB_REASON)
     return {}
@@ -128,7 +129,9 @@ async def run_scheduler_process(runtime: WorkerRuntime) -> None:
     if runtime.task_queue is None:
         raise RuntimeError("Scheduler runtime must provide a task queue.")
 
+    from nightly_analysis import run_nightly_scheduler
     tasks = [
+        asyncio.create_task(run_nightly_scheduler(runtime, runner=_load_stock_analysis_job_runner(), emit=emit_log)),
         asyncio.create_task(
             run_watchlist_scheduler(
                 create_job=lambda ticker, pipeline_id, **kwargs: create_job(ticker, pipeline_id, **kwargs),

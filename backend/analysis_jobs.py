@@ -86,6 +86,10 @@ async def run_stock_analysis_job_async(
         checkpoint_inputs = await load_analysis_checkpoint_inputs(
             job_id=job_id, ticker=ticker_upper, pipeline_sequence=pipeline_sequence, settings=runtime_settings,
         )
+        from nightly_analysis import prepared_input, validate_input
+        from nightly_analysis_store import get_work
+        nightly_work = get_work(job_id)
+        nightly_data = prepared_input(job_id, ticker_upper, run_id) if nightly_work else None
         _raise_if_cancelled(job_id)
         if checkpoint_inputs:
             data = next(iter(checkpoint_inputs.values()))
@@ -93,6 +97,11 @@ async def run_stock_analysis_job_async(
                 "type": "status", "phase": "analysis_resume", "pipeline_id": run_id,
                 "message": "已載入同一工作的原分析資料與進度；保留原取得時間、品質限制及完成結果。",
             })
+        elif nightly_data is not None:
+            data = nightly_data
+            append_event(job_id, {"type": "status", "phase": "nightly_qualified_input",
+                "session_date": nightly_work['session_date'],
+                "message": "已載入門檻後核驗且綁定本交易日的新分析輸入；不重新抓取或借用舊分析。"})
         else:
             append_event(job_id, {
                 "type": "status",
@@ -116,6 +125,10 @@ async def run_stock_analysis_job_async(
                     "pipeline_id": run_id, "pipeline_label": run_label,
                 })
                 return ""
+        if nightly_work:
+            validate_input(nightly_work, data)
+            for resumed_data in checkpoint_inputs.values():
+                validate_input(nightly_work, resumed_data)
         if "error" in data:
             append_event(job_id, {"type": "status", "message": f"財務數據獲取有誤：{data['error']}，將繼續分析"})
         metrics_snapshot = data.get("quant_metrics") if checkpoint_inputs else None
