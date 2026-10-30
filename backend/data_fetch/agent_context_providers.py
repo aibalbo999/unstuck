@@ -274,7 +274,20 @@ class AlternativeJobOpeningsProvider(DataProvider):
                     legal_name, verified_ubn = LEGAL, UBN
                     official_jobs = fetch_official_jobs(request.ticker, legal_name, verified_ubn)
                     kgi_verified_count = verified_job_count(official_jobs, request.ticker, legal_name, verified_ubn)
-        skip_keyword_search = bool(psc_verified_count or kgi_verified_count)
+        known_label_verified_count = 0
+        if request.ticker == "8926.TW" and isinstance(company_jobs, dict) and company_jobs.get("status") == "success":
+            from job_employer_labels import known_ubn_display_label
+            postings = company_jobs.get("job_postings")
+            if (isinstance(postings, list) and postings and all(
+                    isinstance(row, dict) and known_ubn_display_label(
+                        row.get("source_employer"), legal_name,
+                        str(identity.get("official_name") or "").strip(), verified_ubn)
+                    for row in postings)):
+                known_label_verified_count = source_record_count(self.source, {
+                    **company_context, self.source: {
+                        "company_legal_name_evidence": legal_name_evidence,
+                        "job_openings_104": company_jobs}})
+        skip_keyword_search = bool(psc_verified_count or kgi_verified_count or known_label_verified_count)
         results_104 = (([company_jobs] if isinstance(company_jobs, dict) else []) if skip_keyword_search else
                        [company_jobs] if isinstance(company_jobs, dict) and company_jobs.get("status") == "success" else
                        [fetch_104_job_openings_count(company_name, keyword, company_context=company_context, fallback_memo=fallback_memo) for keyword in keywords[:3]])
@@ -361,7 +374,8 @@ class AlternativeJobOpeningsProvider(DataProvider):
             }
         if skip_keyword_search:
             components["keyword_searches"] = {"status": "local_block", "provider": "104/1111 keyword searches",
-                "http_request_sent": False, "reason_code": "verified_current_open_issuer_details_available"}
+                "http_request_sent": False, "reason_code": ("verified_recent_exact_company_postings_available"
+                    if known_label_verified_count else "verified_current_open_issuer_details_available")}
         if taiwanjobs is not None:
             components["taiwanjobs"] = {
                 "status": "verified_company_postings" if taiwanjobs_verified_jobs else "unavailable",

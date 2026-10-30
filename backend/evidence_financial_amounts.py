@@ -738,7 +738,8 @@ def check_financial_amount(claim: dict,snapshot: dict,tolerance_pct: float) -> d
         # Keep the same claim and denominator, without certifying its amount.
         return {**result, 'verification_reason_code': 'official_income_scope_unbound_no_vendor_fallback'}
     from evidence_official_financial_claims import official_fcf_claim
-    official = official_fcf_claim(claim, data, scale=scale, tolerance_pct=tolerance_pct)
+    official = official_fcf_claim(claim, data, scale=scale, tolerance_pct=tolerance_pct,
+                                  heading_ancestors=presentation_claim.get('_financial_heading_ancestors'))
     if official is not None:
         return {**result, **official}
     source=_financial_source(data,claim.get('financial_metric'),str(claim.get('financial_period_text') or ''),

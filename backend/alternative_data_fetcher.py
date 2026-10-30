@@ -15,7 +15,7 @@ from zoneinfo import ZoneInfo
 from bs4 import BeautifulSoup
 
 from external_http_client import sync_get
-from job_employer_labels import latin_prefix_legal_name
+from job_employer_labels import latin_prefix_legal_name, known_ubn_display_label
 
 JOB_104_SEARCH_URL = "https://www.104.com.tw/jobs/search/"
 JOB_104_API_URL = "https://www.104.com.tw/jobs/search/api/jobs"
@@ -144,7 +144,9 @@ def fetch_104_company_jobs(
                                         and employer_id == alias_employer_id)
                 matched_latin_prefix = (bool(official_alias) and latin_prefix_legal_name(source_employer, company)
                                         and employer_id == alias_employer_id)
-                if not exact_name and not matched_alias and not matched_prefix_alias and not matched_latin_suffix and not matched_latin_prefix:
+                matched_known_label = (known_ubn_display_label(source_employer, company, short, ubn)
+                                       and employer_id == alias_employer_id)
+                if not exact_name and not matched_alias and not matched_prefix_alias and not matched_latin_suffix and not matched_latin_prefix and not matched_known_label:
                     rejected += 1
                     continue
                 job_no = str(item.get("jobNo") or "").strip()
@@ -161,13 +163,14 @@ def fetch_104_company_jobs(
                         or not timedelta(0) <= current - published <= timedelta(days=30)):
                     rejected += 1
                     continue
-                if matched_latin_prefix and int(url.rsplit('/', 1)[-1], 36) != int(job_no):
+                if (matched_latin_prefix or matched_known_label) and int(url.rsplit('/', 1)[-1], 36) != int(job_no):
                     rejected += 1
                     continue
                 employer_ids.add(employer_id)
                 rows.append({"title": title, "url": url, "published_date": published.isoformat(),
                              "employer": company, "source_employer": source_employer,
-                             "employer_match_basis": ("official_name_ubn_latin_prefix" if matched_latin_prefix
+                             "employer_match_basis": ("official_name_ubn_known_label" if matched_known_label
+                                                      else "official_name_ubn_latin_prefix" if matched_latin_prefix
                                                       else "official_name_ubn_latin_suffix" if matched_latin_suffix
                                                       else "official_name_ubn_prefix_alias" if matched_prefix_alias
                                                       else "official_name_ubn_alias" if matched_alias
@@ -218,8 +221,10 @@ def _base36(value: int) -> str:
     return encoded or "0"
 
 
-def _official_104_employer_label(legal_name: str, short_name: str, source_employer: str) -> bool:
+def _official_104_employer_label(legal_name: str, short_name: str, source_employer: str, *, official_ubn: str = "") -> bool:
     if source_employer == legal_name:
+        return True
+    if known_ubn_display_label(source_employer, legal_name, short_name, official_ubn):
         return True
     if not 2 <= len(short_name) <= 50 or any(ch in short_name for ch in '()（）\n\r'):
         return False
@@ -327,7 +332,7 @@ def fetch_104_company_jobs_by_ubn(
                 continue
             if (detail_data.get("custNo") != slug or header.get("custUrl") != company_url
                     or header.get("jobName") != title
-                    or not _official_104_employer_label(company, short, source_employer)
+                    or not _official_104_employer_label(company, short, source_employer, official_ubn=ubn)
                     or (listed_month, listed_day) != (published.month, published.day)
                     or not timedelta(0) <= current - published <= timedelta(days=30)):
                 rejected += 1

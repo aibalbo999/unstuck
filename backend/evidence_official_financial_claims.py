@@ -213,13 +213,18 @@ def _result(claim, projection, expected, path, scale, tolerance):
             'source_acquired_at': fact['acquired_at'], 'historical_pit_verified': False}
 
 
-def official_fcf_claim(claim, data, *, scale, tolerance_pct):
+def official_fcf_claim(claim, data, *, scale, tolerance_pct, heading_ancestors=None):
     if claim.get('financial_metric') not in {'FCF', '自由現金流'}:
         return None
     from official_financial_projection import read_official_financial_projection
     projection = read_official_financial_projection(data)
     if projection is None:
         return None
+    from evidence_cashflow_components_narrative import complete_cashflow_components
+    narrative_claim = {**claim, '_financial_heading_ancestors': heading_ancestors} if heading_ancestors is not None else claim
+    if complete_cashflow_components(narrative_claim, data, projection, scale=scale):
+        return _result(claim, projection, projection['facts']['cashflows']['ttm']['free_cash_flow'],
+                       'data.official_financial_projection.facts.cashflows.ttm.free_cash_flow', scale, tolerance_pct)
     from financial_money_claims import other_financial_owner, _target_revenue_scope
     prefix = str(claim.get('financial_period_text') or '')
     heading = str(claim.get('financial_heading') or '')

@@ -211,6 +211,8 @@ def _alternative_observation_count(data: dict) -> int:
                                              and bool(re.fullmatch(r"[A-Za-z][A-Za-z0-9 .,&'-]{2,79}",
                                                                    source_employer[len(latin_prefix):]))))
                             from job_employer_labels import latin_prefix_legal_name
+                            from job_employer_labels import known_ubn_display_label
+                            name_matches = name_matches or known_ubn_display_label(source_employer, legal_name, short, ubn)
                             name_matches = name_matches or (2 <= len(short) <= 50 and not any(c in short for c in '()（）\n\r')
                                                            and latin_prefix_legal_name(source_employer, legal_name))
                             try:
@@ -229,7 +231,7 @@ def _alternative_observation_count(data: dict) -> int:
                                 and name_matches and ids_match and 0 <= age <= 30
                                 and item.get("source_url") == f"https://www.104.com.tw/api/companies/{slug}/jobs"
                                 and url == f"https://www.104.com.tw/job/{job_slug}")
-                        elif match_basis == "official_name_ubn_latin_prefix":
+                        elif match_basis in {"official_name_ubn_latin_prefix", "official_name_ubn_known_label"}:
                             from zoneinfo import ZoneInfo
                             from job_employer_labels import latin_prefix_legal_name
                             from data_fetch.market_sources.official_company_legal_name import (
@@ -248,10 +250,14 @@ def _alternative_observation_count(data: dict) -> int:
                                                   and str(int(job_path, 36)) == _safe_text(job.get('job_no')))
                             except (ValueError, TypeError):
                                 age, job_id_matches = -1, False
+                            from job_employer_labels import known_ubn_display_label
+                            label_matches = (known_ubn_display_label(source_employer, legal_name, short, ubn)
+                                             if match_basis == "official_name_ubn_known_label"
+                                             else latin_prefix_legal_name(source_employer, legal_name))
                             employer_verified = bool(ubn
                                 and verified_legal_name_from_evidence(receipt, ticker, short) == legal_name
                                 and 2 <= len(short) <= 50 and not any(c in short for c in '()（）\n\r')
-                                and latin_prefix_legal_name(source_employer, legal_name)
+                                and label_matches
                                 and _safe_text(job.get("employer_id")) == str(int(ubn)) + "000"
                                 and job_id_matches and 0 <= age <= 30)
                         elif match_basis in ("official_name_ubn_alias", "official_name_ubn_prefix_alias",
