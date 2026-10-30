@@ -439,6 +439,15 @@
     } else if (cash.annual_reference) {
         addLimit('尚未確認｜官方年度補充原件', annualReference.reason || '補充年度原件未通過核對，原值保留。');
     }
+    const quarterly = cash.quarterly_reference || {};
+    if (quarterly.status === 'quarterly_originals_verified') {
+        const ttm = quarterly.cashflows?.ttm || {}, balance = quarterly.balance || {}, ratios = quarterly.ratios || {};
+        const pct = value => Number.isFinite(value) ? value.toFixed(2) + '%' : '尚未核實';
+        addLimit('另列參考｜官方近十二個月現金流', `${quarterly.period_start} 至 ${quarterly.period_end}，個別財報（非集團合併）、新臺幣；以「前年度全年＋本年累計－前期同季累計」重算。營業現金流 ${money(ttm.operating_cash_flow)} 元，加設備支出 ${money(ttm.ppe_purchase)} 元、無形資產支出 ${money(ttm.intangible_purchase)} 元，得到自由現金流 ${money(ttm.free_cash_flow)} 元。支出採負號，取得時間 ${quarterly.acquired_at}。這是另列的官方算式，不能將原即期數值補標為此期間；不代表原分析已重跑，原數字與品質警示保留。`);
+        addLimit('口徑核對｜官方季末負債與權益', `${balance.as_of} 個別財報：所列五項借款與租賃負債合計 ${money(balance.interest_bearing_debt_including_leases)} 元，組成為短期借款、長期借款流動部分、長期借款、流動與非流動租賃負債；總負債 ${money(balance.total_liabilities)} 元，權益 ${money(balance.equity)} 元。「上述借款與租賃負債／權益」為 ${pct(ratios.debt_including_leases_to_equity_pct)}；「總負債／權益」為 ${pct(ratios.total_liabilities_to_equity_pct)}。兩種分子不同，不可互換，也不將所列五項視為其他日期所有有息負債。即使來源比率四捨五入相同，也不證明原來源欄位的日期或定義。`);
+    } else if (cash.quarterly_reference) {
+        addLimit('尚未確認｜官方季度補充原件', quarterly.reason || '季度原件、同期間組成或身分未通過核對，原值與品質警示保留。');
+    }
     const periodReference = cash.period_reference || {};
     if (periodReference.status === 'dated_series_original_replayed') {
         addLimit('另列參考｜有期間的供應商現金流', `另從 Yahoo 取得截至 ${periodReference.period_end} 的近十二個月序列，${periodReference.currency === 'TWD' ? '新臺幣' : periodReference.currency}：營業現金流 ${money(periodReference.operating_cash_flow)} 元，加資本支出 ${money(periodReference.capital_expenditure)} 元，為自由現金流 ${money(periodReference.free_cash_flow)} 元。${periodReference.raw_scalar_matches_series === false ? '與原即期數值不同，不能直接把原值補標為近十二個月。' : '數值相同也不能證明原即期欄位的財期。'}這是 ${periodReference.acquired_at || '本次'} 另外取得的供應商參考，不是重新分析；合併範圍、完整支出與會計師查核尚未核實，不替換原數字、原圖表或品質警示。`);

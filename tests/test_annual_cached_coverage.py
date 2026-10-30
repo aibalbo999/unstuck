@@ -17,7 +17,9 @@ def payload(missing=None):
 
 def read(monkeypatch,old,fallback):
     import data_fetch.workflow_cache as cache
-    monkeypatch.setattr(cache,'assess_cached_financial_data',lambda *a:(True,{}))
+    # This suite tests annual-field normalization, not the separately tested
+    # session planner. Mock its full boundary, including keyword arguments.
+    monkeypatch.setattr(cache,'assess_session_aligned_cache',lambda *a,**kw:(True,{}))
     return cache.fallback_cached_payload('1623.TW',old,ProviderResult('quote','stub','error')) if fallback else cache.fresh_cached_payload('1623.TW',old)
 
 

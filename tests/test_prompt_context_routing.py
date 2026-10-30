@@ -2099,7 +2099,10 @@ def test_prompt_growth_keeps_source_data_mapping_when_accessor_fails(compact):
     assert growth["ttm_vs_latest_annual_revenue_change_pct"] == 3.4567
     assert growth["yahoo_recent_revenue_growth_pct"] == 0.1234
     assert growth["yahoo_recent_earnings_growth_pct"] == -0.0567
-    assert growth["revenue_cagr_5yr_pct"] == 8.7654
+    assert growth["revenue_cagr_legacy_pct"] == 8.7654
+    assert growth["revenue_cagr_5yr_pct"] is None
+    assert growth["revenue_cagr_pct"] is None
+    assert growth["revenue_cagr_basis"]["period_status"] == "unverified"
 
 
 @pytest.mark.parametrize("compact", [False, True])

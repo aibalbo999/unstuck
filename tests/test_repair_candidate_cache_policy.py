@@ -6,6 +6,12 @@ from agent_runtime import repair_loop, step_cache
 import llm_semantic_cache as semantic
 
 
+def completed_memo_stub(text):
+    # These cache-policy tests mock content checks, but completion stays explicit.
+    return {'text': text, 'output_completion': {
+        'contract_version': 'memo-output-completion:v1', 'status': 'complete'}}
+
+
 @pytest.mark.parametrize('asynchronous', [False, True])
 @pytest.mark.parametrize('layer', ['step', 'semantic'])
 @pytest.mark.parametrize('fresh_valid', [False, True])
@@ -25,7 +31,7 @@ def test_repair_gets_fresh_candidate_with_existing_request_cap(monkeypatch, asyn
         if cached:return cached['text']
         calls.append(agent)
         result='valid' if fresh_valid and len(calls)==2 else 'rejected'
-        context['structured_outputs'][23]={'text':result}
+        context['structured_outputs'][23]=completed_memo_stub(result)
         if layer=='step':step_cache.store_cached_agent_step('same',agent_num=23,context=context,model_id='offline',text=result)
         else:semantic.store_llm_response('offline','same prompt',SimpleNamespace(),text=result)
         return result
@@ -127,7 +133,8 @@ def test_public_routed_entrypoint_skips_cached_repair_but_normal_call_can_reuse(
     monkeypatch.setattr(runtime,'_run_agent_once_async',provider)
     monkeypatch.setattr(runtime,'record_model_success',lambda *a:None)
     key=runtime.build_agent_step_cache_key(23,data,ctx,'offline','same prompt')
-    cache[key]={'text':'old cached candidate','agent_num':23,'model_id':'offline','structured_output':{}}
+    cache[key]={'text':'old cached candidate','agent_num':23,'model_id':'offline',
+                'structured_output':completed_memo_stub('old cached candidate')}
     normal=copy.deepcopy(ctx)
     assert asyncio.run(runtime.run_single_agent_async(23,data,normal,None))=='old cached candidate'
     ctx[instruction]='repair this candidate'

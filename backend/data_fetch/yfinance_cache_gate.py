@@ -32,7 +32,7 @@ def build_fresh_cache_payload(
         from two_week_market_eligibility import completed_session
         from report_source_admission import institutional_admission,price_admission
         ticker=str(cached.get("ticker") or original_ticker).upper()
-        current_expected=completed_session(datetime.fromtimestamp(now_epoch,timezone.utc))
+        current_expected=completed_session(datetime.fromtimestamp(now_epoch,timezone.utc), ticker=ticker)
         if not current_expected or daily.get("as_of")!=current_expected:
             return None,["market_data"],False
         if not institutional_admission(cached.get("institutional_trading"),current_expected)["eligible"] or not price_admission(daily,ticker)["eligible"]:

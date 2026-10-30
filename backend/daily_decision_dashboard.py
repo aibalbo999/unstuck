@@ -14,6 +14,7 @@ from report_quality_audit import build_report_quality_audit
 from report_quality_repair_queue import build_report_quality_repair_queue
 from report_freshness_summary import safe_bool
 from report_pipeline_identity import resolve_report_pipeline_id
+from daily_candidate_review import build_candidate_review, quality_context
 
 
 def build_daily_decision_dashboard(
@@ -27,6 +28,7 @@ def build_daily_decision_dashboard(
     quality_audit: dict[str, Any] | None = None,
     current_quality_summary: dict[str, Any] | None = None,
     quality_audit_reports: dict[str, Any] | list[dict[str, Any]] | None = None,
+    output_dir: str | None = None,
 ) -> dict[str, Any]:
     """Return the operator's next-best-action dashboard."""
     reports_payload = safe_mapping_dict(reports) or {}
@@ -54,6 +56,12 @@ def build_daily_decision_dashboard(
         )
     if current_quality_summary is not None:
         report_quality_audit["current_quality_summary"] = safe_mapping_dict(current_quality_summary) or {}
+    # Current read-only projections must outrank the historical saved green gates.
+    withdrawn_reports = safe_dict_list(report_quality_audit.get("current_blocked_reports")) if report_quality_audit.get("scope") == "all_indexed_reports" and report_quality_audit.get("selection_basis") == "latest_per_ticker_pipeline" else []
+    sample_keys = {_report_key(row) for row in report_rows}
+    withdrawn_by_key = {_report_key(row): row for row in withdrawn_reports}
+    report_rows = [{**row, **withdrawn_by_key.get(_report_key(row), {})} for row in report_rows] + [row for row in withdrawn_reports if _report_key(row) not in sample_keys]
+    withdrawn_tickers = {safe_text(row.get("ticker")).strip() for row in withdrawn_reports if resolve_report_pipeline_id(row.get("filename") or "", stored_pipeline=row.get("pipeline_id")) == "v4"}
     watch_items = safe_dict_list(watchlist_payload.get("items"))
     screener_items = safe_dict_list(screener_payload.get("items"))
     repair_queue = build_report_quality_repair_queue(report_rows, limit=5)
@@ -70,7 +78,32 @@ def build_daily_decision_dashboard(
         item for item in watch_items
         if _is_high_priority_watchlist_item(item)
     ]
-    candidates = _top_candidates(screener_items)
+    candidates = _top_candidates([row for row in screener_items if safe_text(row.get("ticker")).strip() not in withdrawn_tickers])
+    candidate_review = build_candidate_review(screener_items, candidates, withdrawn_reports, screener_payload, performance_payload)
+    if output_dir:
+        from candidate_report_observations import load_candidate_report_observations
+        # Bound file reads to this returned page, preserving unknown beyond it.
+        targets = [{"ticker": safe_text(row.get("ticker")).strip()} for row in screener_items[:20]]
+        # Use the current projection for this exact report, not saved green
+        # metadata. Never borrow another filename/pipeline or mutate scan rows.
+        current_projections = safe_dict_list(report_quality_audit.get("current_report_projections")) if report_quality_audit.get("scope") == "all_indexed_reports" and report_quality_audit.get("selection_basis") == "latest_per_ticker_pipeline" else []
+        current_by_filename = {safe_text(row.get("filename")).strip(): row for row in [*current_projections, *withdrawn_reports]}
+        observation_items = []
+        for row in screener_items:
+            latest = safe_mapping_dict(row.get("latest_report")) or {}
+            current = current_by_filename.get(safe_text(latest.get("filename")).strip(), {})
+            if safe_text(current.get("ticker")).strip() != safe_text(row.get("ticker")).strip():
+                current = {}
+            if current:
+                current = {**current, "_quality_projection_basis":"current_rules_readonly"}
+            observation_items.append({**row, "latest_report": {**latest, **current}})
+        observations = load_candidate_report_observations(targets, observation_items, output_dir)
+        for candidate in candidates:
+            candidate["report_evidence"] = observations.get(candidate["ticker"])
+        for excluded in candidate_review.get("excluded_items", []):
+            excluded["report_evidence"] = observations.get(excluded["ticker"])
+        from candidate_decision_explanation import summarize_report_decisions
+        candidate_review["report_decision_summary"] = summarize_report_decisions(observations, requested_count=len({safe_text(row.get("ticker")).strip() for row in screener_items}))
     rerun_report_items = [_rerun_report_payload(report) for report in rerun_reports]
     outcome_calibration = build_outcome_calibration(
         backtests=safe_dict_list(performance_payload.get("details")),
@@ -122,6 +155,9 @@ def build_daily_decision_dashboard(
         "provider_impact_ledger": provider_impact_ledger,
         "report_quality_audit": report_quality_audit,
         "top_candidates": candidates,
+        "candidate_review": candidate_review,
+        "two_week_candidate_policy": {"research_only": True, "actionable": False, "latest_complete_coverage": "unverified", "reason": "篩選結果是研究待查項目；未核對交易日行情與法人、當前報告品質及進場觸發前，不提供actionable候選。"},
+        "withdrawn_reports": withdrawn_reports,
         "rerun_reports": rerun_report_items,
         "repair_queue": repair_queue,
         "decision_queue": decision_queue,
@@ -281,17 +317,21 @@ def _is_high_priority_watchlist_item(item: dict[str, Any]) -> bool:
 def _top_candidates(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
     accepted = []
     for item in items:
-        quality = safe_mapping_dict(item.get("quality_funnel")) or {}
+        quality = quality_context(item)
         quality_outcome = safe_text(quality.get("outcome")).strip()
         if quality_outcome.lower() == "reject":
             continue
         accepted.append({
             "ticker": safe_text(item.get("ticker")).strip() or None,
             "company_name": safe_text(item.get("company_name")).strip(),
-            "score": _score_value(item.get("score")),
+            "score": None if item.get("score") is None or item.get("ranking_status") == "separate_dimensions_not_calibrated" else _score_value(item.get("score")),
             "quality_outcome": quality_outcome or None,
+            "research_only": True,
+            "actionable": False,
             "reason": _candidate_reason(item),
         })
+    if any(item.get("ranking_status") == "separate_dimensions_not_calibrated" for item in items):
+        return sorted(accepted, key=lambda row: row.get("ticker") or "")[:5]
     return sorted(accepted, key=lambda row: _score_value(row.get("score")), reverse=True)[:5]
 
 

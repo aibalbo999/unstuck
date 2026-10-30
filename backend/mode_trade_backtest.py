@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from performance_sample_context import sample_context
+
 import json
 from datetime import date
 from statistics import mean
@@ -33,6 +35,17 @@ def _parsed_snapshot(report: dict, output_dir: str) -> dict:
     parsed = context.get("parsed") if isinstance(context, dict) else None
     return parsed if isinstance(parsed, dict) else {}
 
+
+
+def _execution_context(report, output_dir, parsed, inputs):
+    try:
+        storage = storage_for_existing_output_dir(output_dir, None)
+        key = ReportArtifactLocator(storage).require_key(report["filename"], kind="data")
+        snapshot = json.loads(storage.get_report(key).content.decode("utf-8"))
+        plan = parsed.get("trade_setup") or parsed.get("position_plan") or parsed.get("short_setup") or {}
+        return {"data": snapshot.get("data", {}), "setup": {"price_basis": plan.get("price_basis"), "transaction_cost_components": plan.get("transaction_cost_components"),"trade_direction": inputs["direction"], "entry_zone": inputs.get("entry_zone"), "target_price": inputs.get("target_price"), "stop_loss": inputs.get("stop_loss")}}
+    except (OSError, ValueError, TypeError, AttributeError, KeyError):
+        return {}
 
 def _recommendation_label(parsed: dict) -> str:
     rec = parsed.get("recommendation") or {}
@@ -81,7 +94,7 @@ def _plan_inputs(pipeline_id: str, parsed: dict) -> tuple[dict | None, tuple[int
     return inputs, horizons, ""
 
 
-def evaluate_report_trades(*, report: dict, pipeline_id: str, generated: date, as_of: date, output_dir: str, bar_fetcher) -> tuple[list[dict], list[dict]]:
+def evaluate_report_trades(*, report: dict, pipeline_id: str, generated: date, as_of: date, output_dir: str, bar_fetcher, allow_historical_evaluation: bool = False) -> tuple[list[dict], list[dict]]:
     filename = str(report.get("filename") or "")
     from report_publication_identity import read_report_publication_identity, non_prediction_reason
     if not read_report_publication_identity(report, output_dir)["prediction_eligible"]:
@@ -91,19 +104,41 @@ def evaluate_report_trades(*, report: dict, pipeline_id: str, generated: date, a
     if issue:
         return [], [{"filename": filename, "reason": issue}]
     previous = {row["horizon_trading_days"]: row for row in trade_backtest_store.list_results(report_filename=filename)}
-    pending = [horizon for horizon in horizons if previous.get(horizon, {}).get("status") not in FINAL_STATUSES]
+    if generated < date(2026, 10, 2) and not allow_historical_evaluation and any(horizon not in previous for horizon in horizons):
+        return [], [{"filename": filename, "reason": "historical_missing_result_requires_explicit_evaluation", "horizon_trading_days": horizon} for horizon in horizons if horizon not in previous]
+    pending = [horizon for horizon in horizons if horizon not in previous]  # Historical rows never silently re-evaluated.
     skipped = [{"filename": filename, "horizon_trading_days": horizon, "reason": "already_evaluated"}
                for horizon in horizons if horizon not in pending]
     if not pending or generated >= as_of:
         return [], skipped
+    if str(report.get("ticker") or "").endswith((".TW", ".TWO")):
+        from backtest_session_contract import session_window
+        due = []
+        for horizon in pending:
+            window = session_window(generated, horizon, market="tw")
+            if window["status"] != "verified":
+                skipped.append({"filename":filename,"horizon_trading_days":horizon,"reason":"calendar_unavailable"})
+            elif window["maturity_date"] > as_of.isoformat():
+                skipped.append({"filename":filename,"horizon_trading_days":horizon,"reason":"awaiting_verified_maturity", "maturity_date":window["maturity_date"]})
+            else:
+                due.append(horizon)
+        pending = due
+        if not pending:
+            return [], skipped
     bars = bar_fetcher(str(report.get("ticker") or ""), generated, as_of)
     evaluated = []
     for horizon in pending:
         metrics = evaluate_trade_path(**inputs, bars=bars, generated_date=generated, as_of=as_of,
-                                      horizon_trading_days=horizon)
+                                      horizon_trading_days=horizon,
+                                      market="tw" if str(report.get("ticker") or "").endswith((".TW", ".TWO")) else "us",
+                                      execution_context=_execution_context(report, output_dir, parsed, inputs))
         if metrics["status"] == "pending":
             skipped.append({"filename": filename, "horizon_trading_days": horizon, "reason": metrics["reason"]})
             continue
+        if metrics["status"] == "insufficient_data" and metrics.get("reason") in {"missing_ohlc", "session_coverage_incomplete"}:
+            skipped.append({"filename":filename,"horizon_trading_days":horizon,
+                            "reason":metrics["reason"],"retryable":True})
+            continue  # Transient provider gaps are not terminal saved outcomes.
         result = {"report_filename": filename, "ticker": report.get("ticker", ""),
                   "pipeline_id": pipeline_id, "generated_date": generated.isoformat(),
                   "trade_direction": inputs["direction"], **metrics}
@@ -125,7 +160,7 @@ def trade_performance_summary(results: list[dict]) -> dict:
     for row in results:
         status = row.get("status", "unknown")
         statuses[status] = statuses.get(status, 0) + 1
-    return {"total_evaluations": len(results), "hit_count": hits, "miss_count": misses,
+    return {**sample_context(results), "total_evaluations": len(results), "hit_count": hits, "miss_count": misses,
             "unscored_count": len(results) - hits - misses,
             "hit_rate_pct": round(hits / (hits + misses) * 100, 2) if hits + misses else None,
             "average_strategy_roi_pct": round(mean(rois), 4) if rois else None, "status_counts": statuses}

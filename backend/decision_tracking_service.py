@@ -150,5 +150,4 @@ async def refresh_tracking_items(
 
 
 def compute_tracking_performance_stats(output_dir: str) -> dict:
-    del output_dir
-    return compute_performance_stats()
+    return compute_performance_stats(output_dir=output_dir)

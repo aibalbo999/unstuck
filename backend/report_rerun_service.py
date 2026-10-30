@@ -54,6 +54,10 @@ async def _run_full_pipeline_rerun(
     storage: ReportStorage | None = None,
     job_id: str | None = None,
 ) -> dict:
+    from report_rebuild_preview import assert_rebuild_identity
+    from report_index_parsing import parse_report_filename
+    assert_rebuild_identity(snapshot.get("data") or {}, pipeline_id=pipeline_id,
+                            ticker=parse_report_filename(source_filename).get("ticker"))
     if callable(cancel_check):
         cancel_check()
     checkpoint, data = await full_rerun_checkpoint(
@@ -69,6 +73,10 @@ async def _run_full_pipeline_rerun(
     elif callable(progress_callback):
         progress_callback({"type": "status", "phase": "rerun_resume", "pipeline_id": pipeline_id,
             "message": "已找到重跑進度，沿用原資料快照接續未完成步驟；資料日期保持原值。"})
+    from report_rebuild_preview import assert_session_inputs
+    from report_index_parsing import parse_report_filename
+    assert_session_inputs(data, pipeline_id=pipeline_id,
+                          ticker=parse_report_filename(source_filename).get("ticker"))
     if callable(cancel_check):
         cancel_check()
     analysis_result = await pipeline_runner.run_async(
@@ -100,10 +108,11 @@ def _build_final_rerun_context(
     pipeline_def = get_pipeline_definition(pipeline_id)
     final_agent = get_structured_agent_num("recommendation", pipeline_id)
     if pipeline_id == "v4":
-        final_agent = get_structured_agent_num("trade_setup", pipeline_id)
+        from report_rebuild_preview import assert_session_inputs
         from report_index_parsing import parse_report_filename
-
         identity = parse_report_filename(filename)
+        assert_session_inputs(data, pipeline_id=pipeline_id, ticker=identity.get("ticker"))
+        final_agent = get_structured_agent_num("trade_setup", pipeline_id)
         saved_context = safe_mapping_dict(dict.get(snapshot_map, "rerun_context")) or {}
         tickers = {str(value).strip().upper() for value in (
             identity.get("ticker"), dict.get(snapshot_map, "ticker"), data.get("ticker")) if value}

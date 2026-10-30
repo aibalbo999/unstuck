@@ -26,10 +26,17 @@ def evaluate_observation_credibility(context, snapshot, data, pipeline):
     result = {"blocking_issues": [], "warnings": [], "checks": []}
     if pipeline != "v4":
         return result
-    def issue(key, message, *, warning=False):
-        result["warnings" if warning else "blocking_issues"].append({"id": key, "message": message})
+    def issue(key, message, *, warning=False, details=None):
+        result["warnings" if warning else "blocking_issues"].append({"id": key, "message": message, **({'details': details} if details is not None else {})})
     daily = data.get("daily_market_data")
     daily = daily if isinstance(daily, dict) else {}
+    from market_session_admission import assess_daily_session_integrity
+    session_integrity = assess_daily_session_integrity(daily, ticker=data.get('ticker'))
+    result['session_integrity'] = session_integrity
+    if session_integrity['status'] == 'invalid':
+        issue('v4_market_session_integrity_invalid', '技術序列含非交易日或不准入日期；同一輸入的數值與雜湊一致不能證明序列有效。', details=session_integrity)
+    elif not session_integrity['eligible']:
+        issue('v4_market_session_integrity_unverifiable', '技術序列缺少可核對的市場或交易日曆；不可標為已核實行情。', warning=True, details=session_integrity)
     observed = _day(daily.get("as_of"))
     bars = daily.get("bars")
     bars = bars if isinstance(bars, list) else []
@@ -78,8 +85,13 @@ def evaluate_observation_credibility(context, snapshot, data, pipeline):
         elif alignment_issue == "bullish_sma_alignment_unverified":
             issue("v4_bullish_sma_alignment_unverified", "宣稱均線多頭排列卻缺少對應均線值。")
     if data.get("free_cash_flow_raw") is not None:
-        # Yahoo info FCF is not the annual frame verified by primary_financial_audit.
-        issue("v4_raw_fcf_period_unverified", "即期 free_cash_flow_raw 未附可核對的期間、合併口徑及完整CapEx組成；不得與年度FCF混為同一期事實。", warning=True)
+        from .content_credibility_fcf_scope import fcf_quality_scope
+        fcf_scope = fcf_quality_scope(data)
+        result['fcf_scope'] = fcf_scope
+        if fcf_scope['selected_field']['period_status'] != 'verified':
+            issue("v4_raw_fcf_period_unverified", "即期 free_cash_flow_raw 未附可核對的期間、報表口徑及完整CapEx組成；不得與年度FCF混為同一期事實。", warning=True, details=fcf_scope)
+        elif fcf_scope['preserved_quote']['value'] is not None:
+            issue('v4_preserved_quote_fcf_period_unverified', '目前選用的官方FCF已按原件與期別核對；另存的舊quote期間仍未核實，不可混用。', warning=True, details=fcf_scope)
     institution = data.get("institutional_trading")
     institution = institution if isinstance(institution, dict) else {}
     days = [_day(v) for v in institution.get("observation_dates", [])] if isinstance(institution.get("observation_dates"), list) else []
@@ -93,10 +105,14 @@ def evaluate_observation_credibility(context, snapshot, data, pipeline):
     except (TypeError, ValueError):
         moment = None
     readiness = observation_readiness(price_date=observed.isoformat() if observed else None,
-                                     institutional_date=max(days).isoformat() if days else None, moment=moment)
+                                     institutional_date=max(days).isoformat() if days else None, moment=moment,
+                                     ticker=data.get("ticker") or snapshot.get("ticker") or daily.get("ticker"))
     if not readiness["latest_source_dates_aligned"]:
         issue("v4_latest_completed_session_unconfirmed", readiness["reason"], warning=True)
     readiness["price_reconciliation"] = basis
+    readiness['session_integrity'] = session_integrity
+    if result.get('fcf_scope'):
+        readiness['fcf_scope'] = result['fcf_scope']
     readiness["execution_evidence"] = execution_evidence(data, setup)
     result["checks"] = [{"id": "v4_market_observations", "details": readiness, "status": "blocked" if result["blocking_issues"] else "warning" if result["warnings"] else "passed", "message": "行情來源、日期與價格採必查條件；非抽樣、非官方獨立驗價。"}]
     return result

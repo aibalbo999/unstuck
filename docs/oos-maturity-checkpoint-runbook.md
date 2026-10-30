@@ -56,7 +56,7 @@
 ```bash
 PROJECT_PYTHON="/Volumes/X10 Pro Mac/stock-agent/.venv/bin/python"
 PROJECT_ROOT="$(pwd -P)"
-EVIDENCE_ROOT="/Volumes/X10 Pro Mac/stock-agent-oos-evidence/four-mode-credibility-prospective-r1"
+EVIDENCE_ROOT="/Volumes/X10 Pro Mac/stock-agent-archives/relocated-references/evidence/stock-agent-oos-evidence/four-mode-credibility-prospective-r1"
 MATURITY_SCHEDULE="$PROJECT_ROOT/docs/oos-maturity-schedule-2026-09-10.json"
 MATURITY_SCHEDULE_SHA256="deb484beae83b19438e6e12d3b21b0c467ba2fd9330c594341ee725e9841be43"
 REQUESTED_CUTOFF_SESSION="${OOS_CUTOFF_SESSION:-}"

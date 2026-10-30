@@ -47,6 +47,12 @@ _NON_CLAIM_LABEL_MARKERS = (
 _NORMALIZED_NON_CLAIM_LABEL_MARKERS = tuple(_normalize_match_text(marker) for marker in _NON_CLAIM_LABEL_MARKERS)
 
 def is_non_claim_match(line: str, match: re.Match[str], *, table_cell: bool = False) -> bool:
+    # A colon can introduce an inline numbered list, not a one-dollar value.
+    if (not table_cell and not match.group('unit')
+            and re.fullmatch(r'\d+', match.group('num'))
+            and re.search(r'推估|如下|以下|包括|包含|分別', match.group('label'))
+            and re.match(r'[.．]\s+[^\W\d_]', line[match.end('num'):])):
+        return True
     # A source citation followed by a bare, truncated counter-evidence fragment
     # does not name a financial metric. Do not discard real values with units.
     if (not match.group("unit") and re.search(r"[)）]；反證[：:]\s*$", line[:match.start("num")])

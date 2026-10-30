@@ -325,8 +325,8 @@ def test_unknown_calendar_cannot_certify_five_session_window(monkeypatch):
     dates = ("2026-09-17", "2026-09-18", "2026-09-21", "2026-09-22", "2026-09-23")
     install_rows(monkeypatch, [row for day in dates for row in observation(day)])
     result = InstitutionalTradingProvider().fetch(FetchRequest.from_ticker("2321.TW"))
-    assert result.value["last_5_trading_days_net_buy_thousand_shares"] is None
-    assert result.value["last_5_window_status"] == "calendar_unknown"
+    assert result.value == {}, 'Unknown calendar cannot authorize even a primary acquisition bound'
+    assert result.status == 'unavailable'
 
 
 def test_extra_weekend_observation_does_not_displace_a_real_five_session_member(monkeypatch):

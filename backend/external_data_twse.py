@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 from typing import Any, Optional
 
 from config import FINMIND_API_TOKEN
+from debt_field_definitions import debt_definition
 
 try:
     from data_fetch.market_sources.taiwan import DataLoader
@@ -137,6 +138,7 @@ def _build_payload(
     if ocf is not None and capex is not None:
         free_cash_flow = ocf - abs(capex) if capex > 0 else ocf + capex
 
+    debt, debt_basis = _latest_debt_with_definition(balance_rows, source)
     payload = {
         "revenue_ttm_raw": _round_or_none(revenue),
         "net_income_ttm_raw": _round_or_none(net_income),
@@ -144,7 +146,8 @@ def _build_payload(
         "gross_margin_raw": _ratio(gross_profit, revenue),
         "operating_margin_raw": _ratio(operating_income, revenue),
         "profit_margin_raw": _ratio(net_income, revenue),
-        "total_debt_raw": _round_or_none(_latest_debt(balance_rows)),
+        "total_debt_raw": _round_or_none(debt),
+        'financial_field_definitions': {'total_debt_raw': debt_basis},
         "source": source,
         "fetch_date": _today_iso(),
     }
@@ -202,14 +205,44 @@ def _sum_metric(rows: list[dict[str, Any]], dates: list[str], aliases: tuple[str
 
 
 def _latest_debt(rows: list[dict[str, Any]]) -> Optional[float]:
+    return _latest_debt_with_definition(rows, 'unspecified')[0]
+
+
+def _debt_fields_for_date(rows, date_key, aliases):
+    alias_keys = {_normalize_key(alias) for alias in aliases}
+    result = []
+    for row in rows:
+        if _date_key(row) != date_key:
+            continue
+        source_field = row.get('type') or row.get('metric') or row.get('name')
+        if _normalize_key(source_field) in alias_keys:
+            value = _safe_float(row.get('value'))
+            if value is not None:
+                result.append((value, str(source_field), row))
+                continue
+        for field, raw in row.items():
+            if _normalize_key(field) in alias_keys and (value := _safe_float(raw)) is not None:
+                result.append((value, str(field), row))
+    return result
+
+
+def _latest_debt_with_definition(rows, source):
     for date_key in reversed(_recent_dates(rows, limit=12)):
-        total = _value_for_date(rows, date_key, TOTAL_DEBT_ALIASES)
-        if total is not None:
-            return total
-        components = _values_for_date(rows, date_key, DEBT_COMPONENT_ALIASES)
+        totals = _debt_fields_for_date(rows, date_key, TOTAL_DEBT_ALIASES)
+        if totals:
+            total, field, row = totals[0]
+            meaning = ('total_liabilities' if _normalize_key(field) in {
+                _normalize_key(name) for name in ('TotalLiabilities', 'Liabilities', '負債總計')
+            } else 'unknown')
+            return total, debt_definition(_round_or_none(total), meaning, source, field,
+                as_of=date_key, currency=row.get('currency') or None,
+                report_scope=row.get('report_scope') or row.get('statement_scope') or None)
+        components = _debt_fields_for_date(rows, date_key, DEBT_COMPONENT_ALIASES)
         if components:
-            return sum(components)
-    return None
+            value = sum(item[0] for item in components)
+            return value, debt_definition(_round_or_none(value), 'partial_borrowing_components', source,
+                '+'.join(item[1] for item in components), as_of=date_key)
+    return None, debt_definition(None, 'unknown', source, 'unavailable')
 
 
 def _ratio(numerator: Optional[float], denominator: Optional[float]) -> Optional[float]:

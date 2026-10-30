@@ -50,15 +50,18 @@ def test_current_completed_session_keeps_normal_cache_hit(cached):
     assert result.data['institutional_trading'] == data['institutional_trading']
 
 
-def test_before_maturity_boundary_does_not_prematurely_request_next_session(cached):
+def test_before_maturity_boundary_can_request_publication_without_promoting_it(cached):
     from data_fetch.cache_session_alignment import assess_session_aligned_cache
     data, _ = cached
     recent_previous_session(data)
     fresh, assessment = assess_session_aligned_cache(
         data, '6214.TW', assessor=assess_cached_financial_data,
         now_epoch=datetime.fromisoformat('2026-10-05T22:29:59+08:00').timestamp())
-    assert fresh
-    assert 'session_alignment' not in assessment['source_freshness']['institutional_trading']
+    assert not fresh and assessment['stale_sources'] == ['institutional_trading']
+    institutional = assessment['source_freshness']['institutional_trading']
+    assert institutional['expected_session'] == '2026-10-05'
+    assert institutional['acquisition_scope']['mature_evidence_session'] == '2026-10-02'
+    assert institutional['acquisition_scope']['acquisition_phase'] == 'provisional'
 
 
 @pytest.mark.parametrize('change', ['unknown_calendar', 'wrong_ticker', 'future_session', 'invalid_date'])
@@ -67,13 +70,17 @@ def test_alignment_does_not_invent_or_rewrite_dates(cached, monkeypatch, change)
     data, _ = cached
     recent_previous_session(data)
     if change == 'unknown_calendar':
-        monkeypatch.setattr(alignment, 'session_cache_scope', lambda moment: (None, 'unknown'))
+        monkeypatch.setattr(alignment, 'acquisition_session_scope', lambda moment, **kw: {
+            'latest_completed_session': None, 'mature_evidence_session': None,
+            'acquisition_phase': 'unknown'})
     elif change == 'wrong_ticker':
         data['ticker'] = '2330.TW'
     else:
         data['institutional_trading']['latest_date'] = '2026-10-06' if change == 'future_session' else 'bad'
     before = deepcopy(data)
-    expected = assess_cached_financial_data(data, '6214.TW', now_epoch=NOW)
     actual = alignment.assess_session_aligned_cache(data, '6214.TW', assessor=assess_cached_financial_data, now_epoch=NOW)
-    assert actual == expected
+    assert actual[0] is False
+    source = 'market_data' if change == 'wrong_ticker' else 'institutional_trading'
+    assert source in actual[1]['stale_sources']
+    assert actual[1]['source_freshness'][source]['fetched_at_epoch'] == NOW
     assert data == before

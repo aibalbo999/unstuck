@@ -24,6 +24,7 @@ from report_current_quality_item_helpers import (
     quality_attention_sort_key as _quality_attention_sort_key,
 )
 from report_quality_gate_actions import quality_gate_repair_item
+from report_quality_reason_classification import explain_quality_population
 
 
 SCHEMA_VERSION = "report_current_quality_summary.v1"
@@ -175,6 +176,7 @@ def build_current_quality_summary(
     scope: str = "daily_report_sample",
     selection_basis: str | None = None,
     item_limit: int = CURRENT_QUALITY_ITEM_LIMIT,
+    now=None,
 ) -> dict[str, Any]:
     rows = _report_rows(reports)
     scope_text = safe_text(scope).strip() or "daily_report_sample"
@@ -265,6 +267,7 @@ def build_current_quality_summary(
         "scope": scope_text,
         "selection_basis": selection_basis_text,
         "audited_reports": len(rows),
+        **explain_quality_population(rows, selection_basis=selection_basis_text, now=now),
         "report_conformance_by_status": conformance,
         "content_credibility_by_status": content,
         "evidence_exit_gate_by_verdict": evidence,

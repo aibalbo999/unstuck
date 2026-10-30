@@ -6,6 +6,7 @@ from typing import Any
 
 from mapping_fields import safe_text
 from numeric_safety import is_non_finite_number
+from report_price_format import format_report_price
 
 from .html_sanitizer import sanitize_report_plain_text
 from .text_tokens import is_missing_text_token
@@ -69,7 +70,7 @@ def _format_price(value: Any) -> str:
     if is_non_finite_number(value):
         return "N/A"
     if isinstance(value, (int, float)):
-        return f"NT${value:,.0f}"
+        return format_report_price(value)
     return _text(value)
 
 

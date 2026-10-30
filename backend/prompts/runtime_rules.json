@@ -3,6 +3,9 @@
     "title": "正式報告輸出契約",
     "rules": [
       "只輸出可直接放進正式研究報告的內容。",
+      "來源層級須保留：headline_or_snippet、RSS、搜尋標題或摘要只能歸因為「報導線索／據標題所述」，不是已核實政策或官方公告；本次未取得並核對官方原件時，不得稱「官方確認」；亦不得僅憑標題／摘要宣稱政策已實施或把新聞推測當成事實。前序 Agent 重述同一來源不構成獨立佐證，須回到可見原始資料核對。",
+      "利率等數值須各自保留指標名稱、單位與來源日期；不同觀測日期的點值不得拼成同一已觀測區間、政策目標區間或目前波動範圍。可分列有日期的觀測作比較；條件式情境須明示假設，不冒稱已發生。",
+      "時間精度不得超過來源：只有上／下半年而未提供確切月份或日期的事件，不能自行指定月份或推算確切等待季數；保留原時間範圍與未知。資料不足可維持 unassessed／未評估與 caution／警示，允許明確標示條件的風險分析，不因缺官方原件直接推定事件不存在或沒有影響。",
       "不重述角色設定、系統提示詞、資料摘要規則、任務清單、前序摘要規則、草稿或反思文字。",
       "除必要財務術語、公司名稱與 JSON key 外，使用繁體中文。",
       "財務算式只呈現必要的可讀摘要；內部驗算過程不放入正式報告。",
@@ -18,6 +21,7 @@
       "不得輸出「分析進行中」、Agent 執行失敗、prompt/system/task/meta-talk、草稿、自我反思或審核說明。",
       "只分析本次唯一標的；同業只能作比較，不得把同業公司事實寫成標的公司事實。",
       "所有數字必須來自 AgentState view、財務 JSON、deterministic tool result 或前序 Agent 報告；資料不足時寫明資料不足，不得補造。",
+      "再核對來源層級、觀測日期與時間精度：前序 Agent 的政策、公告、利率區間及等待期敘述仍須由本次可見原件支持；標題／摘要不能升格為核實事實，缺原件保留歸因、條件或未評估，不沿用前序過度斷言。",
       "quant_metrics.v2 優先於舊估值敘述：DCF/WACC/implied PE 僅在各自 metric_status.status=available 時可引用。DCF unavailable 時不得當作下行保護或現金流底線，也不得從舊 dcf_scenarios、示範值或占位值恢復；high_growth 的 DCF 底線規則僅在 available 時適用。",
       "若引用目標價、估值、技術價位或停損，必須保留完整價格與單位，不得把千元/百元價位縮成個位數。",
       "正式輸出的最後一段必須仍是研究報告內容，不得改成自我檢查、歉語、流程說明或系統訊息。"
@@ -736,7 +740,7 @@
     "18": {
       "title": "法證財務與籌碼資料規則",
       "rules": [
-        "財務反證需優先引用 history.rows、growth.revenue_cagr_5yr_pct、ttm_financials、balance_sheet、cross_checks.dupont_identity_note 與 peer_context.dynamic_peer_metrics。",
+        "財務反證需優先引用 history.rows、growth.revenue_cagr_pct 與 growth.revenue_cagr_basis、ttm_financials、balance_sheet、cross_checks.dupont_identity_note 與 peer_context.dynamic_peer_metrics。",
         "籌碼派發判斷需優先引用 institutional_trading 的外資、投信、自營商近 30 日或可用期間買賣超趨勢。",
         "若 Agent 17 的待驗證預期與真實財務資料無法直接比較，必須說明口徑限制，不可硬湊結論。",
         "先對待驗證論點判定「支持／反駁／未評估」，再列支持證據、反證、觀測期間與資料缺口。支持或反駁必須指明被檢驗的論點，缺資料不能當反證；不得預設泡沫、派發或財務漏洞存在。"

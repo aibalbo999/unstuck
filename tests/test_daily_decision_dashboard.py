@@ -295,11 +295,13 @@ def test_daily_decision_dashboard_prioritizes_reruns_watchlist_and_free_mode():
     assert dashboard["summary"]["reports_needing_rerun"] == 1
     assert dashboard["summary"]["watchlist_high_priority"] == 1
     assert dashboard["performance"]["hit_rate_pct"] == 58.33
-    assert dashboard["top_candidates"][0] == {
+    assert {k:v for k,v in dashboard["top_candidates"][0].items() if k not in {"evidence", "selection_basis"}} == {
         "ticker": "2408.TW",
         "company_name": "南亞科",
         "score": 18680.0,
         "quality_outcome": "pass",
+        "research_only": True,
+        "actionable": False,
         "reason": "外資買超 15430 張、投信買超 3250 張、自營商 0 張",
     }
     assert [action["type"] for action in dashboard["actions"][:2]] == ["rerun_report", "run_watchlist"]
@@ -1552,3 +1554,78 @@ def test_daily_decision_dashboard_normalizes_legacy_false_free_mode_flags():
     assert dashboard["free_mode"]["enabled"] is False
     assert dashboard["free_mode"]["can_run_without_paid_keys"] is False
     assert dashboard["actions"][0]["type"] == "fix_free_mode"
+
+
+def test_daily_get_uses_current_projection_from_full_real_index_and_cache(monkeypatch, tmp_path):
+    """A historical passed report outside the recent sample must be withdrawn."""
+    import json
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    import report_index
+    import report_quality_audit as audit
+    import api_routes.watchlist as routes
+    from data_trust import data_snapshot_filename_for_report
+    from trade_financial_risk import NEGATIVE_FCF_WARNING
+
+    monkeypatch.setattr(report_index, "CACHE_DB_PATH", str(tmp_path / "index.sqlite3"))
+    filename = "1101_TW_v4_report_20261001_180000.html"
+    snapshot = {
+        "pipeline": "v4", "generated_at": "2026-10-01T18:00:00+08:00",
+        "data": {"ticker": "1101.TW", "current_price": 25.55, "free_cash_flow_raw": 42e9},
+        "rerun_context": {"pipeline_id": "v4", "parsed": {"trade_setup": {
+            "trade_direction": "Neutral", "financial_risk_flags": [NEGATIVE_FCF_WARNING]}}},
+        "content_credibility": {"status": "passed"},
+        "report_conformance": {"status": "passed"},
+        "evidence_exit_gate": {"verdict": "approved"},
+    }
+    original = json.dumps(snapshot, ensure_ascii=False)
+    (tmp_path / filename).write_text("<html>original report</html>")
+    (tmp_path / filename.replace(".html", ".md")).write_text("original report")
+    artifact = tmp_path / data_snapshot_filename_for_report(filename)
+    artifact.write_text(original)
+    assert report_index.upsert_report_metadata(filename, output_dir=str(tmp_path))
+    # Keep the real index, artifact loader, projection, audit cache and GET router.
+    # Other dashboard panels are unrelated; recent reports exclude this old report.
+    monkeypatch.setattr(routes.report_history_service, "list_reports", lambda **kw: {"reports": []})
+    monkeypatch.setattr(routes.watchlist_service, "list_watchlist_with_report_alerts", lambda *a, **kw: {"items": []})
+    monkeypatch.setattr(routes.market_screener, "list_auto_screener_watchlist", lambda *a, **kw: {"items": [{"ticker": "1101.TW", "score": 99}]})
+    monkeypatch.setattr(routes.decision_tracking_service, "compute_tracking_performance_stats", lambda *a: {})
+    monkeypatch.setattr(routes.job_observability, "build_ops_dashboard_snapshot", lambda **kw: {})
+    monkeypatch.setattr(routes, "get_delivery_audit_summary", lambda: {})
+    app = FastAPI()
+    app.include_router(routes.create_watchlist_router(routes.WatchlistRouteDeps(
+        get_output_dir=lambda: str(tmp_path), get_task_queue=lambda: None,
+        run_stock_analysis_job=lambda *a: "unused", create_job=lambda *a: "unused",
+        find_active_job=lambda *a: {}, require_mutation_authorized=lambda r: None)))
+    client = TestClient(app)
+    for _ in range(2):
+        response = client.get("/api/watchlist/daily-dashboard")
+        assert response.status_code == 200
+        payload = response.json()
+        withdrawn = payload["withdrawn_reports"]
+        assert any(row["ticker"] == "1101.TW" for row in withdrawn)
+        assert not any(row["ticker"] == "1101.TW" for row in payload["top_candidates"])
+        assert len(payload["report_quality_audit"]["current_blocked_reports"]) == 1
+    historical = audit.build_historical_indexed_report_quality_audit(str(tmp_path))
+    assert historical["audited_reports"] == 1
+    assert historical["current_blocked_reports"] == []
+    assert artifact.read_text() == original
+
+
+def test_bounded_quality_busy_rejects_before_other_dashboard_work(monkeypatch, tmp_path):
+    import pytest
+    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
+    import api_routes.watchlist as routes
+    async def quality(_):
+        return {"status":"unavailable","read_unavailable":True,"reason":"tracking_reader_busy"}
+    monkeypatch.setattr(routes.report_history_service, "list_reports", lambda **kw: pytest.fail("busy dashboard launched report work"))
+    monkeypatch.setattr(routes.job_observability, "build_ops_dashboard_snapshot", lambda **kw: pytest.fail("busy dashboard launched ops work"))
+    app=FastAPI()
+    app.include_router(routes.create_watchlist_router(routes.WatchlistRouteDeps(
+        get_output_dir=lambda: str(tmp_path), get_task_queue=lambda: None,
+        run_stock_analysis_job=lambda *a: "unused", create_job=lambda *a: "unused",
+        find_active_job=lambda *a: {}, require_mutation_authorized=lambda _: None,
+        read_quality_audit=quality)))
+    response=TestClient(app).get("/api/watchlist/daily-dashboard")
+    assert response.status_code==503 and response.json()["reason"]=="tracking_reader_busy"

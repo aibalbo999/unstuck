@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-import time
+from uuid import uuid4
 from typing import Any
 
 from data_trust import data_snapshot_filename_for_report, sanitize_for_snapshot
@@ -13,13 +13,17 @@ from report_publication_gate import assert_report_publishable
 from reporting import ReportRequest
 from report_rerun_context import RERUN_SCOPE_LABELS
 from storage.report_storage import LocalFileStorage, ReportStorage
+from report_artifacts import ReportArtifactLocator
+from fastapi import HTTPException
 
 
 def rerun_report_filename(ticker: str, pipeline_id: str) -> tuple[str, str, str]:
     safe_ticker = str(ticker or "report").strip().upper().replace(".", "_").replace("/", "_")
-    timestamp = time.strftime("%Y%m%d_%H%M%S")
-    filename = f"{safe_ticker}_{pipeline_id}_report_{timestamp}.html"
-    md_filename = f"{safe_ticker}_{pipeline_id}_report_{timestamp}.md"
+    # Job-style names are already supported by the artifact locator and index.
+    # Second-resolution timestamps can overwrite a simultaneous rerun.
+    identifier = "job_" + uuid4().hex
+    filename = f"{safe_ticker}_{pipeline_id}_report_{identifier}.html"
+    md_filename = f"{safe_ticker}_{pipeline_id}_report_{identifier}.md"
     data_filename = data_snapshot_filename_for_report(filename)
     return filename, md_filename, data_filename
 
@@ -37,6 +41,12 @@ async def render_and_save_rerun_report(
     context_payload = safe_mapping_dict(context) or {}
     assert_report_publishable(context_payload)
     filename, _, _ = rerun_report_filename(context_payload.get("ticker"), pipeline_id)
+    content_storage = storage or LocalFileStorage(output_dir)
+    locator = ReportArtifactLocator(content_storage)
+    def require_new_version():
+        if filename == source_filename or any(locator.existing_key(filename, kind=kind) for kind in ("html", "md", "data")):
+            raise HTTPException(status_code=409, detail="重建版本檔名已存在，拒絕覆寫來源或既有報告。")
+    require_new_version()
     context_payload["partial_rerun"] = {
         "scope": scope,
         "label": RERUN_SCOPE_LABELS[scope],
@@ -59,12 +69,14 @@ async def render_and_save_rerun_report(
     data_snapshot["rerun_scope"] = scope
     set_snapshot_integrity(data_snapshot)
 
+    require_new_version()
+
     persisted = persist_report_bundle(
         filename=filename,
         html_content=report_bundle.html,
         markdown_content=report_bundle.markdown,
         data_snapshot=data_snapshot,
-        storage=storage or LocalFileStorage(output_dir),
+        storage=content_storage,
         output_dir=output_dir,
     )
     return {

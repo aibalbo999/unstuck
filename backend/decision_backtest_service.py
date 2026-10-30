@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from performance_sample_context import sample_context
+
 from datetime import date, datetime
 from statistics import mean
 from typing import Callable
@@ -22,8 +24,22 @@ def run_due_backtests(
     as_of: date | None = None,
     price_fetcher: Callable = fetch_backtest_prices,
     bar_fetcher: Callable = fetch_backtest_bars,
+    allow_historical_evaluation: bool = False,
 ) -> dict:
-    evaluation_day = as_of or date.today()
+    if as_of is None:
+        from market_evidence_policy import completed_evidence_session
+        from zoneinfo import ZoneInfo
+        completed = completed_evidence_session(datetime.now(ZoneInfo("Asia/Taipei")))
+        if completed is None:
+            return {"success": False, "evaluated_count": 0, "evaluated": [], "skipped": [], "errors": [{"reason": "completed_session_unknown"}]}
+        evaluation_day = date.fromisoformat(completed)
+    else:
+        from market_evidence_policy import completed_evidence_session
+        from zoneinfo import ZoneInfo
+        completed=completed_evidence_session(datetime.now(ZoneInfo("Asia/Taipei")))
+        if completed is None:
+            return {"success":False,"evaluated_count":0,"evaluated":[],"skipped":[],"errors":[{"reason":"completed_evidence_session_unknown"}]}
+        evaluation_day=min(as_of,date.fromisoformat(completed))
     reports = report_history_service.list_reports(
         page=1,
         limit=2000,
@@ -39,6 +55,10 @@ def run_due_backtests(
     skipped = []
     errors = []
     for report in reports:
+        from report_publication_identity import read_report_publication_identity, non_prediction_reason
+        if not read_report_publication_identity(report, output_dir)["prediction_eligible"]:
+            skipped.append({"filename": report.get("filename"), "reason": non_prediction_reason(read_report_publication_identity(report, output_dir))})
+            continue
         generated = _report_date(report)
         filename = str(report.get("filename") or "")
         if generated is None:
@@ -49,7 +69,7 @@ def run_due_backtests(
             try:
                 trades, trade_skips = evaluate_report_trades(
                     report=report, pipeline_id=pipeline_id, generated=generated, as_of=evaluation_day,
-                    output_dir=output_dir, bar_fetcher=bar_fetcher,
+                    output_dir=output_dir, bar_fetcher=bar_fetcher, allow_historical_evaluation=allow_historical_evaluation,
                 )
                 evaluated.extend(trades)
                 skipped.extend(trade_skips)
@@ -92,8 +112,11 @@ def run_due_backtests(
                 evaluated.append(result)
             except Exception as exc:
                 errors.append({"filename": filename, "horizon_months": horizon, "error": str(exc)[:240]})
+    from legacy_evidence_revisions import run_due_revisions
+    revisions = run_due_revisions(output_dir=output_dir, as_of=evaluation_day, bar_fetcher=bar_fetcher)
     return {
         "success": not errors,
+        "legacy_evidence_revisions": revisions,
         "evaluated_count": len(evaluated),
         "evaluated": evaluated,
         "skipped": skipped,
@@ -101,11 +124,12 @@ def run_due_backtests(
     }
 
 
-def compute_performance_stats() -> dict:
+def compute_performance_stats(output_dir: str | None = None) -> dict:
     results = decision_tracking_store.list_backtest_results(limit=2000)
     total = len(results)
     hit_count = sum(1 for row in results if row.get("outcome") == "hit")
     summary = {
+        **sample_context(results),
         "total_predictions": total,
         "hit_count": hit_count,
         "miss_count": total - hit_count,
@@ -117,13 +141,21 @@ def compute_performance_stats() -> dict:
         rows = [row for row in results if int(row.get("horizon_months") or 0) == horizon]
         hits = sum(1 for row in rows if row.get("outcome") == "hit")
         by_horizon.append({
+            **sample_context(rows),
             "horizon_months": horizon,
             "total": len(rows),
             "hit_rate_pct": round(hits / len(rows) * 100, 2) if rows else 0.0,
             "average_strategy_roi_pct": round(mean(float(row.get("strategy_roi_pct") or 0) for row in rows), 2) if rows else 0.0,
         })
-    trades = trade_backtest_store.list_results(limit=2000)
+    from performance_population import read_all_saved_trades
+    trades = read_all_saved_trades() if output_dir else trade_backtest_store.list_results(limit=2000)
+    from performance_evidence_quarantine import project_results, quarantine_summary
+    trades = project_results(trades)
     return {
+        "population": _population_or_unavailable(output_dir, trades),
+        "research_validation": __import__("signal_increment_evaluation").validation_manifest(),
+        "performance_evidence_quarantine": quarantine_summary(trades),
+        "legacy_evidence_revisions": __import__("legacy_evidence_revisions").revision_summary(),
         "summary": summary, "by_horizon": by_horizon,
         "legacy_metric_scope": "calendar_month_predictions",
         "trade_summary": trade_performance_summary(trades),
@@ -150,3 +182,13 @@ def _report_date(report: dict) -> date | None:
         return datetime.fromtimestamp(timestamp).date()
     except (OSError, OverflowError, ValueError):
         return None
+
+
+def _population_or_unavailable(output_dir, trades):
+    if not output_dir:
+        return {"status": "unavailable", "reason": "output_dir_not_provided", "credible_strategy_performance": False}
+    from performance_population import indexed_population
+    try:
+        return indexed_population(output_dir, saved=trades)
+    except Exception:
+        return {"status": "unavailable", "reason": "population_read_failed", "credible_strategy_performance": False}

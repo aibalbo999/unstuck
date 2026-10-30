@@ -7,6 +7,7 @@ from html import escape
 
 from mapping_fields import safe_mapping_dict, safe_text
 from numeric_safety import is_non_finite_number
+from report_price_format import format_report_price
 
 from .chart_payload import chart_number
 from .html_context import display_text, price_target_number
@@ -49,7 +50,7 @@ def build_price_target_cards_html(price_targets: dict, current_price) -> str:
         color, icon = _scenario_style(scenario_text)
         price_num = price_target_number(price)
         pct_str = _target_delta_text(price_num, current)
-        price_display = f"NT${price_num:.0f}" if price_num is not None else "N/A"
+        price_display = format_report_price(price_num)
         cards.append(
             f"""
             <div class="price-target-card" style="border-color: {color};">

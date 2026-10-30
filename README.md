@@ -36,6 +36,7 @@
 - yfinance 欄位缺漏時會用 FMP（需 API key）或可追溯的衍生補值補上市場欄位、TTM 營收或 FCF，並在 prompt 中揭露限制
 - QuantEngine 會用 FRED DGS10 等 macro data 動態推導 WACC / DCF 折現率；若缺少 `total_equity`、`total_debt`、`free_cash_flows`、risk-free rate、beta 等欄位而使用預設假設，會在 `quant_metrics` 標記 `fallback_fields` 與 `data_quality_warning`
 - 歷史報告會自動清理孤立 Markdown，並刪除超過保留天數的舊報告
+- 台股 v4 績效分母是仍存索引的報告，會隨既有到期清理縮小；API 提供 `population.as_of`（已完成交易日）與 `population.denominator_semantics`（當前保留期限）。這不是固定完整歷史研究母體，跨期數量或描述性績效變動不代表策略改善。
 - 長任務透過 SQLite job/event store 與任務佇列抽象執行，可用本地 worker 或切換 RQ/Redis
 - 多 Agent 分析流程已統一走 async LangGraph `StateGraph` 執行；Worker 使用 SQLite checkpoint 以 `job_id:pipeline_id` 恢復 429 / 暫時性中斷，不重跑已完成節點
 - Agent step cache 會以 ticker、資料快照 fingerprint、agent、prompt version、model 與 prompt hash 快取成功輸出，讓相同資料與 prompt 的 rerun 可跳過 LLM 呼叫並還原 structured output
@@ -640,6 +641,23 @@ rg -n "API_KEY|PRIVATE KEY|github[_-]pat" .
 ```
 
 第三個指令不應在可提交檔案中找到任何秘密資訊。完整提交前建議直接跑 `scripts/ci_gate.sh`。
+
+每日決策追蹤查詢先以當次 metadata 與 snapshot 選出各模式最新可預測報告，再執行當前品質投影；歷史重播、修復驗證與未完成分析不能取代正式預測，最新報告被阻擋時也不退回舊報告。詳見 `backend/tracking_latest_reports.py`。
+
+追蹤 GET 的當前品質投影由單一有界唯讀子程序計算，與儀表板 Python CPU 工作隔離；只合併來源／程式規則版本相同且仍在執行的請求，完成後重新讀取。來源在計算期間變動、程式規則需重載、忙碌或逾時會明示不可用，不以舊結果補回。metadata 同步沿用既有入口，新增子程序不能寫 SQLite 或連線資料／模型供應商。
+
+追蹤準備使用單一隔離程序且只合併進行中的相同目錄請求；直接同步原報告索引，省去不需要回傳的第一份報告品質投影。準備完成才取得內容版本，隔離程序於計算前後再次核對；來源改變仍明示不可用。準備與子程序各有 20 秒等待上限，整體 30 秒，不快取已完成結果。
+
+準備程序禁止網路，只執行原有報告索引同步及內容版本核對；品質投影仍在另一個唯讀程序。穩定上限是三個單工子程序（績效、追蹤準備、追蹤投影），每個只有一件進行中工作，完成結果不快取；沒有新增工作佇列或分析排程。
+
+
+10/5 來源可信度修正：法人 primary cache 改以最近已完成交易日及盤後重查階段分鍵；缺最新或獨立原始證據只短暫保存供診斷，不當成功候選。整包 Yahoo cache 也重新核對目前交易日及原始證據，不能只比較當初 history_query 的日期。官方 MI_INDEX／T86 回應保存原始 bytes 的 SHA256、URL、HTTP status、UTC 取得時間及壓縮原件；SDK dataframe 是另一種憑據，不冒充 HTTP 原文。公開原件由 official_response_evidence.py 保存至 runtime cache 下內容定址目錄，單件上限8MiB。
+
+22:30 是既有來源重查策略延伸的保守等待政策，並非交易所公告的最終性保證。成熟時另由 maturity_source_admission.py 要求到期交易日、完整官方原始回應及 Yahoo OHLC 對齊；缺失或矛盾時只回報等待來源，不追加修訂。固定76既有版本及原始結果不重算、不替換；未來原授權自然成熟仍按原scope處理，所有後續核對仍不宣稱歷史PIT、全部日線、實際成交、成本或策略獲利已驗證。
+
+分析 SMA／模型價位保持原值。trade_price_grid.py 另提供需要明確接受的合法格點審閱提案，記錄原值、方向、格點、變動與換算後風險：Long進場向上、目標向下、停損向下；Short相反。提案不直接使原策略有效或自動下單；商品類型缺漏明示未檢查，invalid_levels空陣列不代表合法。report_source_admission.py 同時用於新產出和唯讀目前規則projection；原始報告不改寫。Phase26追蹤版本核對包含引用的公開原始憑據，同一原件每次版本核對只讀一次，沿用三個有界工作程序及無完成結果快取。
+
+全報告品質查核共用既有追蹤準備通道，投影使用一個獨立單工作／零佇列唯讀程序；Phase26三條原通道保留，因此API最多四個計算子程序，沒有完成結果快取。每日儀表板查核遇忙碌、30秒整體上限或來源／規則變更時回覆503與明确unavailable，不沿用已完成快取；原始檔、原始官方回應與審閱事件於讀取前後核對。缺來源的自然成熟修訂不寫入版本，因此相同交易日可重試，既有15分鐘輪詢會記錄awaiting_source_evidence。21:00可回報當日尚未就緒，22:30僅是重查政策，沒有最終版本保證。
 
 
 ### 來源與報告讀取的驗證界線

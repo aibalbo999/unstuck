@@ -7,6 +7,7 @@
         const apiClient = options.apiClient, notify = options.notify || { error: () => {} }, escapeHtml = options.ui?.escapeHtml || (value => String(value ?? ''));
         const dashboardActions = window.StockAgentOperatorDashboardActions;
         let loadVersion = 0;
+        const pendingActions = new Set();
         const candidateCallbacks = { 'candidate-snapshot': options.onCandidateSnapshot, 'candidate-watchlist': options.onCandidateWatchlist, 'candidate-prepare-analysis': options.onCandidatePrepareAnalysis };
         const elements = { shift: document.querySelectorAll('[data-operator-shift-summary]'), activeJobs: byId('operator-active-jobs'), dataTrust: byId('operator-data-trust'), apiQuota: byId('operator-api-quota'), rerun: byId('operator-rerun'), actionList: byId('operator-action-list') };
         function renderCandidate(item) {
@@ -21,7 +22,7 @@
         }
         function renderActions(items, queueSummary, dashboard) { if (!elements.actionList) return; elements.actionList.innerHTML = `<div class="operator-action-list-header"><strong>今日待處理</strong><span>${escapeHtml(actionCountText(items, queueSummary))}</span></div>${items.map(item => item.type === 'review_candidate' ? renderCandidate(item) : `<div class="operator-action-row"><span><strong>${escapeHtml(item.title)}</strong><em>${escapeHtml(item.detail || '')}</em></span><button class="operator-action-button ${item.action === 'rerun-all-reports' ? 'is-primary' : ''}" type="button" data-operator-action="${escapeHtml(item.action)}" data-filename="${escapeHtml(item.filename || '')}" data-filenames="${escapeHtml(JSON.stringify(item.filenames || []))}" data-ticker="${escapeHtml(item.ticker || '')}" data-pipeline="${escapeHtml(item.pipeline || 'v1')}" data-target-tab="${escapeHtml(item.targetTab || '')}" data-target-panel="${escapeHtml(item.targetPanel || '')}">${escapeHtml(item.label)}</button></div>`).join('')}` + (window.StockAgentDailyCandidateReview?.render(dashboard, escapeHtml) || ''); }
         function parseFilenames(button) { try { const parsed = JSON.parse(button.dataset.filenames || '[]'); return Array.isArray(parsed) ? parsed.filter(Boolean) : []; } catch (err) { return []; } }
-        async function rerunReport(filename) { return apiClient.requestJson(`/api/report/${encodeURIComponent(filename)}/rerun?scope=full_report`, { method: 'POST' }); }
+        async function rerunReport(filename) { return apiClient.requestJson(`/api/report/${encodeURIComponent(filename)}/rerun?scope=full_report`, { method: 'POST', headers: { 'X-Stock-Agent-Action-Source': 'operator_summary' } }); }
         async function load() {
             const requestVersion = ++loadVersion;
             const readCard = (request, targets) => Promise.resolve(request).then(
@@ -42,10 +43,10 @@
             const dailyDashboard = await dailyDashboardRequest;
             if (requestVersion !== loadVersion) return;
             const dashboardValue = dailyDashboard.status === 'fulfilled' ? dailyDashboard.value : null;
-            const dashboardSummary = dashboardValue ? dashboardActions.dashboardText(dashboardValue) : null, dashboardActionItems = dashboardValue ? dashboardActions.dashboardActionItems(dashboardValue) : [];
+            const dashboardSummary = dashboardValue ? dashboardActions.dashboardText(dashboardValue) : { tone: 'warning', value: '工作台查核未就緒' }, dashboardActionItems = dashboardValue ? dashboardActions.dashboardActionItems(dashboardValue) : [];
             const actions = dashboardActionItems.length ? dashboardActionItems : fallbackActions;
             const warningCount = [jobsText, quotasText, trust, rerun, dashboardSummary].filter(Boolean).filter(item => item.tone === 'warning').length, next = actions[0] || {}, updated = new Date().toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit' });
-            setShift(elements.shift, warningCount ? 'warning' : 'ok', warningCount ? `${warningCount} 類訊號需注意` : '可正常操作', `${updated} · 下一步：${next.label || '查看狀態'} — ${next.title || '目前沒有急件'}`);
+            setShift(elements.shift, warningCount ? 'warning' : 'ok', dashboardValue ? (warningCount ? `${warningCount} 類訊號需注意` : '可正常操作') : '工作台查核未就緒', `${updated} · ${dashboardValue ? '' : '工作台讀取失敗，僅顯示已取得的基本狀態；'}下一步：${next.label || '查看狀態'} — ${next.title || '目前沒有急件'}`);
             renderActions(actions, dashboardValue?.decision_queue?.summary, dashboardValue);
         }
         async function handleCandidateAction(event) {
@@ -73,6 +74,9 @@
             const button = event.target.closest('[data-operator-action]');
             if (!button) return;
             const action = button.dataset.operatorAction, filename = button.dataset.filename, filenames = parseFilenames(button), originalText = button.textContent;
+            const actionKey = JSON.stringify([action, filename || '', filenames]);
+            if (pendingActions.has(actionKey)) return;
+            pendingActions.add(actionKey);
             button.disabled = true;
             button.textContent = action === 'run-watchlist' ? '排程中' : '處理中';
             try {
@@ -88,6 +92,7 @@
                 button.textContent = '失敗';
                 setTimeout(() => { button.textContent = originalText; }, 1600);
             } finally {
+                pendingActions.delete(actionKey);
                 button.disabled = false;
                 if (button.textContent !== '失敗') button.textContent = originalText;
             }

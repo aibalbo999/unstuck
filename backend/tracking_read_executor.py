@@ -168,16 +168,24 @@ def _compute_readonly_tracking(request):
     return result
 
 
-# Process startup/imports share the first projection's deadline. The formal
-# cold UI burst completed its valid projection in 21.887s, after the old 20s
-# limit. Keep warm reads at 20s and allow a bounded 35s only for a new worker.
-TRACKING_COLD_READ_TIMEOUT_SECONDS = 35.0
-TRACKING_REQUEST_TIMEOUT_SECONDS = 60.0  # preparation <=20s + cold projection <=35s
-tracking_reads = PerformanceReadExecutor(timeout_seconds=20.0, compute_fn=_compute_readonly_tracking,
-    read_name="tracking", cold_start_timeout_seconds=TRACKING_COLD_READ_TIMEOUT_SECONDS)
+# Each read rechecks the current evidence for 32 tracked reports. Valid warm
+# projections took 28.597–40.304 seconds; the real UI startup burst took 56.877
+# seconds cold. Both exceeded the former 20s warm/35s cold deadlines. Keep
+# finite limits that cover those measured workloads, with all source/rule checks.
+TRACKING_READ_TIMEOUT_SECONDS = 60.0
+TRACKING_COLD_READ_TIMEOUT_SECONDS = 75.0
+TRACKING_REQUEST_TIMEOUT_SECONDS = 100.0  # preparation <=20s + cold projection <=75s
+tracking_reads = PerformanceReadExecutor(timeout_seconds=TRACKING_READ_TIMEOUT_SECONDS,
+    compute_fn=_compute_readonly_tracking, read_name="tracking",
+    cold_start_timeout_seconds=TRACKING_COLD_READ_TIMEOUT_SECONDS)
 
 # Keep tracking and performance availability independent of the full audit.
-quality_reads = PerformanceReadExecutor(timeout_seconds=25.0, compute_fn=_compute_readonly_quality, read_name="quality")
+# The full current-rule audit of 201 latest reports takes 34–41 seconds on the
+# supported Mac. Keep a finite deadline above that observed workload, without
+# returning a prior completed projection or relaxing any source/rule checks.
+QUALITY_READ_TIMEOUT_SECONDS = 60.0
+QUALITY_REQUEST_TIMEOUT_SECONDS = 85.0  # preparation <=20s, projection <=60s
+quality_reads = PerformanceReadExecutor(timeout_seconds=QUALITY_READ_TIMEOUT_SECONDS, compute_fn=_compute_readonly_quality, read_name="quality")
 
 
 def _prepare_tracking_read(output_dir):
@@ -237,7 +245,7 @@ async def read_tracking_items(output_dir):
 
 async def read_quality_audit(output_dir):
     """Share preparation; project in one separate zero-queue read-only process."""
-    deadline = asyncio.timeout(30.0)
+    deadline = asyncio.timeout(QUALITY_REQUEST_TIMEOUT_SECONDS)
     try:
         async with deadline:
             prepared = await tracking_preparations.read((output_dir, _RULES_REVISION))

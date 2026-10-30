@@ -6,7 +6,7 @@
             this.apiClient = options.apiClient; this.ui = options.ui || {}; this.elements = options.elements || {};
             this.escapeHtml = this.ui.escapeHtml || (value => String(value ?? ''));
             this.payload = { items: [] }; this.loaded = false; this.loading = false; this.selectedTicker = ''; this.selectedModes = {};
-            this.sort = { key: 'score', direction: 'desc' }; this.filters = { ...DEFAULT_FILTERS }; this.offset = 0;
+            this.sort = { key: 'ticker', direction: 'asc' }; this.filters = { ...DEFAULT_FILTERS }; this.offset = 0;
         }
         setSummary(text) { if (this.elements.summaryEl) this.elements.summaryEl.textContent = text; }
         setLoading(value) { this.loading = Boolean(value); this.render(); }
@@ -35,12 +35,16 @@
         renderBoard(items) {
             const e = this.escapeHtml, enabled = items.filter(item => item.enabled !== false), modeD = enabled.filter(item => (item.pipeline || '') === 'v4').length;
             const updated = String(this.payload.last_updated_time || this.payload.updated_at || '-').slice(0, 16).replace('T', ' ');
-            return `<div class="market-screener-grid"><span><strong>${e(String(this.pagination(items).total))}</strong><em>符合條件</em></span><span><strong>${e(String(modeD))}</strong><em>本頁 Mode D</em></span><span><strong>${e(this.providersLabel())}</strong><em>資料源</em></span><span><strong>${e(updated)}</strong><em>更新</em></span></div>${this.renderControls()}`;
+            return `<div class="market-screener-grid"><span><strong>${e(String(this.pagination(items).total))}</strong><em>研究項目</em></span><span><strong>${e(String(modeD))}</strong><em>本頁 Mode D</em></span><span><strong>${e(this.providersLabel())}</strong><em>資料源</em></span><span><strong>${e(updated)}</strong><em>更新</em></span></div>${this.renderControls()}${this.renderSourceWarnings()}`;
+        }
+        renderSourceWarnings() {
+            const warnings = (this.payload.warnings || []).map(value => typeof value === 'string' ? value : value?.message).filter(Boolean);
+            return warnings.length ? `<div class="market-screener-source-warnings" role="status">${warnings.map(value => `<p>${this.escapeHtml(value)}</p>`).join('')}</div>` : '';
         }
         renderControls() {
             const e = this.escapeHtml;
             const numbers = NUMBER_CONTROLS.map(([key, label, unit]) => `<label>${e(label)}${unit ? `<small>${e(unit)}</small>` : ''}<input class="market-screener-number" type="number" inputmode="decimal" placeholder="不限" value="${e(String(this.filters[key] ?? ''))}" data-screener-filter="${e(key)}" /></label>`).join('');
-            return `<div class="market-screener-controls"><label>分類<select class="market-screener-filter-select" data-screener-filter="category"><option value="">全部標籤</option>${Object.keys(CATEGORY_LABELS).map(key => `<option value="${e(key)}" ${this.filters.category === key ? 'selected' : ''}>${e(categoryLabel(key))}</option>`).join('')}</select></label><label>最低分數 <output>${e(String(this.filters.minScore))}</output><input class="market-screener-range" type="range" min="0" max="100" step="5" value="${e(String(this.filters.minScore))}" data-screener-filter="minScore" /></label><label>RSI 上限 <output>${e(String(this.filters.rsiMax))}</output><input class="market-screener-range" type="range" min="40" max="90" step="5" value="${e(String(this.filters.rsiMax))}" data-screener-filter="rsiMax" /></label>${numbers}<label>每頁<select class="market-screener-filter-select" data-screener-filter="pageSize">${[20, 50, 100].map(size => `<option value="${size}" ${Number(this.filters.pageSize) === size ? 'selected' : ''}>${size} 檔</option>`).join('')}</select></label></div>`;
+            return `<div class="market-screener-controls"><label>分類<select class="market-screener-filter-select" data-screener-filter="category"><option value="">全部標籤</option>${Object.keys(CATEGORY_LABELS).map(key => `<option value="${e(key)}" ${this.filters.category === key ? 'selected' : ''}>${e(categoryLabel(key))}</option>`).join('')}</select></label><span>各訊號獨立觀察；未校準上漲機率</span><label>RSI 上限 <output>${e(String(this.filters.rsiMax))}</output><input class="market-screener-range" type="range" min="40" max="90" step="5" value="${e(String(this.filters.rsiMax))}" data-screener-filter="rsiMax" /></label>${numbers}<label>每頁<select class="market-screener-filter-select" data-screener-filter="pageSize">${[20, 50, 100].map(size => `<option value="${size}" ${Number(this.filters.pageSize) === size ? 'selected' : ''}>${size} 檔</option>`).join('')}</select></label></div>`;
         }
         renderModePicker(item) {
             const e = this.escapeHtml, ticker = String(item.ticker || '').toUpperCase();
@@ -55,12 +59,12 @@
         renderTable(items) {
             const e = this.escapeHtml;
             if (this.loading) return '<div class="market-screener-skeleton"><span></span><span></span><span></span></div>';
-            if (!items.length) return '<div class="market-screener-empty">查無資料，請放寬條件</div>';
+            if (!items.length) return '<div class="market-screener-empty">目前無符合篩選條件的研究項目</div>';
             const head = COLUMNS.map(([key, label]) => `<th><button class="market-screener-sort-button" type="button" data-screener-sort="${e(key)}">${e(label)}${this.sort.key === key ? (this.sort.direction === 'asc' ? ' ↑' : ' ↓') : ''}</button></th>`).join('');
             const rows = items.map(item => {
                 const ticker = String(item.ticker || '').toUpperCase(), company = companyName(item), tags = (item.tags || item.categories || []).filter(tag => tag !== 'Auto-Screener').map(categoryLabel).join('、');
                 const status = item.watchlist_status || {}, watch = status.in_watchlist || item.is_in_watchlist ? '已在觀察' : '可加入';
-                return `<tr><td><button class="market-screener-chip market-screener-row-button ${ticker === this.selectedTicker ? 'is-selected' : ''}" type="button" data-screener-select="${e(ticker)}" aria-expanded="${ticker === this.selectedTicker ? 'true' : 'false'}"><strong>${e(ticker)}</strong><small>${e(company || '-')}</small></button></td><td>${e(String(item.score ?? '-'))}</td><td>${formatSignedMetric(metric(item, 'bias_pct'))}</td><td>${e(String(metric(item, 'rsi_14') ?? '-'))}</td><td>${formatSignedMetric(metric(item, 'revenue_growth_yoy_pct'))}</td><td>${e(compactNumber(metric(item, 'total_net_buy_shares')))}</td><td><span class="market-screener-tag">${e(tags || 'Auto-Screener')}</span><small>${e(watch)}</small><em>${e(triggerReason(item))}</em></td></tr>${this.renderModePicker(item)}`;
+                return `<tr><td><button class="market-screener-chip market-screener-row-button ${ticker === this.selectedTicker ? 'is-selected' : ''}" type="button" data-screener-select="${e(ticker)}" aria-expanded="${ticker === this.selectedTicker ? 'true' : 'false'}"><strong>${e(ticker)}</strong><small>${e(company || '-')}</small></button></td><td>${formatSignedMetric(metric(item, 'normalized_flow_pct'))}</td><td>${formatSignedMetric(metric(item, 'bias_pct'))}</td><td>${e(String(metric(item, 'rsi_14') ?? '-'))}</td><td>${formatSignedMetric(metric(item, 'revenue_growth_yoy_pct'))}</td><td>${e(compactNumber(metric(item, 'total_net_buy_shares')))}</td><td><span class="market-screener-tag">${e(tags || 'Auto-Screener')}</span><small>${e(watch)}</small><em>${e(triggerReason(item))}</em></td></tr>${this.renderModePicker(item)}`;
             }).join('');
             return `<div class="market-screener-table-shell"><table class="market-screener-table"><thead><tr>${head}</tr></thead><tbody>${rows}</tbody></table></div>${this.renderPager(items)}`;
         }

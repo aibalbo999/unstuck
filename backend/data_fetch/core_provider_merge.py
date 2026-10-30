@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from data_cross_validator import apply_cross_validation_to_data
+from debt_field_definitions import debt_definition
 
 from .types import ProviderResult
 
@@ -41,6 +42,14 @@ def merge_core_provider_result(data: dict, result: ProviderResult) -> None:
         for key in TWSE_OFFICIAL_FIELDS:
             if data.get(key) in (None, "", "N/A") and value.get(key) is not None:
                 data[key] = value.get(key)
+                if key == 'total_debt_raw':
+                    metadata = value.get('financial_field_definitions')
+                    basis = metadata.get(key) if isinstance(metadata, dict) else None
+                    definitions = data.get('financial_field_definitions')
+                    definitions = dict(definitions) if isinstance(definitions, dict) else {}
+                    definitions[key] = (dict(basis) if isinstance(basis, dict) else
+                                        debt_definition(value[key], 'unknown', result.provider, 'legacy.total_debt_raw'))
+                    data['financial_field_definitions'] = definitions
         apply_cross_validation_to_data(data, {"twse": value})
     elif result.source == "institutional_trading" and isinstance(value, dict):
         if not data.get("institutional_trading"):

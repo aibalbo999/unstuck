@@ -327,7 +327,7 @@ def institutional_detail(data, supplemental_reports=()):
     return result
 
 
-def evidence_gap_details(data, supplemental_reports=(), supplemental_volume=None, cash_flow_review=None, annual_cash_flow_review=None):
+def evidence_gap_details(data, supplemental_reports=(), supplemental_volume=None, cash_flow_review=None, annual_cash_flow_review=None, quarterly_financial_review=None):
     data = _map(data)
     cash = cash_flow_detail(data)
     if cash_flow_review is not None:
@@ -336,5 +336,8 @@ def evidence_gap_details(data, supplemental_reports=(), supplemental_volume=None
     if annual_cash_flow_review is not None:
         from data_fetch.market_sources.official_annual_cash_flow import replay_reference
         cash['annual_reference'] = replay_reference(data, annual_cash_flow_review)
+    if quarterly_financial_review is not None:
+        from data_fetch.market_sources.tewc_quarterly_reference import replay_reference
+        cash['quarterly_reference'] = replay_reference(quarterly_financial_review, data.get('ticker'))
     return {'cash_flow': cash, 'volume': volume_detail(data, supplemental_volume),
             'institutional': institutional_detail(data, supplemental_reports)}

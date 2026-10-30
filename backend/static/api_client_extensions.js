@@ -14,7 +14,11 @@
         return jsonRequest(`/api/reports/compare?${params.toString()}`);
     }
     async function fetchWatchlist() { return jsonRequest('/api/watchlist'); }
-    async function fetchDailyDecisionDashboard() { return jsonRequest('/api/watchlist/daily-dashboard'); }
+    async function fetchDailyDecisionDashboard() {
+        // Share only an active GET; completed and failed reads are discarded.
+        const read = window.StockAgentApiRequest?.requestJsonCoalesced || jsonRequest;
+        return read('/api/watchlist/daily-dashboard');
+    }
     async function fetchCurrentQualitySummary() { return jsonRequest('/api/watchlist/current-quality-summary'); }
     async function fetchHistoricalReportQualityAudit({ itemLimit = 5, itemOffset = 0, query = '', pipeline = 'all', reviewStatus = 'all', missingField = 'all', versionStatus = 'all' } = {}) {
         const params = new URLSearchParams({ item_limit: String(itemLimit), item_offset: String(itemOffset), q: query || '', pipeline: pipeline || 'all', review_status: reviewStatus || 'all', missing_field: missingField || 'all', version_status: versionStatus || 'all' });

@@ -30,7 +30,11 @@ async def prepare_full_rerun_data(
     data = rerun_data_payload(dict.get(snapshot_map, "data"))
     if not data:
         raise HTTPException(status_code=400, detail="資料快照缺少 data payload")
+    from report_rebuild_preview import assert_rebuild_identity
+    assert_rebuild_identity(data, pipeline_id=pipeline_id, ticker=snapshot_map.get("ticker"))
     if refresh_service is None:
+        from report_rebuild_preview import assert_session_inputs
+        assert_session_inputs(data, pipeline_id=pipeline_id, ticker=snapshot_map.get("ticker"))
         return data
 
     ticker = str(dict.get(snapshot_map, "ticker") or data.get("ticker") or "").strip().upper()
@@ -59,6 +63,8 @@ async def prepare_full_rerun_data(
             else "資料刷新失敗"
         )
         raise HTTPException(status_code=502, detail=f"完整重跑前資料刷新失敗：{message}")
+    from report_rebuild_preview import assert_session_inputs
+    assert_session_inputs(refreshed_data, pipeline_id=pipeline_id, ticker=ticker)
     return refreshed_data
 
 
@@ -68,6 +74,9 @@ def freeze_full_rerun_inputs(data: dict, *, pipeline_id: str, progress_callback:
     from analysis_input_provenance import freeze_analysis_inputs
     from analysis_job_helpers import build_data_fetch_blocking_notice
     from types import SimpleNamespace
+    from report_rebuild_preview import assert_session_inputs
+
+    assert_session_inputs(data, pipeline_id=pipeline_id)
 
     notice = build_data_fetch_blocking_notice(SimpleNamespace(data=data, data_trust=data.get("data_trust", {})))
     if notice:

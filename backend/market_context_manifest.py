@@ -226,6 +226,8 @@ def market_assessment_workplan(data: dict, blocks: list[dict]) -> str:
     plan = {}
     for source in SOURCE_FIELDS:
         plan[source] = {
+            "output_field": f"market_context_assessment.{source}.source_refs",
+            "source_path_prefix": f"data.{source}.{SOURCE_FIELDS[source]}",
             "available_count": available_source_count(data, source),
             "visible_source_refs": [block["ref"] for block in blocks if block["source"] == source],
         }
@@ -234,6 +236,9 @@ def market_assessment_workplan(data: dict, blocks: list[dict]) -> str:
         "每項自行評估 impact（affects_conclusion / no_material_impact / not_assessed）、reason 與 source_refs；"
         "有可見資料時，逐項閱讀實際來源，說明傳導至本股票或不影響結論的理由、相反證據、觀測時間及與兩週期間的關係。"
         "影響或無實質影響均須引用下列對應可見 ref，不能以空泛『已納入』代替；"
+        "source_refs 只能選用同一欄位的 visible_source_refs，不得跨欄混用；來源歸屬依 market-source 的 path，不能依新聞主題改類。"
+        "例如利率或全球景氣的新聞仍屬 international_news_context，不能把其 ref 放進 global_market_context。"
+        "需要綜合兩類證據時，分別在各自欄位寫明來源支持的 reason，再整合結論；送出前逐欄核對每個 ref 與 reason 的來源內容。"
         "若未能評估，明寫具體缺口並標 not_assessed，不得假造無影響。"
         "來源缺失或未進入提示時，列明缺口且 source_refs=[]；新聞不是已排定公司事件，過期或缺日期不可冒充兩週催化。\n"
         + _encoded(plan)

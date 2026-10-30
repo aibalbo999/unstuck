@@ -20,6 +20,10 @@ backend/output/
 backend/cache/
 *.log
 
+# Original acquisition evidence and private replay inputs remain local.
+/docs/evidence/
+/tests/fixtures/source_acquisition/
+
 # Local virtual environments
 .venv/
 .audit-venv/

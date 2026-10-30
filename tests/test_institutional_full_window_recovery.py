@@ -158,7 +158,7 @@ def test_unknown_calendar_does_not_invent_earlier_sdk_window_or_make_official_re
             calls.append(kwargs); return pd.DataFrame()
     monkeypatch.setattr(taiwan, 'DataLoader', Loader)
     assert taiwan.fetch_institutional_trading_trend('6152.TW') == {}
-    assert calls == [{'stock_id': '6152', 'start_date': '2026-08-28', 'end_date': '2026-10-12'}]
+    assert calls == [], 'An unknown calendar must not invent a provider query window'
     official_calls = install_original_reports(monkeypatch, primary29())
     value, audit = source.recover_institutional_observations('6152.TW', primary29(), now_epoch=NOW, limit=30)
     assert official_calls == [] and audit['status'] == 'calendar_unknown'

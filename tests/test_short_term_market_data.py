@@ -16,11 +16,18 @@ AS_OF = date(2026, 9, 5)  # Saturday: the final completed session is Friday.
 
 
 def _frame(count=80, *, flat=False):
+    # OHLC fixtures represent exchange sessions, not every weekday. Calendar
+    # admission now correctly excludes holidays that pd.bdate_range includes.
+    from market_calendar_store import load_market_calendar
+    holidays = set(load_market_calendar("tw", 2026)["holidays"])
+    dates = [day for day in pd.bdate_range(start="2026-01-01", end="2026-09-04")
+             if day.date().isoformat() not in holidays][-count:]
+    assert len(dates) == count
     closes = [100.0 if flat else 100.0 + i for i in range(count)]
     return pd.DataFrame(
         {"Open": closes, "High": [v + 2 for v in closes],
          "Low": [v - 2 for v in closes], "Close": closes, "Adj Close": closes, "Volume": [1000.0] * count},
-        index=pd.bdate_range(end="2026-09-04", periods=count),
+        index=dates,
     )
 
 

@@ -21,6 +21,8 @@ F = Path(__file__).parent / 'fixtures/source_acquisition'
 
 @pytest.fixture
 def native(monkeypatch):
+    # Original-date validation must use the saved fixture's acquisition window.
+    monkeypatch.setattr(time, 'time', lambda: 1791948208.0)
     from data_fetch.market_sources import issuer_news_transport as base
     if importlib.util.find_spec('data_fetch.market_sources.tewc_conference_transport'):
         from data_fetch.market_sources import tewc_conference_transport as transport

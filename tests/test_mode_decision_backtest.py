@@ -79,7 +79,7 @@ def _bars(count=10):
     day = date(2026, 1, 2)
     while len(days) < count:
         if day.weekday() < 5:
-            days.append({"date": day.isoformat(), "open": 100, "high": 102, "low": 98, "close": 100})
+            days.append({"stock_splits": 0, "dividends": 0, "date": day.isoformat(), "open": 100, "high": 102, "low": 98, "close": 100})
         day += timedelta(days=1)
     return days
 
@@ -168,7 +168,8 @@ def test_backtest_bar_provider_returns_ohlc_without_lookahead():
             assert kwargs["auto_adjust"] is False
             return frame
     rows = fetcher("TEST", date(2026, 1, 1), date(2026, 1, 2), ticker_factory=lambda _: Ticker())
-    assert rows == [{"date": "2026-01-02", "open": 100.0, "high": 103.0, "low": 99.0, "close": 102.0}]
+    assert [{k:v for k,v in row.items() if k != "observation_provenance"} for row in rows] == [{"date": "2026-01-02", "open": 100.0, "high": 103.0, "low": 99.0, "close": 102.0}]
+    assert rows[0]["observation_provenance"]["auto_adjust"] is False
 
 
 @pytest.fixture
@@ -182,7 +183,7 @@ def isolated_mode_service(monkeypatch, tmp_path):
 
 
 def _report(mode="v4", **updates):
-    return {"filename": f"TEST_{mode}_report_20260101_090000.html", "ticker": "TEST",
+    return {"filename": f"TEST_{mode}_report_20260101_090000.html", "ticker": "2330.TW",
             "pipeline_id": mode, "date": "2026-01-01 09:00", **updates}
 
 
@@ -190,7 +191,7 @@ def _snapshot(tmp_path, report, parsed):
     import json
 
     path = tmp_path / report["filename"].replace(".html", ".data.json")
-    path.write_text(json.dumps({"pipeline": report["pipeline_id"], "rerun_context": {"parsed": parsed}}), encoding="utf-8")
+    path.write_text(json.dumps({"pipeline": report["pipeline_id"], "data": {"ticker": "2330.TW", "quote_type": "EQUITY", "daily_market_data": {"price_adjustment_basis": "unadjusted_exchange_ohlc"}}, "rerun_context": {"parsed": parsed}}), encoding="utf-8")
 
 
 def test_service_routes_d_to_5_10_sessions_and_separate_idempotent_store(isolated_mode_service, monkeypatch):
@@ -207,8 +208,8 @@ def test_service_routes_d_to_5_10_sessions_and_separate_idempotent_store(isolate
         result = _bars()
         result[1].update(high=112)
         return result
-    first = service.run_due_backtests(output_dir=str(tmp_path), as_of=date(2026, 2, 1), price_fetcher=prices, bar_fetcher=bars)
-    second = service.run_due_backtests(output_dir=str(tmp_path), as_of=date(2026, 2, 1), price_fetcher=prices, bar_fetcher=bars)
+    first = service.run_due_backtests(allow_historical_evaluation=True, output_dir=str(tmp_path), as_of=date(2026, 2, 1), price_fetcher=prices, bar_fetcher=bars)
+    second = service.run_due_backtests(allow_historical_evaluation=True, output_dir=str(tmp_path), as_of=date(2026, 2, 1), price_fetcher=prices, bar_fetcher=bars)
     assert first["errors"] == []
     assert {row["horizon_trading_days"] for row in first["evaluated"]} == {5, 10}
     assert second["evaluated_count"] == 0
@@ -224,7 +225,7 @@ def test_service_requires_same_period_execution_plan_for_b_c(isolated_mode_servi
     service, tmp_path = isolated_mode_service
     report = _report(mode, recommendation={"recommendation": "買入", "target_12m": "150"})
     monkeypatch.setattr(service.report_history_service, "list_reports", lambda **kwargs: {"reports": [report]})
-    result = service.run_due_backtests(output_dir=str(tmp_path), as_of=date(2027, 2, 1),
+    result = service.run_due_backtests(allow_historical_evaluation=True, output_dir=str(tmp_path), as_of=date(2027, 2, 1),
                                       price_fetcher=lambda *a: pytest.fail("No long-term target substitution"),
                                       bar_fetcher=lambda *a: pytest.fail("Missing plan must not fetch"))
     assert result["errors"] == []
@@ -245,7 +246,7 @@ def test_service_evaluates_only_explicit_b_c_contract(isolated_mode_service, mon
     report = _report(mode)
     _snapshot(tmp_path, report, parsed)
     monkeypatch.setattr(service.report_history_service, "list_reports", lambda **kwargs: {"reports": [report]})
-    result = service.run_due_backtests(output_dir=str(tmp_path), as_of=date(2026, 2, 1), bar_fetcher=lambda *a: _bars())
+    result = service.run_due_backtests(allow_historical_evaluation=True, output_dir=str(tmp_path), as_of=date(2026, 2, 1), bar_fetcher=lambda *a: _bars())
     assert result["errors"] == []
     assert result["evaluated_count"] == 1
     assert result["evaluated"][0]["status"] == expected
@@ -256,7 +257,7 @@ def test_service_missing_trade_horizon_is_explicitly_unverifiable(isolated_mode_
     report = _report("v2")
     _snapshot(tmp_path, report, {"position_plan": {"action": "進場", "entry_zone": "100", "stop_loss": "90", "target_price": "110"}})
     monkeypatch.setattr(service.report_history_service, "list_reports", lambda **kwargs: {"reports": [report]})
-    result = service.run_due_backtests(output_dir=str(tmp_path), as_of=date(2026, 2, 1), bar_fetcher=lambda *a: pytest.fail("No inferred horizon"))
+    result = service.run_due_backtests(allow_historical_evaluation=True, output_dir=str(tmp_path), as_of=date(2026, 2, 1), bar_fetcher=lambda *a: pytest.fail("No inferred horizon"))
     assert result["skipped"][0]["reason"] == "explicit_trade_horizon_required"
 
 
@@ -288,10 +289,10 @@ def test_temporal_memory_reads_versioned_trade_result(isolated_mode_service, mon
     service, tmp_path = isolated_mode_service
     report = _report()
     monkeypatch.setattr(service.report_history_service, "list_reports", lambda **kwargs: {"reports": [report]})
-    trade_backtest_store.save_result({"report_filename": report["filename"], "ticker": "TEST", "pipeline_id": "v4",
+    trade_backtest_store.save_result({"report_filename": report["filename"], "ticker": "2330.TW", "pipeline_id": "v4",
         "horizon_trading_days": 5, "schema_version": "trade_path_backtest.v1", "status": "stop_first",
         "outcome": "miss", "strategy_roi_pct": -10, "evaluation_date": "2026-01-08"})
-    memory = temporal_memory_service.build_temporal_memory("TEST", pipeline_id="v4", output_dir=str(tmp_path))
+    memory = temporal_memory_service.build_temporal_memory("2330.TW", pipeline_id="v4", output_dir=str(tmp_path))
     assert memory["backtests"][0]["horizon_trading_days"] == 5
     assert memory["backtests"][0]["strategy_roi_pct"] == -10
     assert "5 個交易日" in memory["reflection_prompt"]
@@ -350,7 +351,7 @@ def test_service_neutral_plan_cannot_invent_cash_from_nonzero_position(isolated_
     report = _report("v2")
     _snapshot(tmp_path, report, {"position_plan": {"action": "等待", "position_size": "25%", "horizon_trading_days": 5}})
     monkeypatch.setattr(service.report_history_service, "list_reports", lambda **kwargs: {"reports": [report]})
-    result = service.run_due_backtests(output_dir=str(tmp_path), as_of=date(2026, 2, 1), bar_fetcher=lambda *a: pytest.fail("Invalid cash assumption"))
+    result = service.run_due_backtests(allow_historical_evaluation=True, output_dir=str(tmp_path), as_of=date(2026, 2, 1), bar_fetcher=lambda *a: pytest.fail("Invalid cash assumption"))
     assert result["skipped"][0]["reason"] == "invalid_observation_contract"
 
 
@@ -402,7 +403,7 @@ def test_service_b_short_recommendation_uses_same_plan_short_prices(isolated_mod
     bars = _bars()
     bars[1].update(open=100, high=102, low=79, close=82)
     monkeypatch.setattr(service.report_history_service, "list_reports", lambda **kwargs: {"reports": [report]})
-    result = service.run_due_backtests(output_dir=str(tmp_path), as_of=date(2026, 2, 1), bar_fetcher=lambda *a: bars)
+    result = service.run_due_backtests(allow_historical_evaluation=True, output_dir=str(tmp_path), as_of=date(2026, 2, 1), bar_fetcher=lambda *a: bars)
     assert result["errors"] == []
     assert result["evaluated"][0]["status"] == "target_first"
     assert result["evaluated"][0]["strategy_roi_pct"] == 20
@@ -416,7 +417,7 @@ def test_service_b_missing_recommendation_labels_legacy_long_assumption(isolated
         "action": "進場", "entry_zone": "100", "target_price": "110", "stop_loss": "90", "horizon_trading_days": 5,
     }})
     monkeypatch.setattr(service.report_history_service, "list_reports", lambda **kwargs: {"reports": [report]})
-    result = service.run_due_backtests(output_dir=str(tmp_path), as_of=date(2026, 2, 1), bar_fetcher=lambda *a: _bars())
+    result = service.run_due_backtests(allow_historical_evaluation=True, output_dir=str(tmp_path), as_of=date(2026, 2, 1), bar_fetcher=lambda *a: _bars())
     assert result["evaluated"][0]["trade_direction"] == "Long"
     assert result["evaluated"][0]["direction_assumption"] == "legacy_long_default"
 
@@ -458,7 +459,7 @@ def test_service_invalid_observation_neither_fetches_nor_persists_cash_roi(isola
     parsed[field].update(updates)
     _snapshot(tmp_path, report, parsed)
     monkeypatch.setattr(service.report_history_service, "list_reports", lambda **kwargs: {"reports": [report]})
-    result = service.run_due_backtests(output_dir=str(tmp_path), as_of=date(2026, 2, 1),
+    result = service.run_due_backtests(allow_historical_evaluation=True, output_dir=str(tmp_path), as_of=date(2026, 2, 1),
         bar_fetcher=lambda *a: pytest.fail("Invalid observation must be rejected before fetching prices"))
     assert result["errors"] == []
     assert result["evaluated"] == []
@@ -472,7 +473,7 @@ def test_service_complete_observation_contract_records_explicit_cash_assumption(
     report = _report(mode)
     _snapshot(tmp_path, report, _observation_contract(mode))
     monkeypatch.setattr(service.report_history_service, "list_reports", lambda **kwargs: {"reports": [report]})
-    result = service.run_due_backtests(output_dir=str(tmp_path), as_of=date(2026, 2, 1), bar_fetcher=lambda *a: _bars())
+    result = service.run_due_backtests(allow_historical_evaluation=True, output_dir=str(tmp_path), as_of=date(2026, 2, 1), bar_fetcher=lambda *a: _bars())
     assert result["errors"] == []
     assert result["evaluated_count"] == (2 if mode == "v4" else 1)
     for row in result["evaluated"]:

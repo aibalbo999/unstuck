@@ -14,7 +14,7 @@ def fetch_backtest_bars(
     captured_at=moment or datetime.now(timezone.utc)
     if str(ticker).endswith((".TW",".TWO")):
         from market_evidence_policy import completed_evidence_session
-        completed=completed_evidence_session(captured_at)
+        completed=completed_evidence_session(captured_at, ticker=ticker)
         if completed is None:return []
         evaluation_date=min(evaluation_date,date.fromisoformat(completed))
         if evaluation_date<=generated_date:return []
