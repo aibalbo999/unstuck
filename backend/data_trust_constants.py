@@ -22,6 +22,7 @@ SNAPSHOT_TRIMMABLE_LIST_FIELDS = (
     "dynamic_peer_metrics",
 )
 SNAPSHOT_CORE_DATA_KEYS = {
+    "nightly_analysis",
     "news_selection",
     "recent_catalysts",
     "quote_type",
@@ -57,6 +58,9 @@ SNAPSHOT_CORE_DATA_KEYS = {
     "net_income_ttm_raw",
     "free_cash_flow_raw",
     "total_debt_raw",
+    "financial_field_definitions",
+    "official_income_reference",
+    "official_segment_reference",
     "total_cash_raw",
     "years",
     "revenue_history",

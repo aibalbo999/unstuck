@@ -127,7 +127,12 @@ def test_indicator_volume_mean_never_splices_official_latest_volume(monkeypatch)
     monkeypatch.setattr(source,'official_observation',lambda ticker,day:{**daily(2000)['official_observation'],'date':day,'ticker':ticker})
     class Stock:
         ticker='1301.TW'
-        def history(self,**kwargs):return pd.DataFrame({'Close':[68.3]*20,'Adj Close':[68.3]*20,'Open':[67]*20,'High':[69.6]*20,'Low':[66.8]*20,'Volume':[1000]*20},index=pd.bdate_range(end='2026-10-02',periods=20))
+        def history(self,**kwargs):
+            from market_calendar_store import load_market_calendar
+            holidays = set(load_market_calendar('tw', 2026)['holidays'])
+            days = [day for day in pd.bdate_range(end='2026-10-02',periods=30)
+                    if day.date().isoformat() not in holidays][-20:]
+            return pd.DataFrame({'Close':[68.3]*20,'Adj Close':[68.3]*20,'Open':[67]*20,'High':[69.6]*20,'Low':[66.8]*20,'Volume':[1000]*20},index=days)
     bundle=extract_market_history_bundle(Stock(),as_of=date(2026,10,2))
     assert bundle['technical_indicators']['volume_latest']==1000
     assert bundle['technical_indicators']['volume_sma_20']==1000

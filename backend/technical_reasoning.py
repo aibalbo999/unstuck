@@ -5,6 +5,17 @@ from datetime import date
 from short_term_technical_indicators import calculate_technical_indicators
 
 
+def _verification_scope(data):
+    from market_session_admission import assess_daily_session_integrity
+    data = data if isinstance(data, dict) else {}
+    daily = data.get('daily_market_data')
+    integrity = assess_daily_session_integrity(daily, ticker=data.get('ticker'))
+    return {'verification_scope': 'saved_window_arithmetic',
+            'session_integrity': integrity,
+            'independent_primary_source_verified': False,
+            'historical_point_in_time_verified': False}
+
+
 def comparison_from_data(data):
     daily=data.get("daily_market_data", {})
     technical=data.get("technical_indicators", {})
@@ -27,7 +38,7 @@ def comparison_from_data(data):
 
 
 def histogram_reasoning_checks(text,data):
-    checks=[];comparison=None
+    checks=[];comparison=None;scope=_verification_scope(data)
     for number,line in enumerate(str(text).splitlines(),1):
         # Fixed ledger and hypothetical/negated/history claims are outside scope.
         if not re.search(r"MACD",line,re.I) or not re.search(r"柱狀體|柱體|負柱|正柱|histogram",line,re.I):continue
@@ -47,9 +58,12 @@ def histogram_reasoning_checks(text,data):
                 if any(d not in {comparison["observed_date"],comparison["previous_date"]} for d in dates):continue
                 actual=comparison["relation"]
                 status="unverifiable" if ambiguous else "verified" if actual.endswith("_"+claimed) else "mismatch"
+            arithmetic_status = status
+            if status == 'verified' and not scope['session_integrity']['eligible']:
+                status = 'unverifiable'
             checks.append({"line_number":number,"raw_text":clause,"claimed_change":claimed,
-                           "status":status,"comparison":comparison,
-                           "reason":"histogram_assertion_scope_ambiguous" if ambiguous else "histogram_magnitude_relation" if comparison else "histogram_two_session_evidence_missing"})
+                           "status":status, "arithmetic_status": arithmetic_status, "comparison":comparison, **scope,
+                           "reason":"technical_session_integrity_unverified" if arithmetic_status == 'verified' and not scope['session_integrity']['eligible'] else "histogram_assertion_scope_ambiguous" if ambiguous else "histogram_magnitude_relation" if comparison else "histogram_two_session_evidence_missing"})
     return checks
 
 
@@ -93,7 +107,7 @@ def _named_sma_periods(text):
 
 def sma_reasoning_checks(text,data):
     """Check explicit scoped SMA relations; ambiguous period scope stays unknown."""
-    checks=[];inputs=None
+    checks=[];inputs=None;scope=_verification_scope(data)
     for number,line in enumerate(str(text).splitlines(),1):
         for clause in re.split(r'[。；;]|[，,]?(?:但|惟|然而)',line):
             if re.search(r'若|如果|假設|預估|未來|等待|情境|劇本|需帶量|需站|必須|才能|曾經|過去|並非|不是|不代表|未站|未突破|未高於|不高於|未低於|不低於|尚未',clause):continue
@@ -130,11 +144,13 @@ def sma_reasoning_checks(text,data):
                 valid=inputs is not None and ps is not None and bool(values) and all(type(v) in (int,float) and math.isfinite(v) and type(inputs['recorded'].get('sma_'+str(p))) in (int,float) and abs(inputs['recorded']['sma_'+str(p)]-v)<=1e-7 for p,v in values.items())
                 verified=valid and (all(values[a]>values[b] for a,b in zip(ps,ps[1:])) if claim=='bullish_sma_order' else all(inputs['close']>v if claim=='close_above_sma' else inputs['close']<v for v in values.values()))
                 checks.append({'line_number':number,'raw_text':clause,'claim_type':claim,
-                               'status':'unverifiable' if not valid else 'verified' if verified else 'mismatch',
+                               'status':'unverifiable' if not valid or (verified and not scope['session_integrity']['eligible']) else 'verified' if verified else 'mismatch',
+                               'arithmetic_status':'unverifiable' if not valid else 'verified' if verified else 'mismatch',
+                               **scope,
                                'comparison':{'periods':ps,'sma_values':values,'observed_date':inputs['observed_date'] if inputs else None,
                                              'close':inputs['close'] if inputs else None,'input_basis':'frozen_analysis_input;not_later_refresh',
                                              'bars_sha256':inputs['bars_sha256'] if inputs else None},
-                               'reason':'sma_period_scope_ambiguous' if ps is None else 'same_window_sma_relation' if valid else 'frozen_sma_input_missing_or_inconsistent'})
+                               'reason':'sma_period_scope_ambiguous' if ps is None else 'technical_session_integrity_unverified' if verified and not scope['session_integrity']['eligible'] else 'same_window_sma_relation' if valid else 'frozen_sma_input_missing_or_inconsistent'})
     return checks
 
 

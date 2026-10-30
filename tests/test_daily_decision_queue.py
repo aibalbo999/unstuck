@@ -1511,7 +1511,9 @@ def test_daily_decision_candidate_preserves_company_and_reason_context():
         "type": "review_candidate",
         "priority_score": 420,
         "title": "2408.TW 南亞科",
-        "detail": "外資買超 15430 張、投信買超 3250 張、自營商 0 張",
+        "detail": "研究待查，非最新完整交易候選：外資買超 15430 張、投信買超 3250 張、自營商 0 張",
+        "research_only": True,
+        "actionable_trade": False,
         "ticker": "2408.TW",
         "company_name": "南亞科",
         "reason": "外資買超 15430 張、投信買超 3250 張、自營商 0 張",
@@ -1544,7 +1546,7 @@ def test_daily_decision_candidate_items_do_not_depend_on_truthiness():
     assert queue["summary"]["sources"] == {"screener": 1}
     assert queue["items"][0]["type"] == "review_candidate"
     assert queue["items"][0]["title"] == "2408.TW 南亞科"
-    assert queue["items"][0]["detail"] == "外資買超 15430 張"
+    assert queue["items"][0]["detail"] == "研究待查，非最新完整交易候選：外資買超 15430 張"
 
 
 def test_daily_decision_candidate_text_fields_do_not_depend_on_truthiness():
@@ -1578,7 +1580,7 @@ def test_daily_decision_candidate_text_fields_do_not_depend_on_truthiness():
     candidate = queue["items"][0]
     assert candidate["type"] == "review_candidate"
     assert candidate["title"] == "2408.TW 南亞科"
-    assert candidate["detail"] == "外資買超 15430 張"
+    assert candidate["detail"] == "研究待查，非最新完整交易候選：外資買超 15430 張"
     assert candidate["ticker"] == "2408.TW"
     assert candidate["company_name"] == "南亞科"
     assert candidate["reason"] == "外資買超 15430 張"
@@ -1597,7 +1599,7 @@ def test_daily_decision_candidate_falls_back_when_company_and_reason_are_missing
 
     candidate = queue["items"][0]
     assert candidate["title"] == "2408.TW"
-    assert candidate["detail"] == "市場掃描候選"
+    assert candidate["detail"] == "研究待查，非最新完整交易候選：市場掃描訊號"
 
 
 def test_daily_decision_queue_excludes_latency_but_preserves_retry_route_warnings():

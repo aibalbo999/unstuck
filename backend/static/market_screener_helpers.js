@@ -1,7 +1,7 @@
 (function () {
     const CATEGORY_LABELS = { institutional_accumulation: '外資投信同步', technical_heat: '股價大漲跌/成交量暴增' };
     const COLUMNS = [
-        ['ticker', '股票'], ['score', '分數'], ['bias_pct', '乖離'], ['rsi_14', 'RSI'],
+        ['ticker', '股票'], ['normalized_flow_pct', '外資投信/量%'], ['bias_pct', '乖離'], ['rsi_14', 'RSI'],
         ['revenue_growth_yoy_pct', '營收 YoY'], ['total_net_buy_shares', '法人買超'], ['watchlist', '狀態']
     ];
     const DEFAULT_FILTERS = { category: '', minScore: 0, revenueGrowthMin: '', revenueGrowthMax: '', rsiMin: '', rsiMax: 90, macdMin: '', macdHistogramMin: '', totalNetBuyMin: '', foreignNetBuyMin: '', investmentTrustNetBuyMin: '', dealerNetBuyMin: '', pageSize: 50 };
@@ -14,7 +14,7 @@
     function triggerReason(item) { const trigger = dailyTrigger(item); return item.reason || trigger.reason || item.latest_trigger_event?.message || 'Auto-Screener'; }
     function companyName(item) { const trigger = dailyTrigger(item); return item.company_name || trigger.company_name || trigger.metrics?.company_name || ''; }
     function metric(item, key) { const metrics = item.metrics || dailyTrigger(item).metrics || {}; return key === 'score' ? item.score : metrics[key]; }
-    function numberValue(value) { const n = Number(String(value ?? '').replace(/,/g, '')); return Number.isFinite(n) ? n : null; }
+    function numberValue(value) { if (value === null || value === undefined || String(value).trim() === '') return null; const n = Number(String(value ?? '').replace(/,/g, '')); return Number.isFinite(n) ? n : null; }
     function numericOrBlank(value) { const n = numberValue(value); return n === null ? '' : n; }
     function readFilterValue(input) { return input.type === 'range' || input.type === 'number' || input.dataset.screenerFilter === 'pageSize' ? numericOrBlank(input.value) : input.value; }
     function compactNumber(value) { const n = numberValue(value); return n === null ? '-' : (Math.abs(n) >= 10000 ? `${Math.round(n / 1000).toLocaleString()}張` : n.toLocaleString()); }

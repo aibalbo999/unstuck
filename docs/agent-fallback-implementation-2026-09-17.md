@@ -201,7 +201,7 @@ Agent 22 省約 700–1,000 tokens 仍超限，不能宣稱靠本次壓縮全面
 - 562 份報告的 API 索引摘要完全相同（含檔名、內容 hash 欄位、日期與 freshness），digest 為 `e37b395f81d20bf975734316e075877eb3d46b92e8c97d836027309c00b50953`；current 493、needs_rerun 69，追蹤啟用數仍為 8。這是索引／hash 欄位核對，沒有逐一重新計算所有 artifact bytes。
 - Operational DB 的 waiting_retry 維持 25、error 69、cancelled 3；done 歷史數由 1203 降為 1187。既有啟動 maintenance 會清除超期 terminal job／events，與此現象一致；未保存刪除前逐筆 job 清單，因此不能將所有 DB 內容宣稱為完全不變。報告索引與等待排程均已獨立核對。
 
-部署證據與 Redis 回復快照位於 `/Volumes/X10 Pro Mac/stock-agent-optimization-deploy-20260918.ro4j1fej`，包含 `verified-files.json`、`runtime-before.json`、`runtime-after.json`、`restore-check.json`、`verification.json`、來源備份及三階段 RDB。該目錄僅限擁有者存取；未納入 Git。
+部署證據與 Redis 回復快照位於 `/Volumes/X10 Pro Mac/stock-agent-archives/releases/stock-agent-optimization-deploy-20260918.ro4j1fej`，包含 `verified-files.json`、`runtime-before.json`、`runtime-after.json`、`restore-check.json`、`verification.json`、來源備份及三階段 RDB。該目錄僅限擁有者存取；未納入 Git。
 
 正式套用已完成，但本次沒有新增模型請求或手動重送任務。實際 provider 完成率、額度節省幅度與新 checkpoint 在後續正式重試中的成效尚未量測；既有未保存的重跑進度不能事後補回。
 
@@ -220,7 +220,7 @@ Agent 22 省約 700–1,000 tokens 仍超限，不能宣稱靠本次壓縮全面
 
 33 筆 scheduled job ID／原定 9/19 15:00 時間、48 筆 RPD key／毫秒絕對到期時間逐筆相同。577 份報告索引摘要也完全相同，digest `7b5907709c564714afba04cc7c823f7868805d20163d24f02d313da04300a195`。啟動 maintenance 清理 34 筆已完成 job 歷史；以部署前逐筆清單核對，恰好等於既有 30 天保留期限與保留最近 20 筆規則的清理集合，未變更等待 job 或其他既有 job 的狀態。
 
-本輪 baseline、24 個修改檔案 SHA-256、來源備份、Redis 三階段快照、`verification.json` 與啟動日誌位於 `/Volumes/X10 Pro Mac/stock-agent-optimization-deploy-20260919.10vmy7we`（擁有者專用，未納入 Git）。發布後只追加本段文件，runtime 程式與已測試版本相同。未新增 provider 測試請求或提前重送；實際等待時間下降幅度與修復後品質通過率，仍需後續正常執行資料驗證。
+本輪 baseline、24 個修改檔案 SHA-256、來源備份、Redis 三階段快照、`verification.json` 與啟動日誌位於 `/Volumes/X10 Pro Mac/stock-agent-archives/releases/stock-agent-optimization-deploy-20260919.10vmy7we`（擁有者專用，未納入 Git）。發布後只追加本段文件，runtime 程式與已測試版本相同。未新增 provider 測試請求或提前重送；實際等待時間下降幅度與修復後品質通過率，仍需後續正常執行資料驗證。
 
 ### 後續集中模型驗收預算提案（尚未執行／未自動取得授權）
 
@@ -245,7 +245,7 @@ Agent 22 省約 700–1,000 tokens 仍超限，不能宣稱靠本次壓縮全面
 
 另以今天 4 件模式 C 失敗任務的保存 checkpoint 做唯讀匯出、隔離重播：在相同資料上套用舊備援，各有 2 項最終跨 Agent 稽核 critical；套用新備援後均為 0 critical（4 passed）。這不是正式重新產報或發布驗證，也不代表 provider 額度已恢復、其他 4 件品質問題已修復。持有 5–30% 等報酬政策門檻及完整 evidence／publication gates 維持原狀。
 
-本輪備份與證據：`/Volumes/X10 Pro Mac/stock-agent-quality-deploy-20260919.e2vcgypf`。正式更新結果另見該目錄 verification.json。
+本輪備份與證據：`/Volumes/X10 Pro Mac/stock-agent-archives/releases/stock-agent-quality-deploy-20260919.e2vcgypf`。正式更新結果另見該目錄 verification.json。
 
 ## 2026-09-19 完整備援與報告層觀測
 
@@ -268,7 +268,7 @@ Gemma evidence extraction 現在明確使用 `thinking_level=minimal`，只改�
 
 另修正供應商回應以單一 Markdown JSON 程式碼框包覆時的解析相容性；仍拒絕外圍說明、多個程式碼框、錯誤批次／來源 ID、額外欄位及非逐字摘錄。完整原始資料與所有批次驗證維持原狀。同步／非同步及備援路徑等 4 個相關測試檔共 **57 passed**，另 runtime/storage 必跑組 **21 passed**，均以隔離 runner 執行；這不是全套測試或完整報告品質證明。
 
-同一個真實小批次的前輪配對由 49.91 秒降至 33.94 秒，兩次均通過引用驗證，但只有一組配對，不能推算長期失敗率。本輪以正式 9,000-token 規劃驗證：Agent 22 共兩批，首批重試後取得 5 筆有效摘錄，第二批在兩次嘗試後仍遇服務錯誤；因此不宣稱 504 已解決，也不啟用 `GEMMA_EVIDENCE_BATCHING_ENABLED`。詳細 provider 事件、正式路由整合檢查與部署狀態保存於 `/Volumes/X10 Pro Mac/stock-agent-gemma-minimal-release-20260919.z610_gwx`。
+同一個真實小批次的前輪配對由 49.91 秒降至 33.94 秒，兩次均通過引用驗證，但只有一組配對，不能推算長期失敗率。本輪以正式 9,000-token 規劃驗證：Agent 22 共兩批，首批重試後取得 5 筆有效摘錄，第二批在兩次嘗試後仍遇服務錯誤；因此不宣稱 504 已解決，也不啟用 `GEMMA_EVIDENCE_BATCHING_ENABLED`。詳細 provider 事件、正式路由整合檢查與部署狀態保存於 `/Volumes/X10 Pro Mac/stock-agent-archives/releases/stock-agent-gemma-minimal-release-20260919.z610_gwx`。
 
 後續在獨立驗證程序啟用 batching、沿實際路由整合：Agent 22 重用第一批已驗證快取、成功取得第二批，兩批共 10 筆引用且完整保留 51 筆來源記錄；Lite 實際生成整合結果，完整 fallback prompt 與原始輸入 hash 均驗證不變。這是 Agent 路由整合驗證，沒有發布新報告或宣稱通過整份報告的 final audit。Agent 23 首批兩次請求後仍以 HTTP 504 結束，因此正式 profile 維持 batching OFF。
 
@@ -284,7 +284,7 @@ Gemma evidence extraction 現在明確使用 `thinking_level=minimal`，只改�
 - 高頻 A/B 實驗後段兩模型皆出現未提供細項的 429，結果全部保留，未當作成功或排除。串流、自由引用及字串選項等失敗方案不採用。
 - `model_routes_usage_aware_free.json` 啟用分批；26B 的本機 admission 參考為 RPM 1、TPM 16000、input 12000，未新增推定 RPD entitlement。每日禁用標記、排程、報告、完整來源與品質 gates 均保留。
 - 隔離測試：103 passed。正式啟用證據以此次 deployment/verification.json 及後續 canary 為準。
-- 私有實驗與完整失敗紀錄：`/Volumes/X10 Pro Mac/stock-agent-gemma-504-compare-20260919.5gl8zhdl`。
+- 私有實驗與完整失敗紀錄：`/Volumes/X10 Pro Mac/stock-agent-archives/evidence/stock-agent-gemma-504-compare-20260919.5gl8zhdl`。
 
 ### 2026-09-19 最終品質、429 與跨標的驗證
 
@@ -294,4 +294,4 @@ Gemma evidence extraction 現在明確使用 `thinking_level=minimal`，只改�
 - 私有完整 v4 canary 使用三份固定真實快照（1623、6715、6257），停用驗證程序的回應快取，沿正式模型路由及正常品質修復生成 HTML／Markdown。三個標的均至少取得一份 `final_audit=passed`、lint 通過、evidence approved 的報告；原資料 hash 保持不變。1623 保留來源可信度警示，6715 與 6257 conformance passed；未發布私人驗證報告。
 - 初始兩輪六次執行為三次成功、三次因 429 有界延期；6715 成功報告亦曾在 429 後換可用 key 修復。這證明錯誤可退出及部分備援可恢復，不代表供應商額度充足或長期 429 頻率已下降。後續 paced repeats、正式重啟／版本校驗與持續觀察以證據目錄更新結果為準。
 - 數字檢查屬特定欄位與句型保護，不是所有歷史數字的全面驗證；三個標的小樣本及先前十二個有效 Gemma 批次亦不能推算長期 504 率。Google 官方說明額度以 project 計算，不能由多把 key 推定多個獨立額度（https://ai.google.dev/gemini-api/docs/rate-limits）。
-- 完整失敗、測試、來源 hash、發布 manifest、部署及持續觀察證據：`/Volumes/X10 Pro Mac/stock-agent-final-optimization-20260919.ccemjg5q`。
+- 完整失敗、測試、來源 hash、發布 manifest、部署及持續觀察證據：`/Volumes/X10 Pro Mac/stock-agent-archives/releases/stock-agent-final-optimization-20260919.ccemjg5q`。

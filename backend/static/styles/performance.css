@@ -41,3 +41,34 @@
 .recent-backtest {
     min-height: 86px;
 }
+
+/* Keep evidence diagnostics within the mobile header instead of clipping them. */
+#performance-panel .provider-sla-header > div {
+    min-width: 0;
+    flex: 1;
+}
+#performance-summary {
+    display: block;
+    overflow-wrap: anywhere;
+}
+#performance-refresh {
+    flex-shrink: 0;
+}
+
+@media (max-width: 600px) {
+    #performance-panel .provider-sla-header {
+        display: block;
+        position: relative;
+    }
+    #performance-panel .provider-sla-kicker {
+        display: flex;
+        align-items: center;
+        min-height: 44px;
+        padding-right: 56px;
+    }
+    #performance-refresh {
+        position: absolute;
+        top: 0;
+        right: 0;
+    }
+}

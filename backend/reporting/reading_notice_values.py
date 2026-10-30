@@ -166,6 +166,9 @@ def build_report_reading_notice_values(context: dict) -> dict[str, Any]:
     ])
     if integrity:
         checks.append(("資料快照完整性", snapshot_integrity_label(integrity)))
+    from institutional_report_status import build_institutional_report_status, institutional_status_checks
+    institutional_status = build_institutional_report_status(context)
+    checks.extend(institutional_status_checks(institutional_status))
     admission = _as_dict(evidence.get("source_admission"))
     if admission:
         from report_source_admission import admission_reason_label
@@ -189,4 +192,5 @@ def build_report_reading_notice_values(context: dict) -> dict[str, Any]:
         "state_label": _STATE_LABELS[state],
         "state_note": state_note,
         "checks": checks,
+        "institutional_status": institutional_status,
     }

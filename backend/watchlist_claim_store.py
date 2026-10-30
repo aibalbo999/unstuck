@@ -18,6 +18,8 @@ def claim_due_watchlist_items(now: datetime | None=None) -> list[dict]:
         for item in items:
             if not item.get('enabled'):continue
             for slot in item.get('schedule_slots',[]):
+                from nightly_analysis_policy import enabled, domestic
+                if enabled() and domestic(item['ticker']) and slot == 'post_market':continue
                 if not slot_due(slot,now,schedules=DEFAULT_SCHEDULES):continue
                 # Old successful/claimed slots are authoritative; never replay them.
                 if (item.get('last_run_dates') or {}).get(slot)==today:continue
@@ -32,6 +34,8 @@ def claim_due_watchlist_items(now: datetime | None=None) -> list[dict]:
                 ORDER BY due_date,ticker,pipeline,CASE slot WHEN 'pre_market' THEN 0 ELSE 1 END''',(today,now.timestamp())).fetchall():
             item=by_identity.get((row['ticker'],row['pipeline']))
             if not item or row['slot'] not in item.get('schedule_slots',[]):continue
+            from nightly_analysis_policy import enabled, domestic
+            if enabled() and domestic(item['ticker']) and row['slot']=='post_market':continue
             token=uuid.uuid4().hex
             conn.execute('''UPDATE watchlist_dispatches SET state='leased', lease_token=?,
                 lease_until=?, attempts=attempts+1, updated_at=? WHERE dispatch_id=?''',

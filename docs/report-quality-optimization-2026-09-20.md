@@ -18,4 +18,4 @@
 
 隔離測試使用 `tests/run_prompt_boundary_tests.py`，不得連正式 Redis／API／模型。原始 140 份最新報告與 653 份版本清單在發布證據目錄保存；重稽核走唯讀 index mapper。真實模型 canary 與正式重跑另行記錄，保留包含 503、重試、降級與品質未過的完整分母。
 
-發布證據：`/Volumes/X10 Pro Mac/stock-report-quality-release-20260920.kskpgl8k`。最終測試、正式版本、重稽核比較與模型驗證結果以該目錄 `DELIVERY.md` 為準；本文不把程式修改當成正式服務成功證據。
+發布證據：`/Volumes/X10 Pro Mac/stock-agent-archives/releases/stock-report-quality-release-20260920.kskpgl8k`。最終測試、正式版本、重稽核比較與模型驗證結果以該目錄 `DELIVERY.md` 為準；本文不把程式修改當成正式服務成功證據。

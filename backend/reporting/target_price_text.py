@@ -8,6 +8,7 @@ from decimal import Decimal
 from typing import Any
 
 from mapping_fields import safe_text
+from report_price_format import format_report_price
 
 
 _PRICE_NUMERIC_TOKEN_RE = re.compile(
@@ -19,14 +20,14 @@ def target_price_text(value: Any) -> str:
     if value is None or value == "" or isinstance(value, bool):
         return "N/A"
     if isinstance(value, Decimal):
-        return f"NT${value:.0f}" if value.is_finite() and value > 0 else "N/A"
+        return format_report_price(value)
     if isinstance(value, (int, float)):
-        return f"NT${value:.0f}" if math.isfinite(value) and value > 0 else "N/A"
+        return format_report_price(value)
     text = safe_text(value).strip()
     if not text:
         return "N/A"
     price = _single_finite_price_number(" ".join(line.strip() for line in text.splitlines() if line.strip()))
-    return f"NT${price:,.0f}" if price is not None else "N/A"
+    return format_report_price(price)
 
 
 def _single_finite_price_number(text: str) -> float | None:

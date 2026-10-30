@@ -4,7 +4,9 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
+import logging
 from typing import Any, Optional
+from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Query, Request
 from sse_starlette.sse import EventSourceResponse
@@ -20,6 +22,9 @@ import report_refresh_service
 import report_rerun_service
 import report_compare_service
 from storage.report_storage import ReportStorage
+
+LOGGER = logging.getLogger("uvicorn.error")
+_RERUN_ACTION_SOURCES = {"report_preview", "decision_tracking", "operator_summary"}
 
 
 @dataclass(frozen=True)
@@ -183,9 +188,17 @@ def create_reports_router(deps: ReportRouteDeps) -> APIRouter:
                         "source_filename": filename,
                     })
 
+        request_id = uuid4().hex
+        claimed_source = request.headers.get("X-Stock-Agent-Action-Source", "")
+        action_source = claimed_source if claimed_source in _RERUN_ACTION_SOURCES else "unspecified"
+        # This is caller-supplied surface attribution, never a verified person
+        # or authorization signal. Do not log tokens, headers, URLs or user data.
+        LOGGER.info("report_rerun_request request_id=%s action_source=%s filename=%s scope=%s job_id=%s enqueue_requested=%s recovered_orphan=%s",
+                    request_id, action_source, filename, normalized_scope, job_id, should_enqueue, recovered_orphaned_queue_task)
         return {
             "success": True,
             "queued": True,
+            "request_id": request_id,
             "job_id": job_id,
             "filename": filename,
             "scope": normalized_scope,

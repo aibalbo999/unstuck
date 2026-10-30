@@ -240,11 +240,20 @@ def create_watchlist_router(deps: WatchlistRouteDeps) -> APIRouter:
                 free_mode=build_free_mode_contract(),
                 ops=ops,
                 quality_audit=quality_audit_reports,
+                output_dir=output_dir,
             )
 
     @router.get("/current-quality-summary")
     async def get_current_quality_summary():
         return await asyncio.to_thread(_build_current_quality_summary_or_unavailable, deps.get_output_dir())
+
+    @router.get("/nightly-status")
+    async def get_nightly_analysis_status(session: str | None = Query(None, pattern=r"^\d{4}-\d{2}-\d{2}$")):
+        from nightly_analysis_status import read_status
+        try:
+            return await asyncio.to_thread(read_status, deps.get_output_dir(), session)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail="Invalid session date") from exc
 
     @router.get("/report-quality-audit/historical")
     async def get_historical_report_quality_audit(

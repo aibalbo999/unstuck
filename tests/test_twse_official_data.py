@@ -10,6 +10,15 @@ sys.path.insert(0, str(ROOT / "backend"))
 import external_data_twse  # noqa: E402
 
 
+def liability_definition(value, provider):
+    return {'total_debt_raw': {
+        'schema': 'financial-field-definition.v1', 'field': 'total_debt_raw',
+        'definition': 'total_liabilities', 'provider': provider,
+        'source_field': 'TotalLiabilities', 'value': value, 'unit': 'currency',
+        'currency': None, 'as_of': '2025-12-31', 'report_scope': None,
+    }}
+
+
 class FakeFinMindLoader:
     def login_by_token(self, api_token):
         self.api_token = api_token
@@ -65,6 +74,7 @@ def test_fetch_twse_official_data_formats_finmind_statement_payload(monkeypatch)
         "operating_margin_raw": 0.2,
         "profit_margin_raw": 0.1,
         "total_debt_raw": 700.0,
+        'financial_field_definitions': liability_definition(700.0, 'FinMind_TWSE'),
         "source": "FinMind_TWSE",
         "fetch_date": "2026-06-19",
     }
@@ -103,6 +113,7 @@ def test_fetch_twse_official_data_uses_offline_twse_openapi_fixture(monkeypatch)
         "operating_margin_raw": 0.2,
         "profit_margin_raw": 0.1,
         "total_debt_raw": 730.0,
+        'financial_field_definitions': liability_definition(730.0, 'TWSE_OpenAPI'),
         "source": "TWSE_OpenAPI",
         "fetch_date": "2026-06-19",
     }

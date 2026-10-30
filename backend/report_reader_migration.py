@@ -36,6 +36,7 @@ def _reader_snapshot(storage: LocalFileStorage, filename: str):
             snapshot['_reader_volume_observation'] = review.get('volume_observation')
             snapshot['_reader_cash_flow_review'] = review.get('cash_flow_period_review')
             snapshot['_reader_annual_cash_flow_review'] = review.get('annual_cash_flow_review')
+            snapshot['_reader_quarterly_financial_review'] = review.get('quarterly_financial_review')
             snapshot['_reader_review_reference'] = reference
         markdown_key = locator.existing_key(filename, kind='md')
         if markdown_key is not None:

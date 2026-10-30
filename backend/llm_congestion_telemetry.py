@@ -15,7 +15,7 @@ def cooldown_fields(model, result):
             'cooldown_until': result.get('cooldown_until'), 'probe_lease_until': result.get('probe_until'),
             'timing_basis': 'guard_store_clock'}
 
-_OUTCOMES = {'admitted', 'blocked', 'success', 'provider_503', 'provider_429',
+_OUTCOMES = {'admitted', 'blocked', 'success', 'provider_503', 'provider_504', 'provider_429',
              'provider_rpd', 'released_error', 'released_without_outcome'}
 _TRANSITIONS = {'unchanged', 'admitted', 'blocked', 'probe_admitted', 'opened',
                 'reopened', 'recovered', 'probe_released', 'failure_observed'}
@@ -53,7 +53,7 @@ def observe_transition(model, outcome, result, *, attempt_id, admission_generati
         for field in ('job_id', 'ticker'):
             if isinstance(correlation.get(field), str):
                 metadata[field] = correlation[field][:160]
-        if provider_status in {429, 503}:
+        if provider_status in {429, 503, 504}:
             metadata['provider_status_code'] = provider_status
         record_api_usage(service='Gemini / Google AI', provider='google_ai',
                          operation='llm_congestion_transition', status='observed',

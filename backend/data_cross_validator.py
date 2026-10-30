@@ -20,6 +20,7 @@ from data_financial_metric_validator import (
     validate_financial_metrics,
 )
 from data_validation_values import relative_divergence, safe_float
+from debt_field_definitions import debt_comparison_status
 
 
 # ------------------------------------------------------------------
@@ -37,7 +38,7 @@ CROSS_VALIDATE_FIELDS: dict[str, str] = {
     "operating_margin_raw": "營業利益率",
     "profit_margin_raw": "淨利率",
     "market_cap_raw": "市值",
-    "total_debt_raw": "總負債",
+    "total_debt_raw": "負債欄位",
     "current_price": "當前股價",
 }
 
@@ -55,6 +56,7 @@ def cross_validate_field(
     *,
     divergence_threshold_pct: float = DIVERGENCE_THRESHOLD_PCT,
     conflict_threshold_pct: float = CONFLICT_THRESHOLD_PCT,
+    source_definitions: dict | None = None,
 ) -> dict:
     """Cross-validate a single financial field across multiple sources.
 
@@ -88,6 +90,16 @@ def cross_validate_field(
             "divergent_sources": [],
         }
 
+    definition_details = {}
+    if field_key == 'total_debt_raw':
+        definition_details = debt_comparison_status(valid, source_definitions)
+        if definition_details['comparison_status'] != 'comparable':
+            return {'field': field_key, 'label': CROSS_VALIDATE_FIELDS[field_key],
+                    'values': numeric, 'consensus_value': None,
+                    'max_divergence_pct': None,
+                    'verdict': definition_details['comparison_status'],
+                    'divergent_sources': [], **definition_details}
+
     consensus = median(valid.values())
     divergences: dict[str, float] = {
         src: relative_divergence(v, consensus)
@@ -120,6 +132,7 @@ def cross_validate_field(
             "divergence_pct": float(divergence_threshold_pct),
             "conflict_pct": float(conflict_threshold_pct),
         },
+        **definition_details,
     }
 
 
@@ -136,7 +149,7 @@ def cross_validate_sources(
 
     Returns:
         {
-            'overall_verdict': 'aligned' | 'divergent' | 'conflict' | 'insufficient_data',
+            'overall_verdict': 'aligned' | 'divergent' | 'conflict' | 'insufficient_data' | 'unassessed',
             'fields': {field_key: cross_validate_field_result, ...},
             'conflict_fields': [field_key, ...],
             'divergent_fields': [field_key, ...],
@@ -147,18 +160,25 @@ def cross_validate_sources(
     field_results: dict[str, dict] = {}
     conflict_fields: list[str] = []
     divergent_fields: list[str] = []
+    unassessed_fields: list[str] = []
     divergence_threshold_pct, conflict_threshold_pct = dynamic_cross_validation_thresholds(primary_data)
 
     for field_key in CROSS_VALIDATE_FIELDS:
         sources: dict[str, Any] = {"yfinance": primary_data.get(field_key)}
+        primary_definitions = primary_data.get('financial_field_definitions')
+        definitions = {'yfinance': primary_definitions.get(field_key)
+                       if isinstance(primary_definitions, dict) else None}
         for source_name, source_data in (supplementary_sources or {}).items():
             sources[source_name] = source_data.get(field_key) if isinstance(source_data, dict) else None
+            metadata = source_data.get('financial_field_definitions') if isinstance(source_data, dict) else None
+            definitions[source_name] = metadata.get(field_key) if isinstance(metadata, dict) else None
 
         result = cross_validate_field(
             field_key,
             sources,
             divergence_threshold_pct=divergence_threshold_pct,
             conflict_threshold_pct=conflict_threshold_pct,
+            source_definitions=definitions,
         )
         field_results[field_key] = result
 
@@ -166,12 +186,16 @@ def cross_validate_sources(
             conflict_fields.append(field_key)
         elif result["verdict"] == "divergent":
             divergent_fields.append(field_key)
+        elif result['verdict'] in {'unknown', 'different_definition'}:
+            unassessed_fields.append(field_key)
 
     # Determine overall verdict
     if conflict_fields:
         overall = "conflict"
     elif divergent_fields:
         overall = "divergent"
+    elif unassessed_fields:
+        overall = 'unassessed'
     elif all(r["verdict"] == "insufficient_data" for r in field_results.values()):
         overall = "insufficient_data"
     else:
@@ -185,6 +209,11 @@ def cross_validate_sources(
     if divergent_fields:
         labels = [CROSS_VALIDATE_FIELDS.get(f, f) for f in divergent_fields]
         notes.append(f"跨來源差異欄位（差距 {divergence_threshold_pct:g}-{conflict_threshold_pct:g}%）：{'、'.join(labels)}；分析已採用中位數共識口徑。")
+    for field in unassessed_fields:
+        if field_results[field]['verdict'] == 'different_definition':
+            notes.append('跨來源負債欄位定義不同（有息負債與總負債）；保留各來源原值，不計算差異或中位數共識。')
+        else:
+            notes.append('跨來源負債定義、期間或報表口徑尚未核實；保留原值，未判定一致或採用中位數。')
 
     # Suggest data_trust penalty
     penalty = 0
@@ -196,6 +225,7 @@ def cross_validate_sources(
         "fields": field_results,
         "conflict_fields": conflict_fields,
         "divergent_fields": divergent_fields,
+        'unassessed_fields': unassessed_fields,
         "notes": notes,
         "data_trust_penalty": penalty,
         "sources_compared": ["yfinance"] + list((supplementary_sources or {}).keys()),

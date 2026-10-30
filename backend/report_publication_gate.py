@@ -12,7 +12,7 @@ class ReportPublicationBlockedError(Exception):
         super().__init__("報告品質檢查未通過，本次報告未發布：" + "；".join(self.issues[:5]))
 
 
-def assert_report_publishable(payload):
+def assert_report_publishable(payload, *, observe=True):
     """Share the existing audit semantics; warnings/caution remain publishable."""
     value = safe_mapping_dict(payload) or {}
     issues = safe_text_list(value.get("blocking_issues"))
@@ -36,9 +36,11 @@ def assert_report_publishable(payload):
         if safe_text(section.get(field)).strip().lower() in BLOCKING_STATUSES:
             issues.append(f"{label}未通過")
     if issues:
-        _observe_gate(value, 'gate_blocked')
+        if observe:
+            _observe_gate(value, 'gate_blocked')
         raise ReportPublicationBlockedError(issues)
-    _observe_gate(value, 'gate_passed')
+    if observe:
+        _observe_gate(value, 'gate_passed')
 
 
 def _observe_gate(value, outcome):

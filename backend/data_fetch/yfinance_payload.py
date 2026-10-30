@@ -9,6 +9,7 @@ import time as time_module
 from cache_store import set_cache_json
 from config import FINANCIAL_DATA_PAYLOAD_CACHE_TTL_SECONDS
 from data_trust import append_source_audit, finalize_data_trust
+from debt_field_definitions import yfinance_debt_definition
 
 from .audit_helpers import _append_full_fetch_audit, _mark_market_data_fetched, _mark_sources_fetched
 
@@ -89,6 +90,7 @@ def build_legacy_payload(ctx: dict) -> dict:
         "operating_cash_flow_raw": ctx["operating_cash_flow"],
         "total_debt": format_number(ctx["total_debt"], "億"),
         "total_debt_raw": ctx["total_debt"],
+        'financial_field_definitions': {'total_debt_raw': yfinance_debt_definition(ctx)},
         "total_cash": format_number(ctx["total_cash"], "億"),
         "total_cash_raw": ctx["total_cash"],
         "debt_to_equity": f"{ctx['debt_to_equity']:.2f}%" if isinstance(ctx["debt_to_equity"], (int, float)) else "N/A",

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from performance_sample_context import sample_context
+
 import math
 from statistics import mean
 from typing import Any
@@ -66,6 +68,7 @@ def _detail(backtest: dict[str, Any], report: dict[str, Any] | None) -> dict[str
         "excess_return_pct": _number(_field(backtest, "excess_return_pct")),
         "max_drawdown_pct": _number(_field(backtest, "max_drawdown_pct")),
         "reason": _text(_field(backtest, "reason")),
+        **{key: _field(backtest, key) for key in ("generated_date", "evaluation_date", "transaction_cost", "net_strategy_roi_pct")},
         "quality_signal": signal,
         "miss_attribution": attribution,
     }
@@ -130,6 +133,7 @@ def _summary(details: list[dict[str, Any]]) -> dict[str, Any]:
     hits = sum(1 for row in details if row["outcome"] == "hit")
     misses = sum(1 for row in details if row["outcome"] == "miss")
     return {
+        **sample_context(details),
         "total_evaluated": total,
         "hit_count": hits,
         "miss_count": misses,
@@ -166,6 +170,7 @@ def _group_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
     hits = sum(1 for row in rows if row["outcome"] == "hit")
     misses = sum(1 for row in rows if row["outcome"] == "miss")
     return {
+        **sample_context(rows),
         "count": total,
         "hit_count": hits,
         "miss_count": misses,

@@ -31,7 +31,10 @@ def claims(text,source=None,pipeline='v1'):
 def test_same_metric_period_currency_and_unit_positive_controls(pipeline,text,path,value):
     checked=claims(text,pipeline=pipeline)
     assert len(checked)==1
-    assert checked[0]['status']=='verified'
+    assert checked[0]['status']==('unverifiable' if path=='data.free_cash_flow_raw' else 'verified')
+    if path=='data.free_cash_flow_raw':
+        assert checked[0]['financial_period_verified'] is False
+        assert checked[0]['financial_arithmetic_consistent'] is True
     assert checked[0]['matched_path']==path
     assert checked[0]['matched_value']==value
     assert checked[0]['independent_primary_source_verified'] is False
@@ -116,7 +119,7 @@ def test_projection_is_not_observed_financial_fact():
 def test_actual_rounding_and_negative_sign_are_preserved():
     source={**data(),'revenue_history':[100,16.246291],'free_cash_flow_raw':-25_623_500}
     assert claims('2025年營收:162.5 億',source)[0]['status']=='verified'
-    assert claims('TTM自由現金流:負0.2562 億',source)[0]['status']=='verified'
+    assert claims('TTM自由現金流:負0.2562 億',source)[0]['status']=='unverifiable'
     assert claims('TTM自由現金流:0.2562 億',source)[0]['status']=='mismatch'
 
 
@@ -145,7 +148,9 @@ def original_snapshot():
 def test_refresh_cannot_replace_original_ttm_financial_facts():
     snapshot=original_snapshot()
     checked=evaluate_report_evidence('TTM FCF:-2 B',snapshot)['sampled_claims'][0]
-    assert checked['status']=='verified'
+    assert checked['status']=='unverifiable'
+    assert checked['financial_arithmetic_consistent'] is True
+    assert checked['financial_period_verified'] is False
     assert checked['matched_path']=='analysis_evidence.sections.analysis_input.data.free_cash_flow_raw'
     assert checked['analysis_input_cutoff']=='2026-09-24T02:00:00+08:00'
     assert evaluate_report_evidence('TTM FCF:100 B',snapshot)['sampled_claims'][0]['status']=='mismatch'

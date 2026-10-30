@@ -24,19 +24,19 @@ def test_shared_quality_evidence_helper_loads_before_all_consumers():
     assert (STATIC_DIR / "report_quality_audit_scope_helpers.js").exists()
     assert (STATIC_DIR / "report_quality_queue_scope_helpers.js").exists()
     assert (STATIC_DIR / "report_quality_evidence_freshness_helpers.js").exists()
-    assert f"{helper}?v=20261007-financial-period-unit" in index_html
+    assert f"{helper}?v=20261023-claim-period-reasons" in index_html
     assert f"{action_scope_helper}?v=20260902-action-freshness-scope" in index_html
     assert f"{audit_scope_helper}?v=20260902-distribution-scope" in index_html
     assert f"{queue_scope_helper}?v=20260902-bounded-items" in index_html
-    assert f"{freshness_helper}?v=20261007-financial-period-unit" in index_html
+    assert f"{freshness_helper}?v=20261023-claim-period-reasons" in index_html
     assert "/static/report_quality_gate_policy.js?v=20260902-reason-code-normalization" in index_html
     assert "/static/ui_data_trust.js?v=20260902-reason-label-parity" in index_html
     assert "/static/report_preview_helpers.js?v=20260921-analysis-completeness" in index_html
-    assert "/static/report_preview_panel.js?v=20260820-rerun-execution" in index_html
+    assert "/static/report_preview_panel.js?v=20261023-neutral-causes" in index_html
     assert "/static/history_quality_audit_render.js?v=20260902-distribution-scope" in index_html
-    assert "/static/history_current_quality_helpers.js?v=20260902-target-item-scope" in index_html
+    assert "/static/history_current_quality_helpers.js?v=20261027-session-quality-scope" in index_html
     assert "/static/watchlist_freshness_helpers.js?v=20260902-integer-quality-counts" in index_html
-    assert "/static/watchlist_current_quality_helpers.js?v=20260902-target-item-scope" in index_html
+    assert "/static/watchlist_current_quality_helpers.js?v=20261027-session-quality-scope" in index_html
     assert "/static/watchlist_panel_helpers.js?v=20260902-distribution-scope" in index_html
     style_css = (STATIC_DIR / "style.css").read_text(encoding="utf-8")
     assert "/static/styles/history_list.css?v=20260816-clickable-quality-evidence" in style_css
@@ -701,8 +701,8 @@ const fs = require('fs');
 global.window = {};
 eval(fs.readFileSync('backend/static/report_quality_evidence_helpers.js', 'utf8'));
 eval(fs.readFileSync('backend/static/report_quality_evidence_freshness_helpers.js', 'utf8'));
-const counts = { financial_period_currency_or_unit_unknown: 2, financial_original_input_unavailable: 1, financial_amount_scope_unbound: 3, financial_projection_not_observed_fact: 4 };
-console.log(JSON.stringify({ summary: window.StockAgentReportQualityEvidence.formatUnverifiableReasonSummary(counts), freshness: window.StockAgentReportQualityEvidence.formatUnverifiableReasonFreshnessSummary({current: counts}, {current: 1}, {current: 10}) }));
+const counts = { financial_period_currency_or_unit_unknown: 2, financial_original_input_unavailable: 1, financial_amount_scope_unbound: 3, financial_projection_not_observed_fact: 4, financial_arithmetic_consistent_period_unverified: 14, financial_current_amount_mismatch_period_unverified: 1, financial_ratio_definition_unverified: 1 };
+console.log(JSON.stringify({ summary: window.StockAgentReportQualityEvidence.formatUnverifiableReasonSummary(counts), freshness: window.StockAgentReportQualityEvidence.formatUnverifiableReasonFreshnessSummary({current: counts}, {current: 1}, {current: 26}) }));
 """
     rendered = json.loads(_node(script))
     for value in rendered.values():
@@ -710,4 +710,7 @@ console.log(JSON.stringify({ summary: window.StockAgentReportQualityEvidence.for
         assert '原分析財務輸入未能核實' in value
         assert '月均、變動端點等金額口徑未綁定' in value
         assert '財務情境推估，非觀測事實' in value
+        assert '金額換算一致，涵蓋期間尚未核實' in value
+        assert '即期金額或單位矛盾，涵蓋期間尚未核實' in value
+        assert '比率分子、分母及同期間口徑尚未核實' in value
         assert 'financial_' not in value

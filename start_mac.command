@@ -4,6 +4,31 @@
 # ============================================================
 
 set -e
+
+# Maintenance must branch before normal environment, cleanup, or service setup.
+# Unknown arguments fail closed instead of accidentally starting the full stack.
+if [ "$#" -gt 0 ]; then
+    if [ "$#" -ne 1 ] || [ "$1" != "--maintenance-verify" ]; then
+        echo "用法：./start_mac.command [--maintenance-verify]" >&2
+        exit 64
+    fi
+    case "${LAN_ACCESS:-0}" in
+        0|false|no|"") ;;
+        *) echo "維護驗證僅允許本機；請移除 LAN_ACCESS。" >&2; exit 64;;
+    esac
+    MAINTENANCE_ROOT="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd -P )"
+    MAINTENANCE_PYTHON="$MAINTENANCE_ROOT/.venv/bin/python"
+    if [ -n "${PYTHON_BIN:-}" ] && [ "$PYTHON_BIN" != "$MAINTENANCE_PYTHON" ]; then
+        echo "維護驗證僅使用本專案既有 .venv；請移除 PYTHON_BIN 覆寫。" >&2
+        exit 64
+    fi
+    if [ ! -x "$MAINTENANCE_PYTHON" ]; then
+        echo "缺少本專案 Python；維護驗證不會安裝或建立環境。" >&2
+        exit 69
+    fi
+    exec "$MAINTENANCE_PYTHON" -I -B "$MAINTENANCE_ROOT/scripts/maintenance_verify.py" --maintenance-verify
+fi
+
 export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
 
 LAN_ACCESS="${LAN_ACCESS:-0}"

@@ -12,6 +12,9 @@ def _parts(row):
     values[2] = {'verified':'快照一致', 'unverifiable':'未能核實', 'mismatch':'數值矛盾'}.get(values[2], values[2])
     values[5] = {'matched_snapshot_value':'對應快照數值', 'generated_analysis_not_independent_evidence':'模型計畫，缺獨立事實證據', 'no_matching_snapshot_path':'沒有對應快照路徑', 'snapshot_value_mismatch':'與快照數值矛盾'}.get(values[5], values[5])
     values[5] = {'matched_frozen_technical_arithmetic': '原凍結視窗計算一致（非獨立行情核證）', 'frozen_technical_arithmetic_mismatch': '原凍結視窗計算矛盾', 'scenario_target_not_observed_fact': '情境推估，非觀測事實',
+        'financial_arithmetic_consistent_period_unverified': '金額換算一致，涵蓋期間尚未核實',
+        'financial_current_amount_mismatch_period_unverified': '即期金額或單位矛盾，涵蓋期間尚未核實',
+        'financial_ratio_definition_unverified': '比率分子、分母及同期間口徑尚未核實',
         'financial_original_input_unavailable': '原分析財務輸入未能核實',
         'financial_amount_scope_unbound': '月均、變動端點等金額口徑未綁定',
         'financial_period_currency_or_unit_unknown': '財期、幣別或單位尚未核實',

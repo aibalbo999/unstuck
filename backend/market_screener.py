@@ -103,7 +103,7 @@ def scan_taiwan_market(
     warnings = []
     sources = _resolve_data_sources(data_loader_cls=data_loader_cls, data_source=data_source, data_sources=data_sources)
     normalized_filters = normalize_screener_filters(filters)
-    cache_key = scan_cache_key(scan_date, sources, top_n, normalized_filters, limit, offset, sort_by, sort_direction)
+    cache_key = "screener-observations-v4:" + scan_cache_key(scan_date, sources, top_n, normalized_filters, limit, offset, sort_by, sort_direction)
     if use_cache:
         cached = get_cache_json(cache_key)
         if isinstance(cached, dict):
@@ -114,13 +114,26 @@ def scan_taiwan_market(
         lambda source: source.fetch_institutional_frame(scan_date),
         warnings,
     )
+    institutional_acquired_at = datetime.now(TAIPEI).isoformat(timespec="seconds")
     daily, daily_provider = _first_available_frame(
         sources,
         "daily prices",
         lambda source: source.fetch_daily_frame(scan_date),
         warnings,
     )
+    daily_acquired_at = datetime.now(TAIPEI).isoformat(timespec="seconds")
+    from market_screener_asof import build_source_dates
+
+    source_dates = build_source_dates(institutional, daily, scan_date=scan_date,
+                                      institutional_provider=institutional_provider, daily_provider=daily_provider,
+                                      institutional_acquired_at=institutional_acquired_at, daily_acquired_at=daily_acquired_at)
     merged = build_screener_candidates(institutional, daily, scan_date=scan_date, top_n=top_n)
+    for candidate in merged:
+        metrics = candidate.get("metrics") or {}
+        if metrics.get("flow_observation_date"):
+            metrics.update(flow_source=institutional_provider, flow_acquisition_completed_at=institutional_acquired_at)
+        if metrics.get("price_observation_date"):
+            metrics.update(price_source=daily_provider, price_acquisition_completed_at=daily_acquired_at)
     merged = annotate_watchlist_status(merged)
     filtered = filter_candidates(merged, normalized_filters)
     ordered = sort_candidates(filtered, sort_by=sort_by, sort_direction=sort_direction)
@@ -135,6 +148,10 @@ def scan_taiwan_market(
         "pagination": pagination,
         "filters": normalized_filters,
         "providers": unique([institutional_provider, daily_provider]),
+        "source_dates": source_dates,
+        "research_only": True,
+        "score_interpretation": "混合分數停用；法人/成交量比例、正負乖離及量比獨立呈現，未經樣本外校準。",
+        "ranking_policy": "separate_dimensions;default_ticker_order;no_upward_probability",
         "data_sources": unique([provider_name(source) for source in sources]),
         "warnings": warnings,
         "last_updated_time": last_updated_time(ordered, scan_date),
@@ -218,6 +235,8 @@ def list_auto_screener_watchlist(
         if item.get("trigger_source") == DAILY_SCREENER_SOURCE or AUTO_SCREENER_TAG in (item.get("tags") or [])
     ]
     normalized_filters = normalize_screener_filters(filters)
+    from screener_signal_dimensions import separate_signals
+    all_items = [separate_signals(item) for item in all_items]
     filtered_items = filter_candidates(all_items, normalized_filters)
     ordered_items = sort_candidates(filtered_items, sort_by=sort_by, sort_direction=sort_direction)
     items, pagination = paginate_candidates(ordered_items, limit=limit, offset=offset)
@@ -233,7 +252,9 @@ def list_auto_screener_watchlist(
         "auto_screener_count": len(filtered_items),
         "pagination": pagination,
         "filters": normalized_filters,
-        "sort": {"by": sort_by, "direction": sort_direction},
+        "sort": {"by": "ticker" if sort_by == "score" else sort_by, "direction": "asc" if sort_by == "score" else sort_direction},
+        "ranking_policy": "separate_dimensions_not_calibrated",
+        "warnings": (["舊混合最低分門檻已停用，請使用單一訊號条件"] if (normalized_filters.get("min_score") or 0) > 0 else []) + _saved_observation_warnings(all_items),
         "last_updated_time": payload_last_updated(payload, filtered_items),
     }
 
@@ -263,3 +284,8 @@ def _resolve_data_sources(*, data_loader_cls=DataLoader, data_source=None, data_
 
 def _first_available_frame(sources: list, operation: str, fetcher, warnings: list[dict]):
     return _sources.first_available_frame(sources, operation, fetcher, warnings)
+
+
+def _saved_observation_warnings(items):
+    missing=[row for row in items if (row.get("metrics") or {}).get("flow_observation_date") and not ((row.get("metrics") or {}).get("price_observation_date") == (row.get("metrics") or {}).get("flow_observation_date") == (row.get("metrics") or {}).get("volume_observation_date"))]
+    return [f"保存的{len(missing)}筆研究項目缺少與法人同日的價格／成交量證據，比例維持未知；既存紀錄未重寫，等待後續正常排程取得新來源。"] if missing else []

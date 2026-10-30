@@ -4,6 +4,7 @@ from __future__ import annotations
 import math
 import re
 from datetime import date
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
 from financial_claim_context import is_actual_claim, sentence_span
 from institutional_evidence_enumeration import flow_claims
@@ -20,6 +21,10 @@ _CLAIM = re.compile(
     r"(?:(?!融資|融券|外資|投信|自營商|法人|淨買超|淨賣超|買賣超|買超|賣超|淨買入|淨賣出)[^\d。；;\n]){0,12}?(?P<number>[+\-−]?\d[\d,]*(?:\.\d+)?)"
     r"(?P<scale>千|萬)?(?P<unit>股|張)(?![A-Za-z])"
 )
+_ALTERNATE_UNIT = re.compile(
+    r'(?:(?P<open>[（(])|[／/])(?P<qualifier>即|約|相當於)?'
+    r'(?P<number>[+\-−]?\d[\d,]*(?:\.\d+)?)?'
+    r'(?P<scale>千|萬)?(?P<unit>股|張)(?P<close>[）)])?')
 
 
 
@@ -35,6 +40,48 @@ def _number(value):
         return result if math.isfinite(result) else None
     except (ValueError, TypeError, OverflowError):
         return None
+
+
+def _alias_matches(alias, main_number, value, records):
+    number = alias['number'] or main_number
+    if not re.fullmatch(r'[+\-−]?(?:\d+|\d{1,3}(?:,\d{3})+)(?:\.\d+)?', number):
+        return False
+    try:
+        displayed = Decimal(number.replace(',', '').replace('−', '-'))
+        if not number.startswith(('+', '-', '−')):
+            displayed = displayed.copy_sign(Decimal(str(value)))
+        elif displayed.is_signed() != (value < 0):
+            return False
+        scale = Decimal({None: 1, '千': 1000, '萬': 10000}[alias['scale']]
+                        * (1000 if alias['unit'] == '張' else 1))
+        if alias['qualifier'] == '約' and alias['number']:
+            # Only the explicit alias is rounded; the primary claim was checked first.
+            quantum = Decimal(1).scaleb(displayed.as_tuple().exponent)
+            return any((Decimal(str(r['value'])) * _UNITS[r['unit']] / scale).quantize(
+                quantum, rounding=ROUND_HALF_UP) == displayed for r in records)
+        alias_value = float(displayed * scale)
+        return any(abs(alias_value - r['value'] * _UNITS[r['unit']])
+                   <= max(0.0051 * _UNITS[r['unit']], abs(r['value'] * _UNITS[r['unit']]) * 0.0001)
+                   for r in records)
+    except (InvalidOperation, ValueError, OverflowError):
+        return False
+
+
+def _adjacent_unit_aliases(text, position):
+    pending = []
+    while alias := _ALTERNATE_UNIT.match(text, position):
+        if alias['open']:
+            if pending:
+                break
+            pending.append(alias)
+        elif pending:
+            pending.append(alias)
+        else:
+            yield alias
+        if pending and alias['close']:
+            yield from pending
+            pending = []
+        position = alias.end()
 
 
 def _date(value):
@@ -107,7 +154,7 @@ def _valid_record(record):
 
 
 def _claim_population(prefix, populations, records=()):
-    if _enumerated_total(prefix, populations, records):
+    if _enumerated_total(prefix, populations, records) or _parenthetical_total(prefix):
         return "total"
     group = [populations[-1]]
     for previous in reversed(populations[:-1]):
@@ -121,6 +168,37 @@ def _claim_population(prefix, populations, records=()):
             and "合計" in prefix[group[-1].end():]):
         return "total"
     return None
+
+
+def _parenthetical_total(prefix):
+    """Restore an explicit institution parent after one component illustration.
+
+    A bare component's 合計 still belongs to that component. This admits only
+    an open parenthesis under an explicit institutional-flow subject, with one
+    dated-window component followed immediately by a terminal total label.
+    """
+    opening = max(prefix.rfind('（'), prefix.rfind('('))
+    if opening < 0:
+        return False
+    parent, inner = prefix[:opening], prefix[opening + 1:]
+    if re.search(r'[()（）]', inner):
+        return False
+    owners = list(_POP.finditer(parent))
+    if not owners or owners[-1].group() in _POPULATIONS:
+        return False
+    if len(owners) > 1 and re.fullmatch(r'[與及和、/,，]+', parent[owners[-2].end():owners[-1].start()]):
+        return False
+    if not re.fullmatch(r'(?:籌碼)?(?:呈現|持續|連續)?(?:淨買超|淨賣超|買超|賣超)', parent[owners[-1].end():]):
+        return False
+    total = re.search(r'[，,](?:合計總?|總計)$', inner)
+    members = list(_POP.finditer(inner))
+    periods = list(_WINDOW.finditer(inner))
+    if (not total or len(members) != 1 or members[0].group() not in _POPULATIONS
+            or len(periods) != 1 or periods[0].end() > members[0].start()
+            or _DATE.search(inner[members[0].end():])):
+        return False
+    detail = inner[members[0].end():total.start()]
+    return _CLAIM.fullmatch(detail) is not None
 
 
 def _enumerated_total(prefix, populations, records=()):
@@ -224,6 +302,15 @@ def institutional_evidence_issues(text, data, *, allowed_paths=None, _diagnostic
         if inherited:
             window = inherited['window']
         candidates = [r for r in eligible if r["population"] == population and _same_window(r, window)]
+        if _parenthetical_total(prefix):
+            opening = start + max(prefix.rfind('（'), prefix.rfind('('))
+            components = [v for v in verified if v['start'] == start
+                          and opening < v['end'] < match.start() and v['window'] == window
+                          and v['population'] in _CATEGORIES]
+            # Matching component/total numbers do not establish a common as-of.
+            # Ambiguous component dates never enter verified in the first place.
+            candidates = ([r for r in candidates if r['observed_at'] == components[0]['observed_at']]
+                          if len(components) == 1 else [])
         if window and window.get('kind') == 'two_explicit_days':
             candidates = two_day_candidates(window, population, eligible)
         if paired_population:
@@ -254,14 +341,25 @@ def institutional_evidence_issues(text, data, *, allowed_paths=None, _diagnostic
             continue
         value = float(match["number"].replace(",", "").replace("−", "-"))
         if "賣" in match["verb"] and match["verb"] != "買賣超":
+            if match['number'].startswith('+'):
+                reject("法人單位／數值紅線：賣超與明示正號矛盾，不得自動反轉正負號。")
+                continue
             value = -abs(value)
         value *= {None: 1, "千": 1000, "萬": 10000}[match["scale"]] * (1000 if match["unit"] == "張" else 1)
         matched = [r for r in candidates if abs(value - r["value"] * _UNITS[r["unit"]]) <= max(0.0051 * _UNITS[r["unit"]], abs(r["value"] * _UNITS[r["unit"]]) * 0.0001)]
         if not matched:
             reject("法人單位／數值紅線：同主體同期間淨額不符；千股=1000股，台股1張=1000股，千張=1000000股，買超／賣超正負方向不可混用。")
-        elif len({r['observed_at'] for r in matched}) == 1:
+            continue
+        aliases = list(_adjacent_unit_aliases(text, match.end()))
+        if any(alias['unit'] == '張' and not taiwan
+               or not _alias_matches(alias, match['number'], value, matched) for alias in aliases):
+            reject('法人單位／數值紅線：原文「' + text[match.start():aliases[-1].end()]
+                   + '」的括號／並列單位換算不符；千股可等於張，但不可原值改標千張。')
+            continue
+        if len({r['observed_at'] for r in matched}) == 1:
             verified.append({'start': start, 'end': match.end(), 'window': window,
                              'observed_at': matched[0]['observed_at'],
+                             'population': population,
                              'aggregate': _enumerated_total(prefix, populations, eligible)})
     return list(dict.fromkeys(issues))
 

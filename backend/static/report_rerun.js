@@ -1,7 +1,18 @@
 (function () {
+    const inFlight = new Map();
     const { buttonForScope, setButtonLabel, disableButtons, configureCancelButton, setStatus } = window.StockAgentReportRerunControls;
 
-    async function rerunPreviewReport(options) {
+    function rerunPreviewReport(options) {
+        const filename = options.previewReport?.filename;
+        if (!filename) return Promise.resolve();
+        if (inFlight.has(filename)) return inFlight.get(filename);
+        const pending = Promise.resolve().then(() => runPreviewReport(options));
+        inFlight.set(filename, pending);
+        pending.then(() => inFlight.delete(filename), () => inFlight.delete(filename));
+        return pending;
+    }
+
+    async function runPreviewReport(options) {
         const previewReport = options.previewReport;
         if (!previewReport) return;
 
@@ -21,7 +32,7 @@
             const filename = previewReport.filename;
             const payload = await apiClient.requestJson(
                 `/api/report/${encodeURIComponent(filename)}/rerun?scope=${encodeURIComponent(scope)}`,
-                { method: 'POST' }
+                { method: 'POST', headers: { 'X-Stock-Agent-Action-Source': 'report_preview' } }
             );
 
             setButtonLabel(button, '重跑中');

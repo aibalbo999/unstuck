@@ -13,9 +13,7 @@
     },
     {
       "id": "mixed_ttm_dupont",
-      "all_substrings": ["TTM", "杜邦", "資產周轉", "權益乘數"],
-      "any_substring_groups": [["差距", "口徑", "不一致", "偏差"]],
-      "requires_no_data_quality_caveat": true,
+      "semantic_checks": ["mixed_ttm_dupont"],
       "issue": "杜邦分析紅線：不可把 Yahoo TTM ROE/ROA/淨利率與最新年度資產周轉率或權益乘數拼接成 TTM 杜邦公式；若資料口徑不同，應改用同期間年度杜邦恒等式或僅列資料品質警示。"
     },
     {
@@ -69,9 +67,7 @@
     },
     {
       "id": "negative_equity_pb",
-      "all_substrings": ["P/B", "股價淨值比"],
-      "any_substring_groups": [["低估", "被低估", "便宜", "折讓", "吸引"]],
-      "not_any_substrings": ["負淨值", "淨值為負", "股東權益為負", "警示"],
+      "semantic_checks": ["negative_equity_pb_bargain"],
       "issue": "負淨值股紅線：若公司淨值為負或非常低，P/B 比率失去意義，不可用低 P/B 直接推論低估；必須先說明淨值結構與負淨值成因。"
     },
     {

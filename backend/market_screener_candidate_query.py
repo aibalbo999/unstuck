@@ -7,6 +7,8 @@ from market_screener_utils import safe_float
 
 def filter_candidates(candidates: list[dict], filters: dict | None = None) -> list[dict]:
     normalized = filters if isinstance(filters, dict) else {}
+    if any(row.get("ranking_status") for row in candidates) and safe_float(normalized.get("min_score")) > 0:
+        return []  # Deprecated mixed-score filters cannot imply calibrated strength.
     categories = {str(item).strip() for item in normalized.get("categories") or [] if str(item).strip()}
     return [
         candidate for candidate in candidates
@@ -16,6 +18,8 @@ def filter_candidates(candidates: list[dict], filters: dict | None = None) -> li
 
 def sort_candidates(candidates: list[dict], sort_by: str = "score", sort_direction: str = "desc") -> list[dict]:
     key = str(sort_by or "score").strip()
+    if key == "score" and any(row.get("ranking_status") for row in candidates):
+        return sorted(candidates, key=lambda row: str(row.get("ticker") or ""))
     reverse = str(sort_direction or "desc").strip().lower() != "asc"
 
     def sort_value(candidate: dict):

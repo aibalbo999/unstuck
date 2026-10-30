@@ -71,7 +71,7 @@ def _actual_provider_status(exc):
     for value in (getattr(exc, "status_code", None), getattr(exc, "code", None),
                   getattr(getattr(exc, "response", None), "status_code", None)):
         try:
-            if int(value) in {429, 503}:
+            if int(value) in {429, 503, 504}:
                 return int(value)
         except (TypeError, ValueError, OverflowError):
             pass
@@ -94,12 +94,12 @@ class _Attempt:
             return
         self.completed = True
         status = _actual_provider_status(error)
-        action = ("success" if error is None else "server_failure" if status == 503 else
+        action = ("success" if error is None else "server_failure" if status in {503, 504} else
                   "failure" if status == 429 and not is_requests_per_day_error(error) else "release")
         delay = max(0.0, retry_delay_seconds(error, default=0)) if action in {"failure", "server_failure"} else 0.0
         result = self.store.operate(self.model, action, key_hash=self.key_hash, owner=self.owner,
                            generation=self.generation, delay=delay, lease=self.lease)
-        outcome = ("success" if error is None else "provider_503" if action == "server_failure" else
+        outcome = ("success" if error is None else f"provider_{status}" if action == "server_failure" else
                    "provider_429" if action == "failure" else "provider_rpd" if status == 429 else "released_error")
         self.observe(outcome, result, status)
 

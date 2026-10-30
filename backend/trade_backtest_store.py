@@ -55,3 +55,37 @@ def list_results(*, report_filename: str | None = None, ticker: str | None = Non
             [*params, max(1, min(int(limit), 2000))],
         ).fetchall()
     return [json.loads(row[0]) for row in rows]
+
+
+def get_result(*, report_filename: str, horizon_trading_days: int) -> dict | None:
+    """Read one schema-bound original independently of the recent-results page.
+
+    Fail closed on duplicate physical keys or payload/key disagreement. The
+    caller still verifies its frozen manifest digest; this reader never repairs
+    an original, substitutes another horizon, or chooses among conflicting rows.
+    """
+    if (not isinstance(report_filename, str) or not report_filename
+            or type(horizon_trading_days) is not int or not 1 <= horizon_trading_days <= 252):
+        raise ValueError("exact filename and explicit trading horizon are required")
+    path = _path()
+    if not path.exists():
+        return None
+    with closing(sqlite3.connect(path.as_uri() + "?mode=ro", uri=True, timeout=15)) as conn:
+        if conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='trade_evaluation_results_v1'").fetchone() is None:
+            return None
+        rows = conn.execute(
+            "SELECT payload_json FROM trade_evaluation_results_v1 "
+            "WHERE report_filename=? AND horizon_trading_days=? AND schema_version=? LIMIT 2",
+            (report_filename, horizon_trading_days, SCHEMA_VERSION),
+        ).fetchall()
+    if not rows:
+        return None
+    if len(rows) != 1:
+        raise ValueError("ambiguous original identity; no row selected")
+    payload = json.loads(rows[0][0])
+    if (not isinstance(payload, dict) or payload.get("report_filename") != report_filename
+            or type(payload.get("horizon_trading_days")) is not int
+            or payload.get("horizon_trading_days") != horizon_trading_days
+            or payload.get("schema_version") != SCHEMA_VERSION):
+        raise ValueError("original payload identity conflicts with stored key")
+    return payload

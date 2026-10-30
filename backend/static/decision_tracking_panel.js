@@ -9,6 +9,7 @@
         const onChange = options.onChange || (() => {});
         let trackedTickers = new Set();
         let latestPayload = { items: [] };
+        let runningActions = false;
 
         function setSummary(payload) {
             if (!elements.summaryEl) return;
@@ -70,11 +71,13 @@
         }
 
         async function runAllRecommendedActions() {
+            if (runningActions) return;
             const actions = uniqueRecommendedActions(latestPayload);
             if (!actions.length) {
                 notify.success('目前追蹤報告沒有待處理警示');
                 return;
             }
+            runningActions = true;
             if (elements.runActionsBtn) elements.runActionsBtn.disabled = true;
             try {
                 let finished = 0, failed = 0, manualReview = 0;
@@ -86,7 +89,7 @@
                         } else if (action.type === 'refresh_data_snapshot') {
                             await apiClient.refreshReportDataSnapshot(action.filename);
                         } else if (action.type === 'rerun_full_report') {
-                            await apiClient.requestJson(`/api/report/${encodeURIComponent(action.filename)}/rerun?scope=full_report`, { method: 'POST' });
+                            await apiClient.requestJson(`/api/report/${encodeURIComponent(action.filename)}/rerun?scope=full_report`, { method: 'POST', headers: { 'X-Stock-Agent-Action-Source': 'decision_tracking' } });
                         } else {
                             continue;
                         }
@@ -105,6 +108,7 @@
                 console.error('Decision tracking bulk actions failed', err);
                 notify.error(`一鍵處理警示失敗：${err.message || err}`);
             } finally {
+                runningActions = false;
                 if (elements.runActionsBtn) elements.runActionsBtn.disabled = false;
             }
         }

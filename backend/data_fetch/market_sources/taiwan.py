@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta, time as datetime_time
+from datetime import datetime, timedelta
 from typing import Optional
 import math
 
@@ -59,14 +59,13 @@ def fetch_institutional_trading_trend(ticker: str) -> dict:
     # exchange sessions. Keep the conservative fallback when the calendar is
     # unknown; never manufacture a missing observation or a zero trade.
     from official_institutional_source import expected_sessions
-    sessions = expected_sessions(ticker, now_epoch, INSTITUTIONAL_LOOKBACK_DAYS)
+    sessions = expected_sessions(ticker, now_epoch, INSTITUTIONAL_LOOKBACK_DAYS, include_provisional=True)
     if sessions:
         start_day = min(start_day, datetime.fromisoformat(sessions[-1]).date())
         end_day = datetime.fromisoformat(sessions[0]).date()
     else:
-        # If the exchange calendar is unavailable, at least exclude today's
-        # provisional row before the conservative publication boundary.
-        end_day = today if moment.time().replace(tzinfo=None) >= datetime_time(22, 30) else today - timedelta(days=1)
+        # No known session is not authorization to manufacture a query bound.
+        return {}
     start_date = start_day.isoformat()
     end_date = end_day.isoformat()
     # The typed acquisition boundary records raised failures separately from empty data.
@@ -121,7 +120,11 @@ def fetch_institutional_trading_trend(ticker: str) -> dict:
                                      rejected_count=rejected_count)
     sdk_evidence["response_row_count"] = original_count
     sdk_evidence["excluded_after_end_date_row_count"] = provisional_excluded_count
-    return {"source_provenance": sdk_evidence, **summary}
+    from market_evidence_policy import publication_observation
+    return {"source_provenance": sdk_evidence, **summary,
+            "publication_observation": publication_observation(
+                summary.get('latest_date'), moment=moment,
+                provider='FinMind TaiwanStockInstitutionalInvestorsBuySell', retrieved_at=acquired, ticker=ticker)}
 
 
 def _history_has_values(values: list) -> bool:

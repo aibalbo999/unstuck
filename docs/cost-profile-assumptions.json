@@ -1,0 +1,51 @@
+{
+  "as_of": "2026-10-02",
+  "tax_rule_source": "https://www.twse.com.tw/zh/about/company/guide.html",
+  "etf_class_source": "https://www.twse.com.tw/zh/ETFortune/etfInfo/0050",
+  "tax_applicability": "Conditional overnight equity sell 0.3%;0050 equity ETF sell 0.1%;no day-trade concession applied;remaining instrument classes assumed,not historical certification",
+  "instrument_classes": {
+    "2382.TW": "equity_assumption",
+    "2886.TW": "equity_assumption",
+    "3021.TW": "equity_assumption",
+    "0050.TW": "equity_etf_0050_verified",
+    "2409.TW": "equity_assumption",
+    "5876.TW": "equity_assumption",
+    "3008.TW": "equity_assumption",
+    "3026.TW": "equity_assumption",
+    "7769.TW": "equity_assumption",
+    "2330.TW": "equity_assumption",
+    "2887.TW": "equity_assumption",
+    "2891.TW": "equity_assumption",
+    "1326.TW": "equity_assumption",
+    "3711.TW": "equity_assumption",
+    "5880.TW": "equity_assumption",
+    "6409.TW": "equity_assumption"
+  },
+  "profiles": [
+    {
+      "id": "low_hypothesis",
+      "commission_percent_each_side": 0.03,
+      "round_trip_slippage_bps": 5,
+      "short_borrow_financing_bps_per_calendar_day": 1
+    },
+    {
+      "id": "middle_hypothesis",
+      "commission_percent_each_side": 0.08,
+      "round_trip_slippage_bps": 20,
+      "short_borrow_financing_bps_per_calendar_day": 2
+    },
+    {
+      "id": "high_hypothesis",
+      "commission_percent_each_side": 0.1425,
+      "round_trip_slippage_bps": 50,
+      "short_borrow_financing_bps_per_calendar_day": 5
+    },
+    {
+      "id": "arbitrary_stress",
+      "commission_percent_each_side": 0.1425,
+      "round_trip_slippage_bps": 300,
+      "short_borrow_financing_bps_per_calendar_day": 10
+    }
+  ],
+  "rate_origin": "All commission/slippage/borrow rates arbitrary explicit hypotheses;stress is not a typical/quoted rate;position size/minimum fees/rounding unknown"
+}

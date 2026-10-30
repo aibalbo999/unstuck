@@ -51,6 +51,12 @@ async def recover_cached_institutional(request, registry, cached):
     _append_cache_audit_entries(data, ticker)
     result, = await fetch_provider_results(request, providers, {'data': data, 'original_ticker': ticker})
     audit = deepcopy(result.audit)
+    publication = _provisional_publication(result.value, ticker)
+    if publication is not None:
+        # An observed publication must be visible without replacing a mature
+        # canonical source or renewing its acquisition clock. This result is
+        # request-local only: replaced=False prevents a shared payload write.
+        data['institutional_publication_observation'] = publication
     if result.status == 'success':
         try:
             merged = merge_institutional_source(data, data['source_audit'], result.value, [audit], ticker)
@@ -70,3 +76,24 @@ async def recover_cached_institutional(request, registry, cached):
     append_source_audit(data, audit)
     finalize_data_trust(data)
     return data, False
+
+
+def _provisional_publication(value, ticker):
+    if not isinstance(value, dict):
+        return None
+    publication = value.get('publication_observation') or {}
+    official = value.get('latest_official_observation') or {}
+    proof = official.get('raw_evidence') or {}
+    day = value.get('latest_date')
+    if (publication.get('status') != 'available_provisional'
+            or publication.get('observed_date') != day
+            or official.get('date') != day or official.get('ticker') != ticker
+            or official.get('market') != ('TPEX' if ticker.endswith('.TWO') else 'TWSE')
+            or proof.get('status') != 'archived'
+            or proof.get('evidence_kind') != 'raw_http_response_bytes'):
+        return None
+    return {**deepcopy(publication), 'ticker': ticker, 'eligible': False,
+            'raw_evidence': deepcopy(proof), 'retrieved_at': proof.get('retrieved_at'),
+            'categories': deepcopy(official.get('categories') or {}),
+            'canonical_source_replaced': False,
+            'reason': 'published_before_conservative_recheck; canonical values and clocks preserved'}

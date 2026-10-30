@@ -135,7 +135,11 @@ def test_public_cold_producer_uses_same_integer_summary(monkeypatch, saved_sourc
     produced = taiwan.fetch_institutional_trading_trend(TICKER)
     rebuilt = summarize_observations(produced['daily_category_observations'], TICKER, limit=30)
     assert produced['last_5_trading_days_net_buy_thousand_shares'] == sign * 32.27
-    assert {k: v for k, v in produced.items() if k != 'source_provenance'} == rebuilt
+    assert {k: v for k, v in produced.items() if k not in {'source_provenance', 'publication_observation'}} == rebuilt
+    publication = produced['publication_observation']
+    assert publication['observed_date'] == produced['latest_date']
+    assert publication['retrieved_at'] == produced['source_provenance']['retrieved_at']
+    assert publication['eligible'] is False, 'Publication metadata is not official source admission'
     assert produced['source_provenance']['http_status'] is None
     assert produced['source_provenance']['evidence_kind'] == 'sdk_dataframe_json_not_raw_http'
 

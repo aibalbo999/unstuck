@@ -211,10 +211,10 @@ def evaluate_report_evidence(
     elif any(item["status"] == "unverifiable" for item in reasoning_checks):
         if verdict == "approved":
             verdict = "caution"
-        summary += " MACD柱變化缺少可比的兩日計算依據，查核尚未完成。"
+        summary += " 技術論述的保存輸入、交易日或計算範圍尚未核實，詳見逐項檢核。"
     return {
         "technical_reasoning_checks": reasoning_checks,
-        "technical_reasoning_coverage": "explicit current histogram magnitude and named SMA relations;not all prose reasoning",
+        "technical_reasoning_coverage": "explicit current histogram magnitude and named SMA relations; saved-window arithmetic with separate session admission; not independent price verification, historical PIT, or all prose reasoning",
         "source_admission":source_admission,
         "schema_version": 2,
         "coverage_policy": "all_extracted_numeric_claims" if coverage_complete else "diagnostic_sample",

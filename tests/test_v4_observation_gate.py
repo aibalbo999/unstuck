@@ -5,7 +5,7 @@ from report_publication_gate import assert_report_publishable, ReportPublication
 
 
 def data():
-    return {"current_price": 87.9, "daily_market_data": {"as_of": "2026-10-01", "source": "test provider", "price_adjustment_basis": "provider adjusted", "bars": [{"date": "2026-10-01", "close": 87.9}]}, "institutional_trading": {"observation_dates": ["2026-10-01"]}}
+    return {"ticker": "2356.TW", "current_price": 87.9, "daily_market_data": {"as_of": "2026-10-01", "source": "test provider", "price_adjustment_basis": "provider adjusted", "bars": [{"date": "2026-10-01", "close": 87.9}]}, "institutional_trading": {"observation_dates": ["2026-10-01"]}}
 
 
 def evaluate(value):

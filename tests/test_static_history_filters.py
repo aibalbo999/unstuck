@@ -617,7 +617,7 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "平均 ROI" in performance_panel_js
     assert "sampleConfidenceLabel" in performance_panel_js
     assert "樣本不足，僅供觀察" in performance_panel_js
-    assert "count >= 10" in performance_panel_js
+    assert "未證明策略勝率" in performance_panel_js
     assert "recent-backtest" in performance_panel_js
     assert "/api/maintenance/storage-summary" in api_client_js
     assert "/api/maintenance/cleanup-failed-queue" in api_client_js
@@ -657,7 +657,7 @@ def test_provider_sla_and_manual_refresh_controls_are_wired():
     assert "LLM/API 本機觀測" in api_quota_panel_js
     assert "observed_model_quota_errors" in api_quota_panel_js
     assert "模型" in api_quota_panel_js
-    assert "api_quota_panel.js?v=20260911-plain-route-observations" in index_html
+    assert "api_quota_panel.js?v=20261029-execution-observation" in index_html
     assert index_html.index("api_quota_observations.js") < index_html.index("api_quota_panel.js")
     assert index_html.index("api_quota_usage_helpers.js") < index_html.index("api_quota_panel.js")
     assert "模型額度或頻率曾受限" in api_quota_observations_js
@@ -6138,17 +6138,17 @@ def test_candidate_next_actions_assets_use_shared_cache_buster():
     index_html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
     style_css = (STATIC_DIR / "style.css").read_text(encoding="utf-8")
 
-    assert "/static/style.css?v=20260911-provider-acquisition" in index_html
+    assert "/static/style.css?v=20261002-mobile-evidence" in index_html
     assert "/static/watchlist_freshness_helpers.js?v=20260902-integer-quality-counts" in index_html
-    assert "/static/watchlist_current_quality_helpers.js?v=20260902-target-item-scope" in index_html
-    assert "/static/report_quality_evidence_freshness_helpers.js?v=20261007-financial-period-unit" in index_html
+    assert "/static/watchlist_current_quality_helpers.js?v=20261027-session-quality-scope" in index_html
+    assert "/static/report_quality_evidence_freshness_helpers.js?v=20261023-claim-period-reasons" in index_html
     assert "/static/watchlist_panel_helpers.js?v=20260902-distribution-scope" in index_html
     assert "/static/watchlist_panel.js?v=20260816-scoped-quality-review-navigation" in index_html
     assert "/static/maintenance_action_helpers.js?v=20260816-maintenance-confirmation" in index_html
     assert "/static/maintenance_panel_helpers.js?v=20260816-maintenance-confirmation" in index_html
     assert "/static/maintenance_panel.js?v=20260816-maintenance-confirmation" in index_html
     assert "/static/operator_dashboard_actions.js?v=20260902-repair-queue-scope" in index_html
-    assert "/static/operator_summary_panel.js?v=20261002-research-evidence" in index_html
+    assert "/static/operator_summary_panel.js?v=20261023-workbench-rerun-guard" in index_html
     assert "/static/app_panels.js?v=20260816-historical-quality-audit" in index_html
     assert "/static/styles/operator_summary.css?v=20260711-candidate-next-actions-v3" in style_css
 
@@ -6927,7 +6927,7 @@ def test_market_screener_frontend_tab_is_wired():
     assert "data-screener-sort" in market_screener_js
     assert "formatSignedMetric" in market_screener_js
     assert "setLoading" in market_screener_js
-    assert "查無資料，請放寬條件" in market_screener_js
+    assert "目前無符合篩選條件的研究項目" in market_screener_js
     assert "market-screener-range" in market_screener_js
     assert "market-screener-filter-select" in market_screener_js
     assert "fundamental_revenue_growth_yoy_min" in market_screener_helpers_js
@@ -7806,11 +7806,11 @@ def test_decision_tracking_dense_layout_uses_workspace_efficiently():
     history_panel_renderers_js = (STATIC_DIR / "history_panel_renderers.js").read_text(encoding="utf-8")
     style_css = (STATIC_DIR / "style.css").read_text(encoding="utf-8")
 
-    assert "style.css?v=20260911-provider-acquisition" in index_html
+    assert "style.css?v=20261002-mobile-evidence" in index_html
     assert "/static/provider_sla_panel.js?v=20260911-acquisition-evidence" in index_html
     assert "/static/ops_workspace.js?v=20260708-provider-group-health" in index_html
     assert "/static/history_panel.js?v=20260708-tracking-action-notes" in index_html
-    assert "/static/decision_tracking_panel.js?v=20260708-tracking-action-notes" in index_html
+    assert "/static/decision_tracking_panel.js?v=20261023-workbench-rerun-guard" in index_html
     assert "/static/report_preview_helpers.js?v=20260921-analysis-completeness" in index_html
     assert "/static/report_preview_tracking_helpers.js?v=20260709-report-preview-tracking-helpers" in index_html
     assert "/static/report_preview_panel.js?v=20261023-neutral-causes" in index_html
@@ -7858,7 +7858,7 @@ def test_home_commercial_tab_is_a_restart_safe_product_launchpad():
     index_html = (STATIC_DIR / "index.html").read_text(encoding="utf-8")
     entry_css = (STATIC_DIR / "commercial" / "styles" / "home_entry.css").read_text(encoding="utf-8")
 
-    assert "style.css?v=20260911-provider-acquisition" in index_html
+    assert "style.css?v=20261002-mobile-evidence" in index_html
     assert "/static/commercial/styles/home_entry.css?v=20260711-simple" in index_html
     assert 'id="home-panel-commercial"' in index_html
     assert 'class="commercial-entry-launchpad"' in index_html

@@ -1,0 +1,23 @@
+# Volume scope and missing-data correction (2026-10-03)
+
+The official MI_INDEX closing table declares its volume includes general, odd-lot, after-hours fixed-price and block trades, excluding auction/tender. The provider adapter previously discarded this note. The comparison ledger also treated equal values in shares on the same date as verified comparability despite missing transaction/session scope.
+
+Three 2026-10-02 samples were compared with explicitly dated official TWT53U after-hours odd-lot and BFT41U fixed-price ALL responses. BFT41U's default 01 is a sector subset, so absence there cannot mean zero. ALL was selected from the documented official form. Fixed-price quantity is in trading units, not shares; each sample's amount / price / quantity independently verifies a 1,000-share multiplier. The exact differences are:
+
+| Symbol | Official minus Yahoo shares | After-hours odd shares | Fixed-price shares | Residual |
+|---|---:|---:|---:|---:|
+| 1301 | 48,838 | 5,838 | 43,000 | 0 |
+| 6456 | 31,375 | 3,375 | 28,000 | 0 |
+| 1513 | 10,185 | 2,185 | 8,000 | 0 |
+
+This is a same-day three-symbol arithmetic decomposition, not a universal Yahoo volume definition. Single-security block data was inspected; absence is not generalized to all block categories. Acquisitions were made on 2026-10-03, and no report-time PIT availability is inferred. Source URLs, selectors, acquisition times and raw-response hashes are recorded in evidence/volume-component-samples-20261002.json; full raw bodies are in the review workspace hcs-phase11. No subscription or paid product was used. Public definitions: https://www.twse.com.tw/zh/trading/historical/mi-index.html ; https://www.twse.com.tw/zh/trading/historical/twt53u.html ; https://www.twse.com.tw/zh/trading/historical/bft41u.html .
+
+The official adapter now retains the response's transaction-scope note and verified scope identifier; its cache version changes so older scope-less observations are not silently reused as verified. Yahoo explicitly remains unspecified transaction scope. Equal numerical volume is now a separate value-match fact, and cross-provider comparability/normalization requires matching explicitly verified scopes as well as date, symbol, units and value. Existing reports remain unchanged and missing legacy scope fails closed.
+
+A second proven error was the screener's conversion of missing/invalid volume to zero. Nineteen missing baseline samples could create a false twenty-times volume spike. It also removed price samples just because their volumes were missing. The scanner now preserves missing volume, requires all preceding 20 volume observations to be finite and nonnegative before computing its ratio, and keeps the price SMA based on valid price samples. Unknown latest volume stays null. Prices and volume-derived signals are evaluated independently.
+
+Report volume_ratio_20 still uses the final 20 provider volumes including the latest bar, while screener volume_ratio uses the preceding 20. Both policies are explicitly recorded and must not be numerically equated. Report volumes are shares throughout one Yahoo series and are not multiplied by price adjustment factors or spliced with official latest volume. OBV is not implemented in the deterministic indicator payload; it is not presented as an independently calculated indicator. No new indicator, threshold, confidence probability or strategy result is introduced.
+
+Normal read-only provider checks use the phase9 daily adapter and phase10 full report-history producer; they do not import a new list, force a scheduled scan, run models or rewrite artifacts. Weekend observations must end on the verified 2026-10-02 completed session. The immutable 1,688 originals, five appended revisions and approved finite 76 scope remain unchanged; maturity and actual-cost limitations remain.
+
+Subsequent normal-path verification on 2026-10-03 returned Yahoo volume 32,848,838 for 1301 on October 2, both in the five-year query and an exact-session query acquired at 00:31:17 UTC. The earlier three-month sample was 33,066,217. The current official total 33,115,055 minus the current provider value is 266,217, matching the official intraday odd-lot count. This proves an acquisition-dependent discrepancy in these observations, not a fixed provider transaction definition or its cause. The earlier decomposition remains explicitly tied to its own acquisition; it must not be generalized. Current receipt files are live-producer-receipt.json and paired-exact-session.json in hcs-phase11. The normal daily adapter returned 1,120 rows dated October 2; the five-year producer returned complete October 2 prices, so conditional exact-session recovery was correctly unnecessary on this run.

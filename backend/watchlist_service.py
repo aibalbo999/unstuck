@@ -138,6 +138,12 @@ async def monitor_watchlist_triggers(
                 skipped.append({"ticker": ticker, "trigger": event.get("trigger_type"), "reason": "not_matched"})
                 continue
             selected_pipeline = normalize_pipeline_run_id(event.get("pipeline_selected") or item.get("pipeline") or "v1")
+            from nightly_analysis_policy import enabled as nightly_enabled, domestic
+            if (nightly_enabled() and domestic(ticker) and "post_market" in item.get("schedule_slots", [])
+                    and selected_pipeline == normalize_pipeline_run_id(item.get("pipeline") or "v1")):
+                skipped.append({"ticker": ticker, "pipeline": selected_pipeline,
+                                "reason": "deferred_to_qualified_nightly_analysis"})
+                continue
             active = find_active_job(ticker, selected_pipeline)
             if active:
                 skipped.append({"ticker": ticker, "pipeline": selected_pipeline, "reason": "active_job", "job_id": active.get("job_id")})
