@@ -66,7 +66,9 @@ def test_provider_attaches_audited_occupational_safety_without_mixing_job_counts
         URLS[".TW"]: json.dumps([_row()]),
         "https://openapi.twse.com.tw/v1/opendata/t187ap46_L_5": json.dumps([workforce_row]),
     }
-    monkeypatch.setattr(workforce, "_fetch_dataset", lambda url: responses[url])
+    import httpx
+    monkeypatch.setattr(workforce, "sync_get", lambda url, **kw: httpx.Response(200,
+        content=responses[url].encode(), request=httpx.Request("GET", url)))
     monkeypatch.setattr(workforce, "_today", lambda: date(2026, 10, 17))
     def cached(key, callback, **kwargs):
         return callback(), {"cache_hit": False, "stale": False, "fetched_at_epoch": 1_797_000_000,
@@ -117,13 +119,10 @@ def test_cold_official_dataset_requests_count_in_both_acquisition_categories(mon
     }
     requested = []
 
-    class Response:
-        def __init__(self, content):
-            self.content = content
-
+    import httpx
     def fake_get(url, **kwargs):
         requested.append(url)
-        return Response(responses[url])
+        return httpx.Response(200, content=responses[url], request=httpx.Request("GET", url))
 
     def cold_shared_fetch(key, callback, **kwargs):
         return callback(), {"cache_hit": False, "stale": False, "fetched_at_epoch": 1_797_000_000}

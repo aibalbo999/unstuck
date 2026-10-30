@@ -120,29 +120,69 @@ def parse_workforce_dataset(raw: bytes | str, ticker: str, *, today: date | None
     }
 
 
+class _DatasetText(str):
+    """Text remains JSON-compatible; only this fresh response carries HTTP proof."""
+    def __new__(cls, text, evidence=None):
+        value = super().__new__(cls, text)
+        value.http_evidence = dict(evidence or {})
+        return value
+
+
+def _response_request_evidence(url, response):
+    import httpx
+    if type(response) is not httpx.Response or getattr(response, 'from_cache', False):
+        return {}
+    try:
+        if (response.url != url or response.request.method != 'GET'
+                or type(response.status_code) is not int or not 100 <= response.status_code <= 599):
+            return {}
+    except RuntimeError:
+        return {}
+    proof = {'http_request_sent': True, 'http_request_count': 1,
+             'http_status': response.status_code}
+    try:
+        body = response.content
+        if isinstance(body, bytes) and 0 < len(body) <= MAX_BYTES:
+            proof.update(response_sha256=sha256(body).hexdigest(), response_bytes=len(body))
+    except httpx.ResponseNotRead:
+        pass
+    return proof
+
+
 def _fetch_dataset(url: str) -> str:
     transport_provider = ("TWSE/TPEx annual ESG occupational safety OpenAPI" if "_21" in url else PROVIDER)
     from annual_disclosure_transport import observe_response
     try:
         response = sync_get(url, headers={"User-Agent": "stock-agent/1.0"}, timeout=8, provider=transport_provider)
     except Exception as exc:
-        # HTTP errors may carry a real response. Connection/timeout exceptions
-        # without one remain unknown; never synthesize a status or retry here.
         failed_response = getattr(exc, "response", None)
         if failed_response is not None:
             observe_response(url, failed_response, max_bytes=MAX_BYTES)
+            exc.annual_http_evidence = _response_request_evidence(url, failed_response)
         raise
     observe_response(url, response, max_bytes=MAX_BYTES)
-    raw = response.content
-    if not isinstance(raw, bytes) or not 0 < len(raw) <= MAX_BYTES:
-        raise ValueError("annual workforce response size invalid")
-    return raw.decode("utf-8")
+    proof = _response_request_evidence(url, response)
+    try:
+        raw = response.content
+        if not isinstance(raw, bytes) or not 0 < len(raw) <= MAX_BYTES:
+            raise ValueError("annual workforce response size invalid")
+        return _DatasetText(raw.decode("utf-8"), proof)
+    except Exception as exc:
+        exc.annual_http_evidence = proof
+        raise
 
 
 def _tracked_dataset_fetch(url: str, request_evidence: dict) -> str:
-    """Bind native HTTP activity to the shared-cache callback that caused it."""
-    request_evidence.update(http_request_sent=True, http_request_count=1)
-    return _fetch_dataset(url)
+    """Unknown transport remains unknown; receipt is independent of parsed success."""
+    request_evidence.update(http_request_sent=None, http_request_count=0)
+    try:
+        result = _fetch_dataset(url)
+    except Exception as exc:
+        request_evidence.update(getattr(exc, 'annual_http_evidence', {}) or {})
+        raise
+    if isinstance(result, _DatasetText):
+        request_evidence.update(result.http_evidence)
+    return result
 
 
 class AnnualWorkforceProvider(DataProvider):
@@ -169,8 +209,13 @@ class AnnualWorkforceProvider(DataProvider):
             result_ttl=lambda result: 24 * 60 * 60,
             use_cache=True, lock_wait_seconds=10,
         )
-        meta = {**meta, "http_request_sent": workforce_request.get("http_request_sent") is True,
+        meta = {**meta, **workforce_request, "http_request_sent": workforce_request.get("http_request_sent", False),
                 "http_request_count": int(workforce_request.get("http_request_count") or 0)}
+        workforce_response_hash = meta.get("response_sha256")
+        if isinstance(raw, (str, bytes)):
+            workforce_bytes = raw.encode("utf-8") if isinstance(raw, str) else raw
+            if 0 < len(workforce_bytes) <= MAX_BYTES:
+                workforce_response_hash = sha256(workforce_bytes).hexdigest()
         observation = parse_workforce_dataset(raw, ticker) if raw is not None else None
         from .annual_occupational_safety import (
             URLS as SAFETY_URLS,
@@ -184,7 +229,7 @@ class AnnualWorkforceProvider(DataProvider):
             retention_seconds=7 * 24 * 60 * 60, result_ttl=lambda result: 24 * 60 * 60,
             use_cache=True, lock_wait_seconds=10,
         )
-        safety_meta = {**safety_meta, "http_request_sent": safety_request.get("http_request_sent") is True,
+        safety_meta = {**safety_meta, **safety_request, "http_request_sent": safety_request.get("http_request_sent", False),
                        "http_request_count": int(safety_request.get("http_request_count") or 0)}
         safety = parse_occupational_safety_dataset(safety_raw, ticker) if safety_raw is not None else None
         workforce_salary = observation is not None and observation["metrics"]["employee_average_salary_thousand_twd"] is not None
@@ -254,7 +299,9 @@ class AnnualWorkforceProvider(DataProvider):
             "published_on": safety.get("published_on") if safety else None,
             "response_sha256": safety.get("response_sha256") if safety else None,
             "coverage_status": safety.get("coverage_status") if safety else "unavailable",
-            "http_request_sent": bool(safety_meta.get("http_request_sent")),
+            "http_request_sent": safety_meta.get("http_request_sent"),
+            "http_status": safety_meta.get("http_status"),
+            "response_bytes": safety_meta.get("response_bytes"),
             "http_request_count": int(safety_meta.get("http_request_count") or int(safety_meta.get("http_request_sent") is True)),
             "cache_hit": bool(safety_meta.get("cache_hit")),
             "stale": bool(safety_meta.get("stale")),
@@ -277,11 +324,11 @@ class AnnualWorkforceProvider(DataProvider):
             "source": self.source, "provider": self.name, "status": workforce_audit_status,
             "event_kind": "fetch",
             "record_count": int(workforce_salary),
-            "raw_count": 1 if observation else 0,
+            "raw_count": int(workforce_usable),
             "source_url": url, "coverage_status": workforce_coverage,
-            "report_year": observation.get("report_year") if observation else None,
-            "published_on": observation.get("published_on") if observation else None,
-            "response_sha256": observation.get("response_sha256") if observation else None,
+            "report_year": observation.get("report_year") if workforce_usable else None,
+            "published_on": observation.get("published_on") if workforce_usable else None,
+            "response_sha256": workforce_response_hash,
             "component_statuses": {
                 "annual_disclosure": {
                     "status": workforce_status,
@@ -297,7 +344,9 @@ class AnnualWorkforceProvider(DataProvider):
                         "已取得部分年度人力揭露；缺少欄位保持未知。" if workforce_status == "partial" else
                         "年度人力來源未回傳有效的同公司資料；缺值不代表零。" if workforce_status == "valid_empty" else
                         "年度人力資料來源取得失敗。"),
-            "http_request_sent": meta.get("http_request_sent") is True,
+            "http_request_sent": meta.get("http_request_sent"),
+            "http_status": meta.get("http_status"),
+            "response_bytes": meta.get("response_bytes"),
             "http_request_count": int(meta.get("http_request_count") or 0),
             "cache_hit": bool(meta.get("cache_hit")),
             "stale": bool(meta.get("stale")),
