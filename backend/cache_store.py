@@ -60,6 +60,12 @@ def get_cache_json(cache_key: str) -> object | None:
     return get_cache_backend().get_json(cache_key)
 
 
+def peek_cache_json(cache_key: str) -> object | None:
+    """Read only: SQLite peeks do not create schemas or clean expired rows."""
+    backend=get_cache_backend()
+    return backend.peek_json(cache_key) if isinstance(backend,SqliteCacheBackend) else backend.get_json(cache_key)
+
+
 def set_cache_json(cache_key: str, value: object, ttl_seconds: int) -> None:
     get_cache_backend().set_json(cache_key, value, ttl_seconds=ttl_seconds)
 

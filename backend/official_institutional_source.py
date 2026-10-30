@@ -26,11 +26,17 @@ TWSE_FIELDS = ['證券代號', '證券名稱', '外陸資買進股數(不含外�
 TPEX_FIELDS = ['代號', '名稱'] + ['買進股數', '賣出股數', '買賣超股數'] * 7 + ['三大法人買賣超股數合計']
 
 
-def expected_sessions(ticker, now_epoch, count=MAX_REPORTS):
-    """Select only sessions inside the existing conservative publication window."""
+def expected_sessions(ticker, now_epoch, count=MAX_REPORTS, *, include_provisional=False):
+    """Choose acquisition days or, by default, the strict mature evidence window."""
     from data_freshness_market import market_calendar
+    from market_evidence_policy import acquisition_session_scope
+    from market_calendar_store import session_day_status
     current = datetime.fromtimestamp(now_epoch, ZoneInfo('Asia/Taipei'))
-    day = current.date() if (current.hour, current.minute) >= (22, 30) else current.date()-timedelta(days=1)
+    scope = acquisition_session_scope(current, ticker=ticker)
+    start = scope['latest_completed_session' if include_provisional else 'mature_evidence_session']
+    if not start:
+        return []
+    day = datetime.fromisoformat(start).date()
     result, calendars = [], {}
     for _ in range(max(45, count*3)):
         if day.year not in calendars:
@@ -38,7 +44,10 @@ def expected_sessions(ticker, now_epoch, count=MAX_REPORTS):
         calendar = calendars[day.year]
         if calendar.get('coverage_status') != 'available':
             return []
-        if day.weekday()<5 and day not in calendar['holidays']:
+        admission = session_day_status(day, exchange='TPEX' if str(ticker).endswith('.TWO') else 'TWSE')
+        if admission['state'] == 'unknown':
+            return []
+        if admission['state'] == 'open':
             result.append(day.isoformat())
             if len(result)==count:
                 return result
@@ -183,14 +192,16 @@ def _fetch_report(market, day, timeout, *, openapi=False):
         return report
 
 
-def recover_institutional_observations(ticker, primary, *, now_epoch, limit, force_refresh=False):
+def recover_institutional_observations(ticker, primary, *, now_epoch, limit, force_refresh=False,
+                                     include_provisional=False):
     """Merge exact day/category once; keep conflicts and acquisition diagnostics."""
     from data_freshness_market import is_taiwan_ticker
     from shared_provider_cache import shared_fetch
     from institutional_observations import summarize_observations
     if not is_taiwan_ticker(ticker):
         return primary, {}
-    dates=expected_sessions(ticker,now_epoch)
+    options = {'include_provisional': True} if include_provisional else {}
+    dates=expected_sessions(ticker,now_epoch, **options)
     if not dates:
         return primary, {'status':'calendar_unknown','checked_dates':[],'added_observation_count':0}
     market='TPEX' if str(ticker).upper().endswith('.TWO') else 'TWSE'
@@ -198,7 +209,15 @@ def recover_institutional_observations(ticker, primary, *, now_epoch, limit, for
     code=str(ticker).split('.')[0]
     old_records=primary.get('daily_category_observations') or []
     merged={(row['date'],row['category']):dict(row) for row in old_records}
-    required_dates = expected_sessions(ticker, now_epoch, limit)
+    required_dates = expected_sessions(ticker, now_epoch, limit, **options)
+    from market_evidence_policy import calendar_cache_token
+    from institutional_cached_window import reuse_cached_window
+    moment = datetime.fromtimestamp(now_epoch, ZoneInfo('Asia/Taipei'))
+    calendar_token = calendar_cache_token(ticker, moment)
+    started=time.monotonic()
+    cached_reports,cached_added=reuse_cached_window(
+        ticker,required_dates,merged,now_epoch=now_epoch,calendar_token=calendar_token,
+        deadline=started+TOTAL_BUDGET_SECONDS) if not force_refresh else ([],0)
     categories = ('foreign', 'investment_trust', 'dealer')
     missing_dates = [day for day in required_dates
                      if any((day, category) not in merged for category in categories)]
@@ -206,13 +225,15 @@ def recover_institutional_observations(ticker, primary, *, now_epoch, limit, for
     # five-report budget on actual window gaps before rechecking present rows.
     # A complete primary window keeps the original latest-five plan.
     dates = list(dict.fromkeys([dates[0], *missing_dates, *dates[1:]]))[:MAX_REPORTS]
-    diagnostics={'status':'unavailable','provider':source,'checked_dates':[], 'reports':[],
-                 'added_observation_count':0,'conflicts':[],
+    diagnostics={'status':'unavailable','provider':source,'checked_dates':[],
+                 'reports':[r for r in cached_reports if r['date'] not in dates],
+                 'added_observation_count':cached_added,'cached_window_observation_count':cached_added,'conflicts':[],
                  'required_window_dates': required_dates, 'missing_expected_dates': missing_dates,
                  'selected_recovery_dates': dates,
                  'coverage_scope': 'latest session and selected gaps; not full official window verification',
                  'absence_policy':'Missing security rows are not zero trades or evidence of suspension.'}
-    started=time.monotonic()
+    from market_evidence_policy import publication_observation
+    diagnostics['calendar_cache_token'] = calendar_token
     for day in dates:
         remaining=TOTAL_BUDGET_SECONDS-(time.monotonic()-started)
         if remaining<=0:
@@ -236,12 +257,14 @@ def recover_institutional_observations(ticker, primary, *, now_epoch, limit, for
 
         from market_evidence_policy import acquisition_phase
         phase=acquisition_phase(day,datetime.fromtimestamp(now_epoch,ZoneInfo('Asia/Taipei')))
-        report,meta=shared_fetch(f'official-institutional:{market}:{day}:v2:{phase}',
+        cache_key=f'official-institutional:{market}:{day}:v3:{calendar_token}:{phase}'
+        report,meta=shared_fetch(cache_key,
                                 fetch_before_deadline,
                                 freshness_seconds=6*3600 if phase=='post_cutoff' else 300,retention_seconds=6*3600,error_retry_seconds=60,lock_wait_seconds=0,
                                 result_ttl=lambda row:6*3600 if row.get('rows') and phase=='post_cutoff' else 300,
-                                use_cache=True, force_refresh=force_refresh, preserve_cache_on_force_error=True)
-        receipt={'date':day,'source':source,'source_url':_url(market,day),'acquisition_phase':phase,'cache_key':f'official-institutional:{market}:{day}:v2:{phase}',**meta}
+                                use_cache=True, force_refresh=force_refresh,
+                                preserve_cache_on_force_error=True)
+        receipt={'date':day,'source':source,'source_url':_url(market,day),'acquisition_phase':phase,'cache_key':cache_key,**meta}
         if isinstance(report,dict):
             receipt['raw_evidence']=report.get('raw_evidence')
             receipt['source']=report.get('source') or source
@@ -259,6 +282,10 @@ def recover_institutional_observations(ticker, primary, *, now_epoch, limit, for
         report_url=report.get('source_url') or _url(market,day)
         if day==dates[0]:
             diagnostics['latest_official_observation']={'date':day,'market':market,'ticker':ticker,'categories':{key:row[key] for key in ('foreign','investment_trust','dealer')},'unit':'shares','acquisition_phase':phase,'raw_evidence':report.get('raw_evidence'),'source_url':report_url}
+            proof = report.get('raw_evidence') or {}
+            diagnostics['publication_observation'] = publication_observation(
+                day, moment=moment, provider=report_source,
+                retrieved_at=proof.get('retrieved_at'), raw_evidence=proof, ticker=ticker)
         for category in ('foreign','investment_trust','dealer'):
             key=(day,category)
             observed={'date':day,'category':category,'net_buy_shares':row[category],'source':report_source,

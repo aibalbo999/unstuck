@@ -6,11 +6,11 @@ import re
 from urllib.parse import urlsplit
 from provider_correlation import correlation_metadata
 
-_TEXT = {'outcome', 'error_kind', 'parser_version', 'response_sha256', 'actual_provider',
+_TEXT = {'outcome', 'error_kind', 'acquisition_count_policy', 'parser_version', 'response_sha256', 'actual_provider',
          'coverage_status', 'quality_status', 'retrieval_status', 'qualified_result_status', 'selection_policy', 'selection_cutoff', 'fallback_reason', 'market', 'instrument_type', 'rate_kind'}
 _BOOL = {'http_request_sent', 'cache_hit', 'stale', 'mapping_verified', 'progress_resume_possible',
          'body_cache_hit', 'result_quality_satisfied'}
-_NUMBER = {'http_status', 'retry_at', 'fetched_at_epoch', 'response_bytes', 'raw_count', 'usable_count', 'rejected_count',
+_NUMBER = {'acquisition_record_count', 'http_status', 'retry_at', 'fetched_at_epoch', 'response_bytes', 'raw_count', 'usable_count', 'rejected_count',
            'http_request_count', 'progress_missing_count', 'progress_fresh_until_epoch',
            'progress_remaining_seconds', 'detail_cache_hit_count', 'detail_new_body_count', 'body_fetched_at_epoch',
            'result_publisher_count'}

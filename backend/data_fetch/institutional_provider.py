@@ -28,9 +28,12 @@ def fetch_institutional_result(request: FetchRequest, *, fetch=None) -> Provider
     fresh_ttl = source_max_age_seconds(SOURCE, request.ticker)
     from datetime import datetime
     from zoneinfo import ZoneInfo
-    from market_evidence_policy import session_cache_scope
-    expected,phase=session_cache_scope(datetime.fromtimestamp(time.time(),ZoneInfo('Asia/Taipei')))
-    primary_key=f'institutional:{request.ticker}:{INSTITUTIONAL_LOOKBACK_DAYS}:v2:{expected}:{phase}'
+    from market_evidence_policy import acquisition_session_scope, calendar_cache_token
+    moment = datetime.fromtimestamp(time.time(),ZoneInfo('Asia/Taipei'))
+    scope = acquisition_session_scope(moment, ticker=request.ticker)
+    expected, phase = scope['latest_completed_session'], scope['acquisition_phase']
+    calendar_token = calendar_cache_token(request.ticker, moment)
+    primary_key=f'institutional:{request.ticker}:{INSTITUTIONAL_LOOKBACK_DAYS}:v3:{calendar_token}:{expected}:{phase}'
 
     def result_ttl(value):
         if not value:
@@ -52,14 +55,18 @@ def fetch_institutional_result(request: FetchRequest, *, fetch=None) -> Provider
             from institutional_observations import rebuild_cached_primary_summary
             value = rebuild_cached_primary_summary(
                 value, request.ticker, now_epoch=time.time(), limit=INSTITUTIONAL_LOOKBACK_DAYS)
+        primary_is_empty = not value
         from official_institutional_source import recover_institutional_observations
         value, recovery = recover_institutional_observations(
             request.ticker, value, now_epoch=time.time(), limit=INSTITUTIONAL_LOOKBACK_DAYS,
-            force_refresh=request.options.force_refresh)
+            force_refresh=request.options.force_refresh, include_provisional=True)
         if value and recovery:
             value["official_recovery"] = recovery
+            if recovery.get('publication_observation'):
+                value['publication_observation'] = recovery['publication_observation']
         primary_acquisition = dict(meta)
-        primary_acquisition.update(cache_key=primary_key,expected_completed_session=expected,acquisition_phase=phase)
+        primary_acquisition.update(cache_key=primary_key,expected_completed_session=expected,acquisition_phase=phase,
+                                   acquisition_scope=scope, calendar_cache_token=calendar_token)
         if recovery.get("added_observation_count"):
             receipts = [row for row in recovery.get("reports", []) if row.get("status") == "available"]
             fetched = [row.get("fetched_at_epoch") for row in receipts if row.get("fetched_at_epoch")]
@@ -97,6 +104,8 @@ def fetch_institutional_result(request: FetchRequest, *, fetch=None) -> Provider
         audit.update(meta, **recency, latest_session_admission=admission, cache_key=primary_key, expected_completed_session=expected, acquisition_phase=phase, actual_provider=actual_provider, primary_provider=DATASET, stale=stale,
                      retrieval_status="error" if error_kind else "success" if value else "empty",
                      coverage_status="partial" if partial else "available" if value else "unavailable")
+        audit.update(acquisition_scope=scope, calendar_cache_token=calendar_token,
+                     publication_observation=value.get('publication_observation'))
         audit["component_statuses"] = {"institutional_observations": {
             "status": audit["coverage_status"], "as_of": recency["observed_at"], "provider": actual_provider,
             "observation_status": recency["observation_status"], "observation_age_days": recency["observation_age_days"],
@@ -116,6 +125,17 @@ def fetch_institutional_result(request: FetchRequest, *, fetch=None) -> Provider
             audit["fetched_at"] = None
         # This is an aggregate; SDK callback invocation is not proof of an HTTP request.
         audit["event_kind"] = "aggregate"
+        if (primary_is_empty and not primary_acquisition.get("cache_hit")
+                and not primary_acquisition.get("error_kind")
+                and recovery.get("added_observation_count")
+                and not any(row.get("status")=="available" and row.get("cache_hit") is False
+                            for row in recovery.get("reports",[]))):
+            # Usable cache-backed data is separate from this empty acquisition.
+            # Keep the actual empty attempt in the denominator, never a success.
+            audit["acquisition_record_count"] = 0
+            audit["acquisition_count_policy"] = "institutional-primary-and-official-new:v1"
+            message = "本次法人主來源空白；僅沿用有效官方快取，未計新增取得成功。"
+            audit["message"] = message
         if not audit.get("provider_attempts"):
             audit["http_request_sent"] = False
         if value:
@@ -149,6 +169,7 @@ def institutional_window_status(dates: list[str], ticker: str, count: int) -> st
     """A sparse row count is not evidence of consecutive exchange sessions."""
     from datetime import datetime, timedelta
     from data_freshness_market import market_calendar
+    from market_calendar_store import session_day_status
     from source_observation_freshness import parse_observation_date
 
     latest = parse_observation_date(dates[-1]) if dates else None
@@ -163,7 +184,10 @@ def institutional_window_status(dates: list[str], ticker: str, count: int) -> st
         calendar = calendars[day.year]
         if calendar.get("coverage_status") != "available":
             return "calendar_unknown"
-        if day.weekday() < 5 and day not in calendar["holidays"]:
+        admission = session_day_status(day, exchange='TPEX' if ticker.endswith('.TWO') else 'TWSE')
+        if admission['state'] == 'unknown':
+            return 'calendar_unknown'
+        if admission['state'] == 'open':
             expected.append(day.isoformat())
             if len(expected) == count:
                 break

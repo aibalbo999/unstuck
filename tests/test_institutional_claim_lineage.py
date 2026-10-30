@@ -9,8 +9,11 @@ import pytest
 def replay_observation_date(monkeypatch):
     import trade_source_contract as contract
     original = contract.build_short_term_market_context
+    # source_catalog now supplies an explicit Taipei evaluation date. This
+    # historical lineage fixture owns its replay date and replaces that keyword
+    # once; it must not pass two as_of arguments before the assertions can run.
     monkeypatch.setattr(contract, 'build_short_term_market_context',
-        lambda data, **kwargs: original(data, as_of='2026-10-02', **kwargs))
+        lambda data, **kwargs: original(data, **{**kwargs, 'as_of': '2026-10-02'}))
 
 
 def fixture():

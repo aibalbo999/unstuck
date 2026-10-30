@@ -8,7 +8,7 @@ from datetime import date
 import math
 
 DAILY_CATEGORY_PATH_PREFIX = 'institutional_trading.daily_category_observations['
-_SOURCES = {'FinMind TaiwanStockInstitutionalInvestorsBuySell', 'TWSE T86', 'TPEx dailyTrade'}
+_SOURCES = {'FinMind TaiwanStockInstitutionalInvestorsBuySell', 'TWSE T86', 'TPEx dailyTrade', 'TPEx institutional OpenAPI'}
 _CATEGORIES = {'foreign', 'investment_trust', 'dealer'}
 
 
@@ -21,7 +21,7 @@ def _day(value):
         return None
 
 
-def daily_category_records(raw):
+def daily_category_records(raw, *, ticker=None):
     rows = raw.get('daily_category_observations')
     dates = raw.get('observation_dates')
     latest = _day(raw.get('latest_date'))
@@ -34,6 +34,10 @@ def daily_category_records(raw):
     providers = set(source.split(' + '))
     if not providers or not providers.issubset(_SOURCES):
         return []
+    if 'TPEx institutional OpenAPI' in providers:
+        from institutional_openapi_evidence import openapi_rows_bound
+        if not openapi_rows_bound(raw,ticker):
+            return []
     if 'observed_date_count' in raw and (type(raw['observed_date_count']) is not int
                                         or raw['observed_date_count'] != len(dates)):
         return []

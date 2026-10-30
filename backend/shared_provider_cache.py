@@ -106,6 +106,23 @@ def shared_fetch(key: str, fetch: Callable, *, freshness_seconds: int,
         return value_new, meta
 
 
+def peek_fresh_shared(key: str) -> tuple[object, dict]:
+    """Read an existing fresh value only; never fetch, lock, write or renew TTL."""
+    from cache_store import peek_cache_json
+    miss={'cache_hit':False,'stale':False,'fetched_at_epoch':None}
+    try:
+        row=_validated_time_metadata(peek_cache_json(_PREFIX+hashlib.sha256(key.encode()).hexdigest()))
+        now=time.time()
+        acquired=row.get('fetched_at_epoch')
+        until=row.get('fresh_until_epoch')
+        if (row.get('value') is None or type(acquired) not in (int,float)
+                or type(until) not in (int,float) or not 0<acquired<=now<until):
+            return None,miss
+        return deepcopy(row['value']),{'cache_hit':True,'stale':False,'fetched_at_epoch':acquired}
+    except Exception:
+        return None,miss
+
+
 def _validated_time_metadata(row):
     if not isinstance(row, dict):
         return {}

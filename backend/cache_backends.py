@@ -7,7 +7,7 @@ import json
 import sqlite3
 import threading
 import time
-from contextlib import contextmanager
+from contextlib import contextmanager, closing
 from pathlib import Path
 from typing import Iterator, Protocol, runtime_checkable
 
@@ -84,6 +84,18 @@ class SqliteCacheBackend:
     def __init__(self, db_path: str | Path):
         self._lock = threading.Lock()
         self._resource = ThreadLocalSqliteResource(lambda: db_path, init_schema=_init_schema)
+        self._peek_db_path = Path(db_path).expanduser()
+
+    def peek_json(self, key: str) -> object | None:
+        """Read a valid row without schema setup or expiry/corruption cleanup."""
+        try:
+            with closing(sqlite3.connect(self._peek_db_path.resolve().as_uri()+"?mode=ro", uri=True, timeout=0)) as conn:
+                conn.execute("PRAGMA query_only=ON")
+                row=conn.execute("SELECT value FROM cache_entries WHERE cache_key=? AND expires_at>?",
+                                 (key,time.time())).fetchone()
+                return _deserialize_json(row[0]) if row else None
+        except (sqlite3.Error,json.JSONDecodeError):
+            return None
 
     def get_json(self, key: str) -> object | None:
         now = time.time()

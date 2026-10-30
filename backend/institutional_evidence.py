@@ -54,9 +54,13 @@ def institutional_evidence_records(data):
         return [r if isinstance(r, dict) else {} for r in typed["records"]]
     raw = _map(context.get("institutional_trading")) or _map(data.get("institutional_trading"))
     source = raw.get("source")
-    allowed = {_PROVIDER, "TWSE T86", "TPEx dailyTrade"}
+    allowed = {_PROVIDER, "TWSE T86", "TPEx dailyTrade", "TPEx institutional OpenAPI"}
     if not isinstance(source,str) or not set(source.split(" + ")).issubset(allowed) or not source:
         return []
+    if 'TPEx institutional OpenAPI' in set(source.split(' + ')):
+        from institutional_openapi_evidence import openapi_rows_bound
+        if not openapi_rows_bound(raw,data.get('ticker')or context.get('ticker')):
+            return []
     latest = _date(raw.get("latest_date"))
     lookback = _number(raw.get("lookback_trading_days"))
     records = []
@@ -85,7 +89,7 @@ def institutional_evidence_records(data):
         add(f"daily_total_net_buy_last_10[{i}].net_buy_thousand_shares", row.get("net_buy_thousand_shares"),
             "thousand_shares", "total", {"kind": "day", "date": observed}, observed)
     from institutional_daily_evidence import daily_category_records
-    records.extend(daily_category_records(raw))
+    records.extend(daily_category_records(raw,ticker=data.get('ticker')or context.get('ticker')))
     return records
 
 

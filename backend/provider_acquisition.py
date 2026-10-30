@@ -73,6 +73,12 @@ def observation_kind(row: dict) -> str:
         return "not_configured_count"
     if status in {"error", "unavailable"}:
         return "failed_count"
+    if (row.get("source")=="institutional_trading" and provider=="FinMind" and status=="success"
+            and details.get("event_kind")=="aggregate"
+            and details.get("acquisition_count_policy")=="institutional-primary-and-official-new:v1"
+            and type(details.get("acquisition_record_count")) is int
+            and details["acquisition_record_count"]==0):
+        count=0  # A real empty primary send remains an attempt despite usable cached rows.
     if provider == "cache" or status == "skipped_fresh_cache":
         if count <= 0:
             return "empty_cache_count"
