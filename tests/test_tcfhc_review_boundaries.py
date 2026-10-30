@@ -15,7 +15,7 @@ def test_lock_wait_respects_remaining_total_deadline(monkeypatch):
  import shared_provider_cache as c
  from data_fetch.market_sources.tcfhc_conference_transport import ConferenceHttp
  from search_provider_runtime import SourceResponseError
- digest=sha256(('tcfhc-qa-raw:v1:'+h.QA).encode()).hexdigest();lock=c._LOCKS[int(digest[:8],16)%len(c._LOCKS)]
+ digest=sha256(('tcfhc-qa-raw:v1:'+h.QA).encode()).hexdigest();lock=c._local_lock(digest)
  held=threading.Event();release=threading.Event()
  def holder():
   with lock:held.set();release.wait(3)

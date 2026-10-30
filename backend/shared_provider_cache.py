@@ -12,9 +12,22 @@ import math
 from pathlib import Path
 import threading
 import time
+import weakref
 from typing import Callable
 
-_LOCKS = tuple(threading.RLock() for _ in range(64))
+_LOCAL_LOCKS = weakref.WeakValueDictionary()
+_LOCAL_LOCKS_GUARD = threading.Lock()
+
+
+def _local_lock(digest: str):
+    # Keep one lock per exact source while any caller owns or waits for it.
+    # Weak values release idle keys without evicting an active acquisition.
+    with _LOCAL_LOCKS_GUARD:
+        lock = _LOCAL_LOCKS.get(digest)
+        if lock is None:
+            lock = threading.RLock()
+            _LOCAL_LOCKS[digest] = lock
+        return lock
 _PREFIX = 'shared_provider:v1:'
 
 
@@ -147,7 +160,7 @@ def _validated_time_metadata(row):
 
 @contextmanager
 def _shared_lock(digest: str, lock_wait_seconds: float | None):
-    local = _LOCKS[int(digest[:8], 16) % len(_LOCKS)]
+    local = _local_lock(digest)
     if lock_wait_seconds is None:
         with local, _process_lock(digest) as acquired:
             yield acquired

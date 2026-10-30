@@ -210,7 +210,7 @@ def test_thread_and_process_wait_share_one_deadline(monkeypatch):
         waits.append(blocking_timeout)
         now[0] += blocking_timeout
         yield False
-    monkeypatch.setattr(shared, '_LOCKS', (Lock(),))
+    monkeypatch.setattr(shared, '_local_lock', lambda digest: Lock())
     monkeypatch.setattr(shared.time, 'monotonic', lambda: now[0])
     monkeypatch.setattr(shared, '_process_lock', process_lock)
     calls = []

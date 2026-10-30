@@ -272,7 +272,7 @@ def test_single_flight_wait_respects_remaining_total_deadline(monkeypatch):
     from data_fetch.market_sources import official_airline_peer_cohort as source
     from search_provider_runtime import SourceResponseError
     digest=sha256(('caa-airline-raw:v1:'+INDEX).encode()).hexdigest()
-    lock=cache._LOCKS[int(digest[:8],16)%len(cache._LOCKS)]
+    lock=cache._local_lock(digest)
     held=threading.Event();release=threading.Event()
     def holder():
         with lock:held.set();release.wait(3)
