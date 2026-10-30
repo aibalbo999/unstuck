@@ -165,7 +165,7 @@ class AnnualFinancialSourceProvider(DataProvider):
             from .market_sources.tcfhc_annual_financial import supports_annual,fetch_annual_result,PROVIDER as AUDITED_HOLDING_PROVIDER
             if supports_annual(request.ticker):
                 expected_provider=AUDITED_HOLDING_PROVIDER
-                result=fetch_annual_result(request.ticker,force_refresh=True)
+                result=fetch_annual_result(request.ticker,force_refresh=request.options.force_refresh)
             elif supports_public_holding(request.ticker):
                 expected_provider=HOLDING_PUBLIC_PROVIDER
                 result=fetch_public_holding_result(request.ticker)

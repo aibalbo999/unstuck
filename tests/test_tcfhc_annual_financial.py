@@ -23,5 +23,5 @@ def test_public_source_refresh_routes_the_failed_5880_issuer_to_published_books(
     monkeypatch.setattr(books, 'fetch_annual_result', unavailable)
     monkeypatch.setattr(old, 'fetch_financial_institution_histories', lambda *a, **k: None)
     result = AnnualFinancialSourceProvider().fetch(FetchRequest.from_ticker('5880.TW'), {'data': deepcopy(DATA)})
-    assert len(calls) == 1 and calls[0].get('force_refresh') is True
+    assert len(calls) == 1 and calls[0].get('force_refresh') is False
     assert result.audit['provider'] == books.PROVIDER
