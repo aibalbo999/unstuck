@@ -1,18 +1,20 @@
 """Exact official 2Q26 transcript; no future-event or independent-fact upgrade."""
+from . import conference_issuer_master as master_identity
 from copy import deepcopy
 from datetime import date, datetime
 from hashlib import sha256
-import csv,io,json,re,time,zlib
+import json,re,time,zlib
 from urllib.parse import urljoin,unquote
 from zoneinfo import ZoneInfo
 from bs4 import BeautifulSoup
 from search_provider_runtime import SourceResponseError
 from source_pdf_reader import extract_pdf_pages, SourcePdfError
-from .taiwanmobile_conference_transport import ConferenceHttp,MASTER_URL,INDEX_URL,PDF_URL,PROVIDER,RAW_TTL,original_bytes,valid_expiry
+from .taiwanmobile_conference_transport import ConferenceHttp,MASTER_URL,INDEX_URL,PDF_URL,PROVIDER,RAW_TTL,original_bytes,valid_expiry,is_legacy_master
 TICKER='3045.TW'
 LEGAL='台灣大哥大股份有限公司'
 UBN='97176270'
-POLICY='taiwanmobile-original-transcript-v1'
+LEGACY_POLICY='taiwanmobile-original-transcript-v1'
+POLICY='taiwanmobile-original-transcript-v2'
 PROJECTION_POLICY='taiwanmobile-transcript-role-v1'
 INDEX_TITLE='Results Conference Call - Taiwan Mobile: Open Possible | Internet Services |Prepaid Cards|Monthly Plans|Cell Phones'
 NOTE='台灣大哥大官網2026Q2法說逐字稿12頁原生文字；會議日2026-08-14依官網與稿件，實際會議及逐字稿準確性未由影音獨立核對。11月12日Q3仍是未來場次。保留Q2與H1、幣別、每股及non-GAAP界線；展望、訂單、資料中心容量與市場排名是公司說法，不是已驗證實績；官網04:00 p.m.未明示時區，台北時刻保持未知。首次發布日、商業再利用授權未知。'
@@ -24,10 +26,13 @@ def _today(epoch=None):return datetime.fromtimestamp(time.time()if epoch is None
 def _check(deadline):
  if time.monotonic()>=deadline:raise SourceResponseError('timeout')
 
-def parse_master(raw,epoch):
- if not isinstance(raw,bytes)or not 0<len(raw)<=2500000:raise ValueError('master size')
- reader=csv.DictReader(io.StringIO(raw.decode('utf-8-sig','strict')),strict=True);rows=list(reader)
- if not reader.fieldnames or len(set(reader.fieldnames))!=len(reader.fieldnames)or not 500<=len(rows)<=2000 or any(None in r or any(v is None for v in r.values())for r in rows):raise ValueError('complete master required')
+def _master_policy_valid(policy, receipt):
+ if policy==LEGACY_POLICY:return is_legacy_master(receipt)
+ return (policy==POLICY and not is_legacy_master(receipt) and master_identity.is_shared(receipt)
+         and receipt.get('source_url') in (MASTER_URL,master_identity.JSON_URL))
+
+def parse_master(raw,epoch,source_url=MASTER_URL):
+ rows=master_identity.master_rows(raw,epoch,source_url)
  matches=[r for r in rows if r.get('公司代號')=='3045']
  if len(matches)!=1:raise ValueError('issuer not unique')
  row=matches[0]
@@ -88,8 +93,8 @@ def verify_context(value,ticker,*,deadline=None,max_age=RAW_TTL):
   _check(deadline)
   if not supports(ticker)or not isinstance(value,dict)or value.get('ticker')!=TICKER:return False
   proof=value['taiwanmobile_conference_receipt']
-  if set(proof)!={'policy','identity','index','pdf','selected'}or proof['policy']!=POLICY:return False
-  parse_master(original_bytes(proof['identity'],MASTER_URL,max_age=max_age),proof['identity']['retrieved_at'])
+  if set(proof)!={'policy','identity','index','pdf','selected'}or not _master_policy_valid(proof['policy'],proof['identity']):return False
+  parse_master(original_bytes(proof['identity'],proof['identity']['source_url'],max_age=max_age),proof['identity']['retrieved_at'],proof['identity']['source_url'])
   selected=select_transcript(original_bytes(proof['index'],INDEX_URL,max_age=max_age),proof['index']['retrieved_at'])
   if selected!=proof['selected']:return False
   native=native_transcript(original_bytes(proof['pdf'],PDF_URL,max_age=max_age),selected,deadline)
@@ -104,10 +109,10 @@ def fetch_context(ticker,*,diagnostics=None,force_refresh=False,use_cache=True):
  if not supports(ticker):return {}
  deadline=time.monotonic()+25.;http=ConferenceHttp(deadline,force_refresh=force_refresh,use_cache=use_cache);details={'actual_provider':PROVIDER,'taiwanmobile_transcript_workflow':True}
  try:
-  raw,identity=http.get_receipt(MASTER_URL);parse_master(raw,identity['retrieved_at'])
+  raw,identity=http.get_receipt(MASTER_URL);parse_master(raw,identity['retrieved_at'],identity['source_url'])
   raw,index=http.get_receipt(INDEX_URL);selected=select_transcript(raw,index['retrieved_at'])
   raw,pdf=http.get_receipt(PDF_URL);native=native_transcript(raw,selected,deadline)
-  proof={'policy':POLICY,'identity':identity,'index':index,'pdf':pdf,'selected':selected};value=_context(selected,native,proof)
+  proof={'policy':LEGACY_POLICY if is_legacy_master(identity) else POLICY,'identity':identity,'index':index,'pdf':pdf,'selected':selected};value=_context(selected,native,proof)
   if not verify_context(value,TICKER,deadline=deadline):raise SourceResponseError('original_unverified')
   if not all(valid_expiry(proof[k])for k in ('identity','index','pdf')):raise SourceResponseError('original_expired')
   value=deepcopy(value)

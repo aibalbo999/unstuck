@@ -1,4 +1,5 @@
 """Exact anonymous Taiwan Mobile originals with original and shorter cache deadlines."""
+from . import conference_issuer_master as master_identity
 from hashlib import sha256
 import base64
 import math
@@ -78,7 +79,7 @@ def _saved_expiry(raw, url, original_epoch):
         raise ValueError('Taiwan Mobile saved original deadline unverified') from exc
 
 
-def original_bytes(receipt, url, *, max_age=86400):
+def _legacy_original_bytes(receipt, url, *, max_age=86400):
     if not isinstance(receipt,dict) or set(receipt) != RECEIPT_FIELDS or not valid_expiry(receipt):
         raise ValueError('Taiwan Mobile original expiry unverified')
     common = {k:v for k,v in receipt.items() if k != 'fresh_until_epoch'}
@@ -89,6 +90,20 @@ def original_bytes(receipt, url, *, max_age=86400):
     if not valid_epoch(receipt['retrieved_at'],max_age) or not valid_expiry(receipt):
         raise ValueError('Taiwan Mobile original expired during archive readback')
     return raw
+
+
+def is_legacy_master(receipt):
+    return (isinstance(receipt,dict) and set(receipt)==RECEIPT_FIELDS
+            and receipt.get('source_url')==MASTER_URL)
+
+
+def original_bytes(receipt, url, *, max_age=86400):
+    if url in (MASTER_URL,master_identity.JSON_URL):
+        if is_legacy_master(receipt):
+            return _legacy_original_bytes(receipt,url,max_age=max_age)
+        return master_identity.read_master(receipt,url,_legacy_original_bytes,
+                                           max_age=min(max_age,RAW_TTL))
+    return _legacy_original_bytes(receipt,url,max_age=max_age)
 
 
 class ConferenceHttp(_ConferenceHttp):
@@ -113,7 +128,8 @@ class ConferenceHttp(_ConferenceHttp):
         return original_bytes(receipt,url,max_age=max_age)
 
     def get_receipt(self, url):
-        raw,receipt = super().get_receipt(url)
+        raw,receipt = (master_identity.request_master(self) if url==MASTER_URL
+                       else super().get_receipt(url))
         if not valid_epoch(receipt['retrieved_at'],RAW_TTL) or not valid_expiry(receipt):
             raise SourceResponseError('original_expired')
         if time.monotonic() >= self.deadline:raise SourceResponseError('timeout')

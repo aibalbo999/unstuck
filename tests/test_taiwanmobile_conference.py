@@ -73,6 +73,9 @@ def acquisition(monkeypatch):
   raw=bodies[url];calls.append(url);self.http_request_count+=1;diagnostic.update(http_request_sent=True,http_status=200,response_bytes=len(raw),response_sha256=sha256(raw).hexdigest())
   return {'url':url,'body_b64':base64.b64encode(raw).decode(),'sha256':sha256(raw).hexdigest(),'http_status':200,'response_complete':True,'request_method':'GET','http_status_observed':True,'fetched_at_epoch':NOW}
  monkeypatch.setattr(ConferenceHttp,'download_original',download)
+ # Replay the old native-CSV contract separately from the new shared-master tests.
+ from data_fetch.market_sources import conference_issuer_master
+ monkeypatch.setattr(conference_issuer_master,'request_master',lambda http:super(ConferenceHttp,http).get_receipt(source.MASTER_URL))
  yield bodies,calls,native
  cache_store.reset_cache_store_for_tests()
 
