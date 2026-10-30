@@ -84,8 +84,11 @@ class StockDataService:
             provider = candidates[0] if len(candidates) == 1 else None
             canonical_source = source
         elif source == 'dynamic_peer_metrics':
-            from thermal_peer_source_refresh import validate_thermal_refresh_context
-            validate_thermal_refresh_context((context or {}).get('data'), request.ticker)
+            from peer_source_refresh import validate_peer_refresh_context
+            policy = validate_peer_refresh_context((context or {}).get('data'), request.ticker)
+            if policy == 'ncc' and request.options.force_refresh:
+                from fastapi import HTTPException
+                raise HTTPException(status_code=400, detail='NCC 同業來源僅接受保留正常快取的流程')
             candidates = [p for p in self.registry.for_request(request, source) if p.name == 'FinMind/yfinance']
             provider = candidates[0] if len(candidates) == 1 else None
             canonical_source = source
@@ -150,6 +153,9 @@ class StockDataService:
             else:
                 from .market_sources.mops_json_company_history import guard_json_result
             result = guard_json_result(result, context['data'])
+        if source == 'dynamic_peer_metrics':
+            from peer_source_refresh import guard_peer_result
+            result = guard_peer_result(result, context['data'], request.ticker)
         if source == 'alternative_data':
             from alternative_source_refresh import guard_alternative_result, record_related_alternative_attempts
             result = guard_alternative_result(result, context['data'])

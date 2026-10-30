@@ -21,6 +21,7 @@ async def fetch_report_source_data(previous_snapshot, source, refresh_service):
     old_data = previous_snapshot.get('data')
     old_audits = previous_snapshot.get('source_audit')
     honhai_recovery = False
+    peer_refresh_policy = None
     mops_material = False
     if source == 'earnings_call':
         from data_fetch.market_sources.mops_presentation import supports as supports_material
@@ -56,8 +57,8 @@ async def fetch_report_source_data(previous_snapshot, source, refresh_service):
         validate_institutional_refresh_context(old_data, ticker)
         institutional_refresh_session(ticker)
     if source == 'dynamic_peer_metrics':
-        from thermal_peer_source_refresh import validate_thermal_refresh_context
-        validate_thermal_refresh_context(old_data, ticker)
+        from peer_source_refresh import validate_peer_refresh_context
+        peer_refresh_policy = validate_peer_refresh_context(old_data, ticker)
     if source == 'recent_catalysts':
         from recent_catalyst_source_refresh import validate_recent_refresh_context
         validate_recent_refresh_context(old_data, ticker)
@@ -275,7 +276,7 @@ async def fetch_report_source_data(previous_snapshot, source, refresh_service):
             raise HTTPException(status_code=400, detail='原核心資料取得時間缺漏、無效或互相矛盾')
     # Institutional caches already separate the expected session and cutoff
     # phase. Reuse valid all-market originals when repairing different reports.
-    request = FetchRequest.from_ticker(ticker, force_refresh=source not in {'institutional_trading', 'alternative_data'}, record_provider_sla=True)
+    request = FetchRequest.from_ticker(ticker, force_refresh=source not in {'institutional_trading', 'alternative_data'} and peer_refresh_policy != 'ncc', record_provider_sla=True)
     try:
         if honhai_recovery:
             result = await refresh_service.fetch_source_async(request, source, context={'data':old_data,'source_only_recovery':True})
@@ -676,8 +677,8 @@ async def fetch_report_source_data(previous_snapshot, source, refresh_service):
         from institutional_source_refresh import merge_institutional_source
         return merge_institutional_source(old_data, old_audits, value, audits, ticker)
     if source == 'dynamic_peer_metrics':
-        from thermal_peer_source_refresh import merge_thermal_peer_source
-        return merge_thermal_peer_source(old_data, old_audits, value, audits, ticker)
+        from peer_source_refresh import merge_peer_source
+        return merge_peer_source(old_data, old_audits, value, audits, ticker)
     if source == 'recent_catalysts':
         from recent_catalyst_source_refresh import merge_recent_source
         return merge_recent_source(old_data, old_audits, value, audits, ticker)
