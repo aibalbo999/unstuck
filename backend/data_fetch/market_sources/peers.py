@@ -151,6 +151,9 @@ def fetch_dynamic_peer_metrics_with_diagnostics(ticker: str, company_name: str, 
     elif is_taiwan_ticker(ticker):
         master_rows = load_peer_stock_master()
         candidates, audit = resolve_legacy_peer_candidates(ticker, identity, master_rows, today=today)
+        master_metadata = getattr(master_rows, "identity_master_metadata", None)
+        if isinstance(master_metadata, dict):
+            audit["identity_master"] = dict(master_metadata)
         candidates = _prioritize_legacy_candidates(ticker, candidates)
         audit["candidate_order_policy"] = "stock_code_proximity_for_attempt_order_only"
         if ticker in AIRLINES and str(industry or "").strip().casefold() == "airlines":

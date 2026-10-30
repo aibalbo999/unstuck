@@ -7,7 +7,6 @@ from __future__ import annotations
 
 from collections import Counter, defaultdict
 from datetime import date, datetime, timedelta
-from functools import lru_cache
 from math import isfinite
 import re
 from zoneinfo import ZoneInfo
@@ -24,13 +23,11 @@ def _today() -> date:
     return datetime.now(ZoneInfo("Asia/Taipei")).date()
 
 
-@lru_cache(maxsize=1)
 def _master_for_day(day: date) -> list[dict]:
     from .identity import load_taiwan_stock_info_records
 
-    # The legacy loader otherwise keeps historical membership for the lifetime
-    # of a worker. Refresh once per day, sharing the result within this process.
-    load_taiwan_stock_info_records.cache_clear()
+    # The source owns positive lifetime, failure backoff and single flight.
+    # Never clear a valid core observation or memoize an empty result all day.
     return load_taiwan_stock_info_records()
 
 

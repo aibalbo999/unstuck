@@ -36,7 +36,7 @@ def fetch_sync_enrichment_bundle(
 ) -> dict:
     earnings_audit = {}
     # Preserve candidate coverage and original receipts in normal analysis too.
-    typed_peer_target=ticker.upper() in {"5314.TWO","9103.TW","3324.TWO","2610.TW","2618.TW","2646.TW","6757.TW"}
+    typed_peer_target=is_taiwan_ticker(ticker)
     enrichment_fetches = {
         "recent_catalysts_finmind": (
             fetch_finmind_news_catalysts,

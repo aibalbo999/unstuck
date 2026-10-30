@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-from functools import lru_cache
 
 from .common import safe_get
 
@@ -54,28 +53,11 @@ def is_taiwan_ticker(ticker: str) -> bool:
     return str(ticker).endswith(".TW") or str(ticker).endswith(".TWO") or (stock_id.isdigit() and len(stock_id) == 4)
 
 
-@lru_cache(maxsize=1)
 def load_taiwan_stock_info_records() -> list[dict]:
-    if not _get_data_loader():
-        return []
-    try:
-        df = _get_data_loader()().taiwan_stock_info()
-        records = []
-        for _, row in df.iterrows():
-            stock_id = str(row.get("stock_id", "")).strip()
-            stock_name = str(row.get("stock_name", "")).strip()
-            industry_category = str(row.get("industry_category", "")).strip()
-            if stock_id and stock_name:
-                records.append({
-                    "stock_id": stock_id,
-                    "stock_name": stock_name,
-                    "industry_category": industry_category,
-                    "type": str(row.get("type", "")).strip(),
-                    "date": str(row.get("date", "")).strip(),
-                })
-        return records
-    except Exception:
-        return []
+    """Reuse the whole-market source's original lifetime, without SDK retries."""
+    from .stock_identity_master import MasterRows,read_master
+    records,metadata=read_master()
+    return MasterRows(records,metadata)
 
 
 def unique_nonempty(values) -> list[str]:
@@ -158,9 +140,3 @@ def build_company_identity(ticker: str, info: dict, company_name: str) -> dict:
         "industry_categories": industry_categories,
         "same_industry_peers": same_industry_peers,
     }
-
-
-def _get_data_loader():
-    from .taiwan import DataLoader
-
-    return DataLoader
