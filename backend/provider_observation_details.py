@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 import math
+from hashlib import sha256
+from itertools import islice
 import re
 from urllib.parse import urlsplit
 from provider_correlation import correlation_metadata
@@ -85,8 +87,67 @@ def _announcement_attempts(value):
     return out
 
 
+def _original_http_receipts(entry):
+    """Summarize existing original receipts; never infer a current HTTP send.
+
+    Original response metadata and this invocation's cache/send state remain
+    separate. This is passive telemetry, not issuer or parsed-data acceptance.
+    """
+    candidates = []
+    if isinstance(entry.get('raw_http_receipt'), dict):
+        candidates.append(('provider_body', entry, entry['raw_http_receipt']))
+    components = entry.get('component_statuses')
+    values = list(islice(components.values(), 20)) if isinstance(components, dict) else components[:20] if isinstance(components, list) else []
+    for index, component in enumerate(values):
+        if isinstance(component, dict) and isinstance(component.get('original_receipt'), dict):
+            candidates.append((f'component_{index}', component, component['original_receipt']))
+    result = []
+    for role, current, receipt in candidates[:20]:
+        url = receipt.get('source_url')
+        digest, size, stamp, status = (receipt.get(key) for key in
+            ('raw_response_sha256', 'raw_response_bytes', 'retrieved_at', 'http_status'))
+        try:
+            parsed = urlsplit(url) if isinstance(url, str) and len(url) <= 4096 else None
+            valid = (receipt.get('status') == 'archived'
+                and receipt.get('evidence_kind') in {'raw_http_response_bytes', 'decoded_complete_http_response_body'}
+                and parsed is not None and parsed.scheme == 'https' and parsed.hostname
+                and parsed.username is None and parsed.password is None
+                and not any(ord(c) < 32 for c in url)
+                and isinstance(digest, str) and re.fullmatch(r'[0-9a-f]{64}', digest)
+                and type(size) is int and 0 < size <= 100_000_000
+                and type(stamp) in (int, float) and math.isfinite(stamp) and 0 < stamp <= 1_000_000_000_000
+                and type(status) is int and 100 <= status <= 599)
+        except (TypeError, ValueError, OverflowError):
+            valid = False
+        if not valid:
+            continue
+        try:
+            url_digest = sha256(url.encode('utf-8', 'strict')).hexdigest()
+        except UnicodeError:
+            continue
+        row = {'role': role, 'source_url_sha256': url_digest,
+               'response_sha256': digest, 'response_bytes': size,
+               'original_retrieved_at_epoch': stamp, 'http_status': status,
+               'evidence_kind': receipt['evidence_kind']}
+        for key in ('http_request_sent', 'cache_hit'):
+            if type(current.get(key)) is bool:
+                row[key] = current[key]
+        for key in ('http_status_observed', 'response_complete'):
+            if type(receipt.get(key)) is bool:
+                row[key] = receipt[key]
+        if type(receipt.get('cache_hit')) is bool:
+            row['original_cache_hit'] = receipt['cache_hit']
+        if isinstance(receipt.get('request_method'), str) and receipt['request_method'] in {'GET', 'POST'}:
+            row['request_method'] = receipt['request_method']
+        result.append(row)
+    return result
+
+
 def observation_details(entry: dict) -> dict:
     result = correlation_metadata(entry)
+    originals = _original_http_receipts(entry)
+    if originals:
+        result['original_http_receipts'] = originals
     for key,allowed in _VERIFICATION.items():
         value=entry.get(key)
         if isinstance(value,str) and value in allowed:
