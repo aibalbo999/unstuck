@@ -848,10 +848,14 @@ class DynamicPeerMetricsProvider(DataProvider):
         from .market_sources.peers import fetch_dynamic_peer_metrics_with_diagnostics
 
         data = (context or {}).get("data", {}) if isinstance((context or {}).get("data"), dict) else {}
+        from .market_sources.ncc_mobile_peer_transport import receipt_observation_scope
+        def fetch_peers(*args):
+            with receipt_observation_scope(request.options.record_provider_sla):
+                return fetch_dynamic_peer_metrics_with_diagnostics(*args)
         result = audited_fetch(
             self.source,
             self.name,
-            fetch_dynamic_peer_metrics_with_diagnostics,
+            fetch_peers,
             (
                 str(data.get("ticker") or request.ticker).strip().upper(),
                 str(data.get("company_name") or request.ticker),

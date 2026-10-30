@@ -20,6 +20,8 @@ from .official_food_processing_peer_cohort import get_official_food_processing_c
 from .official_thermal_peer_cohort import get_official_thermal_candidates, verified_thermal_candidates
 from .official_airline_peer_cohort import (get_official_airline_candidates, verified_airline_candidates,
                                           related_airline, IDENTITIES as AIRLINES, SCOPE as AIRLINE_SCOPE)
+from .ncc_mobile_peer_cohort import (get_candidates as get_official_ncc_candidates, verified_candidates as verified_ncc_candidates,
+                                     SCOPE as NCC_SCOPE, supports_context as supports_ncc_context)
 from .moneydj_numeric_candidates import get_published_food_biotech_candidates
 from .moneydj_medical_peer_cohort import get_medical_cohort_candidates
 from .official_underwriter_peer_cohort import documented_peer_candidates
@@ -165,6 +167,14 @@ def fetch_dynamic_peer_metrics_with_diagnostics(ticker: str, company_name: str, 
                 candidates = airline["candidates"] + candidates
                 audit["selection_status"] = "selected"
                 audit["candidate_order_policy"] = "dated_caa_airlines_then_stock_code_proximity"
+        if supports_ncc_context(ticker, industry, identity):
+            ncc = get_official_ncc_candidates(ticker, master_rows, today=today)
+            audit["official_ncc_candidate_status"] = ncc["status"]
+            audit["official_ncc_candidate_details"] = {k:v for k,v in ncc.items() if k != "candidates"}
+            if ncc["candidates"]:
+                candidates = ncc["candidates"] + candidates
+                audit["selection_status"] = "selected"
+                audit["candidate_order_policy"] = "dated_ncc_mobile_operators_then_stock_code_proximity"
         if ticker == "3324.TWO":
             thermal = get_official_thermal_candidates(ticker, today=today)
             audit["official_thermal_candidate_status"] = thermal["status"]
@@ -315,7 +325,8 @@ def fetch_dynamic_peer_metrics_with_diagnostics(ticker: str, company_name: str, 
             record["reported_industry"] = info.get("industry")
         medical_scope=candidate.get('comparison_scope')=='publisher_other_medical_candidates'
         airline_scope=candidate.get('comparison_scope')==AIRLINE_SCOPE
-        if medical_scope or airline_scope:
+        ncc_scope=candidate.get('comparison_scope')==NCC_SCOPE
+        if medical_scope or airline_scope or ncc_scope:
             if (str(info.get('symbol')or'').upper()!=symbol or str(info.get('quoteType')or'').upper()!='EQUITY'):
                 info,yf_status={},'identity_unverified';record['comparison_status']='identity_unverified'
             elif record['comparison_status']!='business_industry_matched':
@@ -414,6 +425,10 @@ def fetch_dynamic_peer_metrics_with_diagnostics(ticker: str, company_name: str, 
     if airline_records and not verified_airline_candidates(airline_records, ticker, today=today):
         selected_records = [r for r in selected_records if r.get("comparison_scope") != AIRLINE_SCOPE]
         audit["official_airline_candidate_status"] = "originals_expired_or_unverified_after_metrics"
+    ncc_records = [r for r in selected_records if r.get("comparison_scope") == NCC_SCOPE]
+    if ncc_records and not verified_ncc_candidates(ncc_records, ticker, today=today):
+        selected_records = [r for r in selected_records if r.get("comparison_scope") != NCC_SCOPE]
+        audit["official_ncc_candidate_status"] = "originals_expired_or_unverified_after_metrics"
     usable_count = sum(r["metrics_status"] != "unavailable" for r in selected_records)
     partial = any(r["metrics_status"] != "complete" for r in selected_records)
     audit.update(candidate_count=candidate_count, candidate_attempt_count=len(records), identity_count=len(selected_records),
