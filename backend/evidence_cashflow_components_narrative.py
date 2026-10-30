@@ -77,3 +77,51 @@ def complete_cashflow_components(claim, data, projection, *, scale):
     except (InvalidOperation, ValueError, TypeError, KeyError):
         return False
     return True
+
+
+def complete_native_moat_cashflow(claim, data, projection, *, scale, tolerance_pct):
+    """Reuse the existing complete native income paragraph proof for its FCF.
+
+    Re-extract both amounts from the unchanged sentence. No synthetic period,
+    owner, currency, title or source value is supplied to either native checker.
+    """
+    if scale != 100000000 or claim.get('unit') != '億元':
+        return False
+    if claim.get('financial_metric') != '自由現金流' or claim.get('scenario_projection'):
+        return False
+    raw = claim.get('raw_text')
+    if not isinstance(raw, str) or not 1 <= len(raw) <= 2000:
+        return False
+    from evidence_financial_amounts import extract_financial_amounts
+    from evidence_official_income_claims import _native_moat_income_scope, official_income_claim
+    from official_income_prompt import official_income_prompt_facts
+    facts = official_income_prompt_facts(data)
+    if facts is None:
+        return False
+    rows = extract_financial_amounts(raw, [])
+    income = [r for r in rows if r.get('financial_metric') == '淨利']
+    cashflow = [r for r in rows if r.get('financial_metric') == '自由現金流']
+    if len(income) != 1 or len(cashflow) != 1:
+        return False
+    # The caller's extraction must describe this exact amount, including its
+    # local qualifiers. Ancestor and parent scopes are retained separately.
+    keys = ('reported_value', 'unit', 'financial_metric', 'financial_period_text',
+            'financial_owner_text', 'financial_amount_suffix', 'financial_actual',
+            'financial_scope_unbound', 'foreign_currency_declared')
+    if any(claim.get(key) != cashflow[0].get(key) for key in keys):
+        return False
+    sibling = {**income[0], **{key: claim.get(key) for key in (
+        'financial_heading', '_financial_heading_ancestors', 'financial_parent_context')}}
+    if not _native_moat_income_scope(sibling, facts, data):
+        return False
+    checked = official_income_claim(sibling, data, scale=scale, tolerance_pct=tolerance_pct)
+    if not checked or checked.get('status') != 'verified':
+        return False
+    from evidence_official_financial_claims import _ttm_display_matches
+    try:
+        cf = projection['facts']['cashflows']['ttm']
+        return (_ttm_display_matches(str(claim['reported_value']), cf['free_cash_flow'])
+                and cf['operating_cash_flow'] + cf['ppe_purchase']
+                    + cf['intangible_purchase'] == cf['free_cash_flow'])
+    except (KeyError, TypeError, ValueError):
+        return False

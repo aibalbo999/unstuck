@@ -220,9 +220,10 @@ def official_fcf_claim(claim, data, *, scale, tolerance_pct, heading_ancestors=N
     projection = read_official_financial_projection(data)
     if projection is None:
         return None
-    from evidence_cashflow_components_narrative import complete_cashflow_components
+    from evidence_cashflow_components_narrative import complete_cashflow_components, complete_native_moat_cashflow
     narrative_claim = {**claim, '_financial_heading_ancestors': heading_ancestors} if heading_ancestors is not None else claim
-    if complete_cashflow_components(narrative_claim, data, projection, scale=scale):
+    if (complete_cashflow_components(narrative_claim, data, projection, scale=scale)
+            or complete_native_moat_cashflow(narrative_claim, data, projection, scale=scale, tolerance_pct=tolerance_pct)):
         return _result(claim, projection, projection['facts']['cashflows']['ttm']['free_cash_flow'],
                        'data.official_financial_projection.facts.cashflows.ttm.free_cash_flow', scale, tolerance_pct)
     from financial_money_claims import other_financial_owner, _target_revenue_scope
