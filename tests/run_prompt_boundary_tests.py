@@ -51,18 +51,43 @@ def configure_postgres_boundary() -> bool:
     return True
 
 
+def external_test_sandbox_base(archive: Path, volume: Path) -> Path:
+    """Keep tests external, but outside the production/cache namespace."""
+    volume = volume.resolve(strict=True)
+    archive = archive.resolve(strict=True)
+    if (not os.path.ismount(volume) or not archive.is_relative_to(volume)
+            or archive.stat().st_dev != volume.stat().st_dev):
+        raise RuntimeError('隔離測試稽核區不在已掛載外接碟，停止寫入')
+    base = (archive / 'test-sandboxes').resolve()
+    if not base.is_relative_to(archive):
+        raise RuntimeError('隔離測試暫存路徑離開稽核區，停止寫入')
+    if base.exists() and base.stat().st_dev != volume.stat().st_dev:
+        raise RuntimeError('隔離測試暫存位於其他檔案系統，停止寫入')
+    base.mkdir(parents=False, exist_ok=True, mode=0o700)
+    if base.stat().st_dev != volume.stat().st_dev:
+        raise RuntimeError('隔離測試暫存位於其他檔案系統，停止寫入')
+    return base
+
+
 def main() -> int:
     if sys.platform == "darwin":
         sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
-        from project_storage import external_environment
+        from project_storage import VOLUME, external_environment
 
         try:
             os.environ.update(external_environment())
         except (OSError, RuntimeError) as error:
             print(str(error), file=sys.stderr)
             return 2
-        # Explicit tempdir prevents tempfile's implicit fallback to macOS /tmp.
-        tempfile.tempdir = os.environ["TMPDIR"]
+        # Never put isolated studies inside a production/cache namespace.
+        # Explicit external tempdir also prevents implicit macOS /tmp fallback.
+        try:
+            base = external_test_sandbox_base(Path(os.environ['STOCK_AGENT_ARCHIVE_DIR']), VOLUME)
+        except (OSError, RuntimeError) as error:
+            print(str(error), file=sys.stderr)
+            return 2
+        tempfile.tempdir = str(base)
+        os.environ.update(TMPDIR=str(base), TMP=str(base), TEMP=str(base))
     with tempfile.TemporaryDirectory(prefix="prompt-boundary-tests-") as directory:
         root = Path(directory).resolve()
         os.environ.update({
