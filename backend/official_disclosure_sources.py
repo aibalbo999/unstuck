@@ -170,5 +170,38 @@ def _fetch_snapshot(market: str, cooldown_key: str) -> dict:
     details = {"http_status": response.status_code, "parser_version": PARSER_VERSION,
                "outcome": "results" if documents else "valid_empty", "http_request_sent": True,
                "event_kind": "http_attempt", "coverage_status": "partial", "rejected_record_count": rejected}
+    details.update(_native_original_diagnostic(response, spec, acquired_at))
     record_observation(spec["provider"], started, outcome=details["outcome"], count=len(documents), source=SOURCE, details=details)
     return {"documents": documents, "retrieved_at_epoch": acquired_at, "diagnostic": details}
+
+
+def _native_original_diagnostic(response, spec, acquired_at):
+    """Passive exact native public snapshot evidence; never change acquisition."""
+    try:
+        import httpx, requests
+        from provider_correlation import current_correlation, current_source_identity
+        from official_response_evidence import archive_response
+        ctx = current_correlation()
+        if (current_source_identity() != (SOURCE, 'TWSE/TPEx official disclosures')
+                or not all(ctx.get(k) for k in ('ticker','fetch_id','operation_id'))
+                or type(response) not in (httpx.Response, requests.Response)
+                or response.status_code != 200 or str(response.url) != spec['url']
+                or getattr(response, 'from_cache', False)
+                or getattr(response, 'extensions', {}).get('from_cache') is True):
+            return {}
+        request = response.request
+        if (request.method != 'GET' or str(request.url) != spec['url']
+                or any(request.headers.get(k) for k in ('authorization','cookie','proxy-authorization'))):
+            return {}
+        body = response.content
+        if not isinstance(body, bytes) or not 0 < len(body) <= 10 * 1024 * 1024:
+            return {}
+        receipt = archive_response(body, source_url=spec['url'], retrieved_at=acquired_at,
+            evidence_kind='decoded_complete_http_response_body', max_bytes=10 * 1024 * 1024)
+        if receipt.get('status') != 'archived':
+            return {}
+        receipt.update(http_status_observed=True, response_complete=True, cache_hit=False)
+        return {'response_sha256':hashlib.sha256(body).hexdigest(),
+                'response_bytes':len(body), 'raw_http_receipt':receipt}
+    except Exception:
+        return {}
