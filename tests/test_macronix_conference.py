@@ -187,4 +187,3 @@ def test_context_conflict_local_block_and_single_success_count(monkeypatch):
  result={'value':{'source':s.PROVIDER,'documents':[{'page_count':s.PAGE_COUNT}]},'audit':{'status':'success','record_count':12}}
  apply_earnings_call_audit(result,{'macronix_presentation_workflow':True,'macronix_originals_verified':True,'actual_provider':s.PROVIDER,'http_request_count':3,'http_request_sent':True,'cache_hit':False})
  assert result['audit']['record_count']==1 and result['audit']['http_request_count']==3
-

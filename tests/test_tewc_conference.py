@@ -284,4 +284,3 @@ def test_public_warm_delivery_rejects_identity_that_expires_in_final_pdf_read(ha
     with pytest.raises(SourceResponseError):
         source.fetch_tewc_context('1623.TW')
     assert len(pdf_reads) == 3 and not harness[1]
-

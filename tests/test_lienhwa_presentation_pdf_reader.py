@@ -148,4 +148,3 @@ def test_final_deadline_includes_parent_evidence_validation(monkeypatch,good_res
     monkeypatch.setattr(module,'_validate_result',slow)
     with pytest.raises(SourcePdfError) as exc:extract()
     assert exc.value.reason=='timeout'
-

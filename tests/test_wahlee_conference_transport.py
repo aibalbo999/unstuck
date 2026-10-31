@@ -266,4 +266,3 @@ def test_pdf_budget_does_not_admit_other_urls(native,url):
     t,_,calls=native
     with pytest.raises(SourceResponseError):t.ConferenceHttp(time.monotonic()+25).get_receipt(url)
     assert not calls
-
