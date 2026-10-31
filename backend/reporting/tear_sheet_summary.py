@@ -9,6 +9,7 @@ from pipeline_modes import get_pipeline_definition
 
 from .mode_tear_sheet_summary import build_mode_tear_sheet_summary
 from .structured_intro import get_dict_value_by_substring, safe_report_text, target_price_text
+from .text_tokens import is_missing_text_token
 from .utils import contains_prompt_leak_residue, sanitize_report_text
 
 
@@ -19,7 +20,7 @@ def build_tear_sheet_summary(context: AnalysisContext) -> str:
     # merges independently bound official amounts into unrelated prose.
     model_summary = value.strip() if isinstance(value, str) else ""
     sanitized_model_summary = ""
-    if model_summary:
+    if model_summary and not is_missing_text_token(model_summary):
         sanitized = sanitize_report_text(model_summary)
         if sanitized and not contains_prompt_leak_residue(sanitized):
             sanitized_model_summary = sanitized[:900]

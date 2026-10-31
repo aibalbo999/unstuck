@@ -2,6 +2,8 @@ import sys
 from decimal import Decimal
 from pathlib import Path
 
+import pytest
+
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "backend"))
@@ -22,10 +24,11 @@ def test_tear_sheet_summary_keeps_sections_import_compatibility():
     assert build_tear_sheet_summary(context) == "模型摘要：資料已交叉驗證，風險以估值回落為主。"
 
 
-def test_tear_sheet_summary_drops_string_empty_model_summary_tokens():
+@pytest.mark.parametrize('token', ['NaN', ' N/A ', 'Infinity', '-Infinity', 'null', '--'])
+def test_tear_sheet_summary_drops_string_empty_model_summary_tokens(token):
     context = {
         "pipeline_id": "v1",
-        "tear_sheet_summary": "NaN",
+        "tear_sheet_summary": token,
         "data": {
             "ticker": "2330.TW",
             "company_name": "台積電",
@@ -41,6 +44,13 @@ def test_tear_sheet_summary_drops_string_empty_model_summary_tokens():
 
     assert summary.startswith("一頁式摘要：2330.TW 台積電")
     assert "NaN" not in summary
+
+
+def test_tear_sheet_summary_preserves_separate_validated_amount_paragraphs():
+    text = '官方獨立金額：100 億元。\n\n另一來源獨立金額：200 億元。'
+    assert build_tear_sheet_summary({
+        'pipeline_id': 'v1', 'tear_sheet_summary': text, 'data': {}, 'parsed': {},
+    }) == text
 
 
 def test_tear_sheet_summary_builds_event_swing_trade_summary():
