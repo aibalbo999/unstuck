@@ -62,6 +62,11 @@ def institutional_candidates(df: pd.DataFrame, *, scan_date: date, top_n: int) -
         foreign = float(row["foreign"])
         trust = float(row["investment_trust"])
         dealer = float(row["dealer"]) if pd.notna(row["dealer"]) else None
+        identity = {}
+        group = latest[latest['stock_id'] == str(stock_id)]
+        if {'flow_security_code','flow_security_policy'} <= set(group.columns):
+            if all(str(v)=='twse-exact-source-code:v1' for v in group['flow_security_policy']) and all(str(v)==str(stock_id) for v in group['flow_security_code']):
+                identity={'flow_security_code':str(stock_id),'flow_security_policy':'twse-exact-source-code:v1'}
         candidates.append({
             "ticker": tw_ticker(stock_id),
             "company_name": company_names.get(str(stock_id), ""),
@@ -77,6 +82,7 @@ def institutional_candidates(df: pd.DataFrame, *, scan_date: date, top_n: int) -
                 "total_net_buy_shares": int(foreign + trust + dealer) if dealer is not None else None,
                 "foreign_trust_net_buy_shares": int(foreign + trust),
                 "flow_observation_date": latest_date,
+                **identity,
             },
         })
     return candidates
@@ -260,7 +266,7 @@ def institutional_category(name: Any) -> str:
 
 
 def _copy_source_observation_metrics(row, metrics):
-    for key in ("price_source_url","volume_source_url","latest_volume_unit","price_response_sha256","response_hash_kind","monthly_average_observation_date"):
+    for key in ("price_source_url","volume_source_url","latest_volume_unit","price_response_sha256","response_hash_kind","monthly_average_observation_date","source_security_code","source_security_policy"):
         value=row.get(key)
         if isinstance(value,str) and value.strip():metrics[key]=value
 

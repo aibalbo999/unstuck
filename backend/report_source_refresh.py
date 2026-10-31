@@ -837,7 +837,13 @@ def _merge_issuer_news(old_data, old_audits, value, audits, ticker, *, tdr=False
     cutoff = time.time()
     accepted, _ = select_company_records(value, context, cutoff=cutoff)
     verifier = verified_json_record if ordinary else verified_tdr_record if tdr else verified_issuer_news
-    if len(accepted) != len(value) or any(not verifier(row, context) for row in accepted):
+    # Use this operation's captured cutoff for both selection and issuer proof.
+    # Do not switch clocks mid-validation or use a report's historical cutoff.
+    from zoneinfo import ZoneInfo
+    today = datetime.fromtimestamp(cutoff, ZoneInfo('Asia/Taipei')).date()
+    def verified_at_cutoff(row):
+        return verifier(row, context) if tdr or ordinary else verifier(row, context, today=today)
+    if len(accepted) != len(value) or any(not verified_at_cutoff(row) for row in accepted):
         raise HTTPException(status_code=502, detail='指定新聞元件的公司、日期或轉載歸屬未通過核對')
     buckets = ('recent_catalysts','additional_recent_catalysts','historical_catalysts','unverified_catalysts','identity_rejected_catalysts')
     previous = [row for key in buckets for row in (old_data.get(key) or []) if isinstance(row, dict)]

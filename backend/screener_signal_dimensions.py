@@ -11,7 +11,8 @@ def number(value):
 
 
 def separate_signals(candidate):
-    row = dict(candidate)
+    from screener_security_identity import guard_candidate
+    row = guard_candidate(candidate)
     metrics = dict(row.get("metrics") or {})
     foreign, trust = number(metrics.get("foreign_net_buy_shares")), number(metrics.get("investment_trust_net_buy_shares"))
     volume = number(metrics.get("latest_volume"))

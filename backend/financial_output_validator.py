@@ -265,6 +265,18 @@ def validate_analysis_output(agent_num: int, text: str, data: Optional[dict] = N
     issues = []
     normalized = re.sub(r"[^\S\n]+", "", strip_generated_audit_sections(text or ""))
     data = data or {}
+    from policy_event_evidence import policy_event_date_issues,policy_items_from_data
+    if policy_event_date_issues(text,policy_items_from_data(data),as_of=data.get('analysis_input_cutoff')):
+        issues.append('政策事件日期紅線：聯準會行動日期缺少同一官方原件支持；RSS發布日期或GDELT觀測日期不代表事件日期。若僅有新聞標題，須保留事件日期未核實，不可寫成已發生事實。')
+
+    from financial_unit_declarations import financial_unit_declaration_issues
+    if financial_unit_declaration_issues(text):
+        issues.append('財務單位宣告紅線：同一金額不能同時標示億元與billion_twd；1 billion TWD為10億元。期間未核實也不能豁免明確的單位矛盾。')
+
+    from cashflow_causal_claims import cashflow_driver_inference_issues
+    causal_issues = cashflow_driver_inference_issues(text)
+    if causal_issues:
+        issues.append('現金流因果推論紅線：負現金流總額不能證實備料、存貨、應收帳款、營運資金墊付或擴產原因；缺少直接原因證據時須明示可能性與待核實，不能用後續免責附註抵銷已斷言的原因。原稿待修句：' + '；'.join(item['text'][:160] for item in causal_issues[:3]))
 
     issues.extend(
         evaluate_configured_audit_rules(

@@ -147,7 +147,7 @@ def sma_reasoning_checks(text,data):
                                'status':'unverifiable' if not valid or (verified and not scope['session_integrity']['eligible']) else 'verified' if verified else 'mismatch',
                                'arithmetic_status':'unverifiable' if not valid else 'verified' if verified else 'mismatch',
                                **scope,
-                               'comparison':{'periods':ps,'sma_values':values,'observed_date':inputs['observed_date'] if inputs else None,
+                               'comparison':{'periods':ps,'sma_values':{str(period):value for period,value in values.items()},'observed_date':inputs['observed_date'] if inputs else None,
                                              'close':inputs['close'] if inputs else None,'input_basis':'frozen_analysis_input;not_later_refresh',
                                              'bars_sha256':inputs['bars_sha256'] if inputs else None},
                                'reason':'sma_period_scope_ambiguous' if ps is None else 'technical_session_integrity_unverified' if verified and not scope['session_integrity']['eligible'] else 'same_window_sma_relation' if valid else 'frozen_sma_input_missing_or_inconsistent'})

@@ -59,6 +59,15 @@ def compact_research_state_reference_section(financial_section: str, state_secti
     return _compact_state_reference_section(financial_section, state_section, RESEARCH_REFERENCE_PATHS, pack=False)
 
 
+def compact_financial_state_reference_section(financial_section: str, state_section: str) -> str:
+    # Same fully visible values and strict typed equality; never elide a leaf.
+    return _compact_state_reference_section(financial_section, state_section,
+        REFERENCE_PATHS + RESEARCH_REFERENCE_PATHS
+        + ((('peer_context','dynamic_peer_metrics'),('peer_context','dynamic_peer_metrics')),)
+        + tuple((('tool_results',f'agent_{agent}_preload','peer_context','dynamic_peer_metrics'),
+                 ('peer_context','dynamic_peer_metrics')) for agent in (11,1,2,3,20,6,21,7)), pack=True)
+
+
 def _compact_state_reference_section(financial_section, state_section, reference_paths, *, pack):
     """Return original on malformed/ambiguous/small input; never mutate sources."""
     if not state_section or '$prompt_ref' in financial_section or '$prompt_ref' in state_section:

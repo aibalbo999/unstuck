@@ -271,13 +271,13 @@ def _fail(kind, diagnostics, response=None):
     raise exc
 
 
-def _perform(spec, *, deadline, diagnostics):
+def _perform(spec, *, deadline, diagnostics, wire_budget_seconds=10.):
     diagnostics.update(url=spec['url'], request_method=spec['method'], request_body=spec['request_body'],
                        request_sha256=spec['request_sha256'])
     if type(deadline) not in (int, float) or not math.isfinite(deadline):
         _fail('transport_deadline_invalid', diagnostics)
     started = time.monotonic()
-    stop = min(deadline, started + (5. if spec['format'] == 'html' else 10.))
+    stop = min(deadline, started + (5. if spec['format'] == 'html' else wire_budget_seconds))
     def fail(kind, response=None):
         _fail('timeout' if time.monotonic() >= stop else kind, diagnostics, response)
     if started >= stop:
@@ -355,13 +355,15 @@ def _perform(spec, *, deadline, diagnostics):
     return raw
 
 
-def download_published_material(descriptor: dict, *, deadline: float, diagnostics: dict) -> bytes:
+def download_published_material(descriptor: dict, *, deadline: float, diagnostics: dict, wire_budget_seconds: float = 10.) -> bytes:
     _initialize(diagnostics)
+    if type(wire_budget_seconds) not in (int, float) or not math.isfinite(wire_budget_seconds) or not 0 < wire_budget_seconds <= 15.:
+        _fail('transport_budget_invalid', diagnostics)
     try:
         spec = validate_download_request(descriptor)
     except SourceResponseError:
         _fail('transport_request_invalid', diagnostics)
-    return _perform(spec, deadline=deadline, diagnostics=diagnostics)
+    return _perform(spec, deadline=deadline, diagnostics=diagnostics, wire_budget_seconds=wire_budget_seconds)
 
 
 def download_conference_index(ticker, *, year: int, deadline: float, diagnostics: dict) -> bytes:

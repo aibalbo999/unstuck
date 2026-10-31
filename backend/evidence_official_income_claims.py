@@ -59,6 +59,13 @@ def _native_report_title(text, facts):
     if (facts['ticker']=='1623.TW' and facts['issuer_name']=='大東電業廠股份有限公司'
             and re.fullmatch(r'\s*# 1623\.TW（大東電）投資銀行等級估值解讀報告\s*',text)):
         return True
+    # Native role report wrappers may name only the issuer established by
+    # replayed originals. Extra entity/year/FX/forecast qualifiers do not match.
+    names = [facts['issuer_name'], *_identity(facts)['company_identity']['allowed_aliases']]
+    if re.fullmatch(r'\s*#{1,6}\s+(?:' + '|'.join(map(re.escape, names))
+            + r')\s*\(' + re.escape(facts['ticker'])
+            + r'\)\s+(?:商業模式與產業證據分析報告|獨立反證審查報告)\s*', text):
+        return True
     title = re.fullmatch(r'\s*#\s+' + re.escape(facts['ticker'])
                          + r'\s+(.+?) - 華爾街深度研究報告\s*', text)
     if title is None:
@@ -139,6 +146,7 @@ def _bound_scope(claim, facts, data=None):
         return True
     from financial_money_claims import _target_revenue_scope
     prefix = str(claim.get('financial_period_text') or '')
+    prefix = re.sub(r'^\s*[-*]?\s*官方個別財報淨利數據\s*[:：]\s*', '', prefix, count=1)
     suffix = str(claim.get('financial_amount_suffix') or '')
     heading = str(claim.get('financial_heading') or '')
     parent = str(claim.get('financial_parent_context') or '')
@@ -179,7 +187,8 @@ def _bound_scope(claim, facts, data=None):
                            and not _native_report_title(value, facts) and not _context_matches(value, identity))
                        for value in ancestors)):
             return False
-    if (heading == '## 一頁式摘要' or re.fullmatch(r'\s*#{1,6}\s*(?:(?:[一二三四五六七八九十]+)[、.]\s*)?(?:獲利趨勢深析|自由現金流分析|已觀測財務與歷史反證|企業體質總結|成長潛力總評)\s*',heading)):
+    if (re.fullmatch(r'\s*##\s*(?:三[、.]\s*宏觀定調結論|六[、.]\s*財務體質最終判斷)\s*',heading)
+            or heading == '## 一頁式摘要' or re.fullmatch(r'\s*#{1,6}\s*(?:(?:[一二三四五六七八九十]+)[、.]\s*)?(?:獲利趨勢深析|自由現金流分析|已觀測財務與歷史反證|企業體質總結|成長潛力總評)\s*',heading)):
         # Only the native wrapper is neutral. Every inherited title must still
         # bind to names replayed from both official originals, never caller aliases.
         ancestors = claim.get('_financial_heading_ancestors')

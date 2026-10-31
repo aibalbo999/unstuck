@@ -61,6 +61,8 @@ async def fetch_gdelt_international_news_context(
     topics = []
     coverage_notes = []
     query_items = list(_topic_queries_for_context(sector, industry).items())[: max(1, int(max_topics))]
+    policy_feed = None
+    policy_feed_checked = False
     gdelt_attempts = 0
     cache_topic_count = fresh_topic_count = attempted_topic_count = 0
     cooldown_seconds = _rate_limit_cooldown_seconds(rate_limit_cooldown_seconds)
@@ -120,6 +122,19 @@ async def fetch_gdelt_international_news_context(
                         coverage_notes.append(f"{tag} {fallback_reason}，使用 Google News RSS 備援。")
                     else:
                         coverage_notes.append(f"{tag} 使用 Google News RSS 備援。")
+                elif tag in {'macro', 'rates_fx'}:
+                    from fed_policy_transport import load_policy_feed, policy_topics
+                    if not policy_feed_checked:
+                        policy_feed_checked = True
+                        try:
+                            policy_feed = await asyncio.to_thread(load_policy_feed)
+                        except Exception as exc:
+                            log_http_warning("Federal Reserve RSS", "monetary policy feed", exc)
+                    if policy_feed is not None:
+                        parsed_topics = policy_topics(policy_feed, tag=tag, lookback_days=max(1, min(7, int(lookback_days))))
+                        cached_fallback = bool(parsed_topics) and policy_feed['cache_hit']
+                    coverage_notes.append(f"{tag} 使用聯準會政策公告標題備援；未驗證全文或公司影響。" if parsed_topics
+                                          else f"{tag} 未回傳可用新聞。")
                 else:
                     coverage_notes.append(f"{tag} 未回傳可用新聞。")
             elif fallback_reason:
@@ -135,6 +150,7 @@ async def fetch_gdelt_international_news_context(
               "cache_fallback" if attempted_topic_count else "cache_only")
     return {
         "lookback_days": int(lookback_days),
+        "lookback_scope": "provider_query_metadata_not_verified_event_dates",
         "topics": kept,
         "_retrieval": {"schema_version": "international-news-origin:v1", "kind": origin,
                        "cached_topic_count": cache_topic_count, "fresh_topic_count": fresh_topic_count,
@@ -258,7 +274,8 @@ def _dedupe_topics(records: list[dict], limit: int = 8) -> list[dict]:
         if not marker or marker in seen:
             continue
         seen.add(marker)
-        kept.append(record)
+        from news_metadata_qualification import qualify_headline_metadata
+        kept.append(qualify_headline_metadata(record))
         if len(kept) >= limit:
             break
     return kept

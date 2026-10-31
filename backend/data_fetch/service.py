@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from .provider_execution import fetch_correlated_provider
+
 import time
 import re
 from contextlib import suppress
@@ -142,7 +144,7 @@ class StockDataService:
         if source == 'earnings_call':
             from .market_sources.mops_presentation import supports as supports_material
             material_context = supports_material(request.ticker)
-        result = await provider.fetch_async(request, context if material_context or source in {'financial_statements', 'recent_catalysts', 'official_announcements', 'dynamic_peer_metrics', 'alternative_data'} or source == 'issuer_news' and request.ticker in {'2201.TW', '5880.TW', '2206.TW'} or source == 'earnings_call' and (request.ticker in {'1476.TW', '3653.TW', '2912.TW', '3443.TW', '1503.TW', '2059.TW', '2367.TW', '8150.TW', '2344.TW', '6257.TW', '2480.TW', '2330.TW', '1229.TW', '1605.TW', '2002.TW', '2412.TW', '1514.TW', '2368.TW', '2049.TW', '1560.TW'} or request.ticker == '2317.TW' and isinstance(context,dict)and context.get('source_only_recovery')is True or re.fullmatch(r'[1-9]\d{3,5}\.TWO',request.ticker) is not None) else {"original_ticker": request.ticker})
+        result = await fetch_correlated_provider(provider, request, context if material_context or source in {'financial_statements', 'recent_catalysts', 'official_announcements', 'dynamic_peer_metrics', 'alternative_data'} or source == 'issuer_news' and request.ticker in {'2201.TW', '5880.TW', '2206.TW'} or source == 'earnings_call' and (request.ticker in {'1476.TW', '3653.TW', '2912.TW', '3443.TW', '1503.TW', '2059.TW', '2367.TW', '8150.TW', '2344.TW', '6257.TW', '2480.TW', '2330.TW', '1229.TW', '1605.TW', '2002.TW', '2412.TW', '1514.TW', '2368.TW', '2049.TW', '1560.TW'} or request.ticker == '2317.TW' and isinstance(context,dict)and context.get('source_only_recovery')is True or re.fullmatch(r'[1-9]\d{3,5}\.TWO',request.ticker) is not None) else {"original_ticker": request.ticker})
         if source == 'recent_catalysts':
             from recent_catalyst_source_refresh import guard_recent_source_result
             result = guard_recent_source_result(result, context['data'])

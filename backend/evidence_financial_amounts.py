@@ -20,7 +20,11 @@ from financial_money_claims import (
     revenue_segment_scope,
 )
 
-_METRIC = re.compile(r'自由現金流|(?<![A-Za-z])FCF(?![A-Za-z])|free[_ ]cash[_ ]flow|營業收入|營收|revenue|稅後淨利|淨利|net[_ ]income', re.I)
+from evidence_cashflow_components import LABELS as _CASH_EFFECT_LABELS
+_CASH_EFFECT_PATTERN = '|'.join(re.escape(k) for k in _CASH_EFFECT_LABELS)
+_AMOUNT = re.compile(_AMOUNT.pattern.replace('自由現金流|FCF', _CASH_EFFECT_PATTERN + '|自由現金流|FCF'), re.I)
+
+_METRIC = re.compile(_CASH_EFFECT_PATTERN + r'|自由現金流|(?<![A-Za-z])FCF(?![A-Za-z])|free[_ ]cash[_ ]flow|營業收入|營收|revenue|稅後淨利|淨利|net[_ ]income', re.I)
 _VALUE = re.compile(r'^\s*([+-]?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?)\s*(十億元?|billion|百萬元?|million|億元?|萬元?|B|元|TWD)(?![A-Za-z])', re.I)
 _YEAR_HEADER = re.compile(r'^(?:期間|年度|年份|年分|year|period)$', re.I)
 _UNBOUND_SCOPE = re.compile(r'平均(?:每)?(?:個)?月|每月平均|月均|單月|月度|季度|單季|monthly|quarterly|per\s*month',re.I)
@@ -553,10 +557,29 @@ def _explicit_individual_ttm_presentation(claim, data, tolerance_pct):
     be stripped into an apparently official observation.
     """
     metric = claim.get('financial_metric')
-    if (metric not in {'FCF', '自由現金流', '淨利', '稅後淨利', 'CapEx'}
+    if (metric not in {'FCF', '自由現金流', '淨利', '稅後淨利', 'CapEx', '存貨變動現金影響'}
             or claim.get('financial_actual') is False or claim.get('financial_scope_unbound')
             or claim.get('foreign_currency_declared') or claim.get('unit') != '億元'):
         return None
+    # A fixed negative epistemic note asserts no cashflow driver. Check only
+    # its single complete dated fact through this same ordinary source gate;
+    # keep the original public claim and the motive's unknown status intact.
+    if metric in {'FCF', '自由現金流'}:
+        original = re.sub(r'[*`]', '', str(claim.get('raw_text') or ''))
+        negative_note = ('此現金流總額無法判定備料、存貨、應收款或擴產原因，'
+                         '任何用途解釋僅是待驗證假設。')
+        qualified = re.fullmatch(r'(?P<fact>[^。\n]{1,2048}。)' + re.escape(negative_note), original)
+        if qualified is not None:
+            checked = _explicit_individual_ttm_presentation(
+                {**claim, 'raw_text': qualified['fact']}, data, tolerance_pct)
+            if checked is None:
+                return None
+            return {**checked, 'raw_text': claim.get('raw_text'),
+                    'underlying_business_motive': 'unverified',
+                    'financial_narrative_resolution': {
+                        **checked['financial_narrative_resolution'],
+                        'negative_motive_qualifier_preserved': negative_note,
+                        'original_claim_unchanged': True}}
     heading = str(claim.get('financial_heading') or '')
     parent = str(claim.get('financial_parent_context') or '')
     neutral = (r'\s*#{1,6}\s*(?:(?:[一二三四五六七八九十]{1,3}|[1-9][0-9]?)[、.]\s*)?'
@@ -565,9 +588,19 @@ def _explicit_individual_ttm_presentation(claim, data, tolerance_pct):
     # The exact source-owned valuation wrapper carries no financial period.
     native_headings.add('# 1623.TW（大東電）投資銀行等級估值解讀報告')
     native_headings.add('## Round 2：財務與估值')
+    native_headings.add('## 競爭護城河深度評估報告')
+    native_headings.add('## 獨立反證審查報告：大東電 (1623.TW)')
     def structural(text):
         return text in native_headings or re.fullmatch(neutral, text) is not None
     ancestors = claim.get('_financial_heading_ancestors')
+    # This exact native valuation section contains observed evidence, not a
+    # forecast. Consume the pair together; a lone/qualified/foreign ancestor
+    # remains unknown and does not grant ownership or period to its amounts.
+    confidence_pair = ['## 估值偏離度客觀描述', '### 信心依據']
+    if isinstance(ancestors, list) and any(text in confidence_pair for text in ancestors):
+        if ancestors[-2:] != confidence_pair:
+            return None
+        native_headings.update(confidence_pair)
     if (type(ancestors) is not list or len(ancestors) > 6
             or any(type(text) is not str for text in ancestors)
             or (heading and (not ancestors or ancestors[-1] != heading))
@@ -584,21 +617,56 @@ def _explicit_individual_ttm_presentation(claim, data, tolerance_pct):
             or facts.get('currency') != 'TWD' or facts.get('report_scope') != 'individual'):
         return None
     raw = re.sub(r'[*`]', '', str(claim.get('raw_text') or ''))
+    if raw.count('。') > 1:
+        # A native evidence bullet can contain exactly two independently
+        # complete dated statements. Neither inherits the other's owner,
+        # currency or period. Full-line rejection remains for extra prose,
+        # citations, an unnamed second amount or a third statement.
+        parts = raw.split('。')
+        if len(parts) != 3 or parts[-1].strip() or any(not part.strip() for part in parts[:-1]):
+            return None
+        checked_parts = []
+        for part in parts[:-1]:
+            extracted = extract_financial_amounts(part + '。', [])
+            if len(extracted) != 1:
+                return None
+            local = {**extracted[0], 'financial_heading': heading,
+                     'financial_parent_context': parent,
+                     '_financial_heading_ancestors': list(ancestors)}
+            checked = _explicit_individual_ttm_presentation(local, data, tolerance_pct)
+            if checked is None:
+                return None
+            checked_parts.append((local, checked))
+        matches = [(local, checked) for local, checked in checked_parts
+                   if local.get('financial_metric') == metric
+                   and local.get('unit') == claim.get('unit')
+                   and local.get('reported_value') == claim.get('reported_value')]
+        if len(matches) != 1:
+            return None
+        local, checked = matches[0]
+        # Some native checkers include their input claim in the result. Only
+        # transfer verification fields; local synthetic IDs/line/raw text and
+        # consumed scope must never overwrite the original extracted claim.
+        checked = {key: value for key, value in checked.items() if key not in local}
+        resolution = {**checked['financial_narrative_resolution'],
+                      'independently_bound_statement_count': 2}
+        return {**checked, 'financial_narrative_resolution': resolution}
     number = r'[+-]?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?'
-    pattern = (r'\s*(?:[-*]\s*)?(?:(?P<label>自由現金流缺口|官方\s*TTM\s*淨利規模|資本支出狀況)\s*[:：]\s*)?'
-               r'(?P<owner>大東電業廠股份有限公司|大東電|1623(?:\.TW)?)\s*官方\s*個別\s*(?:財報\s*)?TTM\s*'
+    pattern = (r'\s*(?:[-*]\s*)?(?:(?P<label>現金流警示|現金流與營運資金波動|已納入考量的風險|自由現金流缺口|官方現金流核實|官方\s*TTM\s*現金流表現|存貨變動影響|官方核實數據|具體佐證|官方淨利核實|官方\s*TTM\s*數據核對|官方\s*TTM\s*淨利規模|資本支出狀況)\s*[:：]\s*)?'
+               r'(?P<owner>大東電業廠股份有限公司|大東電|1623(?:\.TW)?)\s*官方\s*個別\s*(?:財報\s*)?(?P<prefix_currency>TWD|NTD|新[臺台]幣)?\s*TTM\s*'
                r'[（(]\s*(?P<start>20\d{2}-\d{2}-\d{2})\s*至\s*(?P<end>20\d{2}-\d{2}-\d{2})\s*[）)]\s*'
-               r'(?P<metric>自由現金流|FCF|稅後淨利|淨利|CapEx[（(]PPE\s*及\s*無形資產取得支出[）)])\s*'
-               r'為\s*(?P<number>' + number + r')\s*億元\s*(?P<currency>新[臺台]幣|TWD|NTD)\s*[。.]?\s*')
+               r'(?P<metric>存貨變動現金影響|自由現金流|FCF|稅後淨利|淨利|CapEx[（(]PPE\s*及\s*無形資產取得支出[）)])\s*'
+               r'為\s*(?P<number>' + number + r')\s*億元\s*(?P<currency>新[臺台]幣|TWD|NTD)?\s*[。.]?\s*')
     match = re.fullmatch(pattern, raw, re.I)
-    if match is None or (match['start'], match['end']) != (facts['period_start'], facts['period_end']):
+    if (match is None or not (match['prefix_currency'] or match['currency'])
+            or (match['start'], match['end']) != (facts['period_start'], facts['period_end'])):
         return None
     parsed_metric = ('CapEx' if re.match('CapEx', match['metric'], re.I) else match['metric'])
-    families = {'FCF':'fcf', '自由現金流':'fcf', '淨利':'income', '稅後淨利':'income', 'CapEx':'capex'}
+    families = {'FCF':'fcf', '自由現金流':'fcf', '淨利':'income', '稅後淨利':'income', 'CapEx':'capex', '存貨變動現金影響':'inventory'}
     if families.get(parsed_metric) != families[metric]:
         return None
     label = re.sub(r'\s+', '', match['label'] or '')
-    labels = {'fcf':{'', '自由現金流缺口'}, 'income':{'', '官方TTM淨利規模'}, 'capex':{'', '資本支出狀況'}}
+    labels = {'fcf':{'', '現金流警示', '現金流與營運資金波動', '已納入考量的風險', '自由現金流缺口', '官方現金流核實', '官方TTM現金流表現'}, 'income':{'', '官方TTM淨利規模', '官方淨利核實', '官方TTM數據核對', '官方核實數據', '具體佐證'}, 'capex':{'', '資本支出狀況'}, 'inventory':{'', '存貨變動影響'}}
     if label not in labels[families[metric]]:
         return None
     literal = match['number'].replace(',', '')
@@ -616,7 +684,11 @@ def _explicit_individual_ttm_presentation(claim, data, tolerance_pct):
     bound = {**claim, 'financial_period_text':prefix, 'financial_heading':'', 'financial_parent_context':'',
              'financial_owner_text':prefix, 'financial_amount_suffix':'', 'financial_display_precision':precision}
     bound.pop('_financial_heading_ancestors', None)
-    if families[metric] == 'capex':
+    if families[metric] == 'inventory':
+        from evidence_cashflow_components import check_component_claim
+        bound['financial_amount_suffix'] = match['currency'] or match['prefix_currency']
+        checked = check_component_claim(bound, data, 1e8, tolerance_pct)
+    elif families[metric] == 'capex':
         from evidence_official_financial_claims import official_capex_claim
         bound['financial_capex_definition'] = 'ppe_and_intangible_purchase'
         checked = official_capex_claim(bound, data, tolerance_pct=tolerance_pct)
@@ -625,7 +697,7 @@ def _explicit_individual_ttm_presentation(claim, data, tolerance_pct):
         checked = official_fcf_claim(bound, data, scale=1e8, tolerance_pct=tolerance_pct)
     else:
         from evidence_official_income_claims import official_income_claim
-        bound['financial_amount_suffix'] = match['currency']
+        bound['financial_amount_suffix'] = match['currency'] or match['prefix_currency']
         checked = official_income_claim(bound, data, scale=1e8, tolerance_pct=tolerance_pct)
     if checked is None:
         return None
@@ -645,6 +717,13 @@ def check_financial_amount(claim: dict,snapshot: dict,tolerance_pct: float) -> d
     result={**public,'status':'unverifiable','verification_reason_code':'financial_period_currency_or_unit_unknown',
             'verification_scope':'snapshot_financial_amount_consistency','candidate_count':0,
             'matched_path':'','matched_value':None,'diff_pct':None,'independent_primary_source_verified':False}
+    if claim.get('financial_metric') in _CASH_EFFECT_LABELS:
+        presentation = _explicit_individual_ttm_presentation(presentation_claim, snapshot.get('data') or {}, tolerance_pct)
+        if presentation is not None:
+            return {**result, **presentation}
+        from evidence_cashflow_components import check_component_claim
+        checked = check_component_claim(presentation_claim, snapshot.get('data') or {}, _SCALES.get(str(claim.get('unit', '')).lower().removesuffix('元'), _SCALES.get(str(claim.get('unit', '')).lower(), 0)), tolerance_pct)
+        return {**result, **checked}
     if not claim.get('financial_actual',True):
         return {**result,'verification_reason_code':'financial_projection_not_observed_fact'}
     prefix=str(claim.get('financial_period_text') or '')

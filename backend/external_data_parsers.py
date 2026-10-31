@@ -67,7 +67,8 @@ def parse_gdelt_article_payload(payload: Any, *, tag: str) -> list[dict]:
             "source": "GDELT",
             "url": item.get("url") or "",
         })
-    return dedupe_records(records, key="headline", limit=8)
+    from news_metadata_qualification import qualify_headline_metadata
+    return dedupe_records([qualify_headline_metadata(row) for row in records], key="headline", limit=8)
 
 
 def parse_google_news_rss_payload(payload: Any, *, tag: str) -> list[dict]:
@@ -93,4 +94,5 @@ def parse_google_news_rss_payload(payload: Any, *, tag: str) -> list[dict]:
             "source": "Google News RSS",
             "url": str(item.findtext("link") or "").strip(),
         })
-    return dedupe_records(records, key="headline", limit=8)
+    from news_metadata_qualification import qualify_headline_metadata
+    return dedupe_records([qualify_headline_metadata(row) for row in records], key="headline", limit=8)

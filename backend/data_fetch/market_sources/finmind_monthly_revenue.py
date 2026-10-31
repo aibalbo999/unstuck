@@ -38,22 +38,36 @@ def fetch_monthly_records(ticker, loader_cls, *, audit_fetch, force_refresh=Fals
     key = f'{POLICY}:{ticker}:{month}'
     started = time.time()
     actual = None
+    lineage = None
 
     def acquire():
         nonlocal actual
 
         def sdk_records():
+            nonlocal lineage
             if loader_cls is None:
                 return []
-            frame = loader_cls().taiwan_stock_month_revenue(
+            loader = loader_cls()
+            frame = loader.taiwan_stock_month_revenue(
                 stock_id=ticker.split('.')[0],
                 start_date=(datetime.now() - timedelta(days=240)).strftime('%Y-%m-%d'))
-            return format_monthly_revenue_rows(frame)
+            records = format_monthly_revenue_rows(frame)
+            try:
+                from finmind_monthly_lineage import bind_monthly_result
+                lineage = bind_monthly_result(loader,frame,records,ticker)
+            except Exception:
+                lineage = None
+            return records
 
         actual = audit_fetch('monthly_revenue', PROVIDER, sdk_records, default=[],
                              unavailable_message='FinMind 月營收未回傳可用資料。')
         if actual.get('audit', {}).get('status') != 'success' or not actual.get('value'):
             raise MonthlyObservationUnavailable()
+        try:
+            from finmind_monthly_lineage import bind_audited_result
+            bound = bind_audited_result(actual['audit'],actual['value'],lineage)
+            if bound is not None:actual['audit']['sdk_payload_lineage']=bound
+        except Exception:pass
         return {'policy': POLICY, 'ticker': ticker, 'records': actual['value']}
 
     with source_operation('monthly_revenue', PROVIDER):

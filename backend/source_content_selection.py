@@ -89,7 +89,7 @@ def _bank_authored_market_commentary(record: dict, data: dict) -> bool:
     return bool(re.search(r'美元|日圓|澳幣|英鎊|歐元|\b(?:FED|BOJ|RBA)\b', subject, re.I))
 
 
-def issuer_match(record: dict, data: dict) -> str | None:
+def issuer_match(record: dict, data: dict, *, today=None) -> str | None:
     if ('mops_json_receipt' in record or record.get('source_type') == 'mops_issuer_announcement'
             or record.get('source_document_url') == 'https://mops.twse.com.tw/mops/api/t05st01_detail'
             or record.get('issuer_evidence_basis') == 'verified_mops_json_original'):
@@ -120,7 +120,7 @@ def issuer_match(record: dict, data: dict) -> str | None:
             or record.get("publication_date_basis") == "group_page_displayed_day"
             or record.get("publication_date_basis") == "issuer_republication"):
         from data_fetch.market_sources.issuer_news import verified_issuer_news
-        return verified_issuer_news(record, data)
+        return verified_issuer_news(record, data, today=today)
     if _broker_article_targets_other_stock(record, data) or _bank_authored_market_commentary(record, data):
         return None
     # URL parameters and publisher names are not issuer evidence. HTML attributes
@@ -216,7 +216,8 @@ def select_company_records(records, data: dict, *, cutoff=None, lookback_days=30
             from data_fetch.market_sources.yahoo_stock_comments import verified_sample
             if not verified_sample(item, data):
                 reason = 'yahoo_board_receipt_unverified'
-        match = issuer_match(item, data)
+        from zoneinfo import ZoneInfo
+        match = issuer_match(item, data, today=reference.astimezone(ZoneInfo('Asia/Taipei')).date())
         if not reason and not match:
             reason = 'issuer_not_subject' if (_broker_article_targets_other_stock(item, data)
                                             or _bank_authored_market_commentary(item, data)) else 'issuer_unverified'

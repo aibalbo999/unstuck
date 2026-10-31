@@ -39,6 +39,11 @@ def fetch_free_earnings_call_context(ticker: str, *, diagnostics: dict | None = 
         supports_jentech, fetch_jentech_context, PROVIDER as JENTECH_PROVIDER,
     )
     if supports_jentech(ticker):
+        from .market_sources.mops_presentation import supports as supports_material, fetch_presentation_context
+        if supports_material('3653.TW'):
+            # Independently published and qualified government original, not a
+            # retry after the issuer host's timeout or admission block.
+            return fetch_presentation_context('3653.TW', diagnostics=diagnostics, force_refresh=force_refresh, use_cache=use_cache)
         jentech_details = {}
         primary_error = None
         try:
@@ -166,9 +171,12 @@ def fetch_free_earnings_call_context(ticker: str, *, diagnostics: dict | None = 
     from .market_sources.zdt_conference import supports_zdt, fetch_zdt_context
     if supports_zdt(ticker):
         return fetch_zdt_context(ticker, diagnostics=diagnostics, force_refresh=force_refresh, use_cache=use_cache)
-    from .market_sources.getac_conference import supports_getac, fetch_getac_context
+    from .market_sources.getac_conference import supports_getac
     if supports_getac(ticker):
-        return fetch_getac_context(ticker, diagnostics=diagnostics, force_refresh=force_refresh, use_cache=use_cache)
+        # Independently qualified government publisher; no failure-triggered
+        # retry of the issuer host or a second route after an admission block.
+        from .market_sources.mops_presentation import fetch_presentation_context
+        return fetch_presentation_context('3005.TW', diagnostics=diagnostics, force_refresh=force_refresh, use_cache=use_cache)
     from .market_sources.npc_conference import supports_npc, fetch_npc_context
     if supports_npc(ticker):
         return fetch_npc_context(ticker, diagnostics=diagnostics, force_refresh=force_refresh, use_cache=use_cache)

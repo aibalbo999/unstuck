@@ -55,7 +55,7 @@ def evaluate_watchlist_triggers(item: dict, data: dict, *, evaluation_date: str 
         if evaluator is None:
             continue
         actual_evaluation_date = _monthly_evaluation_date(trigger_type, evaluation_date)
-        trigger_for_eval = {**trigger, "evaluation_date": actual_evaluation_date}
+        trigger_for_eval = {**trigger, "evaluation_date": actual_evaluation_date, "_target_ticker": ticker}
         matched, message, metrics = evaluator(trigger_for_eval, data)
         selected = _selected_pipeline(trigger_type, trigger, source_pipeline)
         events.append({
@@ -177,9 +177,17 @@ def _report_catalyst(trigger: dict, data: dict) -> tuple[bool, str, dict]:
 
 
 def _daily_screener(trigger: dict, data: dict) -> tuple[bool, str, dict]:
-    del data
-    reason = str(trigger.get("reason") or "Daily Market Screener 命中").strip()
+    from screener_signal_dimensions import separate_signals
     metrics = trigger.get("metrics") if isinstance(trigger.get("metrics"), dict) else {}
+    guarded = separate_signals({'ticker':trigger.get('_target_ticker') or data.get('ticker') or '',
+                               'metrics':metrics,'category':trigger.get('category'),
+                               'categories':trigger.get('categories'),'reason':trigger.get('reason')})
+    if guarded.get('source_security_identity_status') == 'unverified':
+        return False, '來源證券代號待核對，本輪不判定每日篩選命中。', {
+            **guarded['metrics'], 'source_security_identity_status':'unverified',
+            'category':'unverified_source', 'categories':[],
+            'screen_date':str(trigger.get('screen_date') or '')}
+    reason = str(trigger.get("reason") or "Daily Market Screener 命中").strip()
     payload = {
         **metrics,
         "category": str(trigger.get("category") or ""),

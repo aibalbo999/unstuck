@@ -172,14 +172,20 @@ def market_output_attempt(context: dict, agent_num: int):
                     if key in (agent_num, str(agent_num))}
              for name in ("structured_outputs", "market_context_manifests")}
     clear_market_context_output(context, agent_num)
-    try:
-        yield
-    except BaseException:
-        clear_market_context_output(context, agent_num)
-        for name, values in saved.items():
-            if values:
-                context.setdefault(name, {}).update(values)
-        raise
+    from market_source_schema import bound_market_source_schema
+    candidate = (context.get('_market_context_attempt_manifests') or {}).get(agent_num)
+    refs = None
+    if manifest_matches_input(candidate, context.get('data', {}), agent_num):
+        refs = {source: candidate['sources'][source]['visible_refs'] for source in SOURCE_FIELDS}
+    with bound_market_source_schema(agent_num, refs):
+        try:
+            yield
+        except BaseException:
+            clear_market_context_output(context, agent_num)
+            for name, values in saved.items():
+                if values:
+                    context.setdefault(name, {}).update(values)
+            raise
 
 
 def adopt_market_context_result(context: dict, agent_num: int, data: dict, prompt: str, text: str) -> str:
@@ -241,5 +247,6 @@ def market_assessment_workplan(data: dict, blocks: list[dict]) -> str:
         "需要綜合兩類證據時，分別在各自欄位寫明來源支持的 reason，再整合結論；送出前逐欄核對每個 ref 與 reason 的來源內容。"
         "若未能評估，明寫具體缺口並標 not_assessed，不得假造無影響。"
         "來源缺失或未進入提示時，列明缺口且 source_refs=[]；新聞不是已排定公司事件，過期或缺日期不可冒充兩週催化。\n"
+        + "\nNews metadata dates are not event dates. For headline_metadata_only or legacy GDELT/Google News RSS items, published_at is provider metadata, not proof of the event date or article body. Do not infer a policy action date from RSS pubDate or GDELT seendate; describe an unverified headline as a lead, and keep event timing unassessed without source evidence.\n"
         + _encoded(plan)
     )

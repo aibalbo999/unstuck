@@ -1,5 +1,5 @@
 (function () {
-    const CATEGORY_LABELS = { institutional_accumulation: '外資投信同步', technical_heat: '股價大漲跌/成交量暴增' };
+    const CATEGORY_LABELS = { institutional_accumulation: '外資投信同步', technical_heat: '股價大漲跌/成交量暴增', unverified_source: '來源待核對' };
     const COLUMNS = [
         ['ticker', '股票'], ['normalized_flow_pct', '外資投信/量%'], ['bias_pct', '乖離'], ['rsi_14', 'RSI'],
         ['revenue_growth_yoy_pct', '營收 YoY'], ['total_net_buy_shares', '法人買超'], ['watchlist', '狀態']
@@ -11,7 +11,7 @@
     function selectorEscape(value) { return String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"'); }
     function fallbackPipelineChoices() { return [{ value: 'v1', codeLabel: '模式 A', decisionLabel: '長線研究' }, { value: 'v2', codeLabel: '模式 B', decisionLabel: '部位決策' }, { value: 'v3', codeLabel: '模式 C', decisionLabel: '逆勢風控' }, { value: 'v4', codeLabel: '模式 D', decisionLabel: '事件波段' }]; }
     function dailyTrigger(item) { return (item.triggers || []).find(entry => entry.type === 'daily_screener') || {}; }
-    function triggerReason(item) { const trigger = dailyTrigger(item); return item.reason || trigger.reason || item.latest_trigger_event?.message || 'Auto-Screener'; }
+    function triggerReason(item) { if (item.source_security_identity_status === 'unverified') return '來源證券代號待核對，相關篩選數字暫不採用。'; const trigger = dailyTrigger(item); return item.reason || trigger.reason || item.latest_trigger_event?.message || 'Auto-Screener'; }
     function companyName(item) { const trigger = dailyTrigger(item); return item.company_name || trigger.company_name || trigger.metrics?.company_name || ''; }
     function metric(item, key) { const metrics = item.metrics || dailyTrigger(item).metrics || {}; return key === 'score' ? item.score : metrics[key]; }
     function numberValue(value) { if (value === null || value === undefined || String(value).trim() === '') return null; const n = Number(String(value ?? '').replace(/,/g, '')); return Number.isFinite(n) ? n : null; }

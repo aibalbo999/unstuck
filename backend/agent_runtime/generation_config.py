@@ -24,7 +24,7 @@ from .routing import get_agent_function_tools
 
 
 GENERATION_POLICY_VERSION = "agent-generation:v6"
-AGENT7_COMPLETION_POLICY = "research-completion:v4-topic-period-binding"
+AGENT7_COMPLETION_POLICY = "research-completion:v5-schema-first-completion"
 AGENT16_COMPLETION_POLICY = "trading-completion:v1-low-thinking"
 _DEFAULT_GENERATION_PROFILE = {
     "temperature": 0.7,
@@ -207,6 +207,14 @@ def build_generation_config(agent_num: int, system_instruction: Optional[str] = 
             try:
                 schema_dict = deepcopy(response_schema_cls.model_json_schema(by_alias=True))
                 _sanitize_genai_schema(schema_dict)
+                from market_source_schema import apply_market_source_schema
+                schema_dict = apply_market_source_schema(schema_dict, agent_num)
+                if agent_num == 7:
+                    priority = ('assumption_reconciliation', 'market_context_assessment',
+                                'recommendation', 'scenario_triggers', 'next_catalysts',
+                                'reasoning_steps')
+                    properties = schema_dict.get('properties', {})
+                    schema_dict['propertyOrdering'] = [key for key in priority if key in properties] + [key for key in properties if key not in priority and key != 'analysis_markdown'] + (['analysis_markdown'] if 'analysis_markdown' in properties else [])
                 config_kwargs["response_schema"] = schema_dict
             except Exception:
                 # Fall back to passing the class directly if schema extraction fails.
@@ -249,8 +257,28 @@ def google_safe_agent_system_instruction(agent_num: int, model_id: str) -> str:
     system_instruction = SYSTEM_PROMPTS.get(agent_num, "")
     if agent_num == 6:
         system_instruction += _AGENT6_COMPLETION_INSTRUCTION
+        system_instruction += (
+            "\n\nAgent6證據優先辯論契約：多頭/空頭是比較假設的功能性角色，不是強迫站隊。"
+            "缺證據時，多頭可承認條件尚未成立，空頭亦不得把風險可能性當已發生。"
+            "每輪都把已觀測事實、條件式解釋、反方挑戰與尚缺證據分開；"
+            "新聞標題不能證實護城河、定價權、客戶集中、轉型成功或確定收益；"
+            "非同期間同口徑的同業比率不能推出成本/定價競爭優勢。"
+            "負FCF不能推出高速擴張、備料動機或DCF理論上不能使用；"
+            "法人買賣超不能推出信心、動機或估值折價原因。"
+            "不得先用粗體標題斷言因果再用後文免責；主持人必須保留每個未核實前提。"
+            "官方財務金額每次須有獨立完整的公司、個別範圍、TWD與精確起訖日期，"
+            "可直接引用提供的完整官方reference作為獨立段落；不能在同段混入vendor或推測。"
+            "其餘辯論段落以證據的含義與可證偽條件分析，不能以省略角色內容或虛構數字完成格式。"
+        )
     elif agent_num == 7:
         system_instruction += _AGENT7_COMPLETION_INSTRUCTION
+        system_instruction += (
+            "\n\n完整JSON的輸出順序：先assumption_reconciliation五列與總狀態，再market_context_assessment、"
+            "recommendation、scenario_triggers、next_catalysts、reasoning_steps，最後analysis_markdown與結尾大括號。"
+            "五列引文優先使用當前quote_ref並保留空quote，由伺服器還原原句；rationale精確說明差異或缺口，"
+            "不要在正文再逐字重複五列或原始財報表。analysis_markdown精煉整合支持/反證/限制，保留模式必要章節。"
+            "不得省略任一必要欄位、引用或反證來縮短，不能延續上次截斷JSON；重新輸出完整候選。"
+        )
     elif agent_num == 11:
         from industry_output_completion import industry_instruction
         system_instruction += industry_instruction()

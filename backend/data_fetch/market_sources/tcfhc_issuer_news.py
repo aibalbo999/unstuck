@@ -129,7 +129,7 @@ def _page(raw, url):
     owners = soup.select('.c-terms__copyright')
     if (not soup.html or soup.html.get('lang') != 'zh-Hant-TW' or not soup.title
             or len(urls) != 1 or urls[0].get('content') != url or len(titles) != 1
-            or _clean(soup.title) != titles[0].get('content')
+            or _clean(soup.title) != _clean(titles[0].get('content', ''))
             or len(owners) != 1 or _clean(owners[0]) != '©合作金庫金控版權所有'
             or len(soup.select('main#main')) != 1):
         raise ValueError('tcfhc_news_publisher_or_native_metadata_invalid')

@@ -143,11 +143,116 @@ def _original_http_receipts(entry):
     return result
 
 
+def _getac_transport_steps(value):
+    """Keep bounded stage facts, never URLs, bodies, headers or free-form errors."""
+    stages = {
+        'https://mopsfin.twse.com.tw/opendata/t187ap03_L.csv': 'master_csv',
+        'https://openapi.twse.com.tw/v1/opendata/t187ap03_L': 'master_json',
+        'https://www.getacgroup.com': 'registered_root',
+        'https://en.getacgroup.com/investors/calendar.php?index_year=2026': 'conference_index',
+        'https://en.getacgroup.com/upload/document_investor_calendar_list_files/a595874cfc02bb78ae85a5d21150c0b0.pdf': 'presentation_pdf',
+    }
+    errors = {'timeout','transport_error','server_error','cooldown','single_flight_busy',
+              'original_expired','rate_limit','access_denied','parse_error','original_unverified'}
+    if not isinstance(value, list):
+        return []
+    result = []
+    for item in value[:12]:
+        if not isinstance(item, dict) or not isinstance(item.get('url'), str) or item['url'] not in stages:
+            continue
+        row = {'stage': stages[item['url']]}
+        for k in ('http_request_sent','cache_hit'):
+            if type(item.get(k)) is bool:
+                row[k] = item[k]
+        for k in ('http_status','response_bytes'):
+            v = item.get(k)
+            if type(v) is int and (100 <= v <= 599 if k == 'http_status' else 0 <= v <= 8*1024*1024):
+                row[k] = v
+        if isinstance(item.get('error_kind'), str) and item['error_kind'] in errors:
+            row['error_kind'] = item['error_kind']
+        digest = item.get('response_sha256')
+        if isinstance(digest, str) and re.fullmatch('[0-9a-f]{64}', digest):
+            row['response_sha256'] = digest
+        result.append(row)
+    return result
+
+
+def _peer_candidate_diagnostics(entry):
+    """Typed TW peer gaps only; no values, bodies, URLs or exception messages."""
+    if entry.get('source') != 'dynamic_peer_metrics' or entry.get('provider') != 'FinMind/yfinance':
+        return []
+    values = entry.get('candidate_diagnostics')
+    if not isinstance(values, list):
+        return []
+    fields = {'gross_margin_pct', 'operating_margin_pct', 'profit_margin_pct', 'roe_pct',
+              'asset_turnover', 'pe_ttm', 'pb', 'ps_ttm'}
+    providers = {'yfinance', 'FinMind TaiwanStockPER', 'TWSE/TPEx official peer valuation OpenAPI',
+                 'Yahoo annual financial statements'}
+    statuses = {'success', 'not_needed', 'empty_response', 'download_failed', 'missing_matching_annual_values',
+                'identity_mismatch', 'not_equity', 'unavailable', 'valid_empty', 'conflicting_observations',
+                'metrics_missing', 'not_applicable', 'rate_limited', 'cache_hit'}
+    comparisons = {'business_industry_matched', 'business_industry_mismatch', 'identity_unverified',
+                   'industry_candidate_only', 'profile_ranked', 'heuristic_unverified',
+                   'official_convenience_candidate', 'official_segment_candidate', 'published_segment_candidate'}
+    out = []
+    for item in values[:10]:
+        if not isinstance(item, dict):
+            continue
+        ticker, status = item.get('ticker'), item.get('metrics_status')
+        if (not isinstance(ticker, str) or len(ticker) > 10 or not re.fullmatch(r'[1-9][0-9]{3,5}\.(?:TW|TWO)', ticker)
+                or not isinstance(status, str) or len(status) > 16 or status not in {'complete', 'partial', 'unavailable'}):
+            continue
+        row = {'ticker': ticker, 'metrics_status': status}
+        if type(item.get('selected')) is bool:
+            row['selected'] = item['selected']
+        comparison = item.get('comparison_status')
+        if isinstance(comparison, str) and len(comparison) <= 64 and comparison in comparisons:
+            row['comparison_status'] = comparison
+        missing = item.get('missing_metrics')
+        if isinstance(missing, list):
+            row['missing_metrics'] = list(dict.fromkeys(v for v in missing[:32] if isinstance(v, str) and len(v) <= 32 and v in fields))
+        attempts = item.get('acquisition_attempts')
+        if isinstance(attempts, list):
+            kept = []
+            for attempt in attempts[:6]:
+                if not isinstance(attempt, dict):
+                    continue
+                provider, outcome = attempt.get('provider'), attempt.get('status')
+                if not isinstance(provider, str) or len(provider) > 80 or provider not in providers or not isinstance(outcome, str):
+                    continue
+                if outcome.startswith('download_failed:'):
+                    outcome = 'download_failed'
+                if len(outcome) > 80 or outcome not in statuses:
+                    continue
+                result = {'provider': provider, 'status': outcome}
+                if type(attempt.get('cache_hit')) is bool:
+                    result['cache_hit'] = attempt['cache_hit']
+                day = attempt.get('observed_at')
+                if isinstance(day, str) and re.fullmatch(r'20[0-9]{2}-[0-9]{2}-[0-9]{2}', day):
+                    from datetime import date
+                    try:
+                        result['observed_at'] = date.fromisoformat(day).isoformat()
+                    except ValueError:
+                        pass
+                kept.append(result)
+            row['acquisition_attempts'] = kept
+        out.append(row)
+    return out
+
+
 def observation_details(entry: dict) -> dict:
     result = correlation_metadata(entry)
+    peer_gaps = _peer_candidate_diagnostics(entry)
+    if peer_gaps:
+        result['candidate_diagnostics'] = peer_gaps
     originals = _original_http_receipts(entry)
     if originals:
         result['original_http_receipts'] = originals
+    try:
+        from finmind_monthly_lineage import audit_lineage
+        lineage=audit_lineage(entry)
+    except Exception:lineage=None
+    if lineage is not None:result['sdk_payload_lineage']=lineage
     for key,allowed in _VERIFICATION.items():
         value=entry.get(key)
         if isinstance(value,str) and value in allowed:
@@ -174,6 +279,8 @@ def observation_details(entry: dict) -> dict:
     if isinstance(reasons, dict):
         result['rejected_reason_counts'] = {str(k)[:60]: v for k,v in list(reasons.items())[:12]
                                             if isinstance(v,int) and not isinstance(v,bool) and v >= 0}
+    if entry.get('provider') == 'Getac official conference presentation':
+        result['transport_steps'] = _getac_transport_steps(entry.get('component_statuses'))
     for key in ('coverage', 'component_statuses'):
         value = entry.get(key)
         if isinstance(value, dict):

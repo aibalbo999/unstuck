@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from datetime import date, datetime
 from typing import Any
+import re
 
 import pandas as pd
 
@@ -32,11 +33,14 @@ def safe_float(value: Any) -> float:
 
 def is_common_tw_stock_id(stock_id: Any) -> bool:
     text = str(stock_id or "").strip()
-    return len(text) == 4 and text.isdigit()
+    return re.fullmatch(r'[1-9][0-9]{3}', text) is not None
 
 
 def clean_tw_stock_id(stock_id: Any) -> str:
-    return "".join(ch for ch in str(stock_id or "").strip() if ch.isdigit())
+    # Source security IDs are identifiers, not free-form numbers. Stripping
+    # letters collapses preferred shares into the ordinary equity (2002A→2002).
+    # Keep all non-padding characters so the exact equity gate rejects them.
+    return str(stock_id or "").strip()
 
 
 def clean_company_name(value: Any) -> str:

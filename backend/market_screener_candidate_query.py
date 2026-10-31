@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import math
+
 from market_screener_utils import safe_float
 
 
@@ -78,9 +80,15 @@ def _candidate_matches_metric_filters(candidate: dict, filters: dict) -> bool:
         if filter_key not in section_filters:
             continue
         threshold = safe_float(section_filters.get(filter_key))
-        if metric_key not in metrics:
+        raw_value = metrics.get(metric_key)
+        if raw_value is None or isinstance(raw_value, bool):
             return False
-        value = safe_float(metrics.get(metric_key))
+        try:
+            value = float(str(raw_value).replace(",", "").strip())
+        except (TypeError, ValueError):
+            return False
+        if not math.isfinite(value):
+            return False
         if mode == "min" and value < threshold:
             return False
         if mode == "max" and value > threshold:

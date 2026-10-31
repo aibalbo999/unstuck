@@ -431,13 +431,14 @@ def fetch_dynamic_peer_metrics_with_diagnostics(ticker: str, company_name: str, 
         audit["official_ncc_candidate_status"] = "originals_expired_or_unverified_after_metrics"
     usable_count = sum(r["metrics_status"] != "unavailable" for r in selected_records)
     partial = any(r["metrics_status"] != "complete" for r in selected_records)
+    selected_symbols = {r["ticker"] for r in selected_records}
     audit.update(candidate_count=candidate_count, candidate_attempt_count=len(records), identity_count=len(selected_records),
                  raw_count=len(records), usable_count=usable_count,
                  coverage_status="unavailable" if not usable_count else "partial" if partial else "success",
                  quality_status="metrics_missing" if not usable_count else "partial_metrics" if partial else "usable",
                  metric_observation_note="yfinance reporting periods are not supplied; inspect per-field provenance before period comparisons",
                  business_industry_rejected_count=len(records) - len(eligible_records),
-                 candidate_diagnostics=[{"ticker": r["ticker"], "metrics_status": r["metrics_status"],
+                 candidate_diagnostics=[{"ticker": r["ticker"], "selected": r["ticker"] in selected_symbols, "metrics_status": r["metrics_status"],
                                          "comparison_status": r["comparison_status"], "reported_industry": r.get("reported_industry"),
                                          "missing_metrics": r["missing_metrics"], "acquisition_attempts": r["acquisition_attempts"]} for r in records])
     return {"peers": selected_records, "audit": audit}

@@ -212,7 +212,27 @@ def evaluate_report_evidence(
         if verdict == "approved":
             verdict = "caution"
         summary += " 技術論述的保存輸入、交易日或計算範圍尚未核實，詳見逐項檢核。"
+    from policy_event_evidence import policy_event_date_issues,policy_items_from_data
+    policy_date_checks=policy_event_date_issues(markdown,policy_items_from_data(data),as_of=data.get('analysis_input_cutoff')if isinstance(data,dict)else None)
+    if policy_date_checks:
+        verdict='rejected'
+        summary+=' 政策事件日期缺少同一已核對官方原件支持；不得將新聞發布或來源觀測日期當成事件日。'
+    from cashflow_causal_claims import cashflow_driver_inference_issues
+    causal_checks=cashflow_driver_inference_issues(markdown)
+    if causal_checks:
+        verdict='rejected'
+        summary += ' 現金流總額無法證實所述營運原因。'
+    from financial_unit_declarations import financial_unit_declaration_issues
+    unit_checks=financial_unit_declaration_issues(markdown)
+    if unit_checks:
+        verdict='rejected'
+        summary+=' 同一金額有億元與billion_twd的明確矛盾宣告。'
     return {
+        "financial_unit_declaration_checks":unit_checks,
+        "cashflow_causal_checks":causal_checks,
+        "cashflow_causal_coverage":"Explicit negative cashflow-to-operating-driver assertions; not generic cash pressure, arithmetic or proof of management explanations",
+        "policy_event_date_checks":policy_date_checks,
+        "policy_event_date_coverage":"Chinese explicit Fed action dates; replayed official statement date and action, not historical availability or all macroeconomic claims",
         "technical_reasoning_checks": reasoning_checks,
         "technical_reasoning_coverage": "explicit current histogram magnitude and named SMA relations; saved-window arithmetic with separate session admission; not independent price verification, historical PIT, or all prose reasoning",
         "source_admission":source_admission,

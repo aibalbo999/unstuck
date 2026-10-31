@@ -302,10 +302,27 @@ def format_data_for_prompt(data: dict, *, compact: bool = False, dense: bool = F
             'period_start', 'period_end', 'report_scope', 'currency', 'source_url',
             'acquired_at', 'cashflows', 'ttm_formula', 'free_cash_flow_definition')}
         payload['cash_flow']['official_reference']['historical_pit_verified'] = False
-        from official_income_prompt import official_income_prompt_facts
+        from official_income_prompt import official_income_prompt_facts, official_income_reference_text
         income_facts = official_income_prompt_facts(data)
         if income_facts is not None:
             payload['cash_flow']['official_income_facts'] = income_facts
+            reference_text = official_income_reference_text(income_facts, official['facts'])
+            if reference_text is not None:
+                payload['cash_flow']['official_income_reference_text'] = reference_text
+    if official is not None:
+        from official_cashflow_components import read_official_cashflow_components
+        from evidence_cashflow_components import component_reference_text
+        effects = read_official_cashflow_components(data)
+        if effects is not None:
+            payload['cash_flow']['official_operating_cash_effects'] = effects
+            payload['cash_flow']['official_operating_cash_effect_reference_text'] = component_reference_text(effects)
+            payload['cash_flow']['official_operating_cash_effect_limits'] = (
+                '金額為 FY前期全年＋本期累計－前期同期之個別TWD現金影響；'
+                '存貨與應收帳款之正負號各自判讀，不等於總營業現金流或自由現金流。'
+                '不可據此認定擴產、備料、訂單或任何經營動機；仍需獨立官方證據。'
+                '每個金額引用必須保留公司、個別、TWD、TTM起訖日及完整指標名稱，'
+                '各條完整引用獨立成段；不得借用其他期間或同業口徑。'
+                '不升級資料時效、歷史首次可用日或對外抓取成功。')
     if role_scoped:
         payload = project_role_payload(payload, dict.get(data, "_prompt_agent_num"))
     freshness_reference = False

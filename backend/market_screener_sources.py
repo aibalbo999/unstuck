@@ -118,6 +118,7 @@ class TwseFreeScreenerDataSource:
                     "name": investor_name,
                     "buy": safe_float(row[3]),
                     "sell": safe_float(row[4]),
+                    "flow_security_code": stock_id, "flow_security_policy": "twse-exact-source-code:v1",
                 })
         return records
 

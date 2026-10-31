@@ -17,6 +17,8 @@ def init_provider_sla_schema(conn: sqlite3.Connection) -> None:
     )
     conn.execute("CREATE INDEX IF NOT EXISTS idx_provider_sla_source_provider ON provider_sla_stats(source, provider)")
     conn.execute("CREATE INDEX IF NOT EXISTS idx_provider_sla_events_lookup ON provider_sla_events(source, provider, created_at)")
+    # Cross-provider time windows need a time-leading index, not a full scan.
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_provider_sla_events_time ON provider_sla_events(created_at, id)")
 
 
 def _migrate_v1(conn: sqlite3.Connection) -> None:

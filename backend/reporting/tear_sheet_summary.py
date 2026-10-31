@@ -14,7 +14,10 @@ from .utils import contains_prompt_leak_residue, sanitize_report_text
 
 def build_tear_sheet_summary(context: AnalysisContext) -> str:
     """Build a one-page summary without letting generic prose hide mode fields."""
-    model_summary = safe_report_text(context.get("tear_sheet_summary", ""), "")
+    value = context.get("tear_sheet_summary", "")
+    # This is a validated text block, not a scalar label. Collapsing newlines
+    # merges independently bound official amounts into unrelated prose.
+    model_summary = value.strip() if isinstance(value, str) else ""
     sanitized_model_summary = ""
     if model_summary:
         sanitized = sanitize_report_text(model_summary)

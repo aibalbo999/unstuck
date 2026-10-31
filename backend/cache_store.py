@@ -5,7 +5,7 @@ from __future__ import annotations
 import threading
 
 from cache_backends import CacheBackend, SqliteCacheBackend
-from config import CACHE_DB_PATH
+from config import CACHE_DB_PATH, JSON_CACHE_DB_PATH
 
 
 _BACKEND_LOCK = threading.RLock()
@@ -17,7 +17,11 @@ def get_cache_backend() -> CacheBackend:
     global _backend
     with _BACKEND_LOCK:
         if _backend is None:
-            _backend = SqliteCacheBackend(CACHE_DB_PATH)
+            path = JSON_CACHE_DB_PATH or CACHE_DB_PATH
+            if JSON_CACHE_DB_PATH:
+                from provider_json_cache_migration import ensure_cache_destination
+                ensure_cache_destination(CACHE_DB_PATH, path)
+            _backend = SqliteCacheBackend(path)
         return _backend
 
 

@@ -152,7 +152,12 @@ def _fred_observations(
         params["observation_start"] = observation_start
     response = _fred_get(session, params=params, timeout=timeout)
     payload = response.json()
-    return payload.get("observations", []) if isinstance(payload, dict) else []
+    observations = payload.get("observations", []) if isinstance(payload, dict) else []
+    from fred_transport_receipts import observe_parsed_response
+    import httpx, requests
+    observe_parsed_response(response, series_id=series_id, observations=observations,
+                            native_call=session is None or type(session) in (httpx.Client, requests.Session))
+    return observations
 
 
 def _fred_get(session: Any | None, *, params: dict[str, str], timeout: float):
