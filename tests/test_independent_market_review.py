@@ -7,6 +7,7 @@ import json
 
 import pytest
 from test_cached_institutional_recovery import cached
+from test_candidate_source_market_identity import unverified_tpex_calendar
 
 
 def bar(day, close=60, volume=0):
@@ -34,7 +35,7 @@ def test_open_zero_volume_and_missing_day_are_distinct():
 
 
 @pytest.mark.parametrize('ticker', ['1234.TWO', '1234', ''])
-def test_unproven_market_does_not_borrow_emergency_evidence(ticker):
+def test_unproven_market_does_not_borrow_emergency_evidence(ticker, unverified_tpex_calendar):
     from market_session_admission import assess_daily_session_integrity
     result = assess_daily_session_integrity(daily(['2026-10-23'], ticker))
     assert not result['eligible'] and result['status'] == 'unverifiable'
@@ -61,7 +62,7 @@ def test_invalid_quarantine_must_survive_context_projection():
     assert not result['daily_market_data']['session_integrity']['eligible'], result
 
 
-def test_tpex_readiness_must_use_tpex_calendar_scope():
+def test_tpex_readiness_must_use_tpex_calendar_scope(unverified_tpex_calendar):
     from two_week_market_eligibility import completed_session
     from reporting.content_credibility_observations import evaluate_observation_credibility
     moment = datetime.fromisoformat('2026-10-23T18:00:00+08:00')

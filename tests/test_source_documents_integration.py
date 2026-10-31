@@ -28,7 +28,8 @@ class DocumentsProvider(DataProvider):
         self.calls += 1
         return ProviderResult(self.source, self.name, 'degraded_enrichment', source_value(),
             {'source': self.source, 'provider': self.name, 'status': 'degraded_enrichment',
-             'record_count': 1, 'fetched_at_epoch': time.time(), 'coverage_status': 'partial'})
+             'record_count': 1, 'fetched_at_epoch': time.time(), 'coverage_status': 'partial',
+             'event_kind': 'aggregate', 'http_request_sent': False})
 
 
 def test_cached_core_gets_documents_without_refetching_quote_or_news(monkeypatch):
@@ -46,11 +47,18 @@ def test_cached_core_gets_documents_without_refetching_quote_or_news(monkeypatch
     assert result['recent_catalysts'] == []
     assert result['current_price'] == 100
     assert result['source_freshness']['official_disclosures']['fetched_at_epoch'] > 0
-    # Merge summaries and cache observations are not provider acquisitions.
-    # Only the disclosure provider should perform an acquisition.
+    # This callback mirrors OfficialDisclosuresProvider's aggregate result.
+    # Calling it once does not prove HTTP acquisition; the native snapshot
+    # producer records its original receipt separately.
     acquired = [row for row in result['source_audit']
                 if row.get('event_kind') != 'aggregate' and row.get('cache_hit') is not True]
-    assert {row['source'] for row in acquired} == {'official_disclosures'}
+    assert acquired == []
+    disclosure_rows = [row for row in result['source_audit']
+                       if row.get('source') == 'official_disclosures']
+    assert disclosure_rows
+    assert all(row.get('event_kind') == 'aggregate' and row.get('http_request_sent') is not True
+               for row in disclosure_rows)
+    assert any(row.get('http_request_sent') is False for row in disclosure_rows)
     assert all(row.get('record_count') == 0 and
                (row.get('event_kind') == 'aggregate' or row.get('cache_hit') is True)
                for row in result['source_audit']
