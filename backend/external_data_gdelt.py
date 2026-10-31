@@ -114,7 +114,7 @@ async def fetch_gdelt_international_news_context(
                 if parsed_topics:
                     _cache_gdelt_topics(cache_key, parsed_topics, topic_cache_seconds)
             if not parsed_topics:
-                parsed_topics = await _fetch_google_news_rss_fallback(client, tag, query)
+                parsed_topics = await _fetch_google_news_rss_fallback(client, tag, f"{query} when:{max(1, int(lookback_days))}d")
                 if parsed_topics:
                     if fallback_reason:
                         coverage_notes.append(f"{tag} {fallback_reason}，使用 Google News RSS 備援。")
