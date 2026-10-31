@@ -14,6 +14,7 @@ def run_launcher(tmp_path, args, overrides=None):
     (project/'.venv/bin').mkdir(parents=True)
     (project/'scripts').mkdir()
     (project/'scripts/maintenance_verify.py').write_text('# test stub target\n')
+    (project/'scripts/project_environment.sh').write_text('# successful storage preflight fixture\nreturn 0\n')
     log=tmp_path/'interpreter.log'
     interpreter=project/'.venv/bin/python'
     interpreter.write_text('''#!/bin/bash

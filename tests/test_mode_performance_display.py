@@ -1,15 +1,12 @@
-"""Offline public checks; original-data replay remains in the local private corpus."""
 """Run actual panel JavaScript against versioned trading-result fixtures."""
 
 import json
-
 from pathlib import Path
-
 import shutil
-
 import subprocess
 
 import pytest
+
 
 def test_panels_preserve_trading_days_unknown_returns_and_non_scored_status():
     node = shutil.which("node")
@@ -41,6 +38,7 @@ console.log(JSON.stringify({summary: summaryEl.textContent, html: listEl.innerHT
         assert "miss" not in rendered[field]
     assert "0.00%" not in rendered["html"]
 
+
 def test_empty_monthly_metrics_and_original_vs_revision_denominators():
     node=shutil.which('node')
     if node is None:pytest.skip('Node.js required for panel contract')
@@ -58,6 +56,29 @@ def test_empty_monthly_metrics_and_original_vs_revision_denominators():
     assert '全歷史價格／交易日證據隔離 4' in rendered['summary']
     assert '已完成 5 筆、待成熟 71 筆、已到期待補證 0 筆' in rendered['summary']
     assert '版本未代換上列原始績效' in rendered['summary']
+
+
+@pytest.mark.parametrize('phase,reports,slots', [('before', 921, 1842), ('after', 915, 1830)])
+def test_retention_scope_notice_does_not_present_cross_round_counts_as_improvement(phase, reports, slots):
+    node = shutil.which('node')
+    if node is None:
+        pytest.skip('Node.js required for panel contract')
+    root = Path(__file__).resolve().parents[1]
+    fixture = json.loads((root / 'tests/fixtures/performance_retention_six_reports.json').read_text())
+    population = dict(fixture[phase], denominator_semantics={'kind': 'surviving_indexed_reports', 'retention_days': 30})
+    payload = {'population': population, 'legacy_evidence_revisions': {
+        'approved_scope_count': 76, 'revisions': 5, 'terminal_scope_count': 5,
+        'awaiting_maturity_count': 71, 'mature_unscored_scope_count': 0, 'revision_state_counts': {'no_trade': 5}}}
+    script = 'const window={};\n' + (root / 'backend/static/performance_panel.js').read_text()
+    script += '\nconst payload=' + json.dumps(payload) + ';const summaryEl={},listEl={};window.StockAgentPerformancePanel.render(payload,{summaryEl,listEl,escapeHtml:v=>String(v)});console.log(JSON.stringify({summary:summaryEl.textContent}));'
+    text = json.loads(subprocess.run([node, '-e', script], capture_output=True, text=True, check=True).stdout)['summary']
+    assert f'現存索引預期 {slots} 筆' in text
+    assert f'仍存索引的 {reports} 份台股 v4 報告' in text
+    assert '交易日基準 2026-10-02（台北）' in text and '保留 30 天' in text
+    assert '到期清理會縮小母體' in text and '不是固定完整歷史研究母體' in text
+    assert '跨期變動不代表策略改善' in text
+    assert '待成熟 71 筆、已到期待補證 0 筆' in text and '未驗證策略' in text
+
 
 @pytest.mark.parametrize('days,label', [(None, '保留期限未確認'), (0, '到期清理已停用')])
 def test_scope_notice_never_invents_retention_for_old_or_disabled_payload(days, label):

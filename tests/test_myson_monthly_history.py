@@ -18,17 +18,13 @@ PREVIOUS='https://docs.google.com/spreadsheets/d/1TpOCd6i8iFeEGaJLHUKcZs1i4QyuK1
 EXPECTED=['2026年4月: NT$4.94億','2026年5月: NT$5.13億','2026年6月: NT$5.79億',
           '2026年7月: NT$5.53億','2026年8月: NT$4.65億','2026年9月: NT$4.73億']
 
-def _public_sheet_fixture(name):
-    directory = FIXTURES.parent / 'myson_monthly_public_20261018' if name in ('current.html', 'previous.html') else FIXTURES
-    return gzip.decompress((directory / (name + '.gz')).read_bytes())
-
 @pytest.fixture
 def original_http(monkeypatch):
     from cache_backends import InMemoryCache
     import cache_store
     from data_fetch.market_sources.issuer_news_transport import IssuerNewsHttp
     cache_store.set_cache_backend(InMemoryCache())
-    bodies={url:_public_sheet_fixture(name) for url,name in
+    bodies={url:gzip.decompress((FIXTURES/(name+'.gz')).read_bytes()) for url,name in
             [(CSV,'otc.csv'),(MASTER,'otc_roster.json'),(INDEX,'index.html'),(CURRENT,'current.html'),(PREVIOUS,'previous.html')]}
     calls=[]
     def download(self,url,diagnostic):

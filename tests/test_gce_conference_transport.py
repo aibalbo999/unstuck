@@ -1,0 +1,150 @@
+"""Real native command boundary, mocked process only; no live networking."""
+import json
+import time
+from copy import deepcopy
+from hashlib import sha256
+import pytest
+from test_gce_conference import harness, MASTER_URL, INDEX_URL, PDF_URL, NOW
+from data_fetch.market_sources.gce_conference_transport import ConferenceHttp
+_NATIVE_DOWNLOAD = ConferenceHttp.download_original
+
+
+@pytest.fixture
+def native(monkeypatch,harness):
+    from data_fetch.market_sources import gce_conference_transport as transport
+    # Replace the source-fixture seam with the actual native downloader method.
+    monkeypatch.setattr(transport.ConferenceHttp,'download_original',_NATIVE_DOWNLOAD)
+    monkeypatch.delenv('STOCK_AGENT_TEST_NO_NETWORK',raising=False)
+    for key in transport.PROXY_ENV:monkeypatch.delenv(key,raising=False)
+    monkeypatch.setattr(transport,'proxy_url_for_request',lambda *a:None)
+    controls={};calls=[]
+    def process(args,deadline,**options):
+        url=args[-1];raw=harness[0][url];calls.append((args,deadline,options))
+        ctype='text/csv'if url==MASTER_URL else'text/html'if url==INDEX_URL else'application/pdf'
+        status=controls.get('status',200)
+        headers=(f'HTTP/2 {status}\r\nContent-Type: {ctype}\r\nContent-Length: {len(raw)}\r\nCache-Control: no-cache\r\n'+controls.get('extra','')+'\r\n').encode()
+        meta={'http_code':status,'url_effective':url,'num_redirects':0,'size_download':len(raw),
+              'content_type':ctype,'method':'GET','proxy_used':0};meta.update(controls.get('metadata',{}))
+        return {'process_started':True,'body':controls.get('body',raw),'headers':headers,'metadata':json.dumps(meta).encode()},controls.get('rc',0),None
+    monkeypatch.setattr(transport,'collect_capped_process',process)
+    return transport,controls,calls
+
+
+def test_actual_native_arguments_and_metadata_are_bounded(native):
+    t,_,calls=native;d=time.monotonic()+25
+    raw,r=t.ConferenceHttp(d).get_receipt(PDF_URL)
+    args,stop,options=calls[0]
+    assert args[0]=='/usr/bin/curl'and'--location'not in args and'--insecure'not in args
+    assert args[args.index('--retry')+1]=='0'and args[args.index('--max-redirs')+1]=='0'
+    assert float(args[args.index('--max-time')+1])<=5 and float(args[args.index('--connect-timeout')+1])<=2
+    assert stop<=d and options['body_limit']==8*1024*1024
+    assert r['response_metadata']['content_length']==len(raw) and r['cache_hit']is False
+    assert t.original_bytes(r,PDF_URL,max_age=1800)==raw
+
+
+def test_native_master_keeps_identity_wire_metadata(native):
+    t,_,calls=native
+    raw,r=t.ConferenceHttp(time.monotonic()+25).get_receipt(MASTER_URL)
+    metadata=r['response_metadata']
+    assert metadata['content_encoding']=='identity'
+    assert metadata['wire_bytes']==metadata['decoded_bytes']==len(raw)
+    assert metadata['wire_sha256']==metadata['decoded_sha256']==sha256(raw).hexdigest()
+    assert r['reusable'] is False  # this fixture explicitly publishes no-cache
+    assert t.original_bytes(r,MASTER_URL,max_age=1800)==raw
+    args,_,options=calls[0]
+    assert '--compressed' not in args and options['body_limit']==2_500_000
+
+
+def test_native_shared_master_gets_more_time_than_company_documents(native):
+    t,_,calls=native
+    t.ConferenceHttp(time.monotonic()+25).get_receipt(MASTER_URL)
+    master_args=calls[0][0]
+    assert float(master_args[master_args.index('--max-time')+1])==8
+    assert float(master_args[master_args.index('--connect-timeout')+1])==3
+    t.ConferenceHttp(time.monotonic()+25).get_receipt(INDEX_URL)
+    page_args=calls[1][0]
+    assert float(page_args[page_args.index('--max-time')+1])<=5
+    assert float(page_args[page_args.index('--connect-timeout')+1])<=2
+
+
+@pytest.mark.parametrize('extra',['Content-Encoding: gzip\r\n','Content-Length: 1\r\n','Age: invalid\r\n'])
+def test_native_master_rejects_encoding_or_ambiguous_metadata(native,extra):
+    from search_provider_runtime import SourceResponseError
+    t,control,calls=native;control['extra']=extra
+    with pytest.raises(SourceResponseError):t.ConferenceHttp(time.monotonic()+25).get_receipt(MASTER_URL)
+    assert len(calls)==1
+
+
+@pytest.mark.parametrize('change',['duplicate','length','encoding','redirect','method','proxy','truncated','challenge','timeout','403','429'])
+def test_native_rejection_is_not_success_and_failure_cannot_repeat(native,change):
+    from search_provider_runtime import SourceResponseError
+    t,controls,calls=native
+    if change=='duplicate':controls['extra']='Content-Length: 1\r\n'
+    elif change=='length':controls['body']=b'partial'
+    elif change=='encoding':controls['extra']='Content-Encoding: gzip\r\n'
+    elif change in {'redirect','method','proxy'}:controls['metadata']={ {'redirect':'num_redirects','method':'method','proxy':'proxy_used'}[change]:{'redirect':1,'method':'POST','proxy':1}[change]}
+    elif change=='truncated':controls['rc']=18
+    elif change=='challenge':controls['body']=b'captcha'
+    elif change=='timeout':controls['rc']=28
+    else:controls['status']=int(change)
+    for options in ({},{'force_refresh':True},{'use_cache':False}):
+        with pytest.raises(SourceResponseError):t.ConferenceHttp(time.monotonic()+25,**options).get_receipt(PDF_URL)
+    assert len(calls)==1
+
+
+def test_storage_failure_blocks_before_http(native,monkeypatch):
+    import cache_store
+    from search_provider_runtime import SourceResponseError
+    t,_,calls=native
+    def fail(*a,**k):raise OSError('unwritable isolated guard')
+    monkeypatch.setattr(cache_store,'set_cache_json',fail)
+    with pytest.raises(SourceResponseError):t.ConferenceHttp(time.monotonic()+25).get_receipt(PDF_URL)
+    assert not calls
+
+
+def test_original_deadline_cannot_be_extended_by_receipt_edit(native,monkeypatch):
+    t,_,_=native;_,r=t.ConferenceHttp(time.monotonic()+25).get_receipt(PDF_URL)
+    monkeypatch.setattr(time,'time',lambda:NOW+1799)
+    r['retrieved_at']+=5;r['fresh_until_epoch']+=5
+    with pytest.raises(ValueError):t.original_bytes(r,PDF_URL,max_age=1800)
+
+
+def test_lock_cleanup_is_inside_transport_delivery_deadline(native,monkeypatch):
+    from contextlib import contextmanager
+    from types import SimpleNamespace
+    from search_provider_runtime import SourceResponseError
+    t,_,calls=native;clock=[100.]
+    @contextmanager
+    def lock(*a,**k):
+        yield True
+        clock[0]=126.
+    monkeypatch.setattr(t,'_shared_lock',lock)
+    monkeypatch.setattr(t,'time',SimpleNamespace(monotonic=lambda:clock[0],time=lambda:NOW))
+    with pytest.raises(SourceResponseError)as caught:t.ConferenceHttp(125).get_receipt(PDF_URL)
+    assert caught.value.error_kind=='timeout' and len(calls)==1
+
+
+def test_active_host_cooldown_is_preserved_for_force(native):
+    import cache_store
+    from search_provider_runtime import scope_key,SourceResponseError
+    t,_,calls=native
+    key=scope_key(t.HTTP_PROVIDER,endpoint='www.gce.com.tw');state={'retry_at':NOW+120,'reason':'prior429'}
+    cache_store.set_cache_json(key,state,ttl_seconds=120)
+    for options in ({},{'force_refresh':True},{'use_cache':False}):
+        with pytest.raises(SourceResponseError):t.ConferenceHttp(time.monotonic()+25,**options).get_receipt(PDF_URL)
+    assert not calls and cache_store.get_cache_json(key)==state
+
+
+def test_cleanup_storage_failure_keeps_admission_but_not_discards_original(native,monkeypatch):
+    import cache_store
+    from search_provider_runtime import SourceResponseError
+    t,_,calls=native;real=cache_store.set_cache_json
+    def set_value(key,value,*a,**kw):
+        if value.get('retry_at')==0:raise OSError('cleanup write failed')
+        return real(key,value,*a,**kw)
+    monkeypatch.setattr(cache_store,'set_cache_json',set_value)
+    http=t.ConferenceHttp(time.monotonic()+25)
+    raw,receipt=http.get_receipt(PDF_URL)
+    assert receipt['cache_hit']is False and http.components[0]['admission_release_failed']is True
+    with pytest.raises(SourceResponseError):t.ConferenceHttp(time.monotonic()+25,force_refresh=True).get_receipt(PDF_URL)
+    assert len(calls)==1

@@ -52,12 +52,26 @@ def configure_postgres_boundary() -> bool:
 
 
 def main() -> int:
+    if sys.platform == "darwin":
+        sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
+        from project_storage import external_environment
+
+        try:
+            os.environ.update(external_environment())
+        except (OSError, RuntimeError) as error:
+            print(str(error), file=sys.stderr)
+            return 2
+        # Explicit tempdir prevents tempfile's implicit fallback to macOS /tmp.
+        tempfile.tempdir = os.environ["TMPDIR"]
     with tempfile.TemporaryDirectory(prefix="prompt-boundary-tests-") as directory:
         root = Path(directory).resolve()
         os.environ.update({
             "STOCK_AGENT_TEST_NO_NETWORK": "1",
             "CACHE_DIR": str(root / "cache"),
             "CACHE_DB_PATH": str(root / "stock_agent_cache.sqlite3"),
+            # Keep legacy-compatible test fixtures in this sandbox; never inherit
+            # the production dedicated cache path from project_exec/start_mac.
+            "JSON_CACHE_DB_PATH": "",
             "OPERATIONAL_DB_PATH": str(root / "operational.sqlite3"),
             "TASK_DB_PATH": str(root / "operational.sqlite3"),
             "LANGGRAPH_CHECKPOINT_PATH": str(root / "checkpoints.sqlite3"),

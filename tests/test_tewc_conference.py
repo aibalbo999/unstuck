@@ -27,7 +27,7 @@ def harness(network, monkeypatch):
     cache_store.set_cache_backend(InMemoryCache())
     monkeypatch.setattr(time, 'time', lambda: NOW)
     monkeypatch.setattr(earnings_call_fetcher, '_fetch_official_index_context', lambda *a, **kw: {})
-    bodies = {u: gzip.decompress((F / ('tewc1623_viewer_metadata_fixture_20261018.gz' if k == 'viewer' else f'tewc1623_{k}_20261014.gz')).read_bytes())
+    bodies = {u: gzip.decompress((F / f'tewc1623_{k}_20261014.gz').read_bytes())
               for u, k in [(MASTER, 'master'), (INDEX, 'index'), (VIEWER, 'viewer'), (REDIRECT, 'redirect'), (PDF, 'pdf')]}
     calls = []
     def native(argv, *a, **kw):
@@ -284,3 +284,4 @@ def test_public_warm_delivery_rejects_identity_that_expires_in_final_pdf_read(ha
     with pytest.raises(SourceResponseError):
         source.fetch_tewc_context('1623.TW')
     assert len(pdf_reads) == 3 and not harness[1]
+
