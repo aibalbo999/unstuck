@@ -5,7 +5,7 @@ with the caller; only exact currently owned, materialized HTTP bytes are audited
 """
 import hashlib
 import time
-from urllib.parse import urlsplit
+from urllib.parse import urlsplit, parse_qs
 
 SOURCE='international_news_context'
 OWNER=(SOURCE,'GDELT / Google News RSS')
@@ -44,11 +44,36 @@ def record(binding,response):
         body=response.content  # Never consume a stream to produce telemetry.
         if not isinstance(body,bytes):return
         status=response.status_code
+        receipt = None
+        if status == 200 and (actual.hostname,actual.path) == ('news.google.com','/rss/search'):
+            try:
+                import httpx
+                from external_data_gdelt import GDELT_TOPIC_QUERIES
+                from xml.etree.ElementTree import fromstring
+                from official_response_evidence import archive_response
+                query = parse_qs(actual.query, keep_blank_values=True)
+                if (type(response) is httpx.Response and 0 < len(body) <= 2_000_000
+                        and not any(request.headers.get(k) for k in ('authorization','cookie','proxy-authorization'))
+                        and not actual.fragment and set(query) == {'q','hl','gl','ceid'}
+                        and query.get('hl') == ['en-US'] and query.get('gl') == ['US']
+                        and query.get('ceid') == ['US:en']
+                        and query.get('q') in [[q] for base in GDELT_TOPIC_QUERIES.values()
+                                                for q in (base, base+' when:7d')]
+                        and b'\x00' not in body and b'<!DOCTYPE' not in body.upper()
+                        and b'<!ENTITY' not in body.upper() and fromstring(body).tag == 'rss'):
+                    receipt = archive_response(body, source_url='https://news.google.com/rss/search',
+                        retrieved_at=time.time(), evidence_kind='decoded_complete_http_response_body',max_bytes=2_000_000)
+                    if receipt.get('status')=='archived':
+                        receipt.update(http_status_observed=True,response_complete=True,cache_hit=False)
+                    else:
+                        receipt = None
+            except Exception:
+                receipt = None
         record_source_audit_entries([{**original,'source':SOURCE,'provider':ENDPOINTS[(actual.hostname,actual.path)],
             'event_kind':'http_transport_receipt','selection_policy':'transport-receipt-only:v1',
             'record_count':0,'http_request_sent':True,'http_status':status,
             'status':'success' if 200<=status<300 else 'error',
-            'response_bytes':len(body),'response_sha256':hashlib.sha256(body).hexdigest(),
+            'response_bytes':len(body),'response_sha256':hashlib.sha256(body).hexdigest(),'raw_http_receipt':receipt,
             'source_url':f'https://{actual.hostname}{actual.path}',
             'duration_ms':max(0,int((time.monotonic()-binding['started'])*1000)),
             'message':'Native international-news transport only; parsed news and acquisition success are separately audited.'}])

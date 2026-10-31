@@ -10,6 +10,7 @@ from typing import Any, Callable
 
 from news_fetchers import fetch_duckduckgo_news, fetch_google_news_rss
 from official_financials import fetch_mops_balance_sheet
+from provider_correlation import current_correlation, current_source_identity
 
 
 LOGGER = logging.getLogger(__name__)
@@ -101,9 +102,13 @@ class ExternalDataClient:
         return payload
 
     def _safe_news(self, provider: str, fetcher: NewsFetcher, query: str, limit: int) -> list[dict[str, str]]:
+        # Bind the callback summary at creation; this does not certify delivery.
+        correlation = (current_correlation() if current_source_identity() ==
+                       ("recent_catalysts", "Free news waterfall") else {})
         try:
             records = list(fetcher(query, limit=limit) or [])
             self.last_news_audit.append({
+                **correlation,
                 "source": "recent_catalysts",
                 "provider": provider,
                 "status": "success" if records else "unavailable",
@@ -113,6 +118,7 @@ class ExternalDataClient:
         except Exception as exc:
             LOGGER.warning("%s news fetch failed [%s]", provider, exc.__class__.__name__)
             self.last_news_audit.append({
+                **correlation,
                 "source": "recent_catalysts",
                 "provider": provider,
                 "status": "error",

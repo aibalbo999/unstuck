@@ -1,15 +1,25 @@
-"""Offline public checks; original-data replay remains in the local private corpus."""
 """Published candidates may gain numbers without becoming valuation comparables."""
-
 from datetime import date
 
 import pytest
 
 TODAY = date(2026, 10, 9)
-
 MASTER = [{"stock_id":code,"stock_name":name,"type":market,"date":TODAY.isoformat()}
           for code,name,market in [("5314","世紀*","tpex"),("1294","漢田生技","tpex"),
                                    ("1295","生合","tpex"),("1707","葡萄王","twse")]]
+
+
+def test_saved_original_cohort_keeps_last_market_date_on_closed_day():
+    from pathlib import Path
+    from data_fetch.market_sources.moneydj_peer_cohort import parse_cohort_page
+    rows=MASTER+[{"stock_id":code,"stock_name":name,"type":"twse","date":"2026-10-08"}
+                 for code,name in [('1720','生達'),('1734','杏輝')]]
+    rows=[{**r,'date':'2026-10-08'} for r in rows]
+    raw=(Path(__file__).parent/'fixtures/source_acquisition/moneydj_food_biotech_20261009.html').read_bytes()
+    result=parse_cohort_page(raw,'5314.TWO',rows,today=TODAY)
+    assert len(result['records'])==5 and result['observed_at']=='2026-10-08'
+    assert all(r['observed_at']==r['issuer_observed_at']=='2026-10-08' for r in result['records'])
+
 
 def metric_plan(monkeypatch, *, missing=False, wrong_identity=False, mixed_period_assets=False,
                 annual_missing=False, cohort_audit=None):
@@ -36,6 +46,7 @@ def metric_plan(monkeypatch, *, missing=False, wrong_identity=False, mixed_perio
     monkeypatch.setattr(peers,"_annual_asset_turnover",lambda *a,**k:None if annual_missing else {"value":.8,"observed_at":"2025-12-31"})
     return peers.fetch_dynamic_peer_metrics_with_diagnostics("5314.TWO","世紀*","Technology","Semiconductors",{})
 
+
 def test_current_published_candidates_acquire_all_eight_metrics_but_remain_out_of_valuation(monkeypatch):
     from prompt_peer_projection import comparable_peer_rows
     from stock_snapshot.peers_valuation import _peer_comparison
@@ -47,29 +58,35 @@ def test_current_published_candidates_acquire_all_eight_metrics_but_remain_out_o
     assert comparable_peer_rows(result["peers"])==[]
     assert _peer_comparison({"ticker":"5314.TWO","dynamic_peer_metrics":result["peers"]})["summary"]["peer_count"]==0
 
+
 def test_missing_published_candidate_metric_is_not_filled_with_zero(monkeypatch):
     result=metric_plan(monkeypatch,missing=True)
     assert result["peers"] and result["audit"]["coverage_status"]=="partial"
     assert all(r["ps_ttm"] is None and "ps_ttm" in r["missing_metrics"] for r in result["peers"])
 
+
 def test_wrong_live_quote_identity_cannot_supply_published_candidate_numbers(monkeypatch):
     result=metric_plan(monkeypatch,wrong_identity=True)
     assert not result["peers"] and result["audit"]["usable_count"]==0
+
 
 def test_published_asset_turnover_uses_same_annual_date_over_undated_quote_fields(monkeypatch):
     result=metric_plan(monkeypatch,mixed_period_assets=True)
     assert all(r['asset_turnover']==.8 and r['metric_sources']['asset_turnover']['observed_at']=='2025-12-31'
                for r in result['peers'])
 
+
 def test_published_asset_turnover_without_common_annual_date_stays_missing(monkeypatch):
     result=metric_plan(monkeypatch,mixed_period_assets=True,annual_missing=True)
     assert all(r['asset_turnover'] is None and 'asset_turnover' in r['missing_metrics'] for r in result['peers'])
+
 
 def test_numeric_collector_retains_actual_cohort_related_audit(monkeypatch):
     audit={'source':'peer_discovery','provider':'MoneyDJ published food-biotech cohort','status':'success',
            'record_count':3,'http_request_sent':True,'cache_hit':False,'event_kind':'http_request'}
     result=metric_plan(monkeypatch,cohort_audit=audit)
     assert result['audit']['related_entries']==[audit]
+
 
 @pytest.mark.parametrize('status,count',[('success',3),('error',0)])
 def test_legacy_sync_core_keeps_one_actual_cohort_event_before_optional_cache_read(monkeypatch,status,count):
@@ -93,6 +110,7 @@ def test_legacy_sync_core_keeps_one_actual_cohort_event_before_optional_cache_re
         skip_optional_http=True)
     assert result['audit'].count(child)==1
 
+
 def test_missing_core_typed_workflow_flattens_related_cohort_audit(monkeypatch):
     import asyncio
     from data_fetch import workflow
@@ -111,10 +129,12 @@ def test_missing_core_typed_workflow_flattens_related_cohort_audit(monkeypatch):
     result=asyncio.run(workflow._run_missing_core_provider_plan(FetchRequest.from_ticker('5314.TWO'),Registry(),{'ticker':'5314.TWO','source_audit':[]}))
     assert result['source_audit'].count(child)==1
 
+
 def test_removed_stock_old_master_row_cannot_supply_a_current_identity():
     from data_fetch.market_sources.moneydj_peer_cohort import _current_identity
     rows=[{**r,"date":"2026-10-08"} if r["stock_id"]=="1294" else r for r in MASTER]
     assert _current_identity("1294",rows,TODAY) is None
+
 
 def acquire(monkeypatch, *, epoch=None, change=None, removed=False):
     from data_fetch.market_sources import moneydj_peer_cohort as source
@@ -140,38 +160,46 @@ def acquire(monkeypatch, *, epoch=None, change=None, removed=False):
             if removed else MASTER)
     return get_published_food_biotech_candidates('5314.TWO',master,today=TODAY)
 
+
 def test_current_byte_receipt_and_master_supply_only_unverified_numeric_leads(monkeypatch):
     result=acquire(monkeypatch)
     assert len(result['candidates'])==3
     assert all(r['business_comparability_verified_current'] is False
                and r['comparison_scope']=='publisher_food_biotech_candidates' for r in result['candidates'])
 
+
 @pytest.mark.parametrize('epoch',[0,True,float('nan'),float('inf'),10**400])
 def test_invalid_receipt_time_cannot_supply_numeric_candidates(monkeypatch,epoch):
     assert acquire(monkeypatch,epoch=epoch)['candidates']==[]
 
+
 @pytest.mark.parametrize('change',['hash','url','bytes','stale','future_date'])
 def test_bad_original_receipt_cannot_supply_numeric_candidates(monkeypatch,change):
     assert acquire(monkeypatch,change=change)['candidates']==[]
+
 
 @pytest.mark.parametrize('offset',[3600,-14401])
 def test_future_or_expired_receipt_time_cannot_supply_numeric_candidates(monkeypatch,offset):
     import time
     assert acquire(monkeypatch,epoch=time.time()+offset)['candidates']==[]
 
+
 def test_parsed_cache_edit_is_reconstructed_from_original_bytes(monkeypatch):
     result=acquire(monkeypatch,change='parsed_peer')
     assert result['candidates'][0]['ticker']=='1294.TWO'
     assert '2330.TW' not in [r['ticker'] for r in result['candidates']]
 
+
 def test_removed_old_peer_is_rejected_without_erasing_independent_receipts(monkeypatch):
     result=acquire(monkeypatch,removed=True)
     assert [r['ticker'] for r in result['candidates']]==['1295.TWO','1707.TW']
+
 
 def test_other_issuer_does_not_acquire_published_food_biotech_candidates(monkeypatch):
     from data_fetch.market_sources import moneydj_numeric_candidates as source
     monkeypatch.setattr(source,'acquire_published_cohort',lambda *a,**k:pytest.fail('unrelated issuer must not acquire this source'))
     assert source.get_published_food_biotech_candidates('2330.TW',MASTER,today=TODAY)['status']=='not_applicable'
+
 
 def test_persistent_cohort_cooldown_is_zero_http_and_zero_api_units(monkeypatch):
     import time

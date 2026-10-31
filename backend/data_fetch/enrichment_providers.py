@@ -85,7 +85,7 @@ class FreeNewsWaterfallProvider(DataProvider):
                 "result_quality_satisfied": result_quality_satisfied,
                 "result_publisher_count": result_publisher_count,
                 "qualified_result_status": "sufficient_qualified_results" if result_quality_satisfied else "insufficient_search_quality",
-                "cache_hit": safe_bool(data.get("_cache_hit")),
+                "cache_hit": False,  # This payload is assembled by current callbacks, not the core cache.
                 "stale": False,
                 "message": "免費新聞 waterfall 已回傳近期催化劑。" if records else "未取得公司相符且在時間窗內的新聞；不代表沒有催化劑。",
                 "related_entries": list(client.last_news_audit),
@@ -738,7 +738,8 @@ class EarningsCallProvider(DataProvider):
                     'error_kind':'context_unverified','message':'股票與統一證券法說來源身分不一致，未抓取。'})
             diagnostic['actual_provider'] = PSC_PROVIDER
         from company_conference_content import supports_company, PROVIDER as ISSUER_PROVIDER
-        audit_provider = ISSUER_PROVIDER if supports_company(ticker) else "MOPS / TWSE WebPro investor conference"
+        audit_provider = (MATERIAL_PROVIDER if supports_company(ticker) and supports_material(ticker) else
+                          ISSUER_PROVIDER if supports_company(ticker) else "MOPS / TWSE WebPro investor conference")
         def fetch_context():
             try:
                 return fetch_free_earnings_call_context(ticker, diagnostics=diagnostic,
@@ -757,7 +758,7 @@ class EarningsCallProvider(DataProvider):
             unavailable_message="免費法說會資料未回傳。",
         )
         apply_earnings_call_audit(result, diagnostic)
-        if supports_company(ticker):
+        if supports_company(ticker) and not supports_material(ticker):
             from company_conference_content import AGGREGATE_MESSAGE
             result['audit']['message'] = AGGREGATE_MESSAGE
         return provider_result_from_audited(result, self.source, self.name)

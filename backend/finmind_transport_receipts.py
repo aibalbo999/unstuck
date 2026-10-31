@@ -3,6 +3,7 @@ from hashlib import sha256
 from urllib.parse import urlsplit,parse_qs
 import time
 import threading
+import weakref
 
 _LOCK=threading.Lock()
 _DATASETS={'TaiwanStockMonthRevenue':'monthly_revenue',
@@ -32,7 +33,7 @@ def _record(session,request,response,started):
     source=_DATASETS[dataset[0]]
     if source=='financial_statements' and current_source_identity()==('twse_official','FinMind TWSE official'):
         source='twse_official'
-    record_source_audit_entries([{**context,'source':source,
+    entry={**context,'source':source,
         'provider':'FinMind native HTTP','event_kind':'http_transport_receipt',
         'selection_policy':'transport-receipt-only:v1','status':'success'if response.status_code<400 else'error',
         'record_count':0,'http_request_sent':True,'http_status':response.status_code,
@@ -40,7 +41,16 @@ def _record(session,request,response,started):
             'status':'transport_received','http_status':response.status_code}},
         'response_bytes':len(response.content),'response_sha256':sha256(response.content).hexdigest(),
         'duration_ms':max(0,int((time.monotonic()-started)*1000)),
-        'message':'Native FinMind SDK transport only, not direct exchange proof; parsed data is separately audited.'}])
+        'message':'Native FinMind SDK transport only, not direct exchange proof; parsed data is separately audited.'}
+    capsule=None
+    if dataset[0]=='TaiwanStockMonthRevenue':
+        try:
+            from finmind_monthly_lineage import capture_monthly_response
+            capsule=capture_monthly_response(request,response,context)
+        except Exception:pass
+        if capsule is not None:entry['raw_http_receipt']=capsule.receipt
+    record_source_audit_entries([entry])
+    return capsule
 
 
 def observe_loader(loader):
@@ -51,10 +61,16 @@ def observe_loader(loader):
         if getattr(session,'_stock_transport_receipts_installed',False):return loader
         original=session.send
         if getattr(original,'__func__',None)is not requests.Session.send:return loader
+        try:owner_ref=weakref.ref(loader)
+        except TypeError:owner_ref=lambda:None
         def observed(request,*args,**kwargs):
             started=time.monotonic()
             response=original(request,*args,**kwargs)
-            try:_record(session,request,response,started)
+            try:
+                capsule=_record(session,request,response,started)
+                owner=owner_ref()
+                if capsule is not None and owner is not None:
+                    owner._stock_monthly_transport_capsules=[*getattr(owner,'_stock_monthly_transport_capsules',[])[-7:],capsule]
             except Exception:pass
             return response
         session.send=observed

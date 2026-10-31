@@ -118,6 +118,7 @@ def validate_prompt_leakage(text: str) -> list[str]:
         "Financial JSON and previous agent summaries",
         "Check: Did I",
         "No roleplay meta-talk",
+        "原稿待修句",
     ]:
         if pattern.lower() in text.lower():
             findings.append(f"輸出仍包含內部提示詞片段：{pattern}")

@@ -20,7 +20,12 @@ from .retry_policy import AgentConfigurationError
 def record_agent_quality_retry(context: AnalysisContext, agent_num: int) -> None:
     counts = context.setdefault("agent_quality_retry_counts", {})
     try:
-        counts[agent_num] = int(counts.get(agent_num, 0) or 0) + 1
+        # JSON checkpoints stringify keys. Preserve spent retries on restore and
+        # collapse duplicate representations conservatively.
+        prior = max(int(counts.get(agent_num, 0) or 0),
+                    int(counts.get(str(agent_num), 0) or 0))
+        counts.pop(str(agent_num), None)
+        counts[agent_num] = prior + 1
     except AttributeError:
         context["agent_quality_retry_counts"] = {agent_num: 1}
 
@@ -45,8 +50,16 @@ def install_quality_retry_context(context: AnalysisContext, agent_num: int, issu
     analyses = context.get("analyses") or {}
     original = str(analyses.get(agent_num, analyses.get(str(agent_num), "")))
     reject_candidate(context, agent_num, data, original, issues)
-    context["_audit_retry_instruction"] = build_audit_retry_instruction(
+    current_instruction = build_audit_retry_instruction(
         agent_num, issues, previous_text=original, data=data, context=context)
+    inherited = previous["_audit_retry_instruction"]
+    # New field failures must not erase already established source, unit,
+    # period and reconciliation constraints for this same retry context.
+    # Current diagnostics stay last; restoration below remains transactional.
+    if isinstance(inherited, str) and inherited.strip() and inherited not in current_instruction:
+        current_instruction = (inherited + "\n\n【本輪新增品質問題；既有來源與品質限制仍須遵守】\n"
+                               + current_instruction)
+    context["_audit_retry_instruction"] = current_instruction
     model_override = dict(previous["_model_sequence_override"] or {}) if isinstance(previous["_model_sequence_override"], dict) else {}
     model_override[agent_num] = models
     context["_model_sequence_override"] = model_override

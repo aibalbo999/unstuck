@@ -4,41 +4,44 @@ from __future__ import annotations
 
 import asyncio
 
-from report_freshness_summary import safe_bool
+from dataclasses import replace
+from provider_correlation import current_correlation, source_operation
 from .types import FetchRequest, ProviderResult
+
+
+async def fetch_correlated_provider(provider, request, context, *, capture_errors=False):
+    """Bind one invocation, without asserting delivery or changing cached provenance."""
+    source = getattr(provider, "source", "unknown")
+    name = getattr(provider, "name", provider.__class__.__name__)
+    with source_operation(source, name):
+        try:
+            result = await provider.fetch_async(request, context)
+        except Exception as error:
+            if not capture_errors:
+                raise
+            return ProviderResult(
+                source=source, provider=name, status="error", value=None,
+                audit={**current_correlation(), "source": source, "provider": name,
+                       "status": "error", "record_count": 0, "cache_hit": False,
+                       "stale": False, "error_kind": error.__class__.__name__,
+                       "message": str(error)[:240]},
+            )
+        audit = dict(result.audit or {})
+        # Existing partial provenance belongs to its original invocation too.
+        # Mixing it with the current fetch would invent a historical linkage.
+        if not any(audit.get(key) for key in ("operation_id", "fetch_id", "job_id", "attempt_id")):
+            for key, value in current_correlation().items():
+                audit.setdefault(key, value)
+        return replace(result, audit=audit)
 
 
 async def fetch_provider_results(request: FetchRequest, providers: list, context: dict) -> list[ProviderResult]:
     if not providers:
         return []
-    gathered = await asyncio.gather(
-        *(provider.fetch_async(request, context) for provider in providers),
-        return_exceptions=True,
-    )
-    results = []
-    for provider, result in zip(providers, gathered):
-        if isinstance(result, Exception):
-            results.append(
-                ProviderResult(
-                    source=getattr(provider, "source", "unknown"),
-                    provider=getattr(provider, "name", provider.__class__.__name__),
-                    status="error",
-                    value=None,
-                    audit={
-                        "source": getattr(provider, "source", "unknown"),
-                        "provider": getattr(provider, "name", provider.__class__.__name__),
-                        "status": "error",
-                        "record_count": 0,
-                        "cache_hit": safe_bool((context.get("data") or {}).get("_cache_hit")),
-                        "stale": False,
-                        "error_kind": result.__class__.__name__,
-                        "message": str(result)[:240],
-                    },
-                )
-            )
-            continue
-        results.append(result)
-    return results
+    return list(await asyncio.gather(
+        *(fetch_correlated_provider(provider, request, context, capture_errors=True)
+          for provider in providers),
+    ))
 
 
 def provider_value(results: list[ProviderResult], source: str, provider_name: str) -> list:

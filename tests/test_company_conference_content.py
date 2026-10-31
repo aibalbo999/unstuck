@@ -60,6 +60,9 @@ def test_invalid_candidate_is_never_promoted(label, url):
 
 @pytest.fixture
 def source(monkeypatch):
+    # Exercise the retained issuer-only contract, not the newly qualified MOPS primary.
+    from data_fetch.market_sources.mops_presentation import PROFILES
+    monkeypatch.delitem(PROFILES, '5314.TWO', raising=False)
     import company_conference_content as module
     import cache_store
     import search_provider_runtime as runtime

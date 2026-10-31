@@ -29,7 +29,7 @@ def originals():
     master=f['selected_master']
     # Unit identity slice, with the test's publication date; never live proof.
     master[0]['出表日期']=f'{now.year-1911:03d}{now.month:02d}{now.day:02d}'
-    return json.dumps(master,ensure_ascii=False).encode(),(FIXTURES/'medtecs_contact_20261010_public_fixture.html').read_bytes(),(FIXTURES/'philjobnet_medtecs_20261010_complete.html').read_bytes()
+    return json.dumps(master,ensure_ascii=False).encode(),(FIXTURES/'medtecs_contact_20261010_complete.html').read_bytes(),(FIXTURES/'philjobnet_medtecs_20261010_complete.html').read_bytes()
 
 
 def observation():

@@ -103,11 +103,17 @@ def scan_taiwan_market(
     warnings = []
     sources = _resolve_data_sources(data_loader_cls=data_loader_cls, data_source=data_source, data_sources=data_sources)
     normalized_filters = normalize_screener_filters(filters)
-    cache_key = "screener-observations-v4:" + scan_cache_key(scan_date, sources, top_n, normalized_filters, limit, offset, sort_by, sort_direction)
+    cache_key = "screener-observations-v5-exact-security:" + scan_cache_key(scan_date, sources, top_n, normalized_filters, limit, offset, sort_by, sort_direction)
     if use_cache:
         cached = get_cache_json(cache_key)
         if isinstance(cached, dict):
-            return {**cached, "cache": {"hit": True, "key": cache_key}}
+            from screener_signal_dimensions import separate_signals
+            items = cached.get('candidates', [])
+            guarded = [separate_signals(item) for item in items] if isinstance(items, list) and all(isinstance(item, dict) for item in items) else None
+            if guarded is not None and not any(item.get('source_security_identity_status') == 'unverified' for item in guarded):
+                return {**cached, 'candidates': guarded, "cache": {"hit": True, "key": cache_key}}
+            warnings.append({'provider':'TWSE Free API','code':'cached_security_identity_unverified',
+                             'message':'舊篩選結果的證券代號尚未核實；保留原快取，循正常來源重新取得，不沿用錯綁數字。'})
     institutional, institutional_provider = _first_available_frame(
         sources,
         "institutional trades",
@@ -134,12 +140,16 @@ def scan_taiwan_market(
             metrics.update(flow_source=institutional_provider, flow_acquisition_completed_at=institutional_acquired_at)
         if metrics.get("price_observation_date"):
             metrics.update(price_source=daily_provider, price_acquisition_completed_at=daily_acquired_at)
+    from screener_signal_dimensions import separate_signals
+    merged = [separate_signals(item) for item in merged]
+    identity_complete = not any(item.get('source_security_identity_status') == 'unverified' for item in merged)
     merged = annotate_watchlist_status(merged)
     filtered = filter_candidates(merged, normalized_filters)
     ordered = sort_candidates(filtered, sort_by=sort_by, sort_direction=sort_direction)
     page, pagination = paginate_candidates(ordered, limit=limit, offset=offset)
     result = {
-        "success": bool(merged) or not warnings,
+        "success": (bool(merged) or not warnings) and identity_complete,
+        "source_identity_coverage_complete": identity_complete,
         "market": "TW",
         "screen_date": scan_date.isoformat(),
         "candidates": page,
@@ -166,6 +176,11 @@ def import_candidates_to_watchlist(candidates: list[dict]) -> dict:
     imported = []
     errors = []
     for candidate in attach_quality_funnel(merge_candidates(candidates)):
+        from screener_signal_dimensions import separate_signals
+        candidate = separate_signals(candidate)
+        if candidate.get('source_security_identity_status') == 'unverified':
+            errors.append({'ticker':candidate.get('ticker'),'error':'來源證券代號待核對，未新增或覆寫觀察項目。'})
+            continue
         ticker = str(candidate.get("ticker") or "").strip().upper()
         if not ticker:
             continue

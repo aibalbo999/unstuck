@@ -23,6 +23,7 @@ from validators import sanitize_model_output, strip_generated_audit_sections
 from summary_consistency import accept_summary, summary_reference_prompt
 from llm_response_diagnostics import response_diagnostics
 from llm_quota_details import extract_quota_details
+from llm_evidence_request import evidence_request_scope
 from llm_observation_context import observe_purpose
 from agent_runtime.llm_call_metadata import _key_slot_fields
 from agent_runtime.retry_error_classification import provider_status_code
@@ -70,6 +71,15 @@ def _build_tear_sheet_prompt(context: dict) -> str:
         "pe_river_chart": data.get("pe_river_chart", {}),
     }
     instruction_text = "\n".join(get_task_instruction_lines("tear_sheet")).strip()
+    # The compact summary may contain complete official amount statements.
+    # Do not demand a single paragraph while also requiring each statement's
+    # source scope to be independently bound. The 900-character cap remains.
+    instruction_text = instruction_text.replace(
+        "只輸出可放在報告頂部的一段摘要。",
+        "只輸出可放在報告頂部的摘要；若含官方財務金額，每一項使用獨立完整段落。")
+    instruction_text += ("\n官方金額須逐字引用下方完整reference，各自以公司名稱開頭且前後空行；"
+                         "不要加『然而』『且』『同期間』或把其他財務數字、原因推論併入該段。"
+                         "其他摘要內容放在另外段落，仍不輸出標題或項目符號；總長保持900字元以內。")
     instruction_block = f"{instruction_text}\n\n" if instruction_text else ""
     return (
         instruction_block
@@ -90,12 +100,14 @@ def _build_tear_sheet_generation_config():
 
 @observe_purpose('tear_sheet')
 def _generate_tear_sheet_content(api_key: str, model_id: str, prompt: str):
-    return generate_content(api_key, model_id, prompt, _build_tear_sheet_generation_config())
+    with evidence_request_scope():
+        return generate_content(api_key, model_id, prompt, _build_tear_sheet_generation_config())
 
 
 @observe_purpose('tear_sheet')
 async def _generate_tear_sheet_content_async(api_key: str, model_id: str, prompt: str):
-    return await generate_content_async(api_key, model_id, prompt, _build_tear_sheet_generation_config())
+    with evidence_request_scope():
+        return await generate_content_async(api_key, model_id, prompt, _build_tear_sheet_generation_config())
 
 
 def _tear_sheet_event_kwargs(context: dict, model_id: str, phase: str, message: str, level: str = "info") -> dict:

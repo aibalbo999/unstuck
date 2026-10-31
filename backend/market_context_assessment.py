@@ -90,6 +90,18 @@ def assess_final_market_context(context: dict) -> dict:
             projection = {"impact": "not_assessed", "reason": _REASONS[code], "source_refs": [], "reason_code": code}
         else:
             projection = {"impact": impact, "reason": reason, "source_refs": list(refs)}
+        if not code:
+            from policy_event_evidence import policy_event_date_issues
+            rows = _mapping(data.get(source)).get(SOURCE_FIELDS[source], [])
+            indexed = {item['ref']:item['index'] for item in (manifest or {}).get('items',[]) if item.get('source')==source}
+            cited = [rows[indexed[ref]] for ref in refs if ref in indexed and isinstance(rows,list) and 0<=indexed[ref]<len(rows)]
+            date_issues = policy_event_date_issues(reason,cited,as_of=data.get('analysis_input_cutoff'))
+            if date_issues:
+                message = f"{label}：政策行動日期未有同一已核對官方原件支持；RSS pubDate、GDELT seendate或市場價格日期不能當成政策事件日期。"
+                result['critical'].append(message)
+                result['repair_agent_issues'].setdefault(agent,[]).append(message)
+                projection={'impact':'not_assessed','reason':message,'source_refs':[], 'reason_code':'policy_action_date_unverified'}
+                invalid_claim=True;code='policy_action_date_unverified'
         result["assessment"][source] = projection
         result["checks"].append({"source": source, "status": "critical" if invalid_claim else "warning" if code else "passed",
                                  "reason_code": code, "visible_source_count": len(visible)})

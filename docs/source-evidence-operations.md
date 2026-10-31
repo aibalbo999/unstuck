@@ -95,6 +95,8 @@ PDF封面宣告會議2026/8/12台北15:00、2026 Q2，`event_date_basis=official
 
 SLA v4 僅新增 `details_json`，保留舊資料。新事件保存有界的 correlation、HTTP、cache/stale、error_kind、retry_at 與分項覆蓋；不保存 key、query 或 response body。HTTP 請求、callback/aggregate、快取與本機冷卻分開計數；舊觀測不回填猜測。來源面板的「取得資料率」仍是供應商觀測口徑，不是報告成功率。
 
+`http_transport_receipt` 與 `http_parsed_receipt` 是不同的證據層。精確標記 `parsed-receipt-only:v1` 且 `record_count=0` 的解析收據只連結既有原件與 parser，不增加取得率分母，也不再次增加 HTTP 次數；其 `http_request_sent=True` 是沿用原請求事實，不代表另送一次請求。實際 transport 收據仍保留自己的 HTTP 計數，歷史帳本原列不改寫。
+
 Typed 來源錯誤在報告中顯示可讀原因；HTTP code、回應大小、雜湊與 parser 版本保留於結構化診斷，不嵌入報告訊息而被誤認為財務數字。
 
 Agent 19 的原始「避免」輸出，只有原始進場、回補、風險及重評條件共同通過明確無部位契約，normalizer 才保留原文；不將已驗證回補欄位改成 `N/A`，也不替原始缺漏或衝突補造無部位證據。僅更新 Agent 19 快取版本，品質 gate 仍拒絕缺乏明確語意的原始 `N/A`，也不放寬已有部位或附帶價格的檢查。

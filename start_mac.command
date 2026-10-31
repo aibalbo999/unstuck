@@ -53,6 +53,7 @@ echo "啟動 Wall Street AI 股票分析系統..."
 
 # 切換到腳本所在目錄的 backend 資料夾
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd -P )"
+source "$DIR/scripts/project_environment.sh" || exit 1
 load_queue_environment() {
     local key value queue_settings
     # Read data, never source/eval .env. Explicit parent environment wins.

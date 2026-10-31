@@ -21,8 +21,6 @@ F = Path(__file__).parent / 'fixtures/source_acquisition'
 
 @pytest.fixture
 def native(monkeypatch):
-    # Original-date validation must use the saved fixture's acquisition window.
-    monkeypatch.setattr(time, 'time', lambda: 1791948208.0)
     from data_fetch.market_sources import issuer_news_transport as base
     if importlib.util.find_spec('data_fetch.market_sources.tewc_conference_transport'):
         from data_fetch.market_sources import tewc_conference_transport as transport
@@ -35,7 +33,7 @@ def native(monkeypatch):
     monkeypatch.setattr(base, 'cooldown_state', lambda *a: None)
     monkeypatch.setattr(base, 'observe_http_response', lambda *a: None)
     monkeypatch.setattr(base, 'remember_failure', lambda *a: {})
-    bodies = {url: gzip.decompress((F / ('tewc1623_viewer_metadata_fixture_20261018.gz' if kind == 'viewer' else f'tewc1623_{kind}_20261014.gz')).read_bytes())
+    bodies = {url: gzip.decompress((F / f'tewc1623_{kind}_20261014.gz').read_bytes())
               for url, kind in [(MASTER, 'master'), (INDEX, 'index'), (VIEWER, 'viewer'),
                                 (REDIRECT, 'redirect'), (PDF, 'pdf')]}
     calls = []

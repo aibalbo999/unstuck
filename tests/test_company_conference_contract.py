@@ -22,6 +22,9 @@ PDF = b'%PDF-OFFLINE-CONTRACT'
 
 @pytest.fixture
 def flow(monkeypatch):
+    # Exercise the retained issuer-only contract, not the newly qualified MOPS primary.
+    from data_fetch.market_sources.mops_presentation import PROFILES
+    monkeypatch.delitem(PROFILES, '5314.TWO', raising=False)
     import bounded_curl_process
     import cache_store
     import company_conference_content as content

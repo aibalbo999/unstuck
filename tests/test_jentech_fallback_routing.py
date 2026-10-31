@@ -1,6 +1,19 @@
+"""Legacy issuer/index behavior only when no qualified MOPS profile is enabled.
+
+All original failure/identity/denominator assertions remain. The qualified MOPS
+primary and its no-retry guards are covered separately by the new route tests.
+"""
 from __future__ import annotations
 
 import pytest
+
+
+@pytest.fixture(autouse=True)
+def legacy_profile_not_enabled(monkeypatch):
+    from data_fetch.market_sources import mops_presentation
+    monkeypatch.setattr(mops_presentation, 'PROFILES', {
+        key:value for key,value in mops_presentation.PROFILES.items() if key != '3653.TW'
+    })
 
 
 def test_jentech_parse_failure_uses_verified_official_index_fallback(monkeypatch):

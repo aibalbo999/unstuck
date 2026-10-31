@@ -9,7 +9,7 @@ from recommendation_labels import CANONICAL_RECOMMENDATIONS
 
 POLICY = 'summary-consistency:v1-frozen-money-exact-classification'
 _CLASSIFICATION = re.compile(
-    r'(?:研究(?:分類|評級|結論)|投資(?:建議|結論)|綜合建議|建議)\s*(?:為|是|[:：])?\s*[「【"\s]*'
+    r'(?:研究分類\s*建議\s*維持|(?:研究(?:分類|評級|結論)|投資(?:建議|結論)|綜合建議|建議)\s*(?:為|是|[:：])?)\s*[「【"\s]*'
     r'(買入|買進|持有|避免|放空|觀望|中性觀察|中性|中立|偏多觀察|避險觀察|空方風險觀察)')
 
 
@@ -22,6 +22,11 @@ def summary_issues(summary, context):
     issues.extend('摘要財務金額或期間不符：' + item for item in
                   scalar_claim_issues(summary, data) + period_assertion_issues(summary, data))
     classifications = _CLASSIFICATION.findall(summary)
+    # A negated/conditional phrasing cannot stand in for the accepted decision.
+    for match in _CLASSIFICATION.finditer(summary):
+        prefix = re.split(r'[。；;\n]', summary[:match.start()])[-1]
+        if re.search(r'(?:不|勿|未|若|假如|倘若|如果)\s*$', prefix):
+            issues.append('摘要以否定或假設句表述分類，不能取代已核對的研究分類。')
     if expected in CANONICAL_RECOMMENDATIONS:
         if not classifications:
             issues.append('摘要缺少已核對的研究分類。')

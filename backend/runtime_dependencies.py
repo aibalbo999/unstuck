@@ -23,6 +23,7 @@ class RuntimeSettings:
     checkpoint_backend: str
     checkpoint_path: str
     checkpoint_postgres_dsn: str
+    json_cache_db_path: str | None = None
 
     @classmethod
     def from_environment(cls) -> "RuntimeSettings":
@@ -38,6 +39,7 @@ class RuntimeSettings:
             checkpoint_backend=str(storage.LANGGRAPH_CHECKPOINT_BACKEND),
             checkpoint_path=str(storage.LANGGRAPH_CHECKPOINT_PATH),
             checkpoint_postgres_dsn=str(storage.LANGGRAPH_CHECKPOINT_POSTGRES_DSN),
+            json_cache_db_path=str(storage.JSON_CACHE_DB_PATH) or None,
         )
 
     @classmethod
@@ -107,7 +109,10 @@ def create_report_storage(settings: RuntimeSettings) -> ReportStorage:
 
 def create_cache_backend(settings: RuntimeSettings) -> CacheBackend:
     if settings.cache_backend == "sqlite":
-        return SqliteCacheBackend(settings.cache_db_path)
+        if settings.json_cache_db_path:
+            from provider_json_cache_migration import ensure_cache_destination
+            ensure_cache_destination(settings.cache_db_path, settings.json_cache_db_path)
+        return SqliteCacheBackend(settings.json_cache_db_path or settings.cache_db_path)
     if settings.cache_backend == "redis":
         namespace = str(settings.cache_namespace or "").strip().strip(":")
         if not namespace:

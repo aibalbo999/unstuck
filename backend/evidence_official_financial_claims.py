@@ -48,13 +48,16 @@ def _explicit_ttm_narrative_scope(claim, data, projection):
     text = observation_prefix(clean_observed_prefix(str(claim.get('financial_period_text') or ''), data))
     text = re.sub(r'[*`\s]', '', text)
     fact = projection['facts']
+    from evidence_official_income_claims import _identity
+    source_identity = _identity(fact)
     interval = re.escape(fact['period_start']) + r'至' + re.escape(fact['period_end'])
-    anchor = re.search(r'官方個別(?:財報)?TTM(?:期間)?[（(]' + interval + r'[）)]', text, re.I)
+    anchor = re.search(r'官方個別(?:財報)?(?:TWD|NTD|新[臺台]幣)?TTM(?:期間)?[（(]' + interval + r'[）)]', text, re.I)
     if anchor is None:
         return None
     if not _ttm_narrative_suffix_matches(claim, fact):
         return None
     before, after = text[:anchor.start()], text[anchor.end():]
+    before = re.sub(r'^[-*]?官方個別財報自由現金流數據[:：]', '', before, count=1)
     before = re.sub(r'^風險摘要[:：]', '', before)
     before = re.sub(r'^\d+[.)]獲利品質受限於持續性負現金流[:：]接受Agent\d+觀點[。.]', '', before)
     # A completed annual monetary/ratio observation can end before an explicit
@@ -64,7 +67,7 @@ def _explicit_ttm_narrative_scope(claim, data, projection):
                     + r'(?:億元|%)(?:[（(]來源：工具計算[）)])?[，,]?', '', before, flags=re.I)
     before = re.sub(r'^(?:另)?(?:根據|依據|觀察|在)?', '', before)
     before = re.sub(r'^(?:且|另|而)', '', before)
-    if not _target_revenue_scope(data, before, ''):
+    if not _target_revenue_scope(source_identity, before, ''):
         return None
     # Scope may continue through explicitly stated OCF and total-purchase
     # observations. Validate every consumed amount, not just their spelling.
@@ -227,6 +230,8 @@ def official_fcf_claim(claim, data, *, scale, tolerance_pct, heading_ancestors=N
         return _result(claim, projection, projection['facts']['cashflows']['ttm']['free_cash_flow'],
                        'data.official_financial_projection.facts.cashflows.ttm.free_cash_flow', scale, tolerance_pct)
     from financial_money_claims import other_financial_owner, _target_revenue_scope
+    from evidence_official_income_claims import _identity
+    source_identity = _identity(projection['facts'])
     prefix = str(claim.get('financial_period_text') or '')
     heading = str(claim.get('financial_heading') or '')
     parent = str(claim.get('financial_parent_context') or '')
@@ -235,16 +240,16 @@ def official_fcf_claim(claim, data, *, scale, tolerance_pct, heading_ancestors=N
     local = _explicit_ttm_narrative_scope(claim, data, projection)
     parent_scope = '' if local and re.fullmatch(r'\s*風險摘要\s*[:：]\s*', parent) else parent
     if (re.search(r'合併|本集團|集團口徑|同業|同儕|此為|屬於|美元|美金|USD|CNY|人民幣', prefix + heading + parent + raw_scope + suffix, re.I)
-            or (parent_scope and not _target_revenue_scope(data, parent_scope, heading))):
+            or (parent_scope and not _target_revenue_scope(source_identity, parent_scope, heading))):
         return None
     for qualifier in re.finditer(r'(?:^|[，,;；（(])([^，。；;()（）]+?)資料', suffix):
-        if not _target_revenue_scope(data, qualifier[1], ''):
+        if not _target_revenue_scope(source_identity, qualifier[1], ''):
             return None
     if local is not None:
         prefix = local
     owner = re.sub(r'20\d{2}(?:-\d{2}-\d{2}|年\d{1,2}月\d{1,2}日)', '', prefix)
     owner = re.sub(r'涵蓋|起訖|期間|截至|至|近十二個月|近12個月|官方|個別|計算|依', '', owner)
-    if other_financial_owner(data, owner, heading) or not _target_revenue_scope(data, owner, heading):
+    if other_financial_owner(source_identity, owner, heading) or not _target_revenue_scope(source_identity, owner, heading):
         return None
     fact = projection['facts']
     # A different explicit period cannot borrow the selected TTM input.

@@ -261,6 +261,12 @@ def test_gdelt_article_payload_parses_international_news_topics():
         "published_at": "20260612T010203Z",
         "source": "GDELT",
         "url": "https://example.com/story",
+        "evidence_coverage": "headline_metadata_only",
+        "article_body_verified": False,
+        "published_at_basis": "gdelt_seen_or_provider_date",
+        "event_date": None,
+        "event_date_verified": False,
+        "event_date_basis": "not_established_by_news_metadata",
     }]
 
 
@@ -286,6 +292,12 @@ def test_google_news_rss_payload_parses_international_news_topics():
         "published_at": "Fri, 12 Jun 2026 01:02:03 GMT",
         "source": "Google News RSS",
         "url": "https://news.google.com/rss/articles/example",
+        "evidence_coverage": "headline_metadata_only",
+        "article_body_verified": False,
+        "published_at_basis": "rss_pubDate",
+        "event_date": None,
+        "event_date_verified": False,
+        "event_date_basis": "not_established_by_news_metadata",
     }]
 
 

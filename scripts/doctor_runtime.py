@@ -34,6 +34,7 @@ def build_doctor_payload() -> dict[str, object]:
             "output_dir": _path_status(paths.output_dir),
             "cache_dir": _path_status(paths.cache_dir),
             "report_index_db": _path_status(paths.report_index_db),
+            "json_cache_db": _path_status(paths.json_cache_db or paths.report_index_db),
             "operational_db": _path_status(paths.operational_db),
             "legacy_decision_tracking_db": {
                 **_path_status(paths.legacy_decision_tracking_db),
@@ -55,6 +56,7 @@ def _print_text(payload: dict[str, object]) -> None:
         "output_dir",
         "cache_dir",
         "report_index_db",
+        "json_cache_db",
         "operational_db",
         "task_db",
         "decision_tracking_db",

@@ -7,7 +7,7 @@ from config import GEMMA_STATE_REFERENCE_COMPACTION_ENABLED, PRIMARY_PROMPT_CONT
 from prompt_builder import format_data_for_prompt, render_prompt_template
 from prompt_evidence import prompt_evidence_copy
 from prompt_record_tables import pack_record_tables
-from prompt_state_references import compact_state_reference_section, compact_research_state_reference_section
+from prompt_state_references import compact_state_reference_section, compact_research_state_reference_section, compact_financial_state_reference_section
 from research_assumption_contract import build_reconciliation_source_prompt
 from research_prompt_encoding import choose_financial_encoding, compact_previous_json
 from prompt_rules import (
@@ -188,7 +188,7 @@ def build_prompt(agent_num: int, data: StockData, context: AnalysisContext) -> s
     # Oversize input reaches admission intact and can take the full-data fallback.
     fin_data = (format_data_for_prompt(prompt_data, dense=True, role_scoped=role_scoped)
                 if gemma_prompt or dense_trade_lite else format_data_for_prompt(prompt_data, compact=compact_primary, compact_json=True))
-    if agent_num == 7 and not gemma_prompt:
+    if agent_num in (11, 1, 2, 3, 20, 4, 5, 6, 21, 7) and not gemma_prompt:
         fin_data = choose_financial_encoding(fin_data, format_data_for_prompt(
             prompt_data, compact=compact_primary, dense=True, role_scoped=False))
     prev = _format_previous(context, agent_num, max_total_chars=max(0, total_budget - state_budget))
@@ -249,8 +249,9 @@ def build_prompt(agent_num: int, data: StockData, context: AnalysisContext) -> s
     # Exact equality with the visible financial JSON also holds during a repair;
     # keep the repair instruction while sharing only its duplicate State values.
     trade_references = (agent_num in {22, 23, 24} and str(context.get('_prompt_model_id') or '').startswith('gemini-'))
-    if analysis_prompt.count(fin_data) == 1 and (agent_num == 7 or gemma_references or trade_references):
-        compactor = compact_research_state_reference_section if agent_num == 7 else compact_state_reference_section
+    if analysis_prompt.count(fin_data) == 1 and (agent_num in (11, 1, 2, 3, 20, 4, 5, 6, 21, 7) or gemma_references or trade_references):
+        compactor = (compact_financial_state_reference_section if agent_num in (11, 1, 2, 3, 20, 4, 5, 6, 21, 7)
+                     else compact_research_state_reference_section if agent_num == 7 else compact_state_reference_section)
         state_view_section = compactor(fin_data, state_view_section)
 
     structured_instruction = build_structured_output_instruction(agent_num)

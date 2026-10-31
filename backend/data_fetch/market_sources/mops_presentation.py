@@ -28,6 +28,19 @@ STATIC_POLICY = 'mops-published-presentation-static-get-v1'
 # Identity/format qualification is staged, not a promise that every MOPS file
 # has readable or reusable text. URLs, filenames, years and hashes are dynamic.
 PROFILES = {
+    '5314.TWO': {'short':'世紀*','legal':'世紀民生科技股份有限公司','ubn':'22099815',
+                 'master_english':'Myson','website':'www.myson.com.tw','format':'pdf',
+                 'native_name':'Ｍyson Century','material_wire_seconds':15.,
+                 'aliases':{'myson','myson century, inc.','myson century inc.',
+                            'myson-century technology inc','世紀民生'}},
+    '3653.TW': {'short':'健策','legal':'健策精密工業股份有限公司','ubn':'22415854',
+                'master_english':'JENTECH','website':'https://www.jentech.com.tw/zh','format':'pdf',
+                'native_name':'Jentech Precision Industrial Co.,Ltd.','previous_year_fallback':True,
+                'aliases':{'jentech','jentech precision industrial co.,ltd.','jentech precision industrial co., ltd','jentech precision industrial co'}},
+    '3005.TW': {'short':'神基','legal':'神基控股股份有限公司','ubn':'22099532',
+                'master_english':'Getac','website':'https://www.getacgroup.com','format':'pdf',
+                'native_name':'Getac Holdings Corporation',
+                'aliases':{'getac','getac holdings corporation','getac holdings corp','getac holdings corp.'}},
     '6669.TW': {'short':'緯穎','legal':'緯穎科技服務股份有限公司','ubn':'53687704',
                 'master_english':'Wiwynn','website':'https://www.wiwynn.com','format':'pdf',
                 'native_name':'Wiwynn Corporation','previous_year_fallback':True,
@@ -203,6 +216,21 @@ def native_material(raw, selected, deadline):
     timeout = min(10.,deadline-time.monotonic())
     native = (extract_pdf_pages if selected['format'] == 'pdf' else extract_pptx_pages)(raw,timeout_seconds=timeout)
     _check(deadline)
+    if selected['ticker'] == '5314.TWO':
+        from .myson_mops_qualification import qualify_native
+        period = qualify_native(raw,native,selected)
+        _check(deadline)
+        return native,period
+    if selected['ticker'] == '3653.TW':
+        from .jentech_mops_qualification import qualify_native
+        period = qualify_native(raw,native,selected)
+        _check(deadline)
+        return native,period
+    if selected['ticker'] == '3005.TW':
+        from .getac_mops_qualification import qualify_native
+        period = qualify_native(raw,native,selected)
+        _check(deadline)
+        return native,period
     if selected['ticker'] == '2845.TW':
         from .feib_presentation_qualification import validate_native
         period = validate_native(raw, native, selected)
@@ -461,6 +489,18 @@ def _context(selected, native, period, proof):
            'financial_scope_caution':'Parent and subsidiaries, currency/units, single-quarter and year-to-date figures must stay distinct. This is not a verified annual financial statement.',
            'forward_looking_caution':'Prepared forecasts, targets and guidance are issuer statements, not realized results; image-only disclaimers may be missing.',
            'q_and_a_transcript_available':False,'commercial_reuse_permission_verified':False}
+    if ticker == '5314.TWO':
+        from .myson_mops_qualification import NOTE as MYSON_NOTE
+        doc['presentation_cover_date'] = None
+        doc['period_scope_caution'] = MYSON_NOTE
+    if ticker == '3653.TW':
+        from .jentech_mops_qualification import NOTE as JENTECH_NOTE
+        doc['presentation_cover_date'] = '2025-11-28'
+        doc['period_scope_caution'] = JENTECH_NOTE
+    if ticker == '3005.TW':
+        from .getac_conference import NOTE as GETAC_NOTE
+        doc['presentation_cover_date'] = '2026-08-14'
+        doc['period_scope_caution'] = GETAC_NOTE + ' MOPS附件檔名日期為2026-08-13；場次與原件封面為2026-08-14，三者不可互代，首次發布日仍未知。'
     if ticker == '2313.TW':
         doc['period_scope_caution'] = 'H1為半年累計；營收組合頁另含Q2單季及歷季比較，不能混用。封面資料月份、檔名日期與MOPS場次分開；聲明指出歷史資料可能未經獨立會計師覆核。產業預測與公司展望不是已實現成果，外部來源及圖表關係未獨立驗證。'
     if ticker == '1312.TW':
@@ -697,7 +737,9 @@ def fetch_presentation_context(ticker, *, diagnostics=None, force_refresh=False,
             if not selected:raise SourceResponseError('published_material_unavailable')
             material_spec=static_material_request(selected) if ticker=='2023.TW' else selected
             detail = {};components.append(detail)
-            (native,period),material = get_original(material_spec,lambda d:download_published_material(material_spec,deadline=deadline,diagnostics=d),
+            wire_options = ({'wire_budget_seconds':PROFILES[ticker]['material_wire_seconds']}
+                            if 'material_wire_seconds' in PROFILES[ticker] else {})
+            (native,period),material = get_original(material_spec,lambda d:download_published_material(material_spec,deadline=deadline,diagnostics=d,**wire_options),
                 deadline=deadline,owns=owns,diagnostic=detail,force_refresh=force_refresh,use_cache=use_cache,
                 parser=lambda raw,receipt:native_material(raw,selected,deadline))
             proof = {'policy':POLICY,'ticker':ticker,'master':master,'index':index,'material':material,

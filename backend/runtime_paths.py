@@ -20,6 +20,7 @@ class RuntimePaths:
     redis_url: str = "redis://localhost:6379/0"
     task_queue_backend: str = "rq"
     task_queue_name: str = "stock-analysis"
+    json_cache_db: Path | None = None
 
     @classmethod
     def from_values(
@@ -36,6 +37,7 @@ class RuntimePaths:
         redis_url: str = "redis://localhost:6379/0",
         task_queue_backend: str = "rq",
         task_queue_name: str = "stock-analysis",
+        json_cache_db: str | Path | None = None,
     ) -> "RuntimePaths":
         cache_path = Path(cache_dir)
         operational_path = Path(operational_db) if operational_db is not None else cache_path / "operational.sqlite3"
@@ -56,12 +58,18 @@ class RuntimePaths:
             redis_url=str(redis_url),
             task_queue_backend=str(task_queue_backend),
             task_queue_name=str(task_queue_name),
+            json_cache_db=Path(json_cache_db) if json_cache_db else Path(report_index_db) if report_index_db else cache_path / "stock_agent_cache.sqlite3",
         )
 
     def as_dict(self) -> dict[str, dict[str, object] | str]:
         return {
             "output_dir": str(self.output_dir),
             "cache_dir": str(self.cache_dir),
+            "json_cache_db": {
+                "path": str(self.json_cache_db or self.report_index_db),
+                "canonical": True,
+                "owner": "provider JSON cache and cooldowns",
+            },
             "report_index_db": {
                 "path": str(self.report_index_db),
                 "canonical": True,
@@ -115,6 +123,7 @@ def current_runtime_paths() -> RuntimePaths:
         redis_url=runtime_limits.REDIS_URL,
         task_queue_backend=runtime_limits.TASK_QUEUE_BACKEND,
         task_queue_name=runtime_limits.TASK_QUEUE_NAME,
+        json_cache_db=storage.JSON_CACHE_DB_PATH or storage.CACHE_DB_PATH,
     )
 
 

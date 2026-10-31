@@ -87,7 +87,8 @@ def daily_frame(source,scan_date):
             'Trading_Volume':numeric(row.get('TradeVolume') if 'TradeVolume' in row else row.get('成交股數')),
             'monthly_average_close':average,'monthly_average_observation_date':day if average is not None else None,
             'price_source_url':chosen_url,'volume_source_url':chosen_url,'latest_volume_unit':'shares',
-            'price_response_sha256':sha,'response_hash_kind':'canonical_decoded_json;not archived raw HTTP bytes'})
+            'price_response_sha256':sha,'response_hash_kind':'canonical_decoded_json;not archived raw HTTP bytes',
+            'source_security_code':code,'source_security_policy':'twse-exact-source-code:v1'})
     if mismatched_average:
         warnings.append({'provider':source.provider_name,'operation':'monthly average','code':'monthly_average_date_not_matched','affected_rows':mismatched_average,'message':'月均價日期未對齊行情，未拿舊月均價推算當日乖離；20日歷史與量比仍未知。'})
     frame=pd.DataFrame(records);frame.attrs['source_warnings']=warnings

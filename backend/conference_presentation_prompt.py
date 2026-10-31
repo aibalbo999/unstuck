@@ -553,6 +553,8 @@ def presentation_prompt_context(context: dict, agent_num: int) -> dict:
                 'financial_statement_complete',
                 'financial_scope_caution', 'forward_looking_caution', 'hidden_pages', 'total_slide_count',
                 'q_and_a_transcript_available', 'commercial_reuse_permission_verified')})
+            if qualified_mops and document.get('ticker') == '3005.TW':
+                item['presentation_cover_date'] = document['presentation_cover_date']
             if qualified_mops:
                 from mops_qualified_role_pages import POLICY
                 item.update(selection_policy=POLICY,

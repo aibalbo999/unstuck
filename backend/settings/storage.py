@@ -10,6 +10,7 @@ from .env import BASE_DIR, env_int, env_list, env_str, json_env_dict
 OUTPUT_DIR = env_str("OUTPUT_DIR", str(BASE_DIR / "output"))
 CACHE_DIR = Path(env_str("CACHE_DIR", str(BASE_DIR / "cache")))
 CACHE_DB_PATH = env_str("CACHE_DB_PATH", str(CACHE_DIR / "stock_agent_cache.sqlite3"))
+JSON_CACHE_DB_PATH = env_str("JSON_CACHE_DB_PATH", "")
 REPORT_STORAGE_BACKEND = env_str("REPORT_STORAGE_BACKEND", "local").strip().lower()
 CACHE_BACKEND = env_str("CACHE_BACKEND", "redis").strip().lower()
 CACHE_NAMESPACE = env_str("CACHE_NAMESPACE", "stock-agent").strip().strip(":")

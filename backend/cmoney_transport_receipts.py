@@ -45,13 +45,26 @@ def observe_download(url, parts, returncode, error, *, max_bytes):
                 or type(size) not in (int, float) or size != len(raw)
                 or returncode == 22 and code < 400):
             return
+        original = None
+        if code == 200 and returncode == 0 and raw:
+            try:
+                import time
+                from official_response_evidence import archive_response
+                original = archive_response(raw, source_url=url, retrieved_at=time.time(),
+                    max_bytes=max_bytes)
+                if original.get('status') == 'archived':
+                    original.update(http_status_observed=True, response_complete=True, cache_hit=False)
+                else:
+                    original = None
+            except Exception:
+                original = None  # Archival failure never discards a transport receipt.
         digest = sha256(raw).hexdigest()
         record_source_audit_entries([{**context, 'source': 'social_sentiment',
             'provider': 'CMoney native HTTP', 'event_kind': 'http_transport_receipt',
             'selection_policy': 'transport-receipt-only:v1', 'record_count': 0,
             'status': 'success' if 200 <= code < 300 else 'error',
             'http_request_sent': True, 'http_status': code,
-            'response_bytes': len(raw), 'response_sha256': digest,
+            'response_bytes': len(raw), 'response_sha256': digest, 'raw_http_receipt': original,
             'component_statuses': {component: {'status': 'transport_received',
                 'http_status': code, 'response_bytes': len(raw), 'response_sha256': digest}},
             'message': 'Existing completed native GET only; company identity, date and original post parsing are separately audited.'}])

@@ -128,10 +128,12 @@ def apply_news_freshness(
         record for key in _NEWS_BUCKETS for record in (data.get(key) or []) if isinstance(record, dict)
     ]
     normalized = _dedupe([_normalized(record, reference, lower) for record in candidates if isinstance(record, dict)], ticker=data.get('ticker'))
+    from zoneinfo import ZoneInfo
+    issuer_day = reference.astimezone(ZoneInfo('Asia/Taipei')).date()
     identity_rejected = []
     if company_aliases(data) or str(data.get('ticker') or '').strip():
-        identity_rejected = [item for item in normalized if not issuer_match(item, data)]
-        normalized = [item for item in normalized if issuer_match(item, data)]
+        identity_rejected = [item for item in normalized if not issuer_match(item, data, today=issuer_day)]
+        normalized = [item for item in normalized if issuer_match(item, data, today=issuer_day)]
     # Replayed legacy buckets must retain the same source-role exclusions as
     # newly acquired records. An indexing date cannot turn a metric into news.
     role_unverified, eligible = [], []

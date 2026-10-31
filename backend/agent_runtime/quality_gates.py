@@ -308,6 +308,24 @@ async def run_agent_with_quality_gates_async(
         result = await repair_trade_sources(result, data, context, rotator, run_single_agent_async,
             validate_candidate=lambda text: validate_prompt_leakage(text) +
             validate_company_identity(text, data) + validate_analysis_output(24, text, data))
+    # A rewrite is still an unvalidated draft. Re-run the financial gates after
+    # all existing repair opportunities; a warning tail is not an acceptance.
+    hard_remaining = list(dict.fromkeys(
+        validate_analysis_output(agent_num, result, data) + decision_contract_issues()))
+    if hard_remaining:
+        labels = [issue if issue.startswith(f'Agent {agent_num} ')
+                  else f'Agent {agent_num} {agent_name}: {issue}' for issue in hard_remaining]
+        context['blocking_issues'] = list(dict.fromkeys(
+            [*context.get('blocking_issues', []), *labels]))
+        context['analyses'][agent_num] = result
+        await checkpoint_unvalidated_draft(agent_num, result, context)
+        emit_log(f'  ❌ Agent {agent_num} 重寫後仍有硬性品質問題，保留原稿並停止下游整合。')
+        await emit_status_async(progress_callback,
+            f'Agent {agent_num} 重寫未通過，已保留未驗證草稿。',
+            phase='agent_quality_failed', level='warning', issues=hard_remaining,
+            **status_fields)
+        return agent_num, result
+
     result = append_quality_warnings(agent_num, result, data)
     elapsed = time.time() - start
     context["analyses"][agent_num] = result

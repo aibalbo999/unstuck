@@ -50,6 +50,9 @@ def observation_kind(row: dict) -> str:
     if (details.get('event_kind')=='http_transport_receipt'
             and details.get('selection_policy')=='transport-receipt-only:v1' and count==0):
         return 'aggregate_count'
+    if (details.get('event_kind')=='http_parsed_receipt'
+            and details.get('selection_policy')=='parsed-receipt-only:v1' and count==0):
+        return 'aggregate_count'
     if details.get('event_kind') == 'local_block':
         return 'local_block_count'
     if (provider in AGGREGATE_PROVIDERS or message in BASE_AGGREGATE_MESSAGES
@@ -162,7 +165,12 @@ def project_acquisition_events(events, *, window: str, now: float) -> dict:
                 group['last_selection'].update(at_epoch=at, provider=row['provider'])
         kind = observation_kind(row)
         group[kind] += 1
-        http_attempt = int(row['details'].get('http_request_sent') is True)
+        passive_parsed_receipt = (
+            selection.get('event_kind') == 'http_parsed_receipt'
+            and selection.get('selection_policy') == 'parsed-receipt-only:v1'
+            and row['record_count'] == 0
+        )
+        http_attempt = int(selection.get('http_request_sent') is True and not passive_parsed_receipt)
         group['http_attempt_count'] += http_attempt
         if kind == "aggregate_count":
             continue
