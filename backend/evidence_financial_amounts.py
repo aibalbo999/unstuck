@@ -556,6 +556,10 @@ def _explicit_individual_ttm_presentation(claim, data, tolerance_pct):
     Source/scalar preambles, foreign owners/currencies and unknown prose cannot
     be stripped into an apparently official observation.
     """
+    from official_fact_captions import check_captioned_fact
+    captioned = check_captioned_fact(claim, data, tolerance_pct)
+    if captioned is not None:
+        return captioned
     metric = claim.get('financial_metric')
     if (metric not in {'FCF', '自由現金流', '淨利', '稅後淨利', 'CapEx', '存貨變動現金影響'}
             or claim.get('financial_actual') is False or claim.get('financial_scope_unbound')
@@ -596,11 +600,15 @@ def _explicit_individual_ttm_presentation(claim, data, tolerance_pct):
     # This exact native valuation section contains observed evidence, not a
     # forecast. Consume the pair together; a lone/qualified/foreign ancestor
     # remains unknown and does not grant ownership or period to its amounts.
-    confidence_pair = ['## 估值偏離度客觀描述', '### 信心依據']
-    if isinstance(ancestors, list) and any(text in confidence_pair for text in ancestors):
-        if ancestors[-2:] != confidence_pair:
+    confidence_pairs = (['## 估值偏離度客觀描述', '### 信心依據'],
+                        ['## 籌碼面與研究結論定調', '### 信心依據'])
+    confidence_tokens = {text for pair in confidence_pairs for text in pair}
+    if isinstance(ancestors, list) and any(text in confidence_tokens for text in ancestors):
+        matched_pair = next((pair for pair in confidence_pairs if ancestors[-2:] == pair), None)
+        if (matched_pair is None or any(text in confidence_tokens and text not in matched_pair
+                                        for text in ancestors)):
             return None
-        native_headings.update(confidence_pair)
+        native_headings.update(matched_pair)
     if (type(ancestors) is not list or len(ancestors) > 6
             or any(type(text) is not str for text in ancestors)
             or (heading and (not ancestors or ancestors[-1] != heading))

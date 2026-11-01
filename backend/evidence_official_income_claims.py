@@ -34,6 +34,8 @@ def _context_matches(text, identity):
     # Issuer/year/FX/forecast qualifiers and every ancestor retain their gates.
     if re.fullmatch(r'\s*(?:🐻\s*空頭|🐂\s*多頭)\s*[:：]?\s*', text):
         return True
+    if re.fullmatch(r'\s*[-*]?\s*(?:官方營業現金影響組成|官方現金流組成科目引用)\s*[:：]\s*', text):
+        return True
     # Agent 2's native prompt mandates this exact structural section name.
     # Match the whole heading; issuer, year, currency and forecast qualifiers
     # in headings or surrounding prose must still pass the existing checks.
@@ -66,7 +68,7 @@ def _native_report_title(text, facts):
             + r')\s*\(' + re.escape(facts['ticker'])
             + r'\)\s+(?:商業模式與產業證據分析報告|獨立反證審查報告)\s*', text):
         return True
-    if re.fullmatch(r'\s*#{1,6}\s+獨立反證審查報告[:：]\s*(?:'
+    if re.fullmatch(r'\s*#{1,6}\s+(?:獨立反證審查報告|估值解讀與財務驗證報告)[:：]\s*(?:'
             + '|'.join(map(re.escape, names)) + r')\s*\('
             + re.escape(facts['ticker']) + r'\)\s*', text):
         return True
@@ -191,7 +193,15 @@ def _bound_scope(claim, facts, data=None):
                            and not _native_report_title(value, facts) and not _context_matches(value, identity))
                        for value in ancestors)):
             return False
-    if (re.fullmatch(r'\s*##\s*(?:三[、.]\s*宏觀定調結論|六[、.]\s*財務體質最終判斷)\s*',heading)
+    ancestors = claim.get('_financial_heading_ancestors')
+    confidence_pair = ['## 籌碼面與研究結論定調', '### 信心依據']
+    if (heading == confidence_pair[-1] and isinstance(ancestors, list)
+            and ancestors[-2:] == confidence_pair):
+        if any(not isinstance(value, str) or _INCOMPATIBLE.search(value)
+               or (not _native_report_title(value, facts) and not _context_matches(value, identity))
+               for value in ancestors[:-2]):
+            return False
+    elif (re.fullmatch(r'\s*##\s*(?:三[、.]\s*宏觀定調結論|六[、.]\s*財務體質最終判斷)\s*',heading)
             or heading == '## 一頁式摘要' or re.fullmatch(r'\s*#{1,6}\s*(?:(?:[一二三四五六七八九十]+)[、.]\s*)?(?:獲利趨勢深析|自由現金流分析|已觀測財務與歷史反證|已觀測財務|企業體質總結|成長潛力總評)\s*',heading)):
         # Only the native wrapper is neutral. Every inherited title must still
         # bind to names replayed from both official originals, never caller aliases.
