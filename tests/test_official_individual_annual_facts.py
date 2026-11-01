@@ -104,3 +104,25 @@ def test_native_observed_annual_heading_keeps_complete_fact(heading):
  for qualifier in ('2024年度','台積電','預估','USD'):
   result=checked(text.replace(heading,heading+' '+qualifier),data)
   assert result and all(c['status']=='unverifiable'for c in result),result
+
+
+@pytest.mark.parametrize('model',['gemini-3.8-flash','gemma-4-31b-it'])
+def test_full_model_prompt_replays_private_originals_before_public_projection(monkeypatch,model):
+ from agent_runtime import prompting
+ monkeypatch.setattr(prompting,'get_agent_prompt_token_budget',lambda *args,**kwargs:1000000)
+ data=selected();before=deepcopy(data);context={'data':data,'analyses':{},'structured_outputs':{},'_prompt_model_id':model,'_audit_retry_instruction':'保留官方年度與TTM完整範圍。'}
+ prompt=prompting.build_prompt(2,data,context)
+ assert 'official_individual_annual_facts'in prompt and 'official_income_reference_text'in prompt
+ assert '3200000'in prompt and 'source_filing_year'in prompt
+ assert 'raw_response_path'not in prompt and 'official-response-evidence/'not in prompt
+ assert data==before
+
+def test_template_data_and_context_stay_public_when_financial_server_replay_needs_paths(monkeypatch):
+ from agent_runtime import prompting
+ monkeypatch.setattr(prompting,'get_agent_prompt_token_budget',lambda *args,**kwargs:1000000)
+ monkeypatch.setitem(prompting.ANALYSIS_PROMPTS,2,'{{ data }}\n{{ context }}\n{{ fin_data }}')
+ data=selected();before=deepcopy(data);context={'data':data,'analyses':{},'structured_outputs':{},'_prompt_model_id':'gemini-3.8-flash'}
+ prompt=prompting.build_prompt(2,data,context)
+ assert 'official_individual_annual_facts'in prompt and 'official_income_reference_text'in prompt
+ assert 'raw_response_path'not in prompt and 'official-response-evidence/'not in prompt
+ assert data==before

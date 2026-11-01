@@ -41,18 +41,13 @@ from .prompt_safety import (
 
 OUTPUT_CLEANLINESS_RULE = build_output_cleanliness_rule()
 
-def data_for_agent_prompt(agent_num: int, data: StockData) -> StockData:
-    """Return prompt data with newly added external contexts routed by agent role."""
+def _verification_data_for_agent(agent_num: int, data: StockData) -> StockData:
+    """Server-only routed view; derive evidence before stripping private receipts."""
     agent_id = int(agent_num)
-    prompt_data = prompt_evidence_copy(data)
+    prompt_data = dict(data)
     prompt_data["_prompt_agent_num"] = agent_id
     from conference_presentation_prompt import presentation_prompt_context, without_presentation_documents
-    earnings_input = prompt_data.get('earnings_call')
-    raw_earnings = data.get('earnings_call')
-    if isinstance(raw_earnings, dict) and raw_earnings.get('source') in {'GUC official conference presentation', 'Seec official conference presentation', 'KingSlide official conference presentation', 'Macronix official conference presentation'}:
-        # Verify private originals before projection; the returned role view
-        # contains no receipt and the generic prompt copy remains sanitized.
-        earnings_input = raw_earnings
+    earnings_input = data.get('earnings_call')
     presentation = presentation_prompt_context(earnings_input, agent_id)
     if presentation:
         prompt_data['conference_presentation'] = presentation
@@ -72,6 +67,11 @@ def data_for_agent_prompt(agent_num: int, data: StockData) -> StockData:
         prompt_data["valuation_memory"] = build_valuation_memory_slice(temporal_memory)
         prompt_data.pop("temporal_memory", None)
     return prompt_data
+
+
+def data_for_agent_prompt(agent_num: int, data: StockData) -> StockData:
+    """Public role view: proof readers run first, private locations never render."""
+    return prompt_evidence_copy(_verification_data_for_agent(agent_num, data))
 
 
 def build_company_identity_guard(data: StockData, *, agent_num: int | None = None) -> str:
@@ -179,18 +179,21 @@ def build_prompt(agent_num: int, data: StockData, context: AnalysisContext) -> s
     context = prompt_evidence_copy(context)
     ticker = data["ticker"]
     name = data["company_name"]
-    prompt_data = data_for_agent_prompt(agent_num, data)
+    financial_verification_data = _verification_data_for_agent(agent_num, data)
+    prompt_data = prompt_evidence_copy(financial_verification_data)
     source_blocks = build_source_blocks(data, agent_num=agent_num, compact=compact_primary) if market_contract else []
     if market_contract:
         prompt_data.pop("global_market_context", None)
         prompt_data.pop("international_news_context", None)
+        financial_verification_data.pop("global_market_context", None)
+        financial_verification_data.pop("international_news_context", None)
     # Shrink formatting and unrelated sections, retaining complete source records.
     # Oversize input reaches admission intact and can take the full-data fallback.
-    fin_data = (format_data_for_prompt(prompt_data, dense=True, role_scoped=role_scoped)
-                if gemma_prompt or dense_trade_lite else format_data_for_prompt(prompt_data, compact=compact_primary, compact_json=True))
+    fin_data = (format_data_for_prompt(financial_verification_data, dense=True, role_scoped=role_scoped)
+                if gemma_prompt or dense_trade_lite else format_data_for_prompt(financial_verification_data, compact=compact_primary, compact_json=True))
     if agent_num in (11, 1, 2, 3, 20, 4, 5, 6, 21, 7) and not gemma_prompt:
         fin_data = choose_financial_encoding(fin_data, format_data_for_prompt(
-            prompt_data, compact=compact_primary, dense=True, role_scoped=False))
+            financial_verification_data, compact=compact_primary, dense=True, role_scoped=False))
     prev = _format_previous(context, agent_num, max_total_chars=max(0, total_budget - state_budget))
     if agent_num == 7:
         prev = compact_previous_json(prev)
