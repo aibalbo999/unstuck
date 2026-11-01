@@ -47,12 +47,12 @@ def test_captured_2254_aligns_periods_and_roe_without_hiding_raw_gap():
     stock = StatementStock(frames)
     result = extract_financial_histories(stock, "2254.TW", [], data_loader_cls=None)
     assert result["years"] == ["2022", "2023", "2024", "2025"]
-    assert result["revenue_history"] == [0.93, 0.55, 0.63, 0.48]
-    assert result["net_income_history"] == [0.15, -0.05, -0.07, -0.05]
-    assert result["total_assets_history"] == [2.09, 2.4, 2.42, 2.18]
-    assert result["total_equity_history"] == [0.76, 0.99, 1.16, 1.1]
+    assert result["revenue_history"] == [0.928668, 0.549661, 0.632839, 0.477757]
+    assert result["net_income_history"] == [0.148709, -0.047558, -0.067491, -0.053391]
+    assert result["total_assets_history"] == [2.091252, 2.400946, 2.42071, 2.17793]
+    assert result["total_equity_history"] == [0.760523, 0.990905, 1.161848, 1.100415]
     assert result["fcf_history"] == [-0.27, -0.27, -0.11, 0.06]
-    assert margins(result)["roe_history"] == [19.7, -5.1, -6.0, -4.5]
+    assert margins(result)["roe_history"] == [19.6, -4.8, -5.8, -4.9]
     assert stock.calls == {"financials": 1, "cashflow": 1, "balance_sheet": 1}
     assert result["primary_financial_audit"]["status"] == "degraded_enrichment"
     assert result["primary_financial_audit"]["raw_count"] == 5
@@ -68,7 +68,7 @@ def test_reordered_balance_and_cashflow_follow_income_periods():
     for name in ("cashflow", "balance_sheet"):
         frames[name] = frames[name].iloc[:, ::-1]
     result = extract_financial_histories(StatementStock(frames), "2254.TW", [], data_loader_cls=None)
-    assert result["total_equity_history"] == [0.76, 0.99, 1.16, 1.1]
+    assert result["total_equity_history"] == [0.760523, 0.990905, 1.161848, 1.100415]
     assert result["fcf_history"] == [-0.27, -0.27, -0.11, 0.06]
 
 
@@ -77,9 +77,9 @@ def test_missing_middle_period_stays_none_without_shifting_neighbors():
     frames["balance_sheet"] = frames["balance_sheet"].drop(columns=pd.Timestamp("2024-12-31"))
     frames["cashflow"] = frames["cashflow"].drop(columns=pd.Timestamp("2023-12-31"))
     result = extract_financial_histories(StatementStock(frames), "2254.TW", [], data_loader_cls=None)
-    assert result["total_equity_history"] == [0.76, 0.99, None, 1.1]
+    assert result["total_equity_history"] == [0.760523, 0.990905, None, 1.100415]
     assert result["fcf_history"] == [-0.27, None, -0.11, 0.06]
-    assert margins(result)["roe_history"] == [19.7, -5.1, None, -4.5]
+    assert margins(result)["roe_history"] == [19.6, -4.8, None, -4.9]
 
 
 @pytest.mark.parametrize("case", ["different_day", "invalid_anchor", "missing_tables"])
@@ -181,9 +181,9 @@ def test_fallback_year_change_reprojects_all_retained_primary_histories(monkeypa
     assert result["years"] == ["2023", "2024", "2025"]
     assert result["net_income_history"] == [0.1, 0.1, 0.1]
     expected = {
-        "revenue_history": [None, 0.63, 0.48], "gross_profit_history": [None, 0.17, 0.11],
-        "operating_income_history": [None, -0.05, -0.07], "fcf_history": [None, -0.11, 0.06],
-        "total_assets_history": [None, 2.42, 2.18], "total_equity_history": [None, 1.16, 1.1],
+        "revenue_history": [None, 0.632839, 0.477757], "gross_profit_history": [None, 0.166117, 0.105001],
+        "operating_income_history": [None, -0.050889, -0.065403], "fcf_history": [None, -0.11, 0.06],
+        "total_assets_history": [None, 2.42071, 2.17793], "total_equity_history": [None, 1.161848, 1.100415],
     }
     for key, values in expected.items():
         assert result[key] == ([None] * 3 if duplicate_year else values)
@@ -251,5 +251,24 @@ def test_fallback_reanchor_requires_matching_full_statement_date(monkeypatch, ca
     for key in ("revenue_history", "gross_profit_history", "operating_income_history", "fcf_history",
                 "total_assets_history", "total_equity_history"):
         assert result[key][-1] is None
-    assert result["total_equity_history"][-2] == 1.16
+    assert result["total_equity_history"][-2] == 1.161848
     assert margins(result)["roe_history"][-1] is None
+
+
+@pytest.mark.parametrize("revenue,gross_profit,operating_income,net_income,expected", [
+    (3895534000, 383357000, 254390000, 89705000, (9.8, 6.5, 2.3)),
+    (4216296000, 646273000, 489800000, 406487000, (15.3, 11.6, 9.6)),
+    (5482989000, 990243000, 841942000, 733007000, (18.1, 15.4, 13.4)),
+])
+def test_monetary_conversion_preserves_precision_before_margin_calculation(
+        revenue, gross_profit, operating_income, net_income, expected):
+    # FY2022-2024 native MOPS consolidated amounts; net income is parent attributable.
+    # This checks arithmetic only, without certifying SDK provenance or reporting scope.
+    from data_fetch.yfinance_extractors import _financial_billions
+    raw = (revenue, gross_profit, operating_income, net_income)
+    converted = [_financial_billions(value) for value in raw]
+    for amount, value in zip(raw, converted):
+        assert value * 1e9 == pytest.approx(amount, abs=0.00001)
+    result = calculate_margin_histories(*[[value] for value in converted], [])
+    assert tuple(result[key][0] for key in (
+        "gross_margin_history", "op_margin_history", "net_margin_history")) == expected

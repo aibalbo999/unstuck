@@ -50,7 +50,7 @@ def test_captured_reported_2022_fcf_fills_only_missing_output_and_retains_raw_pa
     frame = captured_cashflow(); original = frame.copy(deep=True)
     result, notes, stock = extract(frame)
     assert result["years"] == ["2021", "2022", "2023", "2024", "2025"]
-    assert result["fcf_history"] == [None, -0.01, -0.04, 0.31, 0.99]
+    assert result["fcf_history"] == [None, -0.01089, -0.04, 0.31, 0.99]
     assert stock.calls == {"financials": 1, "cashflow": 1, "balance_sheet": 1}
     assert len(notes) == 1 and "2022-12-31" in notes[0] and "Free Cash Flow" in notes[0] and "分項仍不足" in notes[0]
     audit = result["primary_financial_audit"]

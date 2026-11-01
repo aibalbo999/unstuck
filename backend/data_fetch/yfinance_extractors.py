@@ -53,7 +53,8 @@ def _financial_number(value):
 
 def _financial_billions(value):
     number = _financial_number(value)
-    return round(number / 1e9, 2) if number is not None else None
+    # Preserve monetary precision for ratios; display formatting owns rounding.
+    return number / 1e9 if number is not None else None
 
 
 def _reported_free_cash_flow(cashflow, column):
