@@ -52,6 +52,28 @@ def annual_facts_from_replayed_income(income):
         'freshness_status': 'not_revalidated', 'vendor_history_replaced': False,
         'limitations': '僅核實完整原件中的個別年度及比較期；不授予五年歷史可比性、TTM EPS、估值或歷史首次可得性。不替換供應商數列。'}
 
+def official_fact_container_matches(text, data):
+    """Recognize a neutral caption plus already complete source-bound siblings.
+
+    This grants no scope to the current claim. Every sibling must equal a
+    canonical statement reconstructed from originals; arbitrary prose, amounts,
+    issuers and period qualifiers remain binding and fail closed.
+    """
+    lines = [re.sub(r'[*`]', '', line).strip()
+             for line in str(text or '').splitlines() if line.strip()]
+    if (not lines or len(lines) > 4 or re.fullmatch(
+            r'-?\s*官方個別年度(?:營收|與\s*TTM\s*(?:淨利|自由現金流))事實[:：]', lines[0]) is None):
+        return False
+    from official_income_prompt import official_income_prompt_facts
+    income = official_income_prompt_facts(data)
+    annual = income.get('annual_facts') if isinstance(income, dict) else None
+    if not isinstance(annual, dict):
+        return False
+    statements = {statement for row in annual['periods'].values()
+                  for statement in row['statements'].values()}
+    return all(line in statements for line in lines[1:])
+
+
 def check_individual_annual_claim(claim, data, tolerance_pct):
     metric = _METRICS.get(claim.get('financial_metric'))
     raw = re.sub(r'[*`]', '', str(claim.get('raw_text') or ''))
@@ -78,7 +100,8 @@ def check_individual_annual_claim(claim, data, tolerance_pct):
     def structural(value):
         return (isinstance(value, str) and not _INCOMPATIBLE.search(value)
                 and (re.fullmatch(r'\s*#{1,6}\s*(?:[一二三四五六七八九十]+[、.]\s*)?(?:已核實年度財務|營收成長分析)\s*', value) is not None
-                     or _native_report_title(value, facts) or _context_matches(value, identity)))
+                     or _native_report_title(value, facts) or _context_matches(value, identity)
+                     or official_fact_container_matches(value, data)))
     if any(not structural(value) for value in ancestors) or (parent.strip() and not structural(parent)):
         return unknown
     names = [facts['issuer_name'], *identity['company_identity']['allowed_aliases']]

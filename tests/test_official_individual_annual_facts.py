@@ -126,3 +126,25 @@ def test_template_data_and_context_stay_public_when_financial_server_replay_need
  assert 'official_individual_annual_facts'in prompt and 'official_income_reference_text'in prompt
  assert 'raw_response_path'not in prompt and 'official-response-evidence/'not in prompt
  assert data==before
+
+@pytest.mark.parametrize('caption,metric',[('官方個別年度營收事實','營收'),('官方個別年度與 TTM 淨利事實','淨利'),('官方個別年度與 TTM 自由現金流事實','自由現金流')])
+def test_exact_neutral_fact_caption_does_not_hide_complete_annual_scope(caption,metric):
+ data=selected();statement=annual(data)['periods']['2025']['statements'][metric]
+ rows=checked('## 一、營收成長分析\n\n- '+caption+'：\n'+statement,data)
+ assert len(rows)==1 and rows[0]['status']=='verified',rows
+ for bad in (' 台積電',' USD',' 2024年度',' 合併',' 預估'):
+  rows=checked('## 一、營收成長分析\n\n- '+caption+bad+'：\n'+statement,data)
+  assert rows and all(x['status']=='unverifiable'for x in rows),rows
+
+
+def test_qualified_annual_siblings_do_not_supply_or_override_local_ttm_scope():
+ from official_income_prompt import official_income_reference_text
+ data=selected();facts=annual(data);siblings='\n'.join(facts['periods'][y]['statements']['淨利']for y in ('2024','2025'))
+ ttm=official_income_reference_text(official_income_prompt_facts(data))['statement']
+ text='## 二、獲利趨勢深析\n\n- 官方個別年度與 TTM 淨利事實：\n'+siblings+'\n'+ttm
+ rows=checked(text,data);assert len(rows)==3 and all(x['status']=='verified'for x in rows),rows
+ for bad in (siblings.replace('TWD','USD'),siblings+'\n台積電財報。',siblings.replace('為 ','為 9',1)):
+  rows=checked('## 二、獲利趨勢深析\n\n- 官方個別年度與 TTM 淨利事實：\n'+bad+'\n'+ttm,data)
+  assert rows[-1]['status']=='unverifiable',rows
+ rows=checked(text.replace(ttm,ttm.replace('TWD ','')),data)
+ assert rows[-1]['status']=='unverifiable',rows

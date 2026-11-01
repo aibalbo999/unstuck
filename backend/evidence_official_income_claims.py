@@ -214,7 +214,9 @@ def _bound_scope(claim, facts, data=None):
     elif not _context_matches(heading, identity):
         return False
     if not _context_matches(parent, identity):
-        return False
+        from official_individual_annual_facts import official_fact_container_matches
+        if not official_fact_container_matches(parent, data):
+            return False
     # No other year/period or arbitrary owner/prose is discarded. Both dates
     # must be present in this very claim, not inherited from another amount.
     remaining = _DATE.sub('', prefix)
