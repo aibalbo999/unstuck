@@ -126,12 +126,15 @@ def _record(method,url,params,response,started,stream):
         body = response.content
         if not isinstance(body, bytes):
             return
+        from yahoo_annual_original import capture_annual_response
+        original = capture_annual_response(response, binding=annual_binding)
         record_source_audit_entries([{**context, 'source': 'financial_statements',
             'provider': 'yfinance annual statements native HTTP',
             'event_kind': 'http_transport_receipt', 'selection_policy': 'transport-receipt-only:v1',
             'record_count': 0, 'status': 'success' if 200 <= response.status_code < 300 else 'error',
             'http_request_sent': True, 'http_status': response.status_code,
             'response_bytes': len(body), 'response_sha256': sha256(body).hexdigest(),
+            **({'raw_http_receipt': original} if original else {}),
             'duration_ms': max(0, int((time.monotonic() - started) * 1000)),
             'message': 'Native Yahoo annual transport only; parsed statements and SDK cache remain separately audited.'}])
         return
