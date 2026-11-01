@@ -33,7 +33,9 @@ def capture_public_response(response,*,source,symbol):
         from provider_correlation import current_correlation,current_source_identity
         from official_response_evidence import archive_response
         context=current_correlation()
-        if (source not in OWNERS or current_source_identity()!=OWNERS[source]
+        # The normal radar owns only the same issuer's public chart, never quote/summary.
+        radar_chart_owner = source == 'market_data' and current_source_identity() == ('market_data', 'yfinance radar')
+        if (source not in OWNERS or (current_source_identity()!=OWNERS[source] and not radar_chart_owner)
                 or not all(context.get(k)for k in ('ticker','fetch_id','operation_id'))
                 or not isinstance(symbol,str)or not re.fullmatch(r'(?:\^[A-Z][A-Z0-9.]{0,38}|[A-Z0-9][A-Z0-9.^=-]{0,39})',symbol)
                 or type(response)is not Response or response.status_code!=200
@@ -66,6 +68,7 @@ def capture_public_response(response,*,source,symbol):
             if source=='global_market_context'or set(payload)!={'quoteResponse'}or parse_qs(actual.query).get('symbols')!=[symbol]:return None
             envelope=payload['quoteResponse'];kind='quote';source_url+='?symbols='+quote(symbol,safe='')
         else:return None
+        if radar_chart_owner and kind != 'chart':return None
         if not isinstance(envelope,dict)or envelope.get('error')is not None:return None
         results=envelope.get('result')
         if not isinstance(results,list)or len(results)!=1 or not isinstance(results[0],dict):return None
