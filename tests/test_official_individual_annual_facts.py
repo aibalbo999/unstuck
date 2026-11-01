@@ -167,3 +167,47 @@ def test_official_fact_list_cannot_hide_a_conflicting_ancestor(ancestor):
  for statement in (a,t):
   rows=checked(ancestor+'\n\n## 官方財務事實清單\n\n'+statement,data)
   assert rows and all(x['status']=='unverifiable'for x in rows),rows
+
+def test_annual_fcf_conversion_uses_replayed_inputs_not_vendor_calculator():
+ from financial_tools import build_financial_tool_context
+ data=selected();data['net_income_history']=[100,100];data['fcf_history']=[90,90];before=deepcopy(data)
+ rows=annual(data)['periods'];tool=build_financial_tool_context(data)
+ assert tool['calculations']['latest_fcf_conversion']['fcf_conversion_pct']==90
+ assert tool['calculation_source_qualification']['latest_fcf_conversion']['independent_primary_source_verified']is False
+ official=tool['calculations']['official_individual_annual_fcf_conversion']['periods']
+ for year,row in rows.items():
+  expected=float((Decimal(row['values_twd']['自由現金流'])/Decimal(row['values_twd']['淨利'])*100).quantize(Decimal('.0001')))
+  ratio=row['derived_ratios']['fcf_conversion']
+  assert ratio['value_pct']==expected and official[year]['value_pct']==expected
+  assert ratio['numerator_twd']==row['values_twd']['自由現金流']
+  assert ratio['denominator_twd']==row['values_twd']['淨利']
+  assert ratio['source_published_ratio']is False and ratio['historical_pit_verified']is False
+  assert ratio['derivation_status']=='verified_arithmetic_from_replayed_originals'
+ assert data==before
+
+
+def test_missing_annual_original_cannot_supply_the_qualified_conversion():
+ from financial_tools import build_financial_tool_context
+ data=selected();data['official_financial_projection']['reference']['annual_document']['sha256']='0'*64
+ result=build_financial_tool_context(data)
+ assert 'official_individual_annual_fcf_conversion'not in result['calculations']
+
+@pytest.mark.parametrize('profit',[0,-1])
+def test_annual_conversion_does_not_invent_a_ratio_with_non_positive_profit(profit):
+ from official_individual_annual_facts import annual_facts_from_replayed_income
+ row={'reported_revenue':100,'profit_loss':profit,'free_cash_flow':1,'operating_cash_flow':2,'ppe_purchase':-1,'intangible_purchase':0}
+ income={'status':'income_originals_verified','ticker':'1623.TW','currency':'TWD','report_scope':'individual','issuer_name':'大東電業廠股份有限公司','annual_rows':{'2024':dict(row),'2025':dict(row)},'source_documents':[{'url':'https://mopsov.twse.com.tw/fixture','sha256':'a'*64}]}
+ result=annual_facts_from_replayed_income(income)
+ for year in ('2024','2025'):
+  ratio=result['periods'][year]['derived_ratios']['fcf_conversion']
+  assert ratio['value_pct']is None and ratio['derivation_status']=='unavailable_non_positive_net_income'
+
+def test_vendor_conversion_provenance_keeps_actual_selected_positions():
+ from financial_tools import build_financial_tool_context
+ data={'fcf_history':[1,None,None],'net_income_history':[2,3,None],'financial_currency':'TWD'};before=deepcopy(data)
+ tool=build_financial_tool_context(data);q=tool['calculation_source_qualification']['latest_fcf_conversion']
+ assert q['inputs']['numerator']['path']=='fcf_history[0]'
+ assert q['inputs']['denominator']['path']=='net_income_history[1]'
+ assert q['same_history_position']is False and q['period_alignment_verified']is False
+ assert tool['calculations']['latest_fcf_conversion']['fcf_conversion_pct']==33.3333
+ assert data==before

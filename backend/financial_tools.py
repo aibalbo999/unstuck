@@ -187,6 +187,45 @@ def build_financial_tool_context(data: dict) -> dict:
             "formula": "latest annual FCF / latest annual net income",
         }
 
+    # Arithmetic does not certify the provider histories' reporting periods.
+    # Preserve legacy results and inputs; qualified original-derived ratios
+    # occupy a separate path so nearby vendor values cannot replace them.
+    tool_context['calculation_source_qualification'] = {
+        name: {'verification_scope': 'snapshot_arithmetic_consistency_only',
+               'independent_primary_source_verified': False,
+               'source_period_status': 'not_established_by_this_calculation',
+               'source_report_scope_status': 'not_established_by_this_calculation'}
+        for name in ('revenue_cagr', 'latest_annual_revenue_growth', 'latest_fcf_conversion')
+        if name in tool_context['calculations']
+    }
+    if 'latest_fcf_conversion' in tool_context['calculation_source_qualification']:
+        fcf_index = next((i for i in range(len(fcf_history) - 1, -1, -1)
+                          if safe_float(fcf_history[i]) is not None), None)
+        income_index = next((i for i in range(len(net_income_history) - 1, -1, -1)
+                             if safe_float(net_income_history[i]) is not None), None)
+        currency = dict.get(data, 'financial_currency')
+        unit = 'billion_twd' if currency == 'TWD' else 'billion_recorded_financial_currency'
+        qualification = tool_context['calculation_source_qualification']['latest_fcf_conversion']
+        qualification['inputs'] = {
+            'numerator': {'path': f'fcf_history[{fcf_index}]', 'value': latest_fcf, 'unit': unit},
+            'denominator': {'path': f'net_income_history[{income_index}]', 'value': latest_net_income, 'unit': unit},
+        }
+        qualification['same_history_position'] = fcf_index == income_index
+        qualification['period_alignment_verified'] = False
+    tool_context['calculations'].pop('official_individual_annual_fcf_conversion', None)
+    if dict.get(data, 'official_financial_projection') is not None:
+        from official_income_prompt import official_income_prompt_facts
+        income = official_income_prompt_facts(dict.copy(data))
+        annual = income.get('annual_facts') if isinstance(income, dict) else None
+        if isinstance(annual, dict):
+            tool_context['calculations']['official_individual_annual_fcf_conversion'] = {
+                'periods': {year: row['derived_ratios']['fcf_conversion']
+                            for year, row in annual['periods'].items()},
+                'source_document': annual['source_document'],
+                'vendor_result_replaced': False,
+                'historical_pit_verified': False,
+            }
+
     dividend_rate = safe_float(dict.get(data, "dividend_rate_raw"))
     yield_pct = dividend_yield_pct(data)
     is_financial = any(keyword in f"{sector} {industry}" for keyword in ["Financial", "銀行", "金融", "保險", "金控"])

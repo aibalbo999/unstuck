@@ -41,6 +41,24 @@ def annual_facts_from_replayed_income(income):
             'statements': {metric: prefix + metric + '為 '
                 + format(Decimal(value) / Decimal(100000000), 'f') + ' 億元。'
                 for metric, value in values.items()}}
+        conversion = {
+            'numerator_twd': values['自由現金流'], 'denominator_twd': values['淨利'],
+            'formula': 'same-period individual annual free_cash_flow / profit_loss * 100',
+            'period_start': start, 'period_end': end, 'currency': 'TWD',
+            'report_scope': 'individual', 'source_published_ratio': False,
+            'historical_pit_verified': False,
+            'derivation_status': 'unavailable_non_positive_net_income', 'value_pct': None,
+        }
+        if values['淨利'] > 0:
+            try:
+                value_pct = (Decimal(values['自由現金流']) / Decimal(values['淨利'])
+                             * 100).quantize(Decimal('.0001'), rounding=ROUND_HALF_UP)
+                conversion.update(
+                    derivation_status='verified_arithmetic_from_replayed_originals',
+                    value_pct=float(value_pct))
+            except (InvalidOperation, OverflowError):
+                conversion['derivation_status'] = 'unavailable_calculation_precision'
+        periods[year]['derived_ratios'] = {'fcf_conversion': conversion}
     document = income['source_documents'][0]
     return {'schema': 'official-individual-annual-facts:v1', 'status': 'annual_originals_replayed',
         'ticker': income['ticker'], 'issuer_name': income['issuer_name'],
