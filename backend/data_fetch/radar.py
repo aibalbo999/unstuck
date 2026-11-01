@@ -4,6 +4,7 @@ from __future__ import annotations
 import math
 
 from source_audit import audited_fetch_async
+from .provider_execution import fetch_correlated_provider
 
 
 def _market_fields(snapshot, *, calendar=False):
@@ -42,7 +43,7 @@ async def fetch_radar_payload(request, sources, registry):
             provider = registry.first_provider(request, provider_source)
             if provider is None:
                 raise RuntimeError(f'雷達缺少資料來源：{source}')
-            result = await provider.fetch_async(request, {'original_ticker': request.ticker})
+            result = await fetch_correlated_provider(provider, request, {'original_ticker': request.ticker})
             for entry in result.audit.get('related_entries') or []:
                 if isinstance(entry, dict):
                     data['source_audit'].append(entry)
