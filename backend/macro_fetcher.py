@@ -45,9 +45,11 @@ def fetch_key_macro_indicators(
         ("vix", "VIXCLS", "VIX", "index"),
     )
     indicators, components = {}, {}
+    attempted_series = []
     credential_scope = hashlib.sha256(key.encode()).hexdigest()[:16]
     for name, series, label, unit in definitions:
         def acquire(series=series):
+            attempted_series.append(series)
             return (_cpi_yoy_observation(session, key, timeout=timeout) if series == "CPIAUCSL"
                     else _latest_observation(session, key, series, timeout=timeout))
         observation, meta = shared_fetch(
@@ -77,7 +79,10 @@ def fetch_key_macro_indicators(
         "status": status, "source": "FRED", "actual_provider": "FRED",
         "source_url": "https://fred.stlouisfed.org/", "indicators": indicators,
         "component_statuses": components,
-        "cache_hit": bool(indicators) and all(item.get("cache_hit") for item in components.values()),
+        "cache_hit": bool(indicators) and not attempted_series and all(item.get("cache_hit") for item in components.values()),
+        "retrieval_origin": {"schema_version": "fred-series-retrieval:v1",
+                             "attempted_series": attempted_series,
+                             "new_fetch_attempted": bool(attempted_series)},
         "stale": any(item.get("stale") for item in components.values()),
     }
     if status != "success":

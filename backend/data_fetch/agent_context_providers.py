@@ -17,7 +17,8 @@ class MacroIndicatorsProvider(DataProvider):
         from data_trust import AUDIT_STATUS_DEGRADED_ENRICHMENT, AUDIT_STATUS_NOT_CONFIGURED, AUDIT_STATUS_SUCCESS, AUDIT_STATUS_UNAVAILABLE
         from macro_fetcher import fetch_key_macro_indicators
 
-        payload = fetch_key_macro_indicators(use_cache=not request.options.force_refresh)
+        # Company refreshes do not invalidate global FRED series or their cooldown.
+        payload = fetch_key_macro_indicators(use_cache=True)
         status = payload.get("status") if isinstance(payload, dict) else "unavailable"
         if status == "success":
             audit_status = AUDIT_STATUS_SUCCESS
@@ -28,7 +29,7 @@ class MacroIndicatorsProvider(DataProvider):
         else:
             audit_status = AUDIT_STATUS_UNAVAILABLE
         indicators = payload.get("indicators", {}) if isinstance(payload, dict) else {}
-        return ProviderResult(
+        result = ProviderResult(
             source=self.source,
             provider=self.name,
             status=audit_status,
@@ -45,6 +46,17 @@ class MacroIndicatorsProvider(DataProvider):
                 "message": payload.get("message") if isinstance(payload, dict) and payload.get("message") else "FRED macro indicators 已回傳總經指標。",
             },
         )
+
+
+        origin = payload.get("retrieval_origin", {})
+        if (origin.get("schema_version") == "fred-series-retrieval:v1"
+                and origin.get("new_fetch_attempted") is False
+                and origin.get("attempted_series") == [] and not indicators):
+            # A cached cooldown/lock admission is not a second external failure.
+            result.audit.update(event_kind="local_block", http_request_sent=False,
+                                http_request_count=0,
+                                reason_code="shared_macro_no_new_fetch")
+        return result
 
 
 class ChipDataProvider(DataProvider):
