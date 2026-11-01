@@ -303,6 +303,14 @@ def fetch_recent_company_announcements(ticker: str, *, now: datetime | None = No
         candidates.append((published, title, company, link))
     window_covered = (payload is not None and
                       (len(index_dates) < 10 or bool(index_dates and min(index_dates) <= now - timedelta(days=30))))
+    # Publication dates outside the requested window do not prove that this
+    # primary index is a current, complete view. Cross-check the existing
+    # official window index before concluding that no recent rows are usable.
+    primary_has_only_old_rows = bool(index_dates and not candidates
+                                     and max(index_dates) < now - timedelta(days=30))
+    if primary_has_only_old_rows:
+        window_covered = False
+        diagnostic['primary_window_crosscheck_required'] = True
     detail_limit = MAX_DETAIL_FETCHES
     added_links = set()
     index_refused = primary_refused
