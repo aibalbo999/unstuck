@@ -185,15 +185,22 @@ def test_social_empty_unknown_is_cached_without_claiming_no_discussions(monkeypa
     import news_fetchers
     from data_fetch.agent_context_providers import SocialSentimentProvider
     from data_fetch.types import FetchRequest
+    from data_fetch.market_sources import cmoney_stock_posts, yahoo_stock_comments
     calls=[]
-    monkeypatch.setattr(news_fetchers,'fetch_google_news_rss',lambda *a,**k: calls.append('rss') or [])
+    def forbidden_rss(*a,**k):
+        pytest.fail('RSS index wrappers cannot substitute original forum posts')
+    monkeypatch.setattr(news_fetchers,'fetch_google_news_rss',forbidden_rss)
+    monkeypatch.setattr(cmoney_stock_posts,'fetch_cmoney_stock_posts',lambda *a,**k:calls.append('cmoney') or [])
+    monkeypatch.setattr(yahoo_stock_comments,'fetch_yahoo_stock_comments',lambda *a,**k:calls.append('yahoo') or [])
     monkeypatch.setattr(news_fetchers,'fetch_ptt_stock_sentiment',lambda *a,**k: calls.append('ptt') or [])
     provider=SocialSentimentProvider()
     request=FetchRequest.from_ticker('2330.TW')
     provider.fetch(request)
     hit=provider.fetch(request)
-    assert len(calls) == 4
+    assert calls == ['cmoney','yahoo','ptt']
     assert hit.value['status'] == 'empty_unknown'
+    assert hit.value['sample_count'] == 0
+    assert hit.value['sentiment_assessment'] == 'not_assessed'
     assert hit.audit['cache_hit'] is True
     assert '可接受空結果' not in hit.audit['message']
 

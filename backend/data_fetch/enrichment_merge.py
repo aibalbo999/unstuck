@@ -298,7 +298,9 @@ def _merge_optional_http_bundle(
             else:
                 status = AUDIT_STATUS_DEGRADED_ENRICHMENT
                 error_kind = ""
-                message = "optional 外部來源本次無新增資料，已保留為可接受的補充資料空結果。"
+                message = ("已核對官方索引，本次沒有符合條件的文件；不代表其他期間沒有揭露。"
+                           if observed_empty_documents else
+                           "本次未取得可用樣本；空結果不證明來源正常、沒有事件或沒有討論。")
             if fetched_epoch and (count > 0 or observed_empty_documents or observed_partial_workforce) and not retained:
                 data.setdefault('source_freshness', {})[source] = build_source_freshness_entry(
                     source, ticker, fetched_epoch, cache_hit, now_epoch=refresh_epoch, source_data=payload)
