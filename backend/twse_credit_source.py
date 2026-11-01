@@ -57,6 +57,33 @@ def _quantity(value):
     return int(number)
 
 
+def capture_margin_original(response):
+    """Retain exact public bytes; this alone does not qualify an issuer row."""
+    try:
+        import httpx
+        from provider_correlation import current_correlation, current_source_identity
+        from official_response_evidence import archive_response
+        context = current_correlation()
+        if (current_source_identity() != ('chip_data', 'TDCC/TWSE/TPEx chip data')
+                or any(not context.get(k) for k in ('ticker', 'fetch_id', 'operation_id'))
+                or type(response) is not httpx.Response or response.status_code != 200
+                or response.history or str(response.url) != URL
+                or str(response.request.url) != URL or response.request.method != 'GET'
+                or getattr(response, 'from_cache', False) or response.extensions.get('from_cache') is True
+                or any(response.request.headers.get(k) for k in ('authorization', 'cookie', 'proxy-authorization'))):
+            return None
+        body = response.content
+        if not isinstance(body, bytes) or not 0 < len(body) <= 2_000_000:
+            return None
+        proof = archive_response(body, source_url=URL, retrieved_at=time.time(),
+                                 evidence_kind='decoded_complete_http_response_body', max_bytes=2_000_000)
+        if proof.get('status') != 'archived':
+            return None
+        return {**proof, 'http_status_observed': True, 'response_complete': True, 'cache_hit': False}
+    except Exception:
+        return None
+
+
 def _fetch_report(http_get, timeout):
     """A new dated endpoint respects persistent Retry-After before fallback."""
     from search_provider_runtime import (SourceResponseError, cooldown_state, observe_http_response,
@@ -72,13 +99,17 @@ def _fetch_report(http_get, timeout):
         response = http_get(URL, session=None, timeout=timeout, provider=SOURCE)
         observe_http_response(response)
         report = _report(response.json())
+        original = capture_margin_original(response)
+        if original is not None:
+            report['original_receipt'] = original
     except Exception as exc:
         details = {**remember_failure(key, exc), 'parser_version': PARSER_VERSION}
         record_observation(SOURCE, started, outcome='failure', source='chip_data', details=details)
         raise
     record_observation(SOURCE, started, outcome='results' if report['rows'] else 'valid_empty',
                        count=len(report['rows']), source='chip_data',
-                       details={'http_status': getattr(response, 'status_code', None), 'parser_version': PARSER_VERSION})
+                       details={'http_status': getattr(response, 'status_code', None), 'parser_version': PARSER_VERSION,
+                                'raw_http_receipt': report.get('original_receipt')})
     return report
 
 
@@ -118,6 +149,7 @@ def fetch_twse_dated_margin(code, *, http_get, session=None, timeout=15, use_cac
                 'margin_date_status': 'reported', 'margin_unit': 'lots',
                 'margin_unit_basis': 'TWSE MI_MARGN 融資／融券交易單位（張），未進行股數換算',
                 'margin_cache_hit': bool(meta.get('cache_hit')),
-                'margin_fetched_at_epoch': meta.get('fetched_at_epoch')}
+                'margin_fetched_at_epoch': meta.get('fetched_at_epoch'),
+                **({'margin_original_receipt': report['original_receipt']} if report.get('original_receipt') else {})}
     except Exception:
         return {**base, 'status': 'unavailable', 'reason_code': 'dated_fetch_failed'}
