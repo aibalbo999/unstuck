@@ -12,6 +12,7 @@ from typing import Any
 import pandas as pd
 
 from external_http_client import sync_get
+from chip_response_originals import capture_chip_original
 from source_observation_freshness import parse_observation_date
 
 TDCC_SHAREHOLDER_DISTRIBUTION_CSV_URL = "https://opendata.tdcc.com.tw/getOD.ashx?id=1-5"
@@ -85,6 +86,7 @@ def fetch_tdcc_shareholder_distribution(
             "row_count": int(len(rows)),
             "source": "TDCC OpenData",
             "source_url": TDCC_SHAREHOLDER_DISTRIBUTION_CSV_URL,
+            "original_receipt": capture_chip_original(response, TDCC_SHAREHOLDER_DISTRIBUTION_CSV_URL),
         }
     except Exception as exc:
         return _unavailable(f"TDCC 股權分散資料抓取失敗：{exc}", ticker=code, source="TDCC OpenData")
@@ -186,6 +188,7 @@ def _fetch_borrowed_short_sales(session: Any | None, code: str, *, timeout: floa
                 "borrowed_short_sale_balance": _parse_int(_at(row, 12)),
                 "borrowed_short_source": "TWSE TWT93U",
                 "borrowed_short_source_url": TWSE_BORROWED_SHORT_URL,
+                "borrowed_short_original_receipt": capture_chip_original(response, TWSE_BORROWED_SHORT_URL),
             }
     except Exception:
         return {"borrowed_short_status": "unavailable", "borrowed_short_reason_code": "fetch_failed"}

@@ -74,6 +74,17 @@ class ChipDataProvider(DataProvider):
                                "as_of": margin.get("borrowed_short_as_of_date"), "provider": margin.get("borrowed_short_source"),
                                "reason_code": margin.get("borrowed_short_reason_code") if margin.get("borrowed_short_status") else "status_not_reported"},
         }
+        # Receipts describe original bodies, separately from parsed component status.
+        # A reused margin report remains a cache hit even with retained HTTP proof.
+        for name, receipt, cached in (
+            ('tdcc', tdcc.get('original_receipt'), False),
+            ('margin_short', margin.get('margin_original_receipt'), bool(margin.get('margin_cache_hit'))),
+            ('borrowed_short', margin.get('borrowed_short_original_receipt'), False),
+        ):
+            if isinstance(receipt, dict) and receipt.get('status') == 'archived':
+                components[name]['original_receipt'] = receipt
+                components[name]['cache_hit'] = cached
+                components[name]['http_request_sent'] = not cached
         from source_observation_freshness import parse_observation_date
         unknown_dates = []
         for name, component in components.items():
