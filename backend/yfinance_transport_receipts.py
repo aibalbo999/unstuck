@@ -3,6 +3,7 @@ import threading,time,re,inspect
 from contextlib import contextmanager
 from contextvars import ContextVar
 from hashlib import sha256
+from yahoo_public_original import capture_public_response
 from urllib.parse import urlsplit,unquote,parse_qs
 _LOCK=threading.Lock()
 _GLOBAL_PROXY=ContextVar('yfinance_global_proxy_transport',default=None)
@@ -159,12 +160,13 @@ def _record(method,url,params,response,started,stream):
         body=response.content;code=response.status_code
         if not isinstance(body,bytes) or type(code)is not int or not 100<=code<=599:return
         digest=sha256(body).hexdigest()
+        original=capture_public_response(response,source='dynamic_peer_metrics',symbol=selected)
         record_source_audit_entries([{**context,'source':'dynamic_peer_metrics',
             'provider':'yfinance peer native HTTP','event_kind':'http_transport_receipt',
             'selection_policy':'transport-receipt-only:v1','record_count':0,
             'status':'success' if 200<=code<300 else 'error','peer_symbol':selected,
             'http_request_sent':True,'http_status':code,'response_bytes':len(body),
-            'response_sha256':digest,'duration_ms':max(0,int((time.monotonic()-started)*1000)),
+            'response_sha256':digest,**({'raw_http_receipt':original}if original else{}),'duration_ms':max(0,int((time.monotonic()-started)*1000)),
             'component_statuses':{selected:{'status':'transport_received','http_status':code,
                                            'response_sha256':digest}},
             'message':'Native selected-peer quote transport only; peer identity, comparability and parsed metrics remain separately checked.'}])
@@ -184,11 +186,12 @@ def _record(method,url,params,response,started,stream):
     elif not isinstance(symbol,str)or symbol.upper()!=ticker.upper():return
     body=response.content
     if not isinstance(body,bytes):return
+    original=capture_public_response(response,source=source,symbol=symbol)
     record_source_audit_entries([{**context,'source':source,'provider':provider,
         'event_kind':'http_transport_receipt','selection_policy':'transport-receipt-only:v1',
         'record_count':0,'status':'success'if response.status_code<400 else'error',
         'http_request_sent':True,'http_status':response.status_code,'response_bytes':len(body),
-        'response_sha256':sha256(body).hexdigest(),'duration_ms':max(0,int((time.monotonic()-started)*1000)),
+        'response_sha256':sha256(body).hexdigest(),**({'raw_http_receipt':original}if original else{}),'duration_ms':max(0,int((time.monotonic()-started)*1000)),
         'message':message}])
 
 
