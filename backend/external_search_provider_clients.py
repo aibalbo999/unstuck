@@ -23,6 +23,7 @@ from external_search_payloads import (
 from external_search_types import SearchResult
 from news_fetchers import fetch_duckduckgo_news_strict
 from search_provider_runtime import observe_http_response
+from search_upstream_original import capture as capture_search_original
 from search_response_validation import (
     observed_json_get as _async_json_get, response_json as _response_json,
     validate_payload as _validate_payload, validate_rss as _validate_rss,
@@ -104,9 +105,11 @@ async def _fetch_bing_news_rss_results(client, query: str, *, max_results: int) 
     observe_http_response(response)
     response.raise_for_status()
     _validate_rss(response.text)
-    return parse_news_rss_payload(
+    records = parse_news_rss_payload(
         response.text, provider="bing_news_rss", fallback_source="Bing News RSS",
     )[:max(1, int(max_results))]
+    capture_search_original(response, "bing_news_rss")
+    return records
 
 
 async def _fetch_duckduckgo_news_results(query: str, *, max_results: int) -> list[SearchResult]:
@@ -196,6 +199,8 @@ async def _fetch_google_news_rss_results(client, query: str, *, max_results: int
     observe_http_response(response)
     response.raise_for_status()
     _validate_rss(response.text)
-    return parse_news_rss_payload(response.text, provider="google_news_rss", fallback_source="Google News RSS")[
+    records = parse_news_rss_payload(response.text, provider="google_news_rss", fallback_source="Google News RSS")[
         :max(1, int(max_results))
     ]
+    capture_search_original(response, "google_news_rss")
+    return records

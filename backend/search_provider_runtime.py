@@ -1,7 +1,8 @@
 """Bounded upstream search observations and persistent endpoint cooldowns.
 
-No query, credential, or response body is persisted. A configured credential is
-hashed only to prevent a replacement key inheriting a previous key's cooldown.
+Audit messages omit request queries and credentials. Narrow public Google/Bing
+RSS original bytes may be archived separately; a feed can echo its public query.
+A configured credential is hashed only to isolate its endpoint cooldown.
 """
 from __future__ import annotations
 
@@ -18,6 +19,7 @@ from provider_correlation import current_correlation, provider_attempt
 from provider_resilience import provider_circuit_state
 from provider_sla import record_source_audit_entries
 from search_admission import async_endpoint_admission
+from search_upstream_original import capture_scope
 
 
 _HTTP_STATUS = ContextVar("search_upstream_http_status", default=None)
@@ -239,8 +241,9 @@ async def fetch_search_upstream(provider, credential, callback, *, endpoint='sea
                 try:
                     # Admission and pacing consumed this same original allowance.
                     # asyncio.timeout preserves HTTP observation ContextVars.
-                    async with asyncio.timeout(remaining):
-                        records = await callback()
+                    with capture_scope(provider, endpoint) as original_capture:
+                        async with asyncio.timeout(remaining):
+                            records = await callback()
                 except Exception as exc:
                     state = remember_failure(key, exc) if owns() else {**error_details(exc), 'state_write_skipped': 'lease_lost'}
                     record_observation(provider, started, outcome='failure', details={**state, 'endpoint': endpoint})
@@ -250,7 +253,7 @@ async def fetch_search_upstream(provider, credential, callback, *, endpoint='sea
                         set_cache_json(key, {'consecutive_failures': 0, 'next_request_at': time.time() + interval}, ttl_seconds=max(1, math.ceil(interval)))
                     except Exception:
                         pass  # Do not discard evidence already acquired.
-                record_observation(provider, started, outcome='results' if records else 'valid_empty', count=len(records), details={'http_status': _HTTP_STATUS.get(), 'endpoint': endpoint})
+                record_observation(provider, started, outcome='results' if records else 'valid_empty', count=len(records), details={'http_status': _HTTP_STATUS.get(), 'endpoint': endpoint, **original_capture['evidence']})
                 return records
         finally:
             _HTTP_STATUS.reset(status_token)
