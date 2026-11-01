@@ -25,6 +25,10 @@ NAMED_ANALYSIS_PROMPTS = {
 }
 FINAL_AUDIT_REPAIR_PASSES = 2
 
+from financial_scope_instructions import AGENT2_SOURCE_QUALIFICATION
+
+SYSTEM_PROMPTS[2] += AGENT2_SOURCE_QUALIFICATION
+
 # Evidence availability, not assigned stance, governs both simulated speakers.
 SYSTEM_PROMPTS[6] = SYSTEM_PROMPTS[6].replace(
     '多頭必須用未來成長潛力、品質改善或估值折讓來反駁。',
