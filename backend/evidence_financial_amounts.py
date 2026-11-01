@@ -89,7 +89,7 @@ def _amount_scope_unbound(prefix, link, suffix):
         scope = re.sub(r'(?:亦)?(?:回落|上升|下降)至', '', scope)
         return bool(_PARTIAL_YEAR.search(scope) or _MONTH_SCOPE_UNBOUND.search(scope)
                     or _PERIOD.search(link + suffix))
-    return bool(_UNBOUND_SCOPE.search(scope) or re.search(r'從|由|分別|依序|各為', link))
+    return bool(_UNBOUND_SCOPE.search(scope) or re.search(r'自|從|由|分別|依序|各為', link))
 
 
 def _metric(text):
