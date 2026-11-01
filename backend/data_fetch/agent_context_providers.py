@@ -7,18 +7,25 @@ from .types import FetchRequest, ProviderResult
 
 
 class MacroIndicatorsProvider(DataProvider):
-    name = "FRED macro indicators"
+    name = "Macro indicators"
     source = "macro_indicators"
-    cost_tier = "free_with_key"
+    cost_tier = "free"
     capabilities = {"macro_indicators"}
-    requires_env = ("FRED_API_KEY",)
+    requires_env = ()
 
     def fetch(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
         from data_trust import AUDIT_STATUS_DEGRADED_ENRICHMENT, AUDIT_STATUS_NOT_CONFIGURED, AUDIT_STATUS_SUCCESS, AUDIT_STATUS_UNAVAILABLE
-        from macro_fetcher import fetch_key_macro_indicators
+        from macro_source_router import fetch_macro_indicators
 
         # Company refreshes do not invalidate global FRED series or their cooldown.
-        payload = fetch_key_macro_indicators(use_cache=True)
+        payload = fetch_macro_indicators()
+        actual_provider = payload.get("actual_provider") or self.name
+        from provider_correlation import current_correlation
+        correlation = current_correlation()
+        primary_audit = payload.get("primary_provider_audit")
+        if request.options.record_provider_sla and primary_audit and all(correlation.get(k) for k in ("ticker", "fetch_id", "operation_id")):
+            from provider_sla import record_source_audit_entries
+            record_source_audit_entries([{**correlation, **primary_audit}])
         status = payload.get("status") if isinstance(payload, dict) else "unavailable"
         if status == "success":
             audit_status = AUDIT_STATUS_SUCCESS
@@ -31,27 +38,26 @@ class MacroIndicatorsProvider(DataProvider):
         indicators = payload.get("indicators", {}) if isinstance(payload, dict) else {}
         result = ProviderResult(
             source=self.source,
-            provider=self.name,
+            provider=actual_provider,
             status=audit_status,
             value=payload if isinstance(payload, dict) and indicators else None,
             audit={
                 "source": self.source,
-                "provider": self.name,
+                "provider": actual_provider,
                 "status": audit_status,
                 "record_count": len(indicators) if isinstance(indicators, dict) else 0,
                 "cache_hit": payload.get("cache_hit", False),
                 "stale": payload.get("stale", False),
                 "coverage_status": status,
                 "component_statuses": payload.get("component_statuses", {}),
-                "message": payload.get("message") if isinstance(payload, dict) and payload.get("message") else "FRED macro indicators 已回傳總經指標。",
+                "message": payload.get("message") if isinstance(payload, dict) and payload.get("message") else "總經指標已回傳，保留各自來源與觀測日期。",
             },
         )
 
 
         origin = payload.get("retrieval_origin", {})
-        if (origin.get("schema_version") == "fred-series-retrieval:v1"
-                and origin.get("new_fetch_attempted") is False
-                and origin.get("attempted_series") == [] and not indicators):
+        if (origin.get("schema_version") in {"fred-series-retrieval:v1", "macro-component-retrieval:v2"}
+                and origin.get("new_fetch_attempted") is False and not indicators):
             # A cached cooldown/lock admission is not a second external failure.
             result.audit.update(event_kind="local_block", http_request_sent=False,
                                 http_request_count=0,

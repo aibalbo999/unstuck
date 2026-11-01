@@ -342,7 +342,7 @@ def _optional_provider_label(source: str) -> str:
     if source == "international_news_context":
         return "International news context"
     if source == "macro_indicators":
-        return "FRED macro indicators"
+        return "Macro indicators"
     if source == "chip_data":
         return "TDCC/TWSE/TPEx chip data"
     if source == "alternative_data":
