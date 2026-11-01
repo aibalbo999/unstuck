@@ -828,6 +828,23 @@ def check_financial_amount(claim: dict,snapshot: dict,tolerance_pct: float) -> d
         # binding cannot borrow an undated vendor scalar as a comparator.
         # Keep the same claim and denominator, without certifying its amount.
         return {**result, 'verification_reason_code': 'official_income_scope_unbound_no_vendor_fallback'}
+    if claim.get('financial_metric') in {'淨利', '稅後淨利'}:
+        periods = _PERIOD.findall(prefix)
+        local_owner = re.split(r'[，,。；;\n]|此外|另外', prefix)[-1]
+        vendor_named = (re.search(r'供應商|vendor|Yahoo|quote', local_owner, re.I)
+                        or re.search(r'來源\s*[:：]\s*(?:data\.)?net_income_ttm_raw', str(claim.get('financial_amount_suffix') or '')))
+        raw_context = str(claim.get('raw_text') or '')
+        declared_mixed_source = (re.search(r'官方', raw_context) and
+                                 (re.search(r'供應商|vendor|Yahoo|quote|未核實', raw_context, re.I)
+                                  or re.search(r'官方.{0,24}(?:TTM|LTM)', raw_context, re.I)))
+        if periods and periods[-1].upper() in {'TTM', 'LTM'} and declared_mixed_source and not vendor_named:
+            from official_income_prompt import official_income_prompt_facts
+            qualified = official_income_prompt_facts(data)
+            if qualified is not None:
+                # Multiple source bases exist. An unbound TTM claim must not
+                # silently select the undated vendor scalar for comparison.
+                # This path never certifies an amount from matching digits.
+                return {**result, 'verification_reason_code': 'official_income_scope_unbound_no_vendor_fallback'}
     from evidence_official_financial_claims import official_fcf_claim
     official = official_fcf_claim(claim, data, scale=scale, tolerance_pct=tolerance_pct,
                                   heading_ancestors=presentation_claim.get('_financial_heading_ancestors'))
