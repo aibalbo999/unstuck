@@ -5,6 +5,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from hashlib import sha256
 import json
+import math
 import os
 import re
 from zoneinfo import ZoneInfo
@@ -86,6 +87,12 @@ def select_valuation(roster: dict, ticker: str, *, today: date | None = None) ->
     metrics = {field: number for field, raw in (("pe_ttm", row.get("pe")), ("pb", row.get("pb")))
                if (number := _ratio(raw)) is not None}
     return {"metrics": metrics, "status": "success" if metrics else "metrics_missing",
+            "original_receipt": roster.get("original_receipt"),
+            "metric_value_observations": {
+                field: {"raw_value": raw if raw is None or type(raw) is bool or type(raw) is int and abs(raw) <= 10**12 or type(raw) is float and math.isfinite(raw) and abs(raw) <= 10**12 or type(raw) is str and len(raw) <= 64 else None,
+                        "parse_status": "accepted_positive_ratio" if field in metrics else "no_accepted_positive_ratio"}
+                for field, raw in (("pe_ttm", row.get("pe")), ("pb", row.get("pb")))
+            },
             "source": PROVIDER, "source_url": roster["source_url"],
             "response_sha256": roster.get("response_sha256"),
             "observed_at": observed.isoformat(), "official_company_name": row["name"],
@@ -99,7 +106,11 @@ def _fetch_roster(suffix: str) -> dict:
         raise ValueError("network disabled for isolated tests")
     response = sync_get(URLS[suffix], headers={"User-Agent": "stock-agent/1.0"},
                         timeout=8, provider=PROVIDER)
-    return parse_roster(response.content, suffix)
+    roster = parse_roster(response.content, suffix)
+    receipt = _archive_native_roster(response, suffix)
+    if receipt is not None:
+        roster["original_receipt"] = receipt
+    return roster
 
 
 def fetch_official_peer_valuation(ticker: str, *, today: date | None = None) -> dict:
@@ -122,3 +133,32 @@ def fetch_official_peer_valuation(ticker: str, *, today: date | None = None) -> 
                 "cache_hit": bool(meta.get("cache_hit"))}
     return {**result, "cache_hit": bool(meta.get("cache_hit")),
             "fetched_at_epoch": meta.get("fetched_at_epoch")}
+
+
+def _archive_native_roster(response, suffix):
+    """Save only an already parsed exact public response; never add a send."""
+    try:
+        import httpx
+        import requests
+        from official_response_evidence import archive_response
+        if type(response) not in (httpx.Response, requests.Response):
+            return None
+        request = response.request
+        if (response.status_code != 200 or bool(response.history) or str(response.url) != URLS[suffix]
+                or str(request.url) != URLS[suffix] or request.method != "GET"
+                or getattr(response, "from_cache", False)
+                or getattr(response, "extensions", {}).get("from_cache") is True
+                or any(request.headers.get(k) for k in ("authorization", "cookie", "proxy-authorization"))):
+            return None
+        body = response.content
+        if not isinstance(body, bytes) or not 0 < len(body) <= MAX_BYTES:
+            return None
+        proof = archive_response(body, source_url=URLS[suffix],
+            retrieved_at=datetime.now(ZoneInfo("Asia/Taipei")).timestamp(),
+            evidence_kind="decoded_complete_http_response_body", max_bytes=MAX_BYTES)
+        if proof.get("status") != "archived":
+            return None
+        return {**proof, "http_status_observed": True, "response_complete": True,
+                "request_method": "GET", "cache_hit": False}
+    except Exception:
+        return None

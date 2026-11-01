@@ -196,7 +196,15 @@ def fetch_peer_valuation_fallback(ticker: str, *, today: date | None = None) -> 
     official_metrics = official.get("metrics") if isinstance(official.get("metrics"), dict) else {}
     official_metrics = {field: official_metrics[field] for field in ("pe_ttm", "pb") if field in official_metrics}
     attempts = [{"provider": official.get("source", "TWSE/TPEx official peer valuation OpenAPI"),
-                 "status": official.get("status", "unavailable")}]
+                 "status": official.get("status", "unavailable"),
+                 "official_value_diagnostics": {
+                     "ticker": ticker, "source_url": official.get("source_url"),
+                     "response_sha256": official.get("response_sha256"),
+                     "observed_at": official.get("observed_at"),
+                     "metric_values": official.get("metric_value_observations", {}),
+                     "original_receipt": official.get("original_receipt"),
+                     "evidence_scope": "parsed_fields_only_not_original_http_receipt",
+                 }}]
     if len(official_metrics) == 2:
         result = {**official, "metric_sources": {
             field: {"provider": official["source"], "observed_at": official.get("observed_at"),
