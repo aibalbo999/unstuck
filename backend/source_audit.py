@@ -51,6 +51,16 @@ def _mark_unentered_admission_block(audit: dict, *, lazy_callback: bool = True) 
     return audit
 
 
+def _with_per_proof(result):
+    if result['audit'].get('source') == 'pe_river_chart':
+        try:
+            from finmind_per_lineage import attach_per_audit
+            return attach_per_audit(result)
+        except Exception:
+            pass
+    return result
+
+
 @correlate_source
 def audited_fetch(
     source: str,
@@ -113,7 +123,7 @@ def audited_fetch(
     if unavailable_if_empty and count <= 0:
         status = empty_status if empty_status in {AUDIT_STATUS_UNAVAILABLE, AUDIT_STATUS_DEGRADED_ENRICHMENT} else AUDIT_STATUS_UNAVAILABLE
         message = unavailable_message
-    return {
+    return _with_per_proof({
         "value": value,
         "audit": build_source_audit_entry(
             source,
@@ -127,7 +137,7 @@ def audited_fetch(
             stale=stale,
             message=message,
         ),
-    }
+    })
 
 
 @correlate_source
@@ -192,7 +202,7 @@ async def audited_fetch_async(
     if unavailable_if_empty and count <= 0:
         status = empty_status if empty_status in {AUDIT_STATUS_UNAVAILABLE, AUDIT_STATUS_DEGRADED_ENRICHMENT} else AUDIT_STATUS_UNAVAILABLE
         message = unavailable_message
-    return {
+    return _with_per_proof({
         "value": value,
         "audit": build_source_audit_entry(
             source,
@@ -206,7 +216,7 @@ async def audited_fetch_async(
             stale=stale,
             message=message,
         ),
-    }
+    })
 
 
 def append_audit_entry(data: dict, entry: dict) -> dict:

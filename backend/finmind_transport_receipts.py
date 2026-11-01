@@ -48,7 +48,12 @@ def _record(session,request,response,started):
             from finmind_monthly_lineage import capture_monthly_response
             capsule=capture_monthly_response(request,response,context)
         except Exception:pass
-        if capsule is not None:entry['raw_http_receipt']=capsule.receipt
+    elif dataset[0]=='TaiwanStockPER':
+        try:
+            from finmind_per_lineage import capture_per_response
+            capsule=capture_per_response(request,response,context)
+        except Exception:pass
+    if capsule is not None:entry['raw_http_receipt']=capsule.receipt
     record_source_audit_entries([entry])
     return capsule
 
@@ -70,7 +75,8 @@ def observe_loader(loader):
                 capsule=_record(session,request,response,started)
                 owner=owner_ref()
                 if capsule is not None and owner is not None:
-                    owner._stock_monthly_transport_capsules=[*getattr(owner,'_stock_monthly_transport_capsules',[])[-7:],capsule]
+                    key='_stock_per_transport_capsules' if getattr(capsule,'dataset','')=='TaiwanStockPER' else '_stock_monthly_transport_capsules'
+                    setattr(owner,key,[*getattr(owner,key,[])[-7:],capsule])
             except Exception:pass
             return response
         session.send=observed

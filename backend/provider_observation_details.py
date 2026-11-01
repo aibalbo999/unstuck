@@ -253,6 +253,11 @@ def observation_details(entry: dict) -> dict:
         lineage=audit_lineage(entry)
     except Exception:lineage=None
     if lineage is not None:result['sdk_payload_lineage']=lineage
+    try:
+        from finmind_per_lineage import audit_per_lineage
+        per_lineage=audit_per_lineage(entry)
+    except Exception:per_lineage=None
+    if per_lineage is not None:result['sdk_per_quantile_lineage']=per_lineage
     for key,allowed in _VERIFICATION.items():
         value=entry.get(key)
         if isinstance(value,str) and value in allowed:
