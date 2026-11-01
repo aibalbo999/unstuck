@@ -16,7 +16,8 @@ from analysis_job_telemetry import make_analysis_job_telemetry_callback
 from analysis_job_retry import build_analysis_retry_event, prepare_analysis_retry
 from analysis_job_provenance import attach_model_executions, freeze_and_record_analysis_inputs
 from analysis_job_checkpoint import load_analysis_checkpoint_inputs, new_mode_input
-from data_fetch import FetchRequest, StockDataService
+from analysis_frozen_canary import FrozenCanaryPublicationPending, check_frozen_canary, claim_frozen_canary
+from data_fetch import FetchRequest, FetchResult, StockDataService
 from job_store import append_event, get_events_since, is_job_cancel_requested, terminal_job_result, update_job
 from pipeline_modes import (
     get_pipeline_definition,
@@ -27,7 +28,9 @@ from pipeline_modes import (
 )
 from reporting import ReportRenderer
 from reporting.lint import ReportLintError
-from report_publication_gate import ReportPublicationBlockedError, publication_blocked_event
+from report_publication_gate import (
+    ReportPublicationBlockedError, assert_report_publishable, publication_blocked_event,
+)
 from quant_engine import QuantEngine
 from runtime_dependencies import create_report_storage_for_output_dir, runtime_settings_for_output_dir
 from temporal_memory_service import build_temporal_memory
@@ -44,6 +47,7 @@ class AnalysisJobCancelled(Exception):
 
 
 def _raise_if_cancelled(job_id: str) -> None:
+    check_frozen_canary(job_id)
     if is_job_cancel_requested(job_id):
         raise AnalysisJobCancelled("分析任務已取消。")
 
@@ -56,10 +60,15 @@ async def run_stock_analysis_job_async(
     force_refresh: bool = False,
 ) -> str:
     """Run the full stock analysis and persist progress events for SSE clients."""
+    ticker_upper = ticker.strip().upper()
+    # Claim the exact unnormalised mode before any job/event write. Public jobs
+    # cannot activate this process-local, trusted-controller-only input seam.
+    frozen = claim_frozen_canary(job_id, ticker_upper, pipeline_id, force_refresh)
     previous_result = terminal_job_result(job_id)
     if previous_result is not None:
+        if frozen:
+            raise FileExistsError('frozen canary refuses an existing terminal job')
         return previous_result
-    ticker_upper = ticker.strip().upper()
     run_id = normalize_pipeline_run_id(pipeline_id)
     pipeline_sequence = get_pipeline_run_sequence(run_id)
     run_label = get_pipeline_run_label(run_id)
@@ -83,15 +92,26 @@ async def run_stock_analysis_job_async(
 
         _raise_if_cancelled(job_id)
         runtime_settings = runtime_settings_for_output_dir(OUTPUT_DIR)
-        checkpoint_inputs = await load_analysis_checkpoint_inputs(
+        checkpoint_inputs = {} if frozen else await load_analysis_checkpoint_inputs(
             job_id=job_id, ticker=ticker_upper, pipeline_sequence=pipeline_sequence, settings=runtime_settings,
         )
         from nightly_analysis import prepared_input, validate_input
         from nightly_analysis_store import get_work
-        nightly_work = get_work(job_id)
+        nightly_work = None if frozen else get_work(job_id)
         nightly_data = prepared_input(job_id, ticker_upper, run_id) if nightly_work else None
         _raise_if_cancelled(job_id)
-        if checkpoint_inputs:
+        if frozen:
+            data = frozen.data()
+            data_result = FetchResult(request=FetchRequest.from_ticker(ticker_upper), data=data,
+                                      data_trust=data['data_trust'])
+            blocking_data_notice = build_data_fetch_blocking_notice(data_result)
+            if blocking_data_notice:
+                update_job(job_id, 'error', error=blocking_data_notice['message'])
+                append_event(job_id, {'type':'error', 'phase':'data_trust',
+                    'message':blocking_data_notice['message'], 'data_trust':data.get('data_trust',{}),
+                    'pipeline_id':run_id, 'pipeline_label':run_label})
+                return ''
+        elif checkpoint_inputs:
             data = next(iter(checkpoint_inputs.values()))
             append_event(job_id, {
                 "type": "status", "phase": "analysis_resume", "pipeline_id": run_id,
@@ -148,8 +168,14 @@ async def run_stock_analysis_job_async(
 
         for sequence_index, current_pipeline_id in enumerate(pipeline_sequence, start=1):
             _raise_if_cancelled(job_id)
-            mode_data = checkpoint_inputs.get(current_pipeline_id)
-            if mode_data is None:
+            mode_data = dict(data) if frozen else checkpoint_inputs.get(current_pipeline_id)
+            if frozen:
+                freeze_and_record_analysis_inputs(job_id, current_pipeline_id, mode_data,
+                    append_event, cutoff=mode_data['analysis_input_cutoff'])
+                frozen.bind_workflow_data(mode_data)
+                append_event(job_id, {'type':'provenance', 'phase':'frozen_canary_input',
+                    'pipeline_id':current_pipeline_id, **frozen.receipt()})
+            elif mode_data is None:
                 mode_data = new_mode_input(data)
                 temporal_memory = build_temporal_memory(
                     ticker_upper, output_dir=OUTPUT_DIR, current_price=data.get("current_price"),
@@ -220,6 +246,11 @@ async def run_stock_analysis_job_async(
                 report_data = mode_data
             update_job(job_id, "running", data_snapshot=report_data,
                        metrics_snapshot=report_data.get("quant_metrics", metrics_snapshot))
+            publication_options = {}
+            if frozen:
+                assert_report_publishable(context)
+                publication_options = frozen.publication_options(context=context,
+                    output_dir=OUTPUT_DIR, filename=context.get('report_filename') or report_filename)
             attach_model_executions(context, get_events_since(job_id), current_pipeline_id)
             audit_notice = build_operator_audit_notice(context)
 
@@ -246,7 +277,10 @@ async def run_stock_analysis_job_async(
                 output_dir=OUTPUT_DIR,
                 storage=report_storage,
                 filename=context.get("report_filename") or report_filename,
+                **publication_options,
             )
+            if frozen:
+                report_event["frozen_canary"] = frozen.receipt()
             reports.append(report_event)
             append_event(job_id, report_event)
             completed_agent_offset += agent_count
@@ -271,6 +305,11 @@ async def run_stock_analysis_job_async(
         })
         return final_filename
 
+    except FrozenCanaryPublicationPending as e:
+        update_job(job_id, "error", error=str(e))
+        append_event(job_id, {"type": "error", "phase": "frozen_canary_publication_pending",
+            "message": str(e), "pipeline_id": run_id, **frozen.receipt()})
+        return ""
     except AnalysisJobCancelled as e:
         message = str(e)
         update_job(job_id, "cancelled", error=message)
@@ -285,6 +324,17 @@ async def run_stock_analysis_job_async(
         append_event(job_id, event)
         return ""
     except (AgentRateLimitError, AgentTransientError) as e:
+        if frozen:
+            # Do not renew or mutate RQ's retry budget. The controller must
+            # independently validate a zero-retry raw job before execution;
+            # this function cannot infer that queue guarantee from context.
+            message = "凍結 canary 遇到模型錯誤，已停止；未補回佇列重試預算。"
+            update_job(job_id, "error", error=message)
+            append_event(job_id, {"type": "error", "phase": "frozen_canary_provider_stop",
+                "message": message, "error_type": type(e).__name__,
+                "pipeline_id": run_id, "job_retry_preparation_skipped": True,
+                "queue_retry_state": "controller_must_verify_zero", **frozen.receipt()})
+            raise
         retry = prepare_analysis_retry(job_id, e)
         event = build_analysis_retry_event(e, retry)
         update_job(job_id, "waiting_retry" if retry["retry_scheduled"] else "error", error=event["error"])
@@ -299,6 +349,9 @@ async def run_stock_analysis_job_async(
         update_job(job_id, "error", error=message)
         append_event(job_id, {"type": "error", "message": message})
         raise
+    finally:
+        if frozen:
+            frozen.close()
 
 
 def run_stock_analysis_job(

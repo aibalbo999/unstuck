@@ -7,8 +7,8 @@ set -e
 
 # Maintenance must branch before normal environment, cleanup, or service setup.
 # Unknown arguments fail closed instead of accidentally starting the full stack.
-if [ "$#" -gt 0 ]; then
-    if [ "$#" -ne 1 ] || [ "$1" != "--maintenance-verify" ]; then
+if [ "${1:-}" = "--maintenance-verify" ]; then
+    if [ "$#" -ne 1 ]; then
         echo "用法：./start_mac.command [--maintenance-verify]" >&2
         exit 64
     fi
@@ -29,7 +29,40 @@ if [ "$#" -gt 0 ]; then
     exec "$MAINTENANCE_PYTHON" -I -B "$MAINTENANCE_ROOT/scripts/maintenance_verify.py" --maintenance-verify
 fi
 
+if [ "$#" -gt 0 ]; then
+    case "$1" in
+        --maintenance-owned-start|--maintenance-status|--maintenance-init|--maintenance-arm|--maintenance-drain|--maintenance-control-digest|--maintenance-legacy-inventory) ;;
+        *) echo "未知啟動參數；不啟動服務。" >&2; exit 64;;
+    esac
+fi
+
 export PATH="/opt/homebrew/bin:/usr/local/bin:$PATH"
+
+# The maintenance check runs before LAN discovery, .env/key prompts, pip, traps
+# or legacy stop/start. The Python owner retains a shared startup lease; this
+# shell inherits it so parent loss cannot silently make an in-flight start drain.
+DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd -P )"
+ENTRY_PYTHON="$("$DIR/scripts/project_python.sh")"
+if [ "${1:-}" != "--maintenance-owned-start" ]; then
+    exec "$ENTRY_PYTHON" -I -B "$DIR/scripts/maintenance_entry.py" "$@"
+fi
+shift
+"$ENTRY_PYTHON" -I -B "$DIR/scripts/maintenance_entry.py" --validate-owned-start "$PPID"
+
+close_startup_descriptors() {
+    # Numeric descriptors were checked by the owned-entry validator above.
+    # eval is used only for Bash 3's dynamic close syntax, never .env contents.
+    local startup_fd
+    for startup_fd in "$STOCK_AGENT_STARTUP_LEASE_FD" "$STOCK_AGENT_STARTUP_READY_FD"; do
+        case "$startup_fd" in ""|*[!0-9]*) return 1;; esac
+        eval "exec ${startup_fd}>&-"
+    done
+}
+
+signal_startup_ready() {
+    printf R >&"$STOCK_AGENT_STARTUP_READY_FD"
+    close_startup_descriptors
+}
 
 LAN_ACCESS="${LAN_ACCESS:-0}"
 LAN_ACCESS_ENABLED=0
@@ -339,7 +372,7 @@ start_redis_if_needed() {
 
     mkdir -p "$DIR/backend/cache/redis"
     echo "啟動 Redis：$REDIS_URL"
-    (trap '' INT; exec "$REDIS_SERVER_BIN" --bind 127.0.0.1 --port "$REDIS_PORT" --dir "$DIR/backend/cache/redis" --save "60 1" --appendonly no > "$DIR/backend/cache/redis-start_mac.log" 2>&1) &
+    (trap '' INT; close_startup_descriptors; exec "$REDIS_SERVER_BIN" --bind 127.0.0.1 --port "$REDIS_PORT" --dir "$DIR/backend/cache/redis" --save "60 1" --appendonly no > "$DIR/backend/cache/redis-start_mac.log" 2>&1) &
     REDIS_PID=$!
     if ! wait_for_redis; then
         echo "Redis 啟動逾時，請檢查：$DIR/backend/cache/redis-start_mac.log"
@@ -380,7 +413,9 @@ project_process_matches() {
         api:*" -m uvicorn api:app "*|api:*"/uvicorn api:app "*) return 0;;
         worker:*" worker_main.py --role all"*|worker:*" worker_main.py --role queue"*|worker:*" worker_main.py --role schedulers"*|worker:*" worker_main.py --role maintenance"*) return 0;;
         launcher:*"bash $DIR/start_mac.command"|launcher:*"bash $DIR/start_mac_lan.command"|\
-        launcher:*"bash ./start_mac.command"|launcher:*"bash ./start_mac_lan.command") return 0;;
+        launcher:*"bash ./start_mac.command"|launcher:*"bash ./start_mac_lan.command"|\
+        launcher:*"bash $DIR/start_mac.command --maintenance-owned-start"|\
+        launcher:*"bash ./start_mac.command --maintenance-owned-start") return 0;;
     esac
     return 1
 }
@@ -495,7 +530,7 @@ check_server_bind_available
 start_redis_if_needed
 
 echo "啟動 Worker..."
-(trap '' INT; exec "$PYTHON_BIN" -u worker_main.py --role all) &
+(trap '' INT; close_startup_descriptors; exec "$PYTHON_BIN" -u worker_main.py --role all) &
 WORKER_PID=$!
 echo "$WORKER_PID" > "$WORKER_PID_FILE"
 sleep 1
@@ -507,7 +542,7 @@ fi
 echo "Worker 已啟動。"
 
 echo "啟動伺服器..."
-(trap '' INT; exec "$PYTHON_BIN" -u -m uvicorn api:app --host "$SERVER_HOST" --port 8080) &
+(trap '' INT; close_startup_descriptors; exec "$PYTHON_BIN" -u -m uvicorn api:app --host "$SERVER_HOST" --port 8080) &
 SERVER_PID=$!
 
 echo "等待伺服器啟動..."
@@ -526,6 +561,8 @@ if [ "$READY" != "1" ]; then
     wait "$SERVER_PID"
     exit 1
 fi
+
+signal_startup_ready
 
 echo "開啟瀏覽器..."
 open "$APP_URL"

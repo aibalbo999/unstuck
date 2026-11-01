@@ -40,7 +40,8 @@ class ThreadLocalSqliteResource:
         if conn is not None:
             self.close_current_thread()
 
-        path.parent.mkdir(parents=True, exist_ok=True)
+        if not path.parent.is_dir():
+            path.parent.mkdir(parents=True, exist_ok=True)
         conn = sqlite3.connect(path, timeout=self._timeout_seconds)
         if self._row_factory is not None:
             conn.row_factory = self._row_factory

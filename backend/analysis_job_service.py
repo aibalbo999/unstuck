@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import Any, Callable
 
+import maintenance_guard
+
 from analysis_job_payloads import (
     _safe_bool_flag,
     analysis_task_id,
@@ -39,6 +41,19 @@ def create_or_attach_analysis_job(
     resume: bool = True,
     task_queue: Any,
     run_stock_analysis_job: Callable[[str, str, str], str],
+) -> dict:
+    # Lifecycle attach can recover a queue or cancel an old force-refresh job.
+    # Admission therefore starts before lifecycle lookup, not just at enqueue.
+    with maintenance_guard.admission():
+        return _create_or_attach_admitted_job(
+            ticker=ticker, pipeline_id=pipeline_id, force=force, resume=resume,
+            task_queue=task_queue, run_stock_analysis_job=run_stock_analysis_job,
+        )
+
+
+def _create_or_attach_admitted_job(
+    *, ticker: str, pipeline_id: str, force: bool, resume: bool,
+    task_queue: Any, run_stock_analysis_job: Callable[[str, str, str], str],
 ) -> dict:
     normalized_ticker = safe_text(ticker).strip().upper()
     normalized_pipeline = safe_text(pipeline_id).strip() or "v1"
@@ -78,6 +93,8 @@ def create_or_attach_analysis_job(
                     normalized_ticker,
                     normalized_pipeline,
                 )
+            except maintenance_guard.MaintenanceError:
+                raise
             except Exception as exc:
                 message = _queue_exception_message("分析任務重新排入佇列失敗", exc)
                 update_job(job_id, "error", error=message)
@@ -110,6 +127,8 @@ def create_or_attach_analysis_job(
                 normalized_pipeline,
                 force_refresh=force_flag,
             )
+    except maintenance_guard.MaintenanceError:
+        raise
     except Exception as exc:
         if _looks_like_duplicate_queue_job(exc):
             append_event(

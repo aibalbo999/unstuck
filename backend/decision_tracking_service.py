@@ -2,12 +2,15 @@
 
 from __future__ import annotations
 
+import asyncio
+from contextlib import nullcontext
 from datetime import datetime
 from typing import Any
 
 from fastapi import HTTPException
 
 import decision_tracking_store
+import maintenance_guard
 import report_history_service
 from decision_backtest_service import compute_performance_stats, run_due_backtests
 from tracking_refresh_workflow import refresh_ticker_reports
@@ -32,6 +35,11 @@ def latest_report_for_ticker(ticker: str, output_dir: str, *, sync_metadata: boo
 
 
 def latest_reports_for_ticker(ticker: str, output_dir: str, *, sync_metadata: bool = True) -> list[dict]:
+    with maintenance_guard.admission() if sync_metadata else nullcontext():
+        return _latest_reports_for_ticker(ticker, output_dir, sync_metadata=sync_metadata)
+
+
+def _latest_reports_for_ticker(ticker: str, output_dir: str, *, sync_metadata: bool) -> list[dict]:
     from tracking_latest_reports import select_latest_reports
     return select_latest_reports(
         ticker, output_dir, sync_metadata=sync_metadata,
@@ -65,6 +73,11 @@ def _attach_report(item: dict, output_dir: str, *, sync_metadata: bool = False) 
 
 
 def list_decision_tracking(output_dir: str, *, sync_metadata: bool = True) -> dict:
+    with maintenance_guard.admission() if sync_metadata else nullcontext():
+        return _list_decision_tracking(output_dir, sync_metadata=sync_metadata)
+
+
+def _list_decision_tracking(output_dir: str, *, sync_metadata: bool) -> dict:
     if sync_metadata:
         _sync_report_metadata_once(output_dir)
     items = [_attach_report(item, output_dir, sync_metadata=False) for item in decision_tracking_store.list_items()]
@@ -73,13 +86,15 @@ def list_decision_tracking(output_dir: str, *, sync_metadata: bool = True) -> di
 
 
 def upsert_tracking_item(payload: dict, output_dir: str) -> dict:
-    decision_tracking_store.upsert_item(payload)
-    return list_decision_tracking(output_dir)
+    with maintenance_guard.admission():
+        decision_tracking_store.upsert_item(payload)
+        return list_decision_tracking(output_dir)
 
 
 def delete_tracking_item(ticker: str, output_dir: str) -> dict:
-    result = decision_tracking_store.delete_item(ticker)
-    return {**result, **list_decision_tracking(output_dir)}
+    with maintenance_guard.admission():
+        result = decision_tracking_store.delete_item(ticker)
+        return {**result, **list_decision_tracking(output_dir)}
 
 
 def _is_due(item: dict, now: datetime) -> bool:
@@ -99,6 +114,38 @@ async def refresh_tracking_items(
     due_only: bool = False,
     now: datetime | None = None,
 ) -> dict:
+    # The same Task owns admission through metadata, fetch, snapshot and readback.
+    # Fetch cancellation drains its owned Task because providers use to_thread.
+    with maintenance_guard.admission():
+        return await _refresh_tracking_items(output_dir=output_dir,
+            refresh_service=_DrainingRefreshService(refresh_service), tickers=tickers,
+            due_only=due_only, now=now)
+
+
+class _DrainingRefreshService:
+    def __init__(self, service):
+        self._service = service
+
+    async def fetch_async(self, request):
+        task = asyncio.create_task(self._service.fetch_async(request))
+        try:
+            return await asyncio.shield(task)
+        except asyncio.CancelledError:
+            # Never abandon provider threads on outer cancellation. Repeated
+            # cancellation cannot release the original Task's admission early.
+            while not task.done():
+                try:
+                    await asyncio.shield(task)
+                except asyncio.CancelledError:
+                    continue
+                except Exception:
+                    break
+            if not task.cancelled():
+                task.exception()  # Retrieve failure; the original cancellation wins.
+            raise
+
+
+async def _refresh_tracking_items(*, output_dir, refresh_service, tickers, due_only, now) -> dict:
     now = now or datetime.now(decision_tracking_store.TAIPEI)
     _sync_report_metadata_once(output_dir)
     requested = {str(ticker or "").strip().upper() for ticker in (tickers or []) if str(ticker or "").strip()}
@@ -137,6 +184,8 @@ async def refresh_tracking_items(
             else:
                 message = "最新報告已標示需完整重跑，略過資料快照刷新。"
                 decision_tracking_store.mark_refresh(ticker, status="needs_full_rerun", message=message, now=now)
+        except maintenance_guard.MaintenanceError:
+            raise
         except HTTPException as exc:
             message = str(exc.detail or exc)
             decision_tracking_store.mark_refresh(ticker, status="error", message=message, now=now)

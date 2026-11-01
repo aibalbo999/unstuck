@@ -66,7 +66,11 @@ def test_small_retrieved_evidence_remains_verbatim(monkeypatch):
 
 def test_rag_budget_uses_each_agents_existing_model_budget(monkeypatch):
     import settings.models as models
+    from agent_runtime import prompt_budget
 
+    # Settings-loading tests replace the module object. Bind the actual current
+    # implementation being configured here, not an old from-import's globals.
+    monkeypatch.setattr(prompt_budget, "get_agent_rag_budget", models.get_agent_rag_budget)
     monkeypatch.setitem(models.AGENT_MODELS, 4, "ordinary-model")
     monkeypatch.setitem(models.AGENT_MODELS, 14, "gemini-large-fixture")
     monkeypatch.setattr(models, "LARGE_CONTEXT_MODEL_PATTERN", "gemini-large")

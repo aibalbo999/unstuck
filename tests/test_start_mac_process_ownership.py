@@ -129,6 +129,25 @@ def test_relative_launcher_invocation_waits_for_owned_cleanup(tmp_path):
     assert "SIGNAL -TERM 777" not in result.stdout
 
 
+@pytest.mark.parametrize('relative', [False, True])
+def test_owned_launcher_waits_for_cleanup_before_normal_relaunch(tmp_path, relative):
+    path = './start_mac.command' if relative else str(tmp_path / 'external drive with spaces/start_mac.command')
+    result, _ = _run_guard(tmp_path, parent='slow', cleanup_seconds=12,
+                           launcher_command='/bin/bash ' + path + ' --maintenance-owned-start')
+    assert result.returncode == 0, result.stdout + result.stderr
+    assert 'RESTART_ALLOWED_AT_TICK_24' in result.stdout
+    assert result.stdout.count('CHECK_PARENT') >= 12
+    assert 'SIGNAL -TERM 777' not in result.stdout
+
+
+@pytest.mark.parametrize('suffix', [' --maintenance-owned-start extra', ' --maintenance-owned-start-other'])
+def test_similar_owned_arguments_do_not_adopt_a_launcher(tmp_path, suffix):
+    result, _ = _run_guard(tmp_path, parent='slow', cleanup_seconds=12,
+                           launcher_command='/bin/bash ./start_mac.command' + suffix)
+    assert result.returncode == 0
+    assert 'CHECK_PARENT' not in result.stdout
+
+
 def test_similar_relative_script_is_not_treated_as_project_launcher(tmp_path):
     result, _ = _run_guard(tmp_path, parent="slow", cleanup_seconds=12,
                            launcher_command="/bin/bash ./start_mac.command.backup")

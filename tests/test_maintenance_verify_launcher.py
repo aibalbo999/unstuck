@@ -14,6 +14,8 @@ def run_launcher(tmp_path, args, overrides=None):
     (project/'.venv/bin').mkdir(parents=True)
     (project/'scripts').mkdir()
     (project/'scripts/maintenance_verify.py').write_text('# test stub target\n')
+    (project/'scripts/project_python.sh').write_bytes((ROOT/'scripts/project_python.sh').read_bytes())
+    (project/'scripts/project_python.sh').chmod(0o755)
     (project/'scripts/project_environment.sh').write_text('# successful storage preflight fixture\nreturn 0\n')
     log=tmp_path/'interpreter.log'
     interpreter=project/'.venv/bin/python'
@@ -55,7 +57,8 @@ def test_mode_failure_does_not_fall_through_or_install_anything(tmp_path):
 
 
 def test_no_mode_argument_still_enters_original_startup_path(tmp_path):
-    result,calls,_=run_launcher(tmp_path,[])
-    # Fake interpreter aborts at the first original Python version probe.
-    assert result.returncode==97 and calls==['-']
-    assert '啟動 Wall Street AI' in result.stdout
+    result,calls,project=run_launcher(tmp_path,[])
+    # Normal startup now first enters the source-bound admission owner.
+    assert result.returncode==97
+    assert calls==['-I','-B',str(project/'scripts/maintenance_entry.py')]
+    assert '啟動 Worker' not in result.stdout

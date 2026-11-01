@@ -7,6 +7,7 @@ import asyncio
 import multiprocessing
 import signal
 import sys
+import maintenance_guard
 from collections.abc import Callable
 from types import FrameType
 from typing import Literal
@@ -41,8 +42,7 @@ from worker_shutdown import (
     handle_rq_pubsub_thread_exception as _handle_rq_pubsub_thread_exception,
     run_async_process as _run_async_process,
 )
-from worker_queue_runners import run_arq_worker as _run_arq_worker
-from worker_queue_runners import run_rq_worker as _run_rq_worker
+from worker_queue_runners import run_arq_worker as _run_arq_worker, run_rq_worker as _run_rq_worker
 from worker_child_processes import (
     all_children_exited as _all_children_exited,
     has_nonzero_exit as _has_nonzero_exit,
@@ -60,7 +60,6 @@ SHUTDOWN_JOIN_TIMEOUT_SECONDS = 10.0
 
 def _load_stock_analysis_job_runner():
     from analysis_jobs import run_stock_analysis_job
-
     return run_stock_analysis_job
 
 
@@ -174,20 +173,34 @@ def run_role(
     if role not in CHILD_ROLES:
         raise ValueError(f"Unknown worker role: {role}")
 
-    runtime_settings = RuntimeSettings.from_environment()
-    ensure_runtime_storage(
-        output_dir=runtime_settings.output_dir,
-        cache_db_path=runtime_settings.cache_db_path,
-        checkpoint_backend=runtime_settings.checkpoint_backend,
-        checkpoint_path=runtime_settings.checkpoint_path,
-    )
-    runtime = runtime_factory(runtime_settings)
+    runtime = None
+    try:
+        # Startup mutation is separate from future dequeue/scheduler authority.
+        # A paused launch must not initialize storage or reconcile unrelated jobs.
+        with maintenance_guard.admission():
+            try:
+                runtime_settings = RuntimeSettings.from_environment()
+                ensure_runtime_storage(
+                    output_dir=runtime_settings.output_dir,
+                    cache_db_path=runtime_settings.cache_db_path,
+                    checkpoint_backend=runtime_settings.checkpoint_backend,
+                    checkpoint_path=runtime_settings.checkpoint_path,
+                )
+                runtime = runtime_factory(runtime_settings)
+                if role == "queue" and getattr(runtime.task_queue, "backend_name", "rq") != "arq":
+                    reconcile_abandoned_rq_jobs(runtime)
+            except BaseException:
+                if runtime is not None:
+                    runtime.close()
+                raise
+    except maintenance_guard.MaintenanceError as error:
+        emit_log(f"{role} startup paused by maintenance gate ({type(error).__name__}).")
+        return
     try:
         if role == "queue":
             if getattr(runtime.task_queue, "backend_name", "rq") == "arq":
                 run_arq_worker(runtime, burst=burst, max_jobs=max_jobs)
             else:
-                reconcile_abandoned_rq_jobs(runtime)
                 run_rq_worker(runtime, burst=burst, max_jobs=max_jobs)
         elif role == "schedulers":
             _run_async_process(lambda: run_scheduler_process(runtime))

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+import importlib.util
 from pathlib import Path
 import socket
 import sqlite3
@@ -104,7 +105,18 @@ def main() -> int:
             "OUTPUT_DIR": str(root / "output"),
             "LANGGRAPH_CHECKPOINT_BACKEND": "sqlite",
             "LANGGRAPH_CHECKPOINT_POSTGRES_DSN": "isolated-postgres-disabled",
+            "STOCK_AGENT_MAINTENANCE_DIR": str(root / "maintenance"),
         })
+        # This explicit fixture bootstrap is not a product missing-state fallback.
+        # Never inherit the operator's namespace or load config/.env to create it.
+        for module_name in ("maintenance_state", "maintenance_guard"):
+            spec = importlib.util.spec_from_file_location(
+                module_name, Path(__file__).resolve().parents[1] / "backend" / (module_name + ".py")
+            )
+            maintenance = importlib.util.module_from_spec(spec)
+            sys.modules[module_name] = maintenance
+            spec.loader.exec_module(maintenance)
+        maintenance.initialize(root / "maintenance")
         connect = sqlite3.connect
 
         def isolated_connect(database, *args, **kwargs):

@@ -36,7 +36,7 @@ def test_start_mac_lan_launches_full_local_runtime_stack():
     assert 'redis-server' in script
     assert 'redis_ping()' in script
     assert 'REDIS_PID=$!' in script
-    assert '(trap \'\' INT; exec "$PYTHON_BIN" -u worker_main.py --role all)' in script
+    assert '(trap \'\' INT; close_startup_descriptors; exec "$PYTHON_BIN" -u worker_main.py --role all)' in script
     assert 'WORKER_PID=$!' in script
     assert 'kill "$WORKER_PID"' in script
     assert 'kill "$REDIS_PID"' in script
@@ -83,9 +83,9 @@ def test_start_mac_children_ignore_terminal_ctrl_c_and_are_cleaned_up_by_parent(
     script = (ROOT / "start_mac.command").read_text(encoding="utf-8")
     cleanup = script[script.index("cleanup() {") : script.index("trap cleanup")]
 
-    assert '(trap \'\' INT; exec "$REDIS_SERVER_BIN"' in script
-    assert '(trap \'\' INT; exec "$PYTHON_BIN" -u worker_main.py --role all)' in script
-    assert '(trap \'\' INT; exec "$PYTHON_BIN" -u -m uvicorn api:app --host "$SERVER_HOST" --port 8080)' in script
+    assert '(trap \'\' INT; close_startup_descriptors; exec "$REDIS_SERVER_BIN"' in script
+    assert '(trap \'\' INT; close_startup_descriptors; exec "$PYTHON_BIN" -u worker_main.py --role all)' in script
+    assert '(trap \'\' INT; close_startup_descriptors; exec "$PYTHON_BIN" -u -m uvicorn api:app --host "$SERVER_HOST" --port 8080)' in script
     assert "wait_for_project_workers_to_stop" in cleanup
     assert cleanup.index('kill "$WORKER_PID"') < cleanup.index("wait_for_project_workers_to_stop")
     assert cleanup.index("wait_for_project_workers_to_stop") < cleanup.index('kill "$REDIS_PID"')

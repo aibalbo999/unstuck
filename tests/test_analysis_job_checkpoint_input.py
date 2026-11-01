@@ -210,10 +210,13 @@ def test_wrong_stock_checkpoint_is_rejected_before_external_fetch(harness):
 def test_legacy_checkpoint_receipt_stays_unknown_without_refreezing(harness, monkeypatch):
     h = harness
     job = h.new_job()
-    monkeypatch.setattr("analysis_job_provenance.freeze_analysis_inputs", lambda data: {})
+    def legacy_receipt(data, *, cutoff=None):
+        assert cutoff is None  # Ordinary jobs must not invent a frozen cutoff.
+        return {}
+    monkeypatch.setattr("analysis_job_provenance.freeze_analysis_inputs", legacy_receipt)
     with pytest.raises(AgentDeferredError):
         h.run(job)
-    monkeypatch.setattr("analysis_job_provenance.freeze_analysis_inputs", lambda data: pytest.fail("legacy refrozen"))
+    monkeypatch.setattr("analysis_job_provenance.freeze_analysis_inputs", lambda data, **kwargs: pytest.fail("legacy refrozen"))
     h.control["available"] = True
     assert h.run(job)
     assert h.counts["fetch"] == 1

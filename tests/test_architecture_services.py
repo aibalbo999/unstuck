@@ -504,8 +504,14 @@ def test_llm_call_event_helpers_capture_metadata_usage_and_stream_gate():
     assert fields["metadata"]["model_id"] == "gemini-test"
     assert fields["metadata"]["timeout_seconds"] == 1.5
     assert fields["metadata"]["estimated_tokens"] > 0
-    assert _key_slot_fields(FakeRotator(), "second-key") == {"key_count": 2, "key_slot": 2}
-    assert _key_slot_fields(FakeRotator(), "missing-key") == {"key_count": 2}
+    key_fields = _key_slot_fields(FakeRotator(), "second-key")
+    assert key_fields['key_count'] == 2 and key_fields['key_slot'] == 2
+    assert key_fields['key_ref_version'] == 1 and len(key_fields['key_ref']) == 24
+    assert key_fields['project_ref'] is None and key_fields['project_mapping_status'] == 'unknown'
+    missing = _key_slot_fields(FakeRotator(), "missing-key")
+    assert missing['key_count'] == 2 and 'key_slot' not in missing
+    assert missing['key_ref_version'] == 1 and len(missing['key_ref']) == 24
+    assert missing['project_ref'] is None and missing['project_mapping_status'] == 'unknown'
 
     response = SimpleNamespace(
         usage_metadata=SimpleNamespace(
@@ -566,6 +572,15 @@ def test_llm_sync_call_records_timeout_metadata_without_name_error(monkeypatch):
 
 def test_genai_client_receives_request_timeout(monkeypatch):
     import llm_client
+    import llm_transport
+
+    # Own only this test's clients; never adopt, clear, or close another owner.
+    monkeypatch.setattr(llm_transport, "_client_cache", {})
+    # The compatibility facade writes these seams directly during the call.
+    # Record their original values for teardown without pre-setting 12.5;
+    # the assertion must still prove the facade propagates the timeout.
+    for name in ("genai", "LLM_AGENT_CALL_TIMEOUT_SECONDS"):
+        monkeypatch.setattr(llm_transport, name, getattr(llm_transport, name))
 
     captured = {}
 

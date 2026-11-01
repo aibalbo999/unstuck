@@ -14,8 +14,10 @@ def freeze_and_record_analysis_inputs(
     pipeline_id: str,
     mode_data: dict[str, Any],
     append_event: Callable[[str, dict[str, Any]], None],
+    *,
+    cutoff: str | None = None,
 ) -> None:
-    receipt = freeze_analysis_inputs(mode_data)
+    receipt = freeze_analysis_inputs(mode_data, cutoff=cutoff)
     append_event(job_id, {"type": "provenance", "phase": "analysis_input_frozen",
                           "pipeline_id": pipeline_id, **receipt})
 

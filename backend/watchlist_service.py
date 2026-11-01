@@ -5,8 +5,10 @@ from __future__ import annotations
 import asyncio
 import time
 import inspect
+import asyncio
 from datetime import datetime
 
+import maintenance_guard
 from watchlist_radar_data import fetch_radar_data
 from pipeline_modes import normalize_pipeline_run_id
 from report_freshness_summary import safe_bool
@@ -102,13 +104,41 @@ def _triggers_need_market_data(triggers: list) -> bool:
 
 
 async def monitor_watchlist_triggers(
-    *,
-    data_service,
-    create_job,
-    find_active_job,
-    task_queue,
-    run_stock_analysis_job,
+    *, data_service, create_job, find_active_job,
+    task_queue, run_stock_analysis_job,
     now: datetime | None = None,
+) -> dict:
+    # Includes source fetch and dedupe -> create/enqueue. This long operation
+    # retains the original throttle; maintenance waits for accepted work.
+    with maintenance_guard.admission():
+        return await _monitor_admitted_triggers(
+            data_service=data_service, create_job=create_job, find_active_job=find_active_job,
+            task_queue=task_queue, run_stock_analysis_job=run_stock_analysis_job, now=now,
+        )
+
+
+async def _fetch_admitted_radar(data_service, ticker, triggers, evaluation_date):
+    # RadarDataCache shields a shared source task. Cancelling only its waiter
+    # cannot prove that source work stopped; hold the caller's lease until the
+    # owned waiter really finishes, even after repeated cancellation requests.
+    task = asyncio.create_task(fetch_radar_data(data_service, ticker, triggers, evaluation_date))
+    try:
+        return await asyncio.shield(task)
+    except asyncio.CancelledError as original:
+        while not task.done():
+            try:
+                await asyncio.shield(task)
+            except asyncio.CancelledError:
+                continue
+            except BaseException:
+                break
+        if not task.cancelled():
+            task.exception()  # Retrieve a late source error without replacing cancellation.
+        raise original
+
+
+async def _monitor_admitted_triggers(
+    *, data_service, create_job, find_active_job, task_queue, run_stock_analysis_job, now,
 ) -> dict:
     _sync_store_config()
     now = now or datetime.now(TAIPEI)
@@ -124,8 +154,10 @@ async def monitor_watchlist_triggers(
             continue
         ticker = str(item.get("ticker") or "").strip().upper()
         try:
-            data = await fetch_radar_data(data_service, ticker, triggers, evaluation_date)
+            data = await _fetch_admitted_radar(data_service, ticker, triggers, evaluation_date)
             events = evaluate_watchlist_triggers(item, data, evaluation_date=evaluation_date)
+        except maintenance_guard.MaintenanceError:
+            raise
         except Exception as exc:
             errors.append({"ticker": ticker, "error": str(exc)[:240]})
             continue
@@ -158,11 +190,20 @@ async def monitor_watchlist_triggers(
 
 
 def claim_due_watchlist_items(now: datetime | None = None) -> list[dict]:
-    _sync_store_config()
-    return watchlist_claim_store.claim_due_watchlist_items(now)
+    with maintenance_guard.admission():
+        _sync_store_config()
+        return watchlist_claim_store.claim_due_watchlist_items(now)
 
 
 def enqueue_watchlist_items(items: list[dict], *, create_job, find_active_job, task_queue, run_stock_analysis_job, stop_event=None) -> dict:
+    with maintenance_guard.admission():
+        return _enqueue_admitted_watchlist_items(items, create_job=create_job,
+            find_active_job=find_active_job, task_queue=task_queue,
+            run_stock_analysis_job=run_stock_analysis_job, stop_event=stop_event)
+
+
+def _enqueue_admitted_watchlist_items(items, *, create_job, find_active_job, task_queue,
+                                     run_stock_analysis_job, stop_event=None) -> dict:
     queued = []
     skipped = []
     errors = []
@@ -200,6 +241,8 @@ def enqueue_watchlist_items(items: list[dict], *, create_job, find_active_job, t
                             stop_event.wait(45)
                 else:
                     skipped.append(record)
+            except maintenance_guard.MaintenanceError:
+                raise
             except Exception as exc:
                 watchlist_dispatch_store.release(item, type(exc).__name__)
                 errors.append({"ticker": item["ticker"], "pipeline": item["pipeline"],

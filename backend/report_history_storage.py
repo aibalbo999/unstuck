@@ -7,6 +7,7 @@ from typing import Any
 
 from report_paths import report_storage_candidates_for_filename
 from storage.report_storage import LocalFileStorage, ReportStorage
+from storage.create_only_reports import publication_is_pending
 
 
 def storage_for_existing_output_dir(output_dir: str, storage: ReportStorage | None) -> ReportStorage | None:
@@ -29,16 +30,24 @@ def repository_has_metadata(repository: Any, filename: str, output_dir: str) -> 
 
 
 def existing_storage_key(storage: ReportStorage, filename: str, *, kind: str) -> str | None:
+    if isinstance(storage, LocalFileStorage) and publication_is_pending(storage._root, filename):
+        return None
     for key in report_storage_candidates_for_filename(filename, kind=kind):
         if storage.exists(key):
+            if isinstance(storage, LocalFileStorage) and publication_is_pending(storage._root, filename):
+                return None
             return key
     return None
 
 
 def load_storage_item(storage: ReportStorage, filename: str, *, kind: str):
+    if isinstance(storage, LocalFileStorage) and publication_is_pending(storage._root, filename):
+        return None
     for key in report_storage_candidates_for_filename(filename, kind=kind):
         item = storage.get_report(key)
         if item is not None:
+            if isinstance(storage, LocalFileStorage) and publication_is_pending(storage._root, filename):
+                return None
             return item
     return None
 

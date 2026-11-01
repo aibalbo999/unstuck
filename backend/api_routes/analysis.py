@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import asyncio
+from contextlib import ExitStack
 from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Optional
@@ -23,7 +24,9 @@ from api_routes.analysis_payloads import (
     _serialize_job,
 )
 from api_routes.analysis_sse import analysis_event_generator, next_sse_poll_interval, resolve_resume_after_id
+from api_routes.maintenance_admission import analysis_admission
 from mapping_fields import safe_mapping_dict, safe_sequence_items, safe_text
+import maintenance_guard
 
 
 @dataclass(frozen=True)
@@ -60,6 +63,60 @@ class AnalysisJobCreateRequest(BaseModel):
     resume: bool = True
 
 
+def _resolve_analysis_job(deps, ticker_upper, pipeline_id, job_id):
+    """Resolve an existing explicit stream, or atomically admit create/enqueue.
+
+    find_active_job may mark an orphan abandoned, so only the explicit matching
+    job-ID read avoids admission. The lease outlives the create lock through
+    enqueue/error persistence but never reaches the async SSE lifecycle.
+    """
+    should_enqueue = False
+    with ExitStack() as scope:
+        with deps.active_analyses_lock:
+            requested_job = safe_mapping_dict(deps.get_job(job_id)) if job_id else {}
+            requested_job_id = safe_text(requested_job.get("job_id")).strip() if requested_job else ""
+            requested_ticker = safe_text(requested_job.get("ticker")).strip().upper() if requested_job else ""
+            requested_pipeline_id = (safe_text(requested_job.get("pipeline_id")).strip() or "v1") if requested_job else ""
+            if (requested_job and requested_job_id and requested_ticker == ticker_upper
+                    and requested_pipeline_id == pipeline_id):
+                job_id = requested_job_id
+            else:
+                scope.enter_context(analysis_admission())
+                active_job = safe_mapping_dict(deps.find_active_job(ticker_upper, pipeline_id))
+                active_job_id = safe_text(active_job.get("job_id")).strip() if active_job else ""
+                if active_job_id:
+                    job_id = active_job_id
+                else:
+                    if deps.create_or_attach_analysis_job is not None:
+                        created = safe_mapping_dict(deps.create_or_attach_analysis_job(
+                            ticker=ticker_upper, pipeline_id=pipeline_id, force=False, resume=True,
+                            task_queue=deps.get_analysis_task_queue(),
+                            run_stock_analysis_job=deps.run_stock_analysis_job,
+                        ))
+                        created_job_id = safe_text(created.get("job_id")).strip() if created else ""
+                        if created_job_id:
+                            job_id = created_job_id
+                        else:
+                            job_id = safe_text(deps.create_job(ticker_upper, pipeline_id)).strip()
+                            should_enqueue = bool(job_id)
+                    else:
+                        job_id = safe_text(deps.create_job(ticker_upper, pipeline_id)).strip()
+                        should_enqueue = bool(job_id)
+        if should_enqueue:
+            try:
+                deps.get_analysis_task_queue().enqueue(
+                    f"analysis:{job_id}", deps.run_stock_analysis_job, job_id, ticker_upper, pipeline_id,
+                )
+            except maintenance_guard.MaintenanceError:
+                raise
+            except Exception as exc:
+                detail = safe_text(exc).strip()
+                message = f"分析任務送入佇列失敗：{detail}" if detail else "分析任務送入佇列失敗"
+                deps.update_job(job_id, "error", error=message)
+                deps.append_event(job_id, {"type": "error", "message": message})
+    return job_id
+
+
 def create_analysis_router(deps: AnalysisRouteDeps) -> APIRouter:
     router = APIRouter()
 
@@ -68,19 +125,20 @@ def create_analysis_router(deps: AnalysisRouteDeps) -> APIRouter:
         deps.require_mutation_authorized(request)
         ticker_upper = body.ticker.strip().upper()
         pipeline_id = _safe_pipeline_id(deps.normalize_pipeline_run_id(body.pipeline_id))
-        if deps.create_or_attach_analysis_job is not None:
-            created = safe_mapping_dict(deps.create_or_attach_analysis_job(
-                ticker=ticker_upper,
-                pipeline_id=pipeline_id,
-                force=body.force,
-                resume=body.resume,
-                task_queue=deps.get_analysis_task_queue(),
-                run_stock_analysis_job=deps.run_stock_analysis_job,
-            ))
-            if not created:
-                return _serialize_create_result(deps, {"pipeline_id": pipeline_id}, pipeline_id)
-            return _serialize_create_result(deps, created, pipeline_id)
-        return _legacy_create_and_enqueue_via_deps(deps, ticker_upper, pipeline_id)
+        with analysis_admission():
+            if deps.create_or_attach_analysis_job is not None:
+                created = safe_mapping_dict(deps.create_or_attach_analysis_job(
+                    ticker=ticker_upper,
+                    pipeline_id=pipeline_id,
+                    force=body.force,
+                    resume=body.resume,
+                    task_queue=deps.get_analysis_task_queue(),
+                    run_stock_analysis_job=deps.run_stock_analysis_job,
+                ))
+                if not created:
+                    return _serialize_create_result(deps, {"pipeline_id": pipeline_id}, pipeline_id)
+                return _serialize_create_result(deps, created, pipeline_id)
+            return _legacy_create_and_enqueue_via_deps(deps, ticker_upper, pipeline_id)
 
     @router.get("/api/analysis-jobs/{job_id}")
     async def get_analysis_job(job_id: str):
@@ -162,63 +220,7 @@ def create_analysis_router(deps: AnalysisRouteDeps) -> APIRouter:
 
         resume_after_id = resolve_resume_after_id(request, last_event_id, since_id=None)
 
-        should_enqueue = False
-        with deps.active_analyses_lock:
-            requested_job = safe_mapping_dict(deps.get_job(job_id)) if job_id else {}
-            requested_job_id = ""
-            requested_ticker = ""
-            requested_pipeline_id = ""
-            if requested_job:
-                requested_job_id = safe_text(requested_job.get("job_id")).strip()
-                requested_ticker = safe_text(requested_job.get("ticker")).strip().upper()
-                requested_pipeline_id = safe_text(requested_job.get("pipeline_id")).strip() or "v1"
-            if (
-                requested_job
-                and requested_job_id
-                and requested_ticker == ticker_upper
-                and requested_pipeline_id == pipeline_id
-            ):
-                job_id = requested_job_id
-            else:
-                active_job = safe_mapping_dict(deps.find_active_job(ticker_upper, pipeline_id))
-                active_job_id = safe_text(active_job.get("job_id")).strip() if active_job else ""
-                if active_job_id:
-                    job_id = active_job_id
-                else:
-                    if deps.create_or_attach_analysis_job is not None:
-                        created = safe_mapping_dict(deps.create_or_attach_analysis_job(
-                            ticker=ticker_upper,
-                            pipeline_id=pipeline_id,
-                            force=False,
-                            resume=True,
-                            task_queue=deps.get_analysis_task_queue(),
-                            run_stock_analysis_job=deps.run_stock_analysis_job,
-                        ))
-                        created_job_id = safe_text(created.get("job_id")).strip() if created else ""
-                        if created_job_id:
-                            job_id = created_job_id
-                            should_enqueue = False
-                        else:
-                            job_id = safe_text(deps.create_job(ticker_upper, pipeline_id)).strip()
-                            should_enqueue = bool(job_id)
-                    else:
-                        job_id = safe_text(deps.create_job(ticker_upper, pipeline_id)).strip()
-                        should_enqueue = bool(job_id)
-
-        if should_enqueue:
-            try:
-                deps.get_analysis_task_queue().enqueue(
-                    f"analysis:{job_id}",
-                    deps.run_stock_analysis_job,
-                    job_id,
-                    ticker_upper,
-                    pipeline_id,
-                )
-            except Exception as exc:
-                detail = safe_text(exc).strip()
-                message = f"分析任務送入佇列失敗：{detail}" if detail else "分析任務送入佇列失敗"
-                deps.update_job(job_id, "error", error=message)
-                deps.append_event(job_id, {"type": "error", "message": message})
+        job_id = _resolve_analysis_job(deps, ticker_upper, pipeline_id, job_id)
 
         response = EventSourceResponse(
             analysis_event_generator(
