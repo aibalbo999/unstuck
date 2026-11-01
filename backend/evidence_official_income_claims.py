@@ -30,6 +30,8 @@ def _identity(facts):
 def _context_matches(text, identity):
     """Only structural headings/preambles may surround this explicit clause."""
     from financial_money_claims import _PERIOD, _target_revenue_scope
+    if re.fullmatch(r'\s*##\s*官方財務事實清單\s*', text):
+        return True
     # These exact debate stance labels identify a speaker position only.
     # Issuer/year/FX/forecast qualifiers and every ancestor retain their gates.
     if re.fullmatch(r'\s*(?:🐻\s*空頭|🐂\s*多頭)\s*[:：]?\s*', text):
@@ -201,7 +203,7 @@ def _bound_scope(claim, facts, data=None):
                or (not _native_report_title(value, facts) and not _context_matches(value, identity))
                for value in ancestors[:-2]):
             return False
-    elif (re.fullmatch(r'\s*##\s*(?:三[、.]\s*宏觀定調結論|六[、.]\s*財務體質最終判斷)\s*',heading)
+    elif (re.fullmatch(r'\s*##\s*(?:三[、.]\s*宏觀定調結論|六[、.]\s*財務體質最終判斷|官方財務事實清單)\s*',heading)
             or heading == '## 一頁式摘要' or re.fullmatch(r'\s*#{1,6}\s*(?:(?:[一二三四五六七八九十]+)[、.]\s*)?(?:獲利趨勢深析|自由現金流分析|已觀測財務與歷史反證|已觀測財務|企業體質總結|成長潛力總評)\s*',heading)):
         # Only the native wrapper is neutral. Every inherited title must still
         # bind to names replayed from both official originals, never caller aliases.

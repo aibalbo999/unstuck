@@ -97,7 +97,7 @@ def test_legitimate_display_rounding_remains_verified():
  result=checked(text,data);assert len(result)==1 and result[0]['status']=='verified',result
 
 
-@pytest.mark.parametrize('heading',['## 一、營收成長分析','## 已核實年度財務'])
+@pytest.mark.parametrize('heading',['## 一、營收成長分析','## 已核實年度財務','## 官方財務事實清單'])
 def test_native_observed_annual_heading_keeps_complete_fact(heading):
  data=selected();text=heading+'\n\n'+annual(data)['periods']['2025']['statements']['營收']
  result=checked(text,data);assert len(result)==1 and result[0]['status']=='verified',result
@@ -148,3 +148,22 @@ def test_qualified_annual_siblings_do_not_supply_or_override_local_ttm_scope():
   assert rows[-1]['status']=='unverifiable',rows
  rows=checked(text.replace(ttm,ttm.replace('TWD ','')),data)
  assert rows[-1]['status']=='unverifiable',rows
+
+def test_native_official_fact_list_keeps_ttm_scope_without_granting_it():
+ from official_income_prompt import official_income_reference_text
+ data=selected();s=official_income_reference_text(official_income_prompt_facts(data))['statement']
+ heading='## 官方財務事實清單';rows=checked(heading+'\n\n'+s,data)
+ assert len(rows)==1 and rows[0]['status']=='verified',rows
+ for suffix in (' USD',' 台積電',' 2024年度',' 合併',' 預估'):
+  rows=checked(heading+suffix+'\n\n'+s,data)
+  assert rows and all(x['status']=='unverifiable'for x in rows),rows
+ rows=checked(heading+'\n\n'+s.replace('TWD ',''),data)
+ assert rows and all(x['status']=='unverifiable'for x in rows),rows
+
+@pytest.mark.parametrize('ancestor',['# 台積電','# 2024年度','# 合併財報','# USD','# 預估財務'])
+def test_official_fact_list_cannot_hide_a_conflicting_ancestor(ancestor):
+ from official_income_prompt import official_income_reference_text
+ data=selected();a=annual(data)['periods']['2025']['statements']['淨利'];t=official_income_reference_text(official_income_prompt_facts(data))['statement']
+ for statement in (a,t):
+  rows=checked(ancestor+'\n\n## 官方財務事實清單\n\n'+statement,data)
+  assert rows and all(x['status']=='unverifiable'for x in rows),rows
