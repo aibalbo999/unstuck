@@ -291,6 +291,11 @@ def format_data_for_prompt(data: dict, *, compact: bool = False, dense: bool = F
         "deterministic_financial_tool_results": tool_context,
     }
 
+    if dict.get(data, "_prompt_agent_num") in {2, 3, 4, 5, 6, 21, 7}:
+        checks = payload["cross_checks"]
+        checks["dupont_identity_note_raw"] = checks["dupont_identity_note"]
+        checks["dupont_identity_note"] = checks.pop("dupont_identity_note_qualified")
+
     if dict.get(data, "_prompt_agent_num") in {15, 16, 22, 24}:
         payload["short_term_market_context"] = build_short_term_market_context(data, compact=compact)
 

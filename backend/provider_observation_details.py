@@ -243,11 +243,13 @@ def _peer_candidate_diagnostics(entry):
 def monthly_filing_details(entry):
     """Retain only a self-consistent pending filing calendar, never certify filing."""
     from datetime import date, timedelta
-    if (entry.get('source') != 'monthly_revenue'
-            or entry.get('filing_calendar_status') != 'latest_month_not_yet_in_snapshot_before_deadline'
-            or entry.get('latest_calendar_month_in_snapshot') is not False):
+    if not isinstance(entry, dict):
         return {}
-    observed, latest, due = (entry.get(k) for k in ('observed_month',
+    if (dict.get(entry, 'source') != 'monthly_revenue'
+            or dict.get(entry, 'filing_calendar_status') != 'latest_month_not_yet_in_snapshot_before_deadline'
+            or dict.get(entry, 'latest_calendar_month_in_snapshot') is not False):
+        return {}
+    observed, latest, due = (dict.get(entry, k) for k in ('observed_month',
                              'latest_calendar_month', 'latest_calendar_month_filing_due_on'))
     if not all(isinstance(v, str) for v in (observed, latest, due)):
         return {}
@@ -264,7 +266,7 @@ def monthly_filing_details(entry):
     return {'observed_month': observed, 'latest_calendar_month': latest,
             'latest_calendar_month_in_snapshot': False,
             'latest_calendar_month_filing_due_on': due,
-            'filing_calendar_status': entry['filing_calendar_status']}
+            'filing_calendar_status': 'latest_month_not_yet_in_snapshot_before_deadline'}
 
 
 def observation_details(entry: dict) -> dict:

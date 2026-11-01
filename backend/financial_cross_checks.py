@@ -27,10 +27,23 @@ def build_financial_cross_checks(data: dict) -> dict:
                     4,
                 )
 
+    dupont_note = dict.get(data, "dupont_identity_note") or dict.get(data, "equity_multiplier_note")
+    qualified_note = (
+        "原始序列算術參考（此註記之原件期間與申報範圍未核實；不得當官方結論）："
+        + dupont_note if isinstance(dupont_note, str) and dupont_note.strip() else dupont_note
+    )
     return {
         "forward_eps_implied_net_income_billion_twd": implied_forward_net_income_b,
         "forward_eps_implied_revenue_billion_twd": implied_forward_revenue_b,
         "forward_eps_implied_revenue_growth_pct": implied_forward_revenue_growth_pct,
-        "dupont_identity_note": dict.get(data, "dupont_identity_note") or dict.get(data, "equity_multiplier_note"),
+        "dupont_identity_note": dupont_note,
+        "dupont_identity_note_qualified": qualified_note,
+        "dupont_source_qualification": {
+            "verification_scope": "snapshot_arithmetic_consistency_only",
+            "independent_primary_source_verified": False,
+            "may_support_official_source_claim": False,
+            "source_period_status": "not_established_by_this_note",
+            "source_report_scope_status": "not_established_by_this_note",
+        },
         "wacc_capital_structure_note": dict.get(data, "wacc_capital_structure_note"),
     }

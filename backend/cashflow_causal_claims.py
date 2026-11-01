@@ -16,11 +16,12 @@ _NEGATIVE = re.compile(
  r'negative\s+(?:free\s+cash\s*flow|FCF)',re.I)
 _CAUSE = re.compile(r'應視為|代表其處於|主因|因應|源於|源自|顯示|反映|證實|證明|導致|致使|'
  r'主要受|implies|shows|proves|because|caused\s+by',re.I)
-_DRIVER = re.compile(r'備料|擴產|擴張|營運資金|'
+_DRIVER = re.compile(r'備料|擴產|擴張|營運資金(?!(?:管理)?壓力)|'
  r'(?:存貨|應收帳款|應收款).{0,12}(?:鎖定|佔用|占用|墊付)|'
  r'(?:鎖定|佔用|占用).{0,12}(?:存貨|應收帳款|應收款)|'
  r'inventory|receivables|working\s+capital|capacity\s+expansion',re.I)
 _UNCERTAIN = re.compile(r'可能|或許|假設|推測|不(?:能|足以|證明|代表|是)|無法|尚無|尚待|'
+ r'缺乏.{0,18}(?:證據|原件|說明)|'
  r'待.{0,6}(?:核實|驗證)|未(?:經|能|獲).{0,6}(?:核實|驗證)|'
  r'\b(?:if|may|might|could|cannot|hypothesis)\b|not\s+prove|does\s+not',re.I)
 
