@@ -124,7 +124,7 @@ def parse_history(pages, ticker, anchor, coverage, today):
         if value is not None and len(str(abs(value))) > 16:
             raise ValueError('history_monthly_amount_unverified')
         amounts[period] = value
-    latest = (today.replace(day=1) - timedelta(days=1)).replace(day=1)
+    latest = snapshot_source.history_month_anchor(coverage, today)
     periods = []
     for offset in range(5, -1, -1):
         ordinal = latest.year * 12 + latest.month - 1 - offset
@@ -257,7 +257,10 @@ def _fetch(ticker, snapshot, deadline):
                      currency='NTD', filed_unit='NTD', filed_amounts_NTD=[str(a) for a in amounts],
                      covered_months=periods, observed_month=periods[-1], produced_on=produced,
                      issuer_code=ticker.split('.')[0], issuer_name=anchor['legal_name'],
-                     coverage_status='complete_six_contiguous_month_amounts', window_complete=True,
+                     coverage_status=('complete_six_contiguous_month_amounts_latest_filing_pending'
+                                      if coverage.get('filing_calendar_status') else 'complete_six_contiguous_month_amounts'),
+                     **snapshot_source.history_filing_fields(coverage, snapshot_source._today()),
+                     window_complete=True,
                      historical_point_in_time_verified=False, original_receipt=receipt,
                      snapshot_original_receipt=deepcopy(snapshot['audit']['original_receipt']),
                      issuer_original_metadata=master_meta, cache_hit=cached,

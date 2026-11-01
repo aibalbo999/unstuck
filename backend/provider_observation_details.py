@@ -240,8 +240,36 @@ def _peer_candidate_diagnostics(entry):
     return out
 
 
+def monthly_filing_details(entry):
+    """Retain only a self-consistent pending filing calendar, never certify filing."""
+    from datetime import date, timedelta
+    if (entry.get('source') != 'monthly_revenue'
+            or entry.get('filing_calendar_status') != 'latest_month_not_yet_in_snapshot_before_deadline'
+            or entry.get('latest_calendar_month_in_snapshot') is not False):
+        return {}
+    observed, latest, due = (entry.get(k) for k in ('observed_month',
+                             'latest_calendar_month', 'latest_calendar_month_filing_due_on'))
+    if not all(isinstance(v, str) for v in (observed, latest, due)):
+        return {}
+    if not all(re.fullmatch(r'20[0-9]{2}-(0[1-9]|1[0-2])', v) for v in (observed, latest)):
+        return {}
+    try:
+        deadline = date.fromisoformat(due)
+        prior = (deadline.replace(day=1) - timedelta(days=1)).replace(day=1)
+        earlier = (prior - timedelta(days=1)).replace(day=1)
+        if due != deadline.isoformat() or deadline.day != 10 or latest != prior.strftime('%Y-%m') or observed != earlier.strftime('%Y-%m'):
+            return {}
+    except ValueError:
+        return {}
+    return {'observed_month': observed, 'latest_calendar_month': latest,
+            'latest_calendar_month_in_snapshot': False,
+            'latest_calendar_month_filing_due_on': due,
+            'filing_calendar_status': entry['filing_calendar_status']}
+
+
 def observation_details(entry: dict) -> dict:
     result = correlation_metadata(entry)
+    result.update(monthly_filing_details(entry))
     peer_gaps = _peer_candidate_diagnostics(entry)
     if peer_gaps:
         result['candidate_diagnostics'] = peer_gaps

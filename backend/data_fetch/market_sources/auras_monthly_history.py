@@ -142,7 +142,7 @@ def _monthly_values(raw, coverage):
             if value is not None and date(year, month, 1) >= today.replace(day=1):
                 raise ValueError('auras_future_month_amount')
             amounts[f'{year:04d}-{month:02d}'] = value
-    latest = (today.replace(day=1) - timedelta(days=1)).replace(day=1)
+    latest = snapshot_source.history_month_anchor(coverage, today)
     periods = []
     for offset in range(5, -1, -1):
         ordinal = latest.year * 12 + latest.month - 1 - offset
@@ -288,7 +288,10 @@ def _fetch(ticker, snapshot, deadline):
                      filed_unit='thousands', filed_amounts_NTD=[str(a) for a in amounts],
                      covered_months=periods, observed_month=periods[-1], issuer_code='3324',
                      issuer_name=anchor['legal_name'], consolidation_scope='consolidated',
-                     coverage_status='complete_six_contiguous_month_amounts', window_complete=True,
+                     coverage_status=('complete_six_contiguous_month_amounts_latest_filing_pending'
+                                      if coverage.get('filing_calendar_status') else 'complete_six_contiguous_month_amounts'),
+                     **snapshot_source.history_filing_fields(coverage, snapshot_source._today()),
+                     window_complete=True,
                      historical_point_in_time_verified=False, original_receipt=api_receipt,
                      unit_contract_original_receipt=unit_receipt,
                      snapshot_original_receipt=deepcopy(snapshot['audit']['original_receipt']),

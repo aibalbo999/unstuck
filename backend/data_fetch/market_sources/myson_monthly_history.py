@@ -117,9 +117,10 @@ def _qualified_snapshot(snapshot):
     return coverage
 
 
-def _periods():
+def _periods(coverage=None):
     today = snapshot_source._today()
-    latest = (today.replace(day=1) - timedelta(days=1)).replace(day=1)
+    latest = (snapshot_source.history_month_anchor(coverage, today) if coverage is not None
+              else (today.replace(day=1) - timedelta(days=1)).replace(day=1))
     return [f'{ordinal // 12:04d}-{ordinal % 12 + 1:02d}'
             for ordinal in range(latest.year * 12 + latest.month - 6, latest.year * 12 + latest.month)]
 
@@ -149,7 +150,7 @@ def _index_links(raw):
     return links
 
 
-def _sheet_values(raw, year):
+def _sheet_values(raw, year, coverage=None):
     soup = BeautifulSoup(raw.decode('utf-8'), 'html.parser')
     tables = [[[c.get_text(' ', strip=True) for c in tr.find_all(['th', 'td'])]
                for tr in table.find_all('tr')] for table in soup.find_all('table')]
@@ -184,7 +185,8 @@ def _sheet_values(raw, year):
     values = [amount(v) for v in cells['本月']]
     cumulative = [amount(v) for v in cells['本年累計']]
     today = snapshot_source._today()
-    count = today.month - 1 if year == today.year else 12
+    latest = snapshot_source.history_month_anchor(coverage, today) if coverage is not None else None
+    count = (latest.month if year == latest.year else 12 if year < latest.year else 0) if latest else (today.month - 1 if year == today.year else 12)
     if (year > today.year or any(v is None for v in values[:count])
             or any(v is not None for v in values[count:])
             or any(v is not None for v in cumulative[count:])):
@@ -196,7 +198,7 @@ def _sheet_values(raw, year):
 
 
 def _selected_amounts(values, coverage):
-    periods = _periods()
+    periods = _periods(coverage)
     if any(p not in values for p in periods):
         raise ValueError('myson_six_month_window_incomplete')
     for period, value in zip(coverage['covered_months'], coverage['filed_amounts']):
@@ -234,7 +236,7 @@ class MysonHttp(IssuerNewsHttp):
         elif url == INDEX:
             _index_links(raw)
         elif url in self.sheet_years:
-            _sheet_values(raw, self.sheet_years[url])
+            _sheet_values(raw, self.sheet_years[url], self.coverage)
         else:
             raise ValueError('myson_unpublished_sheet_url')
 
@@ -317,7 +319,7 @@ def _fetch(ticker, snapshot, deadline):
         anchor = _master_anchor(master_raw)
         index_raw, index_receipt = http.get(INDEX)
         links = _index_links(index_raw)
-        years = sorted({int(p[:4]) for p in _periods()})
+        years = sorted({int(p[:4]) for p in _periods(coverage)})
         if not all(year in links for year in years):
             raise ValueError('myson_required_year_not_published')
         sheets, values = [], {}
@@ -325,7 +327,7 @@ def _fetch(ticker, snapshot, deadline):
             url = links[year]
             http.sheet_years[url] = year
             raw, receipt = http.get(url)
-            values.update(_sheet_values(raw, year))
+            values.update(_sheet_values(raw, year, coverage))
             sheets.append((raw, receipt, url))
         periods, amounts = _selected_amounts(values, coverage)
         if _qualified_snapshot(snapshot) != coverage:
@@ -356,7 +358,10 @@ def _fetch(ticker, snapshot, deadline):
                      official_year_to_date_thousands=coverage['official_year_to_date_thousands'],
                      covered_months=periods, observed_month=periods[-1], issuer_code='5314',
                      issuer_name=anchor['legal_name'], consolidation_scope='consolidated',
-                     coverage_status='complete_six_contiguous_month_amounts', window_complete=True,
+                     coverage_status=('complete_six_contiguous_month_amounts_latest_filing_pending'
+                                      if coverage.get('filing_calendar_status') else 'complete_six_contiguous_month_amounts'),
+                     **snapshot_source.history_filing_fields(coverage, snapshot_source._today()),
+                     window_complete=True,
                      historical_point_in_time_verified=False, original_receipt=sheets[-1][1],
                      sheet_original_receipts=[r for _, r, _ in sheets],
                      published_index_original_receipt=index_receipt,

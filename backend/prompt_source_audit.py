@@ -5,6 +5,7 @@ from __future__ import annotations
 from data_trust import source_record_count
 from mapping_fields import safe_text
 from report_freshness_summary import safe_bool
+from provider_observation_details import monthly_filing_details
 
 
 PROMPT_COUNT_COMPARABLE_SOURCES = {
@@ -52,6 +53,7 @@ def prompt_source_audit_summary(data: dict) -> list[dict]:
             "status": _safe_text(dict.get(entry, "status")).strip(),
             "record_count": audit_record_count,
             **{k:entry[k] for k in ("raw_count", "usable_count", "rejected_count", "rejected_reason_counts", "quality_status", "retrieval_status") if k in entry},
+            **monthly_filing_details(entry),
             "merged_record_count": merged_record_count,
             "record_count_mismatch": (
                 source in PROMPT_COUNT_COMPARABLE_SOURCES

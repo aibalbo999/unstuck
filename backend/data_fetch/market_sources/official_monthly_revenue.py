@@ -85,7 +85,9 @@ def select_monthly_records(rows, ticker, today):
     period = row['資料年月']
     month = date(int(period[:3]) + 1911, int(period[3:]), 1)
     expected = (today.replace(day=1) - timedelta(days=1)).replace(day=1)
-    if month != expected:
+    previous_filing_period = (expected - timedelta(days=1)).replace(day=1)
+    awaiting_latest = month == previous_filing_period and today.day <= 10
+    if month != expected and not awaiting_latest:
         raise ValueError('monthly_latest_period_unavailable')
     previous = (month - timedelta(days=1)).replace(day=1)
     values = [_amount(row['營業收入-上月營收']), _amount(row['營業收入-當月營收'])]
@@ -95,7 +97,14 @@ def select_monthly_records(rows, ticker, today):
                      'observed_month': month.strftime('%Y-%m'), 'table_issued_on': row['出表日期'],
                      'currency': 'NTD', 'filed_unit': 'thousands', 'filed_amounts': [str(v) for v in values],
                      'covered_months': [previous.strftime('%Y-%m'), month.strftime('%Y-%m')],
-                     'coverage_status': 'partial_two_adjacent_months', 'window_complete': False,
+                     'coverage_status': ('partial_two_adjacent_months_latest_filing_pending'
+                                         if awaiting_latest else 'partial_two_adjacent_months'),
+                     **({'latest_calendar_month': expected.strftime('%Y-%m'),
+                         'latest_calendar_month_in_snapshot': False,
+                         'latest_calendar_month_filing_due_on': today.replace(day=10).isoformat(),
+                         'filing_calendar_status': 'latest_month_not_yet_in_snapshot_before_deadline'}
+                        if awaiting_latest else {}),
+                     'window_complete': False,
                      'historical_point_in_time_verified': False, 'notes': row['備註']}
 
 
@@ -173,3 +182,29 @@ def apply_monthly_freshness(data, ticker, audit):
     data.setdefault('source_freshness', {})['monthly_revenue'] = build_source_freshness_entry(
         'monthly_revenue', ticker, audit['fetched_at_epoch'], bool(audit.get('cache_hit')),
         now_epoch=time.time(), source_data=data.get('recent_monthly_revenue'))
+
+
+def history_month_anchor(coverage, today):
+    """Use only the period corroborated by the qualified official snapshot."""
+    observed = coverage.get('observed_month')
+    if not isinstance(observed, str) or not re.fullmatch(r'20[0-9]{2}-(0[1-9]|1[0-2])', observed):
+        raise ValueError('monthly_history_anchor_unverified')
+    month = date.fromisoformat(observed + '-01')
+    expected = (today.replace(day=1) - timedelta(days=1)).replace(day=1)
+    prior = (expected - timedelta(days=1)).replace(day=1)
+    pending = month == prior and today.day <= 10
+    if month != expected and not pending:
+        raise ValueError('monthly_latest_period_unavailable')
+    if pending and (coverage.get('latest_calendar_month') != expected.strftime('%Y-%m')
+                    or coverage.get('latest_calendar_month_in_snapshot') is not False
+                    or coverage.get('latest_calendar_month_filing_due_on') != today.replace(day=10).isoformat()
+                    or coverage.get('filing_calendar_status') != 'latest_month_not_yet_in_snapshot_before_deadline'):
+        raise ValueError('monthly_history_pending_filing_unverified')
+    return month
+
+
+def history_filing_fields(coverage, today):
+    history_month_anchor(coverage, today)
+    return {key: coverage[key] for key in ('latest_calendar_month',
+            'latest_calendar_month_in_snapshot', 'latest_calendar_month_filing_due_on',
+            'filing_calendar_status') if key in coverage}
