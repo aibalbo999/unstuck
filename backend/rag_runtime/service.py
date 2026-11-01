@@ -22,7 +22,7 @@ from llm_client import KeyRotator
 from analysis_frozen_canary import frozen_canary_rag_status
 
 from .chunking import build_chunks
-from .documents import hybrid_search, hybrid_search_async
+from .documents import DOCUMENT_PROJECTION_POLICY, hybrid_search, hybrid_search_async
 from .embeddings import embed_index_chunks, embed_index_chunks_async, embed_query, embed_query_async
 from .queries import _agent_query, _format_results
 from .types import InMemoryRagIndex, RagChunk
@@ -59,6 +59,7 @@ def _data_snapshot_hash(data: dict[str, Any]) -> str:
 
 def _rag_index_cache_key(data: dict[str, Any]) -> str:
     key_parts = {
+        "document_projection_policy": DOCUMENT_PROJECTION_POLICY,
         "ticker": str((data or {}).get("ticker") or ""),
         "snapshot": _data_snapshot_hash(data or {}),
         "embedding_model": EMBEDDING_MODEL,

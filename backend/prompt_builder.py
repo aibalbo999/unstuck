@@ -305,7 +305,9 @@ def format_data_for_prompt(data: dict, *, compact: bool = False, dense: bool = F
         from official_income_prompt import official_income_prompt_facts, official_income_reference_text
         income_facts = official_income_prompt_facts(data)
         if income_facts is not None:
-            payload['cash_flow']['official_income_facts'] = income_facts
+            payload['cash_flow']['official_income_facts'] = {key: value for key, value in income_facts.items() if key != 'annual_facts'}
+            if income_facts.get('annual_facts') is not None:
+                payload['cash_flow']['official_individual_annual_facts'] = income_facts['annual_facts']
             reference_text = official_income_reference_text(income_facts, official['facts'])
             if reference_text is not None:
                 payload['cash_flow']['official_income_reference_text'] = reference_text
@@ -325,6 +327,9 @@ def format_data_for_prompt(data: dict, *, compact: bool = False, dense: bool = F
                 '不升級資料時效、歷史首次可用日或對外抓取成功。')
     if role_scoped:
         payload = project_role_payload(payload, dict.get(data, "_prompt_agent_num"))
+    # Receipt locations are server-side proof, not model-readable evidence.
+    # Apply before table packing so private paths cannot survive as table cells.
+    payload = prompt_evidence_copy(payload)
     freshness_reference = False
     if dense:
         # Only replace an exact JSON duplicate at this known schema path. The

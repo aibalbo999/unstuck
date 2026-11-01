@@ -604,3 +604,13 @@ def test_ni253_complete_list_annotation_without_intervening_whitespace():
   '（來源：`data.cash_flow.official_income_facts.source_documents`之完整FY2025與2026Q2雙原件鏈）。')
  r=ni253_rows(text)
  assert r[0]['status']=='verified'and r[0]['expected_value_raw_twd']==3200000,r
+
+
+def test_known_ttm_original_does_not_accept_a_nearby_falsely_precise_amount():
+    rows = income_claims(TEXT.replace('0.032', '0.03201'), selected())
+    assert len(rows) == 1 and rows[0]['status'] == 'mismatch', rows
+
+
+def test_known_ttm_original_keeps_legitimate_display_rounding():
+    rows = income_claims(TEXT.replace('0.032', '0.03'), selected())
+    assert len(rows) == 1 and rows[0]['status'] == 'verified', rows

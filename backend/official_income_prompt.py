@@ -13,7 +13,8 @@ def official_income_prompt_facts(data):
     }, data.get('ticker'))
     if income.get('status') != 'income_originals_verified':
         return None
-    return {'monetary_amount_unit': 'TWD', 'ratio_unit': 'percent',
+    from official_individual_annual_facts import annual_facts_from_replayed_income
+    result = {'monetary_amount_unit': 'TWD', 'ratio_unit': 'percent',
         **({'issuer_english_name': income['issuer_english_name']} if income.get('issuer_english_name') else {}),
         **{key: income[key] for key in (
         'status', 'ticker', 'issuer_name', 'report_scope', 'currency',
@@ -23,6 +24,10 @@ def official_income_prompt_facts(data):
         'ttm_eps_unavailable_reason', 'source_documents', 'capture_boundary',
         'freshness_status', 'historical_pit_verified', 'native_acquisition',
         'five_year_history_verified')}}
+    annual = annual_facts_from_replayed_income(income)
+    if annual is not None:
+        result['annual_facts'] = annual
+    return result
 
 
 def official_income_reference_text(facts, cashflow_facts=None):

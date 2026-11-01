@@ -762,6 +762,10 @@ def check_financial_amount(claim: dict,snapshot: dict,tolerance_pct: float) -> d
         return {**result,'verification_reason_code':'financial_amount_scope_unbound'}
     if snapshot.get('_financial_source_context')=='original_input_unavailable':
         return {**result,'verification_reason_code':'financial_original_input_unavailable'}
+    from official_individual_annual_facts import check_individual_annual_claim
+    annual = check_individual_annual_claim(presentation_claim, data, tolerance_pct)
+    if annual is not None:
+        return {**result, **annual}
     presentation = _explicit_individual_ttm_presentation(presentation_claim, data, tolerance_pct)
     if presentation is not None:
         return {**result, **presentation}

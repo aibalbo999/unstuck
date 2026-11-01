@@ -8,6 +8,9 @@ import re
 from typing import Any
 
 from config import RAG_MIN_SOURCE_CHARS
+from prompt_evidence import is_internal_prompt_key, prompt_evidence_copy
+
+DOCUMENT_PROJECTION_POLICY = "public-evidence-fields-v1"
 
 
 INTERESTING_PATH_MARKERS = (
@@ -73,7 +76,7 @@ def _record_to_text(record: dict[str, Any]) -> str:
             continue
         if isinstance(value, (dict, list)):
             try:
-                value = json.dumps(value, ensure_ascii=False)
+                value = json.dumps(prompt_evidence_copy(value), ensure_ascii=False)
             except TypeError:
                 value = str(value)
         value = str(value).strip()
@@ -115,6 +118,8 @@ def collect_rag_documents(data: dict[str, Any]) -> list[dict[str, str]]:
             if record_text and (_interesting_path(path) or len(record_text) >= RAG_MIN_SOURCE_CHARS):
                 add_document(path, record_text)
             for key, item in value.items():
+                if is_internal_prompt_key(key):
+                    continue
                 walk(item, f"{path}.{key}" if path else str(key), depth + 1)
             return
         if isinstance(value, list):

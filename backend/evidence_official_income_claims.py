@@ -273,13 +273,16 @@ def official_income_claim(claim, data, *, scale, tolerance_pct):
         expected = Decimal(raw) / divisor
         rounded = expected.quantize(Decimal(1).scaleb(-precision), rounding=ROUND_HALF_UP)
         difference = abs(reported - expected) / max(abs(expected), Decimal('1e-12')) * 100
-        matches = reported * expected >= 0 and (reported == rounded or difference <= tolerance)
+        # Known originals must match the precision actually asserted; a nearby
+        # annual amount must not be certified as TTM merely within 1 percent.
+        matches = reported * expected >= 0 and reported == rounded
     except (KeyError, TypeError, ValueError, InvalidOperation, OverflowError):
         return None
     return {
         'status': 'verified' if matches else 'mismatch',
         'verification_reason_code': 'official_income_fact_matched' if matches else 'official_income_fact_mismatch',
         'verification_scope': 'replayed_official_income_fact', 'candidate_count': 1,
+        'matching_policy': 'exact_rounding_to_reported_precision',
         'matched_path': 'official_income_prompt_facts(data).net_income_ttm_raw',
         'matched_value': float(expected), 'diff_pct': round(float(difference), 4),
         'financial_source_path': 'data.official_financial_projection.reference',
