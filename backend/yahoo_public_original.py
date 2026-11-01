@@ -6,6 +6,17 @@ OWNERS={'market_data':('market_data','yfinance'),
         'dynamic_peer_metrics':('dynamic_peer_metrics','FinMind/yfinance')}
 PRIVATE_KEYS={'apikey','authorization','cookie','setcookie','crumb','token','accesstoken','refreshtoken','password','credentials','sessionid','csrftoken','account','accounts','portfolio','portfolios'}
 
+def same_public_path(left, right):
+    """Only curl's literal/escaped caret in an exact chart-index path is equivalent."""
+    if not isinstance(left, str) or not isinstance(right, str):
+        return False
+    if left == right:
+        return True
+    pattern = r'/v8/finance/chart/(?:\^|%5[Ee])([A-Z][A-Z0-9.]{0,38})'
+    first, second = re.fullmatch(pattern, left), re.fullmatch(pattern, right)
+    return bool(first and second and first[1] == second[1])
+
+
 def _public_tree(value,depth=0,budget=None):
     budget=[100000]if budget is None else budget
     budget[0]-=1
@@ -38,7 +49,7 @@ def capture_public_response(response,*,source,symbol):
         actual=urlsplit(response.url);sent=urlsplit(request.url)
         if (actual.scheme!='https'or actual.hostname not in {'query1.finance.yahoo.com','query2.finance.yahoo.com'}
                 or actual.port not in (None,443)or actual.username or actual.password or actual.fragment
-                or sent.scheme!='https'or sent.hostname!=actual.hostname or sent.path!=actual.path
+                or sent.scheme!='https'or sent.hostname!=actual.hostname or not same_public_path(sent.path,actual.path)
                 or sent.username or sent.password or sent.port not in(None,443)or sent.fragment):return None
         body=response.content
         if not isinstance(body,bytes)or not 0<len(body)<=2_000_000:return None

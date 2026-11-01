@@ -3,7 +3,7 @@ import threading,time,re,inspect
 from contextlib import contextmanager
 from contextvars import ContextVar
 from hashlib import sha256
-from yahoo_public_original import capture_public_response
+from yahoo_public_original import capture_public_response, same_public_path
 from urllib.parse import urlsplit,unquote,parse_qs
 _LOCK=threading.Lock()
 _GLOBAL_PROXY=ContextVar('yfinance_global_proxy_transport',default=None)
@@ -116,7 +116,7 @@ def _record(method,url,params,response,started,stream):
     if method!='GET' or not ticker or stream:return
     request=urlsplit(url);actual=urlsplit(response.url)
     if (request.scheme!='https' or actual.scheme!='https' or request.hostname not in {'query1.finance.yahoo.com','query2.finance.yahoo.com'}
-        or actual.hostname!=request.hostname or actual.path!=request.path or request.username or request.password
+        or actual.hostname!=request.hostname or not same_public_path(actual.path,request.path) or request.username or request.password
         or request.port not in (None,443) or getattr(response,'from_cache',False)):return
     annual_binding = _ANNUAL.get()
     if annual_binding is not None:
