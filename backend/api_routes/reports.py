@@ -13,6 +13,7 @@ from sse_starlette.sse import EventSourceResponse
 
 from analysis_job_service import task_queue_has_task
 from api_routes.analysis_sse import resolve_resume_after_id
+from api_routes.maintenance_admission import analysis_admission
 from api_routes.report_rerun_stream import report_rerun_event_generator
 from mapping_fields import safe_mapping_dict, safe_text
 from report_index import is_safe_report_filename
@@ -21,6 +22,7 @@ import report_history_service
 import report_refresh_service
 import report_rerun_service
 import report_compare_service
+import maintenance_guard
 from storage.report_storage import ReportStorage
 
 LOGGER = logging.getLogger("uvicorn.error")
@@ -45,6 +47,52 @@ class ReportRouteDeps:
     print_streamed_event: Callable[[str, dict], None]
     require_mutation_authorized: Callable[[Request], None]
     create_or_attach_job: Callable[..., dict] | None = None
+
+
+def _admit_report_rerun(deps, filename, normalized_scope):
+    """One sync lease includes lifecycle recovery, enqueue and error evidence."""
+    with analysis_admission():
+        pipeline_id = f"rerun:{normalized_scope}"
+        should_enqueue = True
+        recovered_orphaned_queue_task = False
+        if deps.create_or_attach_job is not None:
+            result = deps.create_or_attach_job(filename, pipeline_id)
+            job = result["job"]
+            job_id = job["job_id"]
+            should_enqueue = result.get("created") is True
+            task_id = f"report-rerun:{job_id}"
+            task_queue = deps.get_task_queue()
+            job_status = safe_text(job.get("status")).strip()
+            if not should_enqueue and job_status == "queued" and task_queue_has_task(task_queue, task_id) is False:
+                should_enqueue = True
+                recovered_orphaned_queue_task = True
+        else:
+            job_id = deps.create_job(filename, pipeline_id)
+            task_queue = deps.get_task_queue()
+        if should_enqueue:
+            try:
+                task_queue.enqueue(
+                    f"report-rerun:{job_id}", deps.run_report_rerun_job,
+                    job_id, filename, normalized_scope,
+                )
+            except maintenance_guard.MaintenanceError:
+                raise
+            except Exception as exc:
+                failure_detail = safe_text(exc).strip() or "未知錯誤"
+                message = f"報告重跑任務送入佇列失敗：{failure_detail}"
+                deps.update_job(job_id, "error", error=message)
+                deps.append_event(job_id, {
+                    "type": "error", "message": message, "rerun_scope": normalized_scope,
+                    "source_filename": filename,
+                })
+            else:
+                if recovered_orphaned_queue_task:
+                    deps.append_event(job_id, {
+                        "type": "status", "phase": "queue_recovered", "level": "warning",
+                        "message": "佇列中已找不到此報告重跑任務，已重新排入重跑佇列。",
+                        "rerun_scope": normalized_scope, "source_filename": filename,
+                    })
+        return job_id, should_enqueue, recovered_orphaned_queue_task
 
 
 def create_reports_router(deps: ReportRouteDeps) -> APIRouter:
@@ -136,57 +184,7 @@ def create_reports_router(deps: ReportRouteDeps) -> APIRouter:
         if existing_storage_key(report_storage, filename, kind="data") is None:
             raise HTTPException(status_code=404, detail="舊報告沒有資料快照，無法局部重跑")
 
-        pipeline_id = f"rerun:{normalized_scope}"
-        should_enqueue = True
-        recovered_orphaned_queue_task = False
-        if deps.create_or_attach_job is not None:
-            result = deps.create_or_attach_job(filename, pipeline_id)
-            job = result["job"]
-            job_id = job["job_id"]
-            should_enqueue = result.get("created") is True
-            task_id = f"report-rerun:{job_id}"
-            task_queue = deps.get_task_queue()
-            job_status = safe_text(job.get("status")).strip()
-            if (
-                not should_enqueue
-                and job_status == "queued"
-                and task_queue_has_task(task_queue, task_id) is False
-            ):
-                should_enqueue = True
-                recovered_orphaned_queue_task = True
-        else:
-            job_id = deps.create_job(filename, pipeline_id)
-            task_queue = deps.get_task_queue()
-
-        if should_enqueue:
-            try:
-                task_queue.enqueue(
-                    f"report-rerun:{job_id}",
-                    deps.run_report_rerun_job,
-                    job_id,
-                    filename,
-                    normalized_scope,
-                )
-            except Exception as exc:
-                failure_detail = safe_text(exc).strip() or "未知錯誤"
-                message = f"報告重跑任務送入佇列失敗：{failure_detail}"
-                deps.update_job(job_id, "error", error=message)
-                deps.append_event(job_id, {
-                    "type": "error",
-                    "message": message,
-                    "rerun_scope": normalized_scope,
-                    "source_filename": filename,
-                })
-            else:
-                if recovered_orphaned_queue_task:
-                    deps.append_event(job_id, {
-                        "type": "status",
-                        "phase": "queue_recovered",
-                        "level": "warning",
-                        "message": "佇列中已找不到此報告重跑任務，已重新排入重跑佇列。",
-                        "rerun_scope": normalized_scope,
-                        "source_filename": filename,
-                    })
+        job_id, should_enqueue, recovered_orphaned_queue_task = _admit_report_rerun(deps, filename, normalized_scope)
 
         request_id = uuid4().hex
         claimed_source = request.headers.get("X-Stock-Agent-Action-Source", "")

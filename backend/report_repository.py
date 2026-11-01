@@ -54,6 +54,10 @@ class ReportRepository:
     def delete(self, filename: str, output_dir: Optional[str] = None) -> None:
         delete_report_metadata(filename, output_dir)
 
+    def insert(self, filename: str, **kwargs) -> dict:
+        """Insert a new identity; SQLite rejects a racing existing index row."""
+        return upsert_report_metadata(filename, **kwargs, create_only=True)
+
     def exists(self, filename: str, output_dir: Optional[str] = None) -> bool:
         if not is_safe_report_filename(filename, ".html"):
             return False

@@ -43,7 +43,9 @@ def test_launcher_bounds_polling_without_changing_ttl_or_work_options(launched_w
     assert worker.worker_ttl == DEFAULT_WORKER_TTL == 420
     assert worker.maintenance_interval == 30
     assert worker.dequeue_timeout == 30
-    assert worker.execute_job.__func__ is SimpleWorker.execute_job
+    from worker_rq_scheduler import BoundedSchedulerWorker
+    assert isinstance(worker, BoundedSchedulerWorker)
+    assert issubclass(type(worker), SimpleWorker)
     assert kwargs == {'burst': burst, 'max_jobs': max_jobs, 'with_scheduler': True}
 
 

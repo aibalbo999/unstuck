@@ -12,12 +12,14 @@ from langgraph.graph import StateGraph
 from workflow_state import AgentGraphState
 from workflow_quality_drafts import checkpoint_draft_scope
 from analysis_retry_progress import attach_committed_retry_progress
+from analysis_frozen_canary import FrozenCanaryError, claim_frozen_checkpoint
 
 
 @asynccontextmanager
 async def open_sqlite_checkpointer(path: str | Path):
     target = Path(path).expanduser().resolve(strict=False)
-    target.parent.mkdir(parents=True, exist_ok=True)
+    if not target.parent.is_dir():
+        target.parent.mkdir(parents=True, exist_ok=True)
     async with AsyncSqliteSaver.from_conn_string(str(target)) as saver:
         await saver.conn.execute("PRAGMA journal_mode=WAL")
         await saver.conn.execute("PRAGMA busy_timeout=30000")
@@ -78,12 +80,24 @@ async def execute_persistent_graph(
     checkpoint_backend: str = "sqlite",
     checkpoint_postgres_dsn: str | None = None,
 ) -> AgentGraphState:
+    frozen = claim_frozen_checkpoint(thread_id, checkpoint_backend, checkpoint_path)
     config = {"configurable": {"thread_id": thread_id, "checkpoint_ns": ""}}
     async with open_checkpointer(
         checkpoint_backend=checkpoint_backend,
         checkpoint_path=checkpoint_path,
         postgres_dsn=checkpoint_postgres_dsn,
     ) as saver:
+        if frozen:
+            # Query raw existence across ALL namespaces, before deserializing
+            # graph state. Completed/partial graphs, quality drafts and orphan
+            # writes all disqualify this thread. The controller still owns the
+            # private path and sole-writer guarantee; emptiness is not isolation.
+            for table in ("checkpoints", "writes"):
+                async with saver.conn.execute(
+                    f"SELECT 1 FROM {table} WHERE thread_id = ? LIMIT 1", (thread_id,),
+                ) as cursor:
+                    if await cursor.fetchone() is not None:
+                        raise FrozenCanaryError("frozen canary refuses existing checkpoint state")
         graph = graph_builder.compile(checkpointer=saver)
         snapshot = await graph.aget_state(config)
         if snapshot.values and not snapshot.next:

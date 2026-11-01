@@ -19,6 +19,7 @@ from config import (
 )
 from data_trust_snapshot import sanitize_for_snapshot
 from llm_client import KeyRotator
+from analysis_frozen_canary import frozen_canary_rag_status
 
 from .chunking import build_chunks
 from .documents import hybrid_search, hybrid_search_async
@@ -127,6 +128,8 @@ def _store_cached_rag_index(data: dict[str, Any], index: InMemoryRagIndex) -> No
 
 def build_rag_index(data: dict[str, Any], rotator: Optional[KeyRotator] = None) -> Optional[InMemoryRagIndex]:
     """Build an in-memory RAG index; if embedding fails, keep lexical chunks."""
+    if frozen_canary_rag_status() is not None:
+        return None
     if not RAG_ENABLED:
         return None
     cached = _get_cached_rag_index(data)
@@ -144,6 +147,8 @@ def build_rag_index(data: dict[str, Any], rotator: Optional[KeyRotator] = None) 
 
 async def build_rag_index_async(data: dict[str, Any], rotator: Optional[KeyRotator] = None) -> Optional[InMemoryRagIndex]:
     """Async RAG index builder for the analysis pipeline."""
+    if frozen_canary_rag_status() is not None:
+        return None
     if not RAG_ENABLED:
         return None
     cached = _get_cached_rag_index(data)
@@ -160,6 +165,8 @@ async def build_rag_index_async(data: dict[str, Any], rotator: Optional[KeyRotat
 
 
 def ensure_agent_rag_context(agent_num: int, context: dict, rotator: Optional[KeyRotator] = None) -> str:
+    if _frozen_rag_unavailable(context):
+        return ""
     if not RAG_ENABLED:
         return ""
     rag_context = context.setdefault("rag_context", {})
@@ -195,6 +202,8 @@ def ensure_agent_rag_context(agent_num: int, context: dict, rotator: Optional[Ke
 
 
 async def ensure_agent_rag_context_async(agent_num: int, context: dict, rotator: Optional[KeyRotator] = None) -> str:
+    if _frozen_rag_unavailable(context):
+        return ""
     if not RAG_ENABLED:
         return ""
     rag_context = context.setdefault("rag_context", {})
@@ -227,3 +236,15 @@ async def ensure_agent_rag_context_async(agent_num: int, context: dict, rotator:
     if formatted:
         rag_context[agent_num] = formatted
     return formatted
+
+
+def _frozen_rag_unavailable(context: dict) -> bool:
+    status = frozen_canary_rag_status()
+    if status is None:
+        return False
+    # Preparation alone is insufficient: agent-level lazy RAG would rebuild an
+    # index or consume an unqualified cached context after the prepare node.
+    context["rag_status"] = status
+    context.pop("rag_index", None)
+    context.pop("rag_context", None)
+    return True

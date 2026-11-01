@@ -11,6 +11,7 @@ from threading import Event
 from typing import Any
 
 import market_screener
+import maintenance_guard
 from report_freshness_summary import safe_bool
 import watchlist_service
 
@@ -27,6 +28,14 @@ def _run_due_watchlist_batch(
     emit_log: Callable[[str], None],
     stop_event: Event | None = None,
 ) -> dict:
+    with maintenance_guard.admission():
+        return _run_admitted_watchlist_batch(create_job=create_job, find_active_job=find_active_job,
+            task_queue=task_queue, run_stock_analysis_job=run_stock_analysis_job,
+            emit_log=emit_log, stop_event=stop_event)
+
+
+def _run_admitted_watchlist_batch(*, create_job, find_active_job, task_queue,
+                                 run_stock_analysis_job, emit_log, stop_event=None) -> dict:
     if stop_event is not None and stop_event.is_set():
         return {"success": True, "queued": [], "skipped": [], "errors": [], "interrupted": True}
     due_items = watchlist_service.claim_due_watchlist_items()
@@ -51,6 +60,7 @@ def _screener_due(now) -> bool:
     return now >= now.replace(hour=hour, minute=minute, second=0, microsecond=0)
 
 
+@maintenance_guard.admission()
 def _run_daily_market_screener(
     *,
     emit_log: Callable[[str], None],
@@ -129,6 +139,8 @@ async def _watchlist_scheduler_forever(
                     f"triggered={len(trigger_result.get('queued') or [])}, "
                     f"errors={len(trigger_result.get('errors') or [])}"
                 )
+        except maintenance_guard.MaintenanceError:
+            emit_log("watchlist 維護暫停：停止本輪後續派發與掃描，保留已准入工作的結果。")
         except Exception as exc:
             emit_log(f"watchlist 批次分析檢查失敗：{type(exc).__name__}: {exc}")
         await asyncio.sleep(interval_seconds)

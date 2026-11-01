@@ -9,6 +9,21 @@ sys.path.insert(0, str(ROOT / "backend"))
 
 
 @pytest.fixture(autouse=True)
+def offline_canary_feature_diagnostics(request, monkeypatch):
+    """Exercise dormant internals only in explicitly isolated positive tests.
+
+    The engineering-release rejection tests deliberately do not use this seam.
+    This is a Python unit-test mock, not an environment/API activation switch.
+    """
+    name = request.module.__name__.split('.')[-1]
+    if name == 'test_analysis_frozen_canary' or name.startswith(('test_quality_campaign_', 'test_maintenance_canary_')):
+        import os
+        assert os.environ.get('STOCK_AGENT_TEST_NO_NETWORK') == '1'
+        import canary_release_policy
+        monkeypatch.setattr(canary_release_policy, 'require_canary_enabled', lambda: None)
+
+
+@pytest.fixture(autouse=True)
 def isolate_observed_model_congestion(monkeypatch):
     """Production shares state across jobs, but independent tests must not."""
     import llm_congestion

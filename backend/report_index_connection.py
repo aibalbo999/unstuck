@@ -22,7 +22,8 @@ def connect_report_index_sqlite(
     initialize: Callable[[sqlite3.Connection], None] | None = None,
 ) -> sqlite3.Connection:
     path = Path(db_path).expanduser().resolve(strict=False)
-    path.parent.mkdir(parents=True, exist_ok=True)
+    if not path.parent.is_dir():
+        path.parent.mkdir(parents=True, exist_ok=True)
     for attempt in range(max(1, attempts)):
         conn = None
         try:

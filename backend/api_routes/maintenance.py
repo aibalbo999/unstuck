@@ -7,7 +7,25 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any, Optional
 
-from fastapi import APIRouter, Query, Request
+from fastapi import APIRouter, HTTPException, Query, Request
+
+import maintenance_guard
+
+
+def _run_action(action, *, write, **kwargs):
+    if not write:
+        return action(write=write, **kwargs)
+    # This context lives in the actual action thread, not the request Task.
+    with maintenance_guard.admission():
+        return action(write=write, **kwargs)
+
+
+async def _maintenance_action(action, **kwargs):
+    try:
+        return await asyncio.to_thread(_run_action, action, **kwargs)
+    except maintenance_guard.MaintenanceError:
+        raise HTTPException(status_code=503,
+            detail="系統維護中或維護狀態尚未確認，暫停執行清理；仍可預覽及查詢狀態。") from None
 
 
 @dataclass(frozen=True)
@@ -37,7 +55,7 @@ def create_maintenance_router(deps: MaintenanceRouteDeps) -> APIRouter:
         write: bool = Query(False),
     ):
         deps.require_mutation_authorized(request)
-        result = await asyncio.to_thread(
+        result = await _maintenance_action(
             deps.cleanup_failed_queue,
             stale_after_seconds=stale_after_seconds,
             write=write,
@@ -47,7 +65,7 @@ def create_maintenance_router(deps: MaintenanceRouteDeps) -> APIRouter:
     @router.post("/cleanup-report-index")
     async def cleanup_report_index(request: Request, write: bool = Query(False)):
         deps.require_mutation_authorized(request)
-        result = await asyncio.to_thread(deps.cleanup_report_index_orphans, write=write)
+        result = await _maintenance_action(deps.cleanup_report_index_orphans, write=write)
         return _maintenance_result(result)
 
     @router.post("/cleanup-provider-sla")
@@ -57,7 +75,7 @@ def create_maintenance_router(deps: MaintenanceRouteDeps) -> APIRouter:
         write: bool = Query(False),
     ):
         deps.require_mutation_authorized(request)
-        result = await asyncio.to_thread(deps.cleanup_provider_sla_events, retention_days=retention_days, write=write)
+        result = await _maintenance_action(deps.cleanup_provider_sla_events, retention_days=retention_days, write=write)
         return _maintenance_result(result)
 
     @router.post("/cleanup-analysis-history")
@@ -68,7 +86,7 @@ def create_maintenance_router(deps: MaintenanceRouteDeps) -> APIRouter:
         write: bool = Query(False),
     ):
         deps.require_mutation_authorized(request)
-        result = await asyncio.to_thread(
+        result = await _maintenance_action(
             deps.cleanup_analysis_history,
             retention_days=retention_days,
             keep_recent_jobs=keep_recent_jobs,
@@ -79,7 +97,7 @@ def create_maintenance_router(deps: MaintenanceRouteDeps) -> APIRouter:
     @router.post("/sqlite-maintenance")
     async def sqlite_maintenance(request: Request, write: bool = Query(False)):
         deps.require_mutation_authorized(request)
-        result = await asyncio.to_thread(deps.run_sqlite_maintenance, write=write)
+        result = await _maintenance_action(deps.run_sqlite_maintenance, write=write)
         return _maintenance_result(result)
 
     return router

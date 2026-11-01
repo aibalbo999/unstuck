@@ -9,6 +9,7 @@ from statistics import mean
 from typing import Callable
 
 import decision_tracking_store
+import maintenance_guard
 import report_history_service
 import trade_backtest_store
 from decision_backtest import BACKTEST_HORIZONS, add_calendar_months, evaluate_prediction
@@ -26,6 +27,13 @@ def run_due_backtests(
     bar_fetcher: Callable = fetch_backtest_bars,
     allow_historical_evaluation: bool = False,
 ) -> dict:
+    with maintenance_guard.admission():
+        return _run_due_backtests(output_dir=output_dir, as_of=as_of, price_fetcher=price_fetcher,
+            bar_fetcher=bar_fetcher, allow_historical_evaluation=allow_historical_evaluation)
+
+
+def _run_due_backtests(*, output_dir, as_of, price_fetcher, bar_fetcher,
+                       allow_historical_evaluation=False) -> dict:
     if as_of is None:
         from market_evidence_policy import completed_evidence_session
         from zoneinfo import ZoneInfo
@@ -73,6 +81,8 @@ def run_due_backtests(
                 )
                 evaluated.extend(trades)
                 skipped.extend(trade_skips)
+            except maintenance_guard.MaintenanceError:
+                raise
             except Exception as exc:
                 errors.append({"filename": filename, "pipeline_id": pipeline_id, "error": str(exc)[:240]})
             continue
@@ -110,6 +120,8 @@ def run_due_backtests(
                 }
                 decision_tracking_store.upsert_backtest_result(result)
                 evaluated.append(result)
+            except maintenance_guard.MaintenanceError:
+                raise
             except Exception as exc:
                 errors.append({"filename": filename, "horizon_months": horizon, "error": str(exc)[:240]})
     from legacy_evidence_revisions import run_due_revisions

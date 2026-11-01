@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 
 import report_history_service
+import maintenance_guard
 from cache_store import cleanup_expired_cache_entries
 from config import REPORT_CLEANUP_INTERVAL_SECONDS, REPORT_RETENTION_DAYS
 from database_maintenance import run_sqlite_maintenance
@@ -52,11 +53,20 @@ async def run_maintenance_iteration(runtime: WorkerRuntime, report_cache: dict[s
     ]
     for label, action in steps:
         try:
-            await asyncio.to_thread(action)
+            await asyncio.to_thread(_admitted_action, action)
         except asyncio.CancelledError:
             raise
+        except maintenance_guard.MaintenanceError:
+            emit_log("週期清理暫停：系統維護中或維護狀態尚未確認。")
+            return
         except Exception as exc:
             emit_log(f"maintenance cleanup failed ({label}): {exc}")
+
+
+def _admitted_action(action):
+    # An outer asyncio cancellation cannot release a still-running thread lease.
+    with maintenance_guard.admission():
+        return action()
 
 
 __all__ = ["run_maintenance_iteration", "run_maintenance_process"]

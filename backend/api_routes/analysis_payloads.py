@@ -5,6 +5,8 @@ from __future__ import annotations
 import math
 from typing import Any
 
+import maintenance_guard
+
 from mapping_fields import safe_int, safe_mapping_dict, safe_sequence_items, safe_text
 
 
@@ -42,6 +44,8 @@ def _legacy_create_and_enqueue_via_deps(deps: Any, ticker: str, pipeline_id: str
             ticker,
             pipeline_id,
         )
+    except maintenance_guard.MaintenanceError:
+        raise
     except Exception as exc:
         detail = safe_text(exc).strip()
         message = f"分析任務送入佇列失敗：{detail}" if detail else "分析任務送入佇列失敗"

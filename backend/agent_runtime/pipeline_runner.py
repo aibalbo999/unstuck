@@ -6,6 +6,9 @@ import time
 from typing import Any
 
 from .types import AnalysisRequest, AnalysisResult
+from analysis_frozen_canary import (
+    check_frozen_workflow_request, frozen_workflow_rotator, frozen_workflow_services,
+)
 
 
 def create_default_workflow_services(**kwargs):
@@ -34,6 +37,7 @@ def legacy_context_from_graph(*args: Any, **kwargs: Any):
 
 class AnalysisPipelineRunner:
     async def run_async(self, request: AnalysisRequest) -> AnalysisResult:
+        check_frozen_workflow_request(request)
         started = time.time()
         service_kwargs = {
             "progress_callback": request.progress_callback,
@@ -41,7 +45,11 @@ class AnalysisPipelineRunner:
         }
         if request.telemetry_callback is not None:
             service_kwargs["telemetry_callback"] = request.telemetry_callback
+        rotator = frozen_workflow_rotator(request)
+        if rotator is not None:
+            service_kwargs["rotator"] = rotator
         services = create_default_workflow_services(**service_kwargs)
+        services = frozen_workflow_services(services, request)
         initial_state = services.initialize(dict(request.data), request.pipeline_id)
         if request.thread_id:
             initial_state["job_id"] = str(request.thread_id).split(":", 1)[0]

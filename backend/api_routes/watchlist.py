@@ -21,6 +21,7 @@ from free_mode_contract import build_free_mode_contract
 from notification_delivery_audit import get_delivery_audit_summary
 from portfolio_risk import analyze_portfolio_csv
 from api_routes.report_quality_review import register_report_quality_review_routes
+from api_routes.maintenance_admission import analysis_admission
 import report_history_service
 from report_quality_audit import (
     build_historical_indexed_report_quality_audit,
@@ -124,6 +125,21 @@ class WatchlistRouteDeps:
     require_mutation_authorized: Callable[[Request], None]
     read_performance: Callable[[str], Awaitable[dict]] | None = None
     read_quality_audit: Callable[[str], Awaitable[dict]] | None = None
+
+
+def _run_manual_screener(force):
+    # Acquire in the actual worker thread, not around an await in its caller.
+    with analysis_admission():
+        return market_screener.run_daily_market_screener(force=force)
+
+
+def _run_manual_watchlist(deps, requested):
+    with analysis_admission():
+        if not isinstance(requested, list):
+            requested = [item for item in watchlist_service.list_watchlist().get("items", []) if item.get("enabled")]
+        return watchlist_service.enqueue_watchlist_items(requested, create_job=deps.create_job,
+            find_active_job=deps.find_active_job, task_queue=deps.get_task_queue(),
+            run_stock_analysis_job=deps.run_stock_analysis_job)
 
 
 def create_watchlist_router(deps: WatchlistRouteDeps) -> APIRouter:
@@ -328,7 +344,7 @@ def create_watchlist_router(deps: WatchlistRouteDeps) -> APIRouter:
         deps.require_mutation_authorized(request)
         payload = await request.json()
         force = safe_bool(payload.get("force")) if isinstance(payload, dict) else False
-        result = await asyncio.to_thread(market_screener.run_daily_market_screener, force=force)
+        result = await asyncio.to_thread(_run_manual_screener, force)
         return _renderable_screener_result(result)
 
     @router.post("")
@@ -358,18 +374,6 @@ def create_watchlist_router(deps: WatchlistRouteDeps) -> APIRouter:
         deps.require_mutation_authorized(request)
         payload = await request.json()
         requested = payload.get("items") if isinstance(payload, dict) else None
-        if not isinstance(requested, list):
-            requested = [
-                item for item in watchlist_service.list_watchlist().get("items", [])
-                if item.get("enabled")
-            ]
-        return await asyncio.to_thread(
-            watchlist_service.enqueue_watchlist_items,
-            requested,
-            create_job=deps.create_job,
-            find_active_job=deps.find_active_job,
-            task_queue=deps.get_task_queue(),
-            run_stock_analysis_job=deps.run_stock_analysis_job,
-        )
+        return await asyncio.to_thread(_run_manual_watchlist, deps, requested)
 
     return router

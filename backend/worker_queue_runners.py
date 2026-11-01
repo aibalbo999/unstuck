@@ -25,9 +25,10 @@ def run_rq_worker(
 
     from worker_rq_scheduler import BoundedSchedulerWorker
     from redis.exceptions import ConnectionError as RedisConnectionError
+    from maintenance_rq_worker import maintenance_worker_class
 
     rq_queues = list(getattr(task_queue, "queues", {}).values()) or [rq_queue]
-    worker = BoundedSchedulerWorker(rq_queues, connection=redis)
+    worker = maintenance_worker_class(BoundedSchedulerWorker)(rq_queues, connection=redis)
     install_shutdown_quiet_pubsub(worker)
     try:
         worker.work(
@@ -37,6 +38,8 @@ def run_rq_worker(
             # scheduler they stay there forever and the UI appears silent.
             with_scheduler=True,
         )
+        if worker.maintenance_pause_reason is not None:
+            emit(f"queue worker paused by maintenance gate ({worker.maintenance_pause_reason}).")
     except RedisConnectionError:
         if rq_worker_shutdown_requested(worker):
             emit("queue worker stopped after Redis shutdown.")

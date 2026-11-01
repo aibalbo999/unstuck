@@ -7,6 +7,7 @@ import time
 from config import OUTPUT_DIR as DEFAULT_OUTPUT_DIR
 from report_persistence import persist_report_bundle
 from report_publication_gate import assert_report_publishable
+from analysis_frozen_canary import check_frozen_report_bundle
 from reporting import ReportRequest
 from storage.report_storage import LocalFileStorage, ReportStorage
 
@@ -27,6 +28,7 @@ async def render_and_persist_report(
     output_dir: str = DEFAULT_OUTPUT_DIR,
     storage: ReportStorage | None = None,
     filename: str | None = None,
+    create_only: bool = False,
 ) -> dict:
     assert_report_publishable(context)
     append_event_func(job_id, {
@@ -47,7 +49,9 @@ async def render_and_persist_report(
             filename=filename,
         )
     )
+    cancel_check()
     data_snapshot = report_bundle.data_snapshot
+    check_frozen_report_bundle(report_bundle)
     persisted = persist_report_bundle(
         filename=filename,
         html_content=report_bundle.html,
@@ -55,6 +59,7 @@ async def render_and_persist_report(
         data_snapshot=data_snapshot,
         storage=storage or LocalFileStorage(output_dir),
         output_dir=output_dir,
+        **({"create_only": True} if create_only else {}),
     )
 
     return {

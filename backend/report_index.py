@@ -21,6 +21,7 @@ from report_index_rows import row_to_report, row_to_history_decision
 from report_history_decision import is_history_decision_filter, matches_history_decision
 from report_pipeline_identity import resolve_report_pipeline_id
 from runtime_paths import current_runtime_paths; CACHE_DB_PATH = str(current_runtime_paths().report_index_db)
+from storage.create_only_reports import publication_is_pending
 _REPORT_INDEX_LOCK = threading.Lock()
 
 
@@ -80,9 +81,13 @@ def upsert_report_metadata(
     html_content: Optional[str] = None,
     markdown_content: Optional[str] = None,
     data_trust: Optional[dict] = None,
+    *,
+    create_only: bool = False,
 ) -> Optional[dict]:
     metadata = build_report_metadata(filename, output_dir, html_content, markdown_content, data_trust=data_trust)
     if not metadata:
+        if create_only:
+            raise ValueError("new report metadata could not be built")
         return None
 
     with _REPORT_INDEX_LOCK, _connect() as conn:
@@ -97,6 +102,7 @@ def upsert_report_metadata(
             markdown_hash, data_file_hash, decision_tracking_json, updated_at
             )
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """ + ("" if create_only else """
             ON CONFLICT(output_dir, filename) DO UPDATE SET
                 md_filename = excluded.md_filename,
                 ticker = excluded.ticker,
@@ -119,7 +125,7 @@ def upsert_report_metadata(
                 data_file_hash = excluded.data_file_hash,
                 decision_tracking_json = excluded.decision_tracking_json,
                 updated_at = excluded.updated_at
-            """,
+            """),
             (
                 metadata["output_dir"],
                 metadata["filename"],
@@ -170,6 +176,7 @@ def sync_report_metadata(output_dir: Optional[str] = None) -> None:
         path.name
         for path in Path(out_dir).rglob("*.html")
         if path.is_file() and is_safe_report_filename(path.name, ".html")
+        and not publication_is_pending(out_dir, path.name)
     )
     filename_set = set(filenames)
 
@@ -191,7 +198,8 @@ def sync_report_metadata(output_dir: Optional[str] = None) -> None:
         ):
             upsert_report_metadata(filename, output_dir=out_dir)
 
-    stale = [filename for filename in existing_mtimes if filename not in filename_set]
+    stale = [filename for filename in existing_mtimes if filename not in filename_set
+             and not publication_is_pending(out_dir, filename)]
     if stale:
         with _REPORT_INDEX_LOCK, _connect() as conn:
             conn.executemany(
@@ -240,6 +248,8 @@ def query_report_metadata(
             f"SELECT filename FROM reports WHERE {where_sql}", params)}
     canonical_rows = []
     for row in raw_rows:
+        if publication_is_pending(out_dir, row["filename"]):
+            continue
         row_pipeline = resolve_report_pipeline_id(row["filename"], stored_pipeline=row["pipeline_id"])
         if pipeline != "all" and row_pipeline != pipeline:
             continue

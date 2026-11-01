@@ -9,6 +9,8 @@ from typing import Any
 
 from data_trust import data_snapshot_filename_for_report, sanitize_for_snapshot
 from report_paths import report_markdown_filename_for_report, report_storage_key_for_filename
+from report_paths import report_storage_candidates_for_filename
+from report_index_parsing import is_safe_report_filename
 from report_repository import DEFAULT_REPORT_REPOSITORY, ReportRepository
 from report_publication_gate import assert_report_publishable, ReportPublicationBlockedError
 from data_trust_snapshot_integrity import verify_data_snapshot_integrity, set_snapshot_integrity
@@ -56,6 +58,7 @@ def persist_report_bundle(
     storage: ReportStorage,
     output_dir: str | None = None,
     repository: ReportRepository = DEFAULT_REPORT_REPOSITORY,
+    create_only: bool = False,
 ) -> dict[str, Any]:
     """Save report content first, then index metadata after all content is durable."""
 
@@ -63,6 +66,11 @@ def persist_report_bundle(
     integrity = verify_data_snapshot_integrity(data_snapshot)
     if not integrity['valid']:
         raise ReportPublicationBlockedError(integrity['errors'])
+    if type(create_only) is not bool:
+        raise ValueError("create_only must be a boolean")
+    if create_only and (not isinstance(filename, str) or not filename[:-5]
+                        or not is_safe_report_filename(filename, ".html")):
+        raise ValueError("create-only publication requires an exact HTML filename")
     keys = report_bundle_keys_for_filename(filename)
     data_snapshot_payload = sanitize_for_snapshot(data_snapshot)
     if not isinstance(data_snapshot_payload, dict):
@@ -81,6 +89,25 @@ def persist_report_bundle(
         for key in (keys.html_key, keys.md_key, keys.data_key)
     }
     attempted_keys: list[str] = []
+
+    if create_only:
+        from storage.create_only_reports import create_only_bundle
+
+        candidates = [key for kind in ("html", "md", "data", "review")
+                      for key in report_storage_candidates_for_filename(filename, kind=kind)]
+        contents = [(keys.html_key, str(html_content or "").encode("utf-8"), HTML_CONTENT_TYPE),
+                    (keys.md_key, str(markdown_content or "").encode("utf-8"), MARKDOWN_CONTENT_TYPE),
+                    (keys.data_key, data_bytes, DATA_SNAPSHOT_CONTENT_TYPE)]
+        with create_only_bundle(storage, output_dir=output_dir, filename=filename, candidates=candidates,
+                                contents=contents) as write_contents:
+            if repository.exists(keys.filename, output_dir=output_dir):
+                raise FileExistsError("report identity already exists in index")
+            # Do not route failures into the legacy destructive rollback below.
+            # An uncertain index commit retains the corresponding artifacts.
+            write_contents()
+            metadata = repository.insert(keys.filename, output_dir=output_dir,
+                html_content=html_content, markdown_content=markdown_content, data_trust=data_trust)
+        return {**vars(keys), "data_trust": data_trust, "metadata": metadata}
 
     try:
         attempted_keys.append(keys.html_key)
