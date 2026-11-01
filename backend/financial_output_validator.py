@@ -270,7 +270,7 @@ def validate_analysis_output(agent_num: int, text: str, data: Optional[dict] = N
         issues.append('政策事件日期紅線：聯準會行動日期缺少同一官方原件支持；RSS發布日期或GDELT觀測日期不代表事件日期。若僅有新聞標題，須保留事件日期未核實，不可寫成已發生事實。')
 
     from financial_unit_declarations import financial_unit_declaration_issues
-    if financial_unit_declaration_issues(text):
+    if financial_unit_declaration_issues(text,data):
         issues.append('財務單位宣告紅線：同一金額不能同時標示億元與billion_twd；1 billion TWD為10億元。期間未核實也不能豁免明確的單位矛盾。')
 
     from cashflow_causal_claims import cashflow_driver_inference_issues

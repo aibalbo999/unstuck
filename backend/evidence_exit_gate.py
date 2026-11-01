@@ -223,7 +223,7 @@ def evaluate_report_evidence(
         verdict='rejected'
         summary += ' 現金流總額無法證實所述營運原因。'
     from financial_unit_declarations import financial_unit_declaration_issues
-    unit_checks=financial_unit_declaration_issues(markdown)
+    unit_checks=financial_unit_declaration_issues(markdown,data)
     if unit_checks:
         verdict='rejected'
         summary+=' 同一金額有億元與billion_twd的明確矛盾宣告。'
