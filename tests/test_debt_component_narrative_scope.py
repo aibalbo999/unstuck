@@ -40,3 +40,28 @@ def test_unrecognized_qualifier_cannot_hide_after_component_list():
 def test_unverified_raw_original_never_qualifies_narrative():
     data=projected();data['official_financial_projection']['reference']['quarterly_document']['sha256']='0'*64
     assert all(r['status']=='unverifiable'for r in official_debt_component_claims(narrative(),{'data':data}))
+
+def explicit_component(data,amount='0.005'):
+    fact=data['official_financial_projection']['facts']
+    return f"{fact['issuer_name']}官方個別財報 TWD 截至 2026-06-30 一年內到期之長期借款為 {amount} 億元。"
+
+@pytest.mark.parametrize('heading',['## 四、財務槓桿與償債能力','## 官方財務事實清單'])
+def test_complete_twd_component_statement_uses_original_not_a_header(heading):
+    data=projected();rows=official_debt_component_claims(heading+'\n\n'+explicit_component(data),{'data':data})
+    assert len(rows)==1 and rows[0]['status']=='verified',rows
+
+@pytest.mark.parametrize('ancestor',['# 台積電','# 2024年度','# USD','# 合併財報','# 預估財報'])
+def test_complete_component_cannot_hide_a_conflicting_ancestor(ancestor):
+    data=projected();text=ancestor+'\n\n## 四、財務槓桿與償債能力\n\n'+explicit_component(data)
+    rows=official_debt_component_claims(text,{'data':data})
+    assert rows and all(x['status']=='unverifiable'for x in rows),rows
+
+@pytest.mark.parametrize('old,new',[('TWD','USD'),('2026-06-30','2025-06-30'),('個別','合併')])
+def test_complete_component_local_scope_cannot_be_replaced(old,new):
+    data=projected();rows=official_debt_component_claims(explicit_component(data).replace(old,new),{'data':data})
+    assert rows and all(x['status']=='unverifiable'for x in rows),rows
+
+@pytest.mark.parametrize('value',['0.005001','0.0005','-0.005'])
+def test_complete_component_false_precision_and_unit_factor_remain_mismatch(value):
+    data=projected();rows=official_debt_component_claims(explicit_component(data,value),{'data':data})
+    assert len(rows)==1 and rows[0]['status']=='mismatch',rows

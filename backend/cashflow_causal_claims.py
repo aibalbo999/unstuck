@@ -12,9 +12,10 @@ _NEGATIVE = re.compile(
  r'現金流流出|負(?:向|值)?\s*(?:自由)?(?:現金流|FCF)|'
  r'(?:自由現金流|FCF).{0,60}?(?:為負|負值|[=:：]\s*-\s*\d|'
  r'-\s*\d+(?:\.\d+)?\s*(?:億|元|billion|million))|'
+ r'(?:自由現金流|FCF).{0,60}?(?:淨流出|淨支出)|'
  r'negative\s+(?:free\s+cash\s*flow|FCF)',re.I)
 _CAUSE = re.compile(r'應視為|代表其處於|主因|因應|源於|源自|顯示|反映|證實|證明|導致|致使|'
- r'implies|shows|proves|because|caused\s+by',re.I)
+ r'主要受|implies|shows|proves|because|caused\s+by',re.I)
 _DRIVER = re.compile(r'備料|擴產|擴張|營運資金|'
  r'(?:存貨|應收帳款|應收款).{0,12}(?:鎖定|佔用|占用|墊付)|'
  r'(?:鎖定|佔用|占用).{0,12}(?:存貨|應收帳款|應收款)|'

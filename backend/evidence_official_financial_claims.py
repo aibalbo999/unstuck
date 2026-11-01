@@ -329,7 +329,7 @@ def official_debt_component_claims(markdown, snapshot, tolerance_pct=1.0):
     from official_financial_projection import read_official_financial_projection
     data = snapshot.get('data') or {}
     projection = None
-    results = []; heading = ''; in_code = False
+    results = []; heading = ''; in_code = False; heading_stack = []
     foreign = re.compile(r'同業|同儕|比較公司|合併|本集團|集團口徑|此為|屬於|預期|預估|預測|假設|情境|未來|如果|若|美元|美金|USD|CNY|人民幣|港元|港幣|HKD|日圓|日元|JPY|歐元|EUR|韓元|KRW', re.I)
     for line_number, original in enumerate(str(markdown).splitlines(), 1):
         if original.strip().startswith('```'):
@@ -339,6 +339,11 @@ def official_debt_component_claims(markdown, snapshot, tolerance_pct=1.0):
             continue
         if original.lstrip().startswith('#'):
             heading = original
+            heading_match = re.match(r'^\s*(#{1,6})\s+', original)
+            if heading_match:
+                level = len(heading_match[1])
+                heading_stack = [(n, value) for n, value in heading_stack if n < level]
+                heading_stack.append((level, original))
         line = re.sub(r'[*`\s]', '', original).replace('−', '-')
         line = re.sub(r'(20\d{2})年(\d{1,2})月(\d{1,2})日', lambda m:f'{m[1]}-{int(m[2]):02d}-{int(m[3]):02d}', line)
         for match in pattern.finditer(line):
@@ -372,7 +377,23 @@ def official_debt_component_claims(markdown, snapshot, tolerance_pct=1.0):
             scale = scales.get(match['unit'])
             narrative_identity = (r'截至'+re.escape(date)+r'[，,]'+owner+r'個別借款與租賃負債總額為'
                                   +number+r'億元。結構包含[:：]短期借款'+number+r'億元、')
-            direct_scope = re.fullmatch(identity + preceding, prefix) is not None
+            from evidence_official_income_claims import _identity, _native_report_title, _context_matches
+            source_identity = _identity(fact)
+            source_names = [fact['issuer_name'], *source_identity['company_identity']['allowed_aliases']]
+            explicit_identity = (r'(?:' + '|'.join(map(re.escape, source_names))
+                                 + r')官方個別財報TWD截至' + re.escape(date))
+            explicit_scope = re.fullmatch(explicit_identity, prefix) is not None
+            if explicit_scope:
+                # The full local statement supplies its own scope. A neutral
+                # heading supplies nothing; every outer owner/year/FX remains
+                # binding and cannot be hidden by a nested fact-list heading.
+                explicit_scope = all(
+                    not foreign.search(value) and (
+                        re.fullmatch(r'\s*##\s*四、財務槓桿與償債能力\s*', value)
+                        or _native_report_title(value, fact)
+                        or _context_matches(value, source_identity))
+                    for _, value in heading_stack)
+            direct_scope = explicit_scope or re.fullmatch(identity + preceding, prefix) is not None
             narrative_scope = re.fullmatch(narrative_identity, prefix) is not None
             # A statement citation may precede the issuer and the component list.
             # Bind all of it locally; a header or neighbouring paragraph cannot
@@ -405,7 +426,10 @@ def official_debt_component_claims(markdown, snapshot, tolerance_pct=1.0):
             if expected is None:
                 results.append(claim); continue
             checked = _result(claim, projection, expected,
-                'data.official_financial_projection.facts.debt_components.current_portion_longterm_borrowings', scale, tolerance_pct)
+                'data.official_financial_projection.facts.debt_components.current_portion_longterm_borrowings', scale,
+                0 if explicit_scope else tolerance_pct)
+            if explicit_scope:
+                checked['matching_policy'] = 'exact_rounding_to_reported_precision'
             checked['financial_period'] = date
             checked['financial_definition'] = '個別財報長期借款流動部分；非長期借款總額或借款合計'
             results.append(checked)
