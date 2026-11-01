@@ -295,7 +295,7 @@ def build_prompt(agent_num: int, data: StockData, context: AnalysisContext) -> s
         retry_instruction,
         audit_reflection_instruction,
         audit_retry_instruction,
-        official_financial_amount_reference_prompt(financial_verification_data) if agent_num == 2 else "",
+        official_financial_amount_reference_prompt(financial_verification_data) if agent_num in {2, 3, 4, 5, 6, 21, 7} else "",
         final_audit_preflight_rule,
         OUTPUT_CLEANLINESS_RULE,
     ]

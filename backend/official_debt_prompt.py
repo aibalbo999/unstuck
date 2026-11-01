@@ -44,7 +44,7 @@ def official_debt_reference_prompt(data):
 
 
 def official_financial_amount_reference_prompt(data):
-    """Present existing canonical income/FCF statements with debt, for Agent 2."""
+    """Present canonical income/FCF statements with debt for financial roles."""
     from official_income_prompt import official_income_prompt_facts, official_income_reference_text
     debt = official_debt_reference_prompt(data)
     income = official_income_prompt_facts(data)
