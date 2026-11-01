@@ -12,6 +12,10 @@ Agent2 來源資格優先契約：
 官方金額使用原件重播所附完整 statement，每次都具名公司、幣別、個別/合併、
 完整起訖或資產負債表同日。金額事實各自獨立成段，來源與反證另段；
 摘要、風險與最終結論指回具名期間科目，不再重複省略口徑的金額。
+結構化 evidence_items 的 finding、counterevidence、freshness_note 也各是獨立輸出欄位，
+不能向 source_refs 或 analysis_markdown 借用公司、幣別或期間。finding 用科目與具名期間
+概述發現即可，不必重述金額；完整金額與原件 statement 放在 analysis_markdown。
+不得把跨年多項金額合併成「自…增至…」摘要，再用 source_refs 的日期補足正文缺失。
 年度與 TTM 必須分開，重疊期間不是連續兩個年度。內部引用僅用本次實際可見的完整路徑，
 不得自創 data 前綴或原始資料中不存在的頂層欄位。
 
