@@ -163,7 +163,7 @@ def build_temporal_memory_section(agent_num: int, data: StockData) -> str:
 
 def build_prompt(agent_num: int, data: StockData, context: AnalysisContext) -> str:
     """根據 Agent 編號建立分析提示詞。"""
-    from official_debt_prompt import official_debt_reference_prompt
+    from official_debt_prompt import official_financial_amount_reference_prompt
     source_context = context
     market_contract = agent_num in FINAL_AGENTS and context.get("market_context_contract_version") == CONTRACT_VERSION
     gemma_prompt = context.get("_prompt_model_id") == "gemma-4-31b-it"
@@ -295,7 +295,7 @@ def build_prompt(agent_num: int, data: StockData, context: AnalysisContext) -> s
         retry_instruction,
         audit_reflection_instruction,
         audit_retry_instruction,
-        official_debt_reference_prompt(financial_verification_data) if agent_num == 2 else "",
+        official_financial_amount_reference_prompt(financial_verification_data) if agent_num == 2 else "",
         final_audit_preflight_rule,
         OUTPUT_CLEANLINESS_RULE,
     ]
