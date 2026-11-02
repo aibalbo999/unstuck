@@ -167,7 +167,7 @@ def period_assertion_issues(text, data=None):
             if re.search(r'(?:未|不|無法|不能|不得|不可|尚待|若|假設|如果).{0,8}$', prefix):
                 continue
             # Missing a verified history is a data gap, not certification.
-            if re.search(r'(?:缺乏|缺少|尚缺|未取得)(?:連續)?(?:[一二三四五六七八九十0-9]+年)?$', prefix) and re.match(r'(?:合併|個別|年度)?(?:財報|財務報表|歷史)', sentence[match.end():]):
+            if re.search(r'(?:缺乏|缺少|尚缺|未取得)(?:連續)?(?:[一二三四五六七八九十0-9]+年)?$', prefix) and re.match(r'(?:之|的)?(?:官方)?(?:合併|個別|年度)?(?:財報|財務報表|歷史)', sentence[match.end():]):
                 continue
             if (not re.search(r'20\d{2}', match[0])
                     and re.search(r'換算|算術|金額', prefix)
