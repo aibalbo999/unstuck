@@ -108,3 +108,19 @@ def test_source_only_merge_preserves_finance_and_uses_full_article(monkeypatch):
     assert result['current_price']==123. and result['revenue_ttm_raw']==123456
     assert len(result['recent_catalysts'])==1
     assert result['recent_catalysts'][0]['content_coverage']=='text_available'
+
+
+@pytest.mark.parametrize('cached',[False,True])
+def test_observation_links_original_bodies_without_inventing_current_http(cached):
+    from provider_observation_details import observation_details
+    records,audit=news.fetch_recent_news(now=datetime(2026,10,14,14,tzinfo=timezone.utc),http=Http(cached=cached))
+    components=audit['component_statuses']
+    assert len(components)==3
+    proofs=records[0]['issuer_news_receipt']['source_record_archive']
+    assert {c['original_receipt']['raw_response_sha256'] for c in components}=={p['raw_response_sha256'] for p in proofs.values()}
+    assert all(c['http_request_sent'] is (not cached) and c['cache_hit'] is cached for c in components)
+    details=observation_details(audit)
+    assert len(details['original_http_receipts'])==3
+    assert all(r['http_request_sent'] is (not cached) and r['cache_hit'] is cached for r in details['original_http_receipts'])
+    assert audit['http_request_count']==(0 if cached else 3)
+    assert audit['status']==('skipped_fresh_cache' if cached else 'success')

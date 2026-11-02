@@ -1,5 +1,6 @@
 """Complete Auras public CMS news with independent issuer and article-date replay."""
 from __future__ import annotations
+from copy import deepcopy
 from collections import Counter
 from datetime import date,datetime,timedelta
 from hashlib import sha256
@@ -140,6 +141,7 @@ def fetch_recent_news(*,now,http=None):
     from .issuer_news import TAIPEI
     deadline=time.monotonic()+20;http=http or AurasNewsHttp(deadline);today=now.astimezone(TAIPEI).date();records=[];excluded=Counter()
     audit={'selection_policy':POLICY,'coverage_status':'partial','window_complete':False}
+    archived_components=[]
     try:
         master_raw=http.get(MASTER);master_epoch=[c for c in http.components if c.get('url')==MASTER][-1]['fetched_at_epoch'];identity=_identity(master_raw,today,master_epoch)
         index_raw=http.get(INDEX);rows=parse_index(index_raw);audit['raw_count']=len(_rows(index_raw));excluded['non_business_probe_index']=audit['raw_count']-len(rows);candidates=[]
@@ -164,6 +166,9 @@ def fetch_recent_news(*,now,http=None):
                         or any(k in component for k in ('cache_source','source_payload_sha256','source_payload_bytes'))):raise ValueError('auras_news_native_metadata_conflict')
                 proof=archive_response(raw,source_url=url,retrieved_at=epoch,http_status=200)
             if _read_original(proof,url)!=raw:raise ValueError('auras_news_original_archive_unverified')
+            # Keep this invocation's send/cache flags separate from the original body.
+            # Only attach the receipt after its saved bytes have been replayed.
+            archived_components.append({**deepcopy(component),'original_receipt':deepcopy(proof)})
             return proof
         shared=None
         for row in sorted(candidates,key=lambda v:_date(v['date_original']),reverse=True)[:5]:
@@ -184,5 +189,5 @@ def fetch_recent_news(*,now,http=None):
     if audit['status']=='success'and cached and not sent:audit['status']='skipped_fresh_cache'
     epochs=[c['fetched_at_epoch']for c in components if type(c.get('fetched_at_epoch'))in(int,float)]
     audit.update(http_request_sent=bool(sent),http_request_count=sent,event_kind='http_request'if sent else'cache_hit'if cached else'local_block',cache_hit=cached,stale=False,
-        record_count=len(records),usable_count=len(records),fetched_at_epoch=min(epochs)if epochs else None,parser_version=POLICY,excluded_reason_counts=dict(excluded),component_receipts=components)
+        record_count=len(records),usable_count=len(records),fetched_at_epoch=min(epochs)if epochs else None,parser_version=POLICY,excluded_reason_counts=dict(excluded),component_receipts=components,component_statuses=archived_components)
     return records,audit
