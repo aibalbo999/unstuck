@@ -63,3 +63,10 @@ def test_summary_completion_budget_is_separate_from_display_length():
     from summary_consistency import summary_issues
     assert summary._build_tear_sheet_generation_config().max_output_tokens==4096
     assert any("900" in issue for issue in summary_issues("字"*901,{"data":{},"parsed":{}}))
+
+
+def test_summary_cannot_upgrade_unverified_benefit_to_realized_fact():
+    from summary_consistency import summary_issues
+    context={'data':{},'parsed':{'recommendation':{'建議':'避免'}},'analyses':{7:'實際受惠幅度、擴產與獲利貢獻尚未核實。'}}
+    assert any('受惠' in issue for issue in summary_issues('投資建議為避免。公司核心業務受惠於台電電網與AI需求，但訂單待核實。',context))
+    assert not summary_issues('投資建議為避免。AI與電網為研究背景，實際受惠幅度尚未核實。',context)

@@ -21,6 +21,12 @@ def summary_issues(summary, context):
     from financial_fact_binding import period_assertion_issues, scalar_claim_issues
     issues.extend('摘要財務金額或期間不符：' + item for item in
                   scalar_claim_issues(summary, data) + period_assertion_issues(summary, data))
+    accepted = (context.get('analyses') or {}).get(7, (context.get('analyses') or {}).get('7', ''))
+    if re.search(r'實際受惠.{0,30}(?:尚未|未)核實', str(accepted)):
+        for clause in re.split(r'[。；;，,]', summary):
+            if (re.search(r'(?:公司|業務).{0,35}受惠於', clause)
+                    and not re.search(r'若|如果|可能|是否|尚未|未核實|不代表|不能', clause)):
+                issues.append('摘要不得將前序未核實之實際受惠改寫為已發生事實。')
     classifications = _CLASSIFICATION.findall(summary)
     # A negated/conditional phrasing cannot stand in for the accepted decision.
     for match in _CLASSIFICATION.finditer(summary):

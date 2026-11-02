@@ -72,6 +72,9 @@ def assess_final_market_context(context: dict) -> dict:
         forged = (bool(refs) and (not refs_valid_shape or any(ref not in visible for ref in refs)))
         invalid_claim = forged or (claimed and not trusted_manifest) or (claimed and not visible and bool(reason))
         code = ""
+        explicit_unassessed = (impact == "not_assessed" and trusted_manifest and refs_valid_shape
+                               and bool(refs) and bool(reason) and len(reason) >= 12
+                               and bool(__import__("re").search(r"缺乏|尚未|未核實|無法|待核實", reason)))
         if invalid_claim:
             code = "source_reference_invalid"
             message = f"Agent {agent} {label}：{_REASONS[code]}"
@@ -80,7 +83,7 @@ def assess_final_market_context(context: dict) -> dict:
                 message + _reference_repair_hint(source, visible, trusted_manifest))
         elif source_absent or (trusted_manifest and not visible):
             code = "source_unavailable" if source_absent else "prompt_omitted"
-        elif not (claimed and refs_valid_shape and refs and reason and reason not in {*SOURCE_FIELDS, *_LABELS.values(), "N/A", "未評估"}):
+        elif not explicit_unassessed and not (claimed and refs_valid_shape and refs and reason and reason not in {*SOURCE_FIELDS, *_LABELS.values(), "N/A", "未評估"}):
             code = "assessment_missing"
             result["coverage_repair_agent_issues"].setdefault(agent, []).append(
                 f"{label}：請按完整可見來源提供 impact、具體 reason 與有效 source_refs；不得補造引用。")
@@ -102,9 +105,11 @@ def assess_final_market_context(context: dict) -> dict:
                 result['repair_agent_issues'].setdefault(agent,[]).append(message)
                 projection={'impact':'not_assessed','reason':message,'source_refs':[], 'reason_code':'policy_action_date_unverified'}
                 invalid_claim=True;code='policy_action_date_unverified'
+        if explicit_unassessed and not code:
+            result["warnings"].append(f"{label}：影響仍未評估；保留已核對來源及具體傳導證據缺口。")
         result["assessment"][source] = projection
-        result["checks"].append({"source": source, "status": "critical" if invalid_claim else "warning" if code else "passed",
-                                 "reason_code": code, "visible_source_count": len(visible)})
+        result["checks"].append({"source": source, "status": "critical" if invalid_claim else "warning" if code or explicit_unassessed else "passed",
+                                 "reason_code": code or ("transmission_unassessed" if explicit_unassessed else ""), "visible_source_count": len(visible)})
     result["status"] = "critical" if result["critical"] else "warning" if result["warnings"] else "passed"
     return result
 
