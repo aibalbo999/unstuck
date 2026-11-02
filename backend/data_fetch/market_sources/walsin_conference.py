@@ -100,6 +100,48 @@ def _one(root, selector):
     return values[0]
 
 
+
+def _history_before_unpublished_future(soup, fields, epoch, as_of_epoch):
+    """Keep the exact qualified old original only when the promoted event is future and empty."""
+    from urllib.parse import quote
+    future_text=fields['Event Date'].get_text(' ',strip=True)
+    if not re.fullmatch(r'20\d{2}-\d{2}-\d{2}',future_text):raise ValueError('Walsin future event date invalid')
+    future=date.fromisoformat(future_text);event=date(2026,8,7)
+    if (fields['Event Title'].get_text(' ',strip=True)!='Quarterly Conference Info'
+        or fields['Event Time'].get_text(' ',strip=True)!='4:00 pm Taipei Time Zone'
+        or not 1<=(future-_today(as_of_epoch)).days<=90
+        or not event<=_today(epoch)<=_today(as_of_epoch)
+        or (_today(as_of_epoch)-event).days>370):raise ValueError('Walsin promoted event is not an unpublished future event')
+    links=fields['Conference Files'].select('a')
+    calls=[a for a in links if a.get_text(' ',strip=True)=='Conference call']
+    placeholders=[a for a in links if a.get_text(' ',strip=True) in {'Presentation','Press Release'} and a.get('href')=='']
+    if (len(calls)!=1 or len(links)not in (1,3) or len(calls)+len(placeholders)!=len(links)
+        or len({a.get_text(' ',strip=True)for a in placeholders})!=len(placeholders)
+        or not re.fullmatch(r'https://wms\.gridow\.com/ir/walsin/walsin_\d{2}Q[1-4]\.html',calls[0].get('href',''))
+        or any(a.has_attr('onclick')for a in links)):
+        raise ValueError('Walsin future materials changed or available')
+    rows=_one(soup,'#pills-investor-conference-history').select('table > tbody > tr')
+    if not 30<=len(rows)<=1000:raise ValueError('Walsin history incomplete')
+    matching=[]
+    for row in rows:
+        cells=row.select(':scope > td');day=cells[0].get_text(' ',strip=True)if cells else''
+        if len(cells)!=4 or not re.fullmatch(r'20\d{2}/\d{2}/\d{2}',day):raise ValueError('Walsin history shape changed')
+        observed=date.fromisoformat(day.replace('/','-'))
+        if observed>event:raise ValueError('Walsin newer historical material is unqualified')
+        if observed==event:
+            presentations=[a for a in cells[3].select('a')if a.get_text(' ',strip=True)=='Presentation']
+            if (cells[1].get_text(' ',strip=True)!='4:00 pm'
+                or cells[2].get_text(' ',strip=True)!='2Q26 Investor Conference Call'
+                or len(presentations)!=1 or presentations[0].has_attr('onclick')
+                or quote(presentations[0].get('href',''),safe=':/%')!=PDF_URL):raise ValueError('Walsin historical original identity changed')
+            matching.append(row)
+    if len(matching)!=1:raise ValueError('Walsin historical original is missing or ambiguous')
+    return {'title':'華新2026Q2官方法說簡報','period_label':'2026Q2','pdf_url':PDF_URL,
+            'event_date':event.isoformat(),'event_time':'16:00','event_timezone':'Asia/Taipei','index_record_count':len(rows)+1,
+            'selection_policy':'qualified_historical_original_before_unpublished_future_event',
+            'upcoming_event_date':future.isoformat(),'upcoming_presentation_available':False}
+
+
 def select_presentation(raw, epoch, *, as_of_epoch=None):
     if not isinstance(raw, bytes) or not 0 < len(raw) <= 1_048_576:
         raise ValueError('Walsin index size invalid')
@@ -133,6 +175,8 @@ def select_presentation(raw, epoch, *, as_of_epoch=None):
         fields[key] = cells[1]
     if set(fields) != {'Event Title', 'Event Date', 'Event Time', 'Video Link', 'Conference Files'}:
         raise ValueError('Walsin event fields changed')
+    if fields['Event Date'].get_text(' ',strip=True)!='2026-08-07':
+        return _history_before_unpublished_future(soup,fields,epoch,as_of_epoch)
     if (fields['Event Title'].get_text(' ', strip=True) != 'Quarterly Conference Info'
             or fields['Event Date'].get_text(' ', strip=True) != '2026-08-07'
             or fields['Event Time'].get_text(' ', strip=True) != '4:00 pm Taipei Time Zone'):
@@ -211,10 +255,16 @@ def _context(selected, native, proof):
            'q_and_a_transcript_available': False, 'commercial_reuse_permission_verified': False,
            'publisher_copyright': 'Copyright © 2026 Walsin Lihwa Corp. All Rights Reserved.',
            'response_reuse_policy': 'Always native issuer index/PDF acquisition; immutable private audit originals, no success-cache reuse'}
+    pending_note=[];active_note=NOTE
+    if selected.get('upcoming_presentation_available') is False:
+        pending_note=['官網已公告'+selected['upcoming_event_date']+'未來場次，該場簡報尚未提供；本次僅使用歷史區明確連結的2026Q2已核定原件，不代表2026Q3財報、已舉行或目前展望。']
+        active_note=NOTE.replace('官網Video Link文字連至Q1，不能據以當Q2影音或逐字稿；只使用明確公布且核定的Q2 PDF。','官網目前影音連結屬未來場次，不作本份Q2原件影音或逐字稿證據。')
+        doc['index_video_caution']='目前頁面影音連結屬於未來場次，不作本份Q2原件影音或逐字稿證據。'
+        doc['upcoming_event_date']=selected['upcoming_event_date'];doc['upcoming_presentation_available']=False
     return {'ticker': TICKER, 'date': selected['event_date'], 'period': '', 'title': selected['title'],
             'source': PROVIDER, 'source_url': INDEX_URL, 'summary': '', 'transcript_excerpt': '',
             'transcript_available': False, 'materials': [{'url': PDF_URL, 'kind': 'presentation', 'language': 'en'}],
-            'documents': [doc], 'coverage_status': 'partial', 'coverage_notes': [NOTE],
+            'documents': [doc], 'coverage_status': 'partial', 'coverage_notes': [active_note]+pending_note,
             'selection_policy': selected['selection_policy'], 'fetched_at_epoch': proof['pdf']['retrieved_at'],
             'walsin_conference_receipt': proof}
 
@@ -274,7 +324,7 @@ def fetch_walsin_context(ticker, *, diagnostics=None, force_refresh=False, use_c
         _check(deadline)
         if not _originals_fresh(proof,RAW_TTL):raise SourceResponseError('original_expired')
         details.update(walsin_originals_verified=True,coverage_status='qualified_partial_presentation',
-                       cache_hit=pdf['cache_hit'],stale=False,fetched_at_epoch=pdf['retrieved_at'],message=NOTE)
+                       cache_hit=pdf['cache_hit'],stale=False,fetched_at_epoch=pdf['retrieved_at'],message=''.join(value['coverage_notes']))
         if diagnostics is not None:diagnostics.update(details)
         # Diagnostic delivery and scheduler delay belong to the same budget.
         _check(deadline)

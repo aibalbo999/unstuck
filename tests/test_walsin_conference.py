@@ -204,3 +204,19 @@ def test_historical_original_does_not_change_current_delivery_expiry(harness, mo
     assert not source.verify_context(v, '1605.TW', max_age=1800)
     assert source.verify_context(v, '1605.TW', max_age=86400)
     assert v == original and len(harness[1]) == 3
+
+
+def test_upcoming_without_files_retains_only_qualified_historical_q2(harness):
+    from test_walsin_upcoming_index import index
+    from data_fetch.market_sources import walsin_conference as source
+    from data_fetch.market_sources import walsin_conference_transport as transport
+    bodies,calls=harness;bodies[transport.INDEX_URL]=index()
+    diagnostics={};value=source.fetch_walsin_context('1605.TW',diagnostics=diagnostics)
+    assert value and source.verify_context(value,'1605.TW')
+    assert value['date']=='2026-08-07'
+    assert value['documents'][0]['role_page_allowlist']==[1,2,3,8,9,10]
+    assert value['documents'][0]['upcoming_event_date']=='2026-11-06'
+    assert value['documents'][0]['upcoming_presentation_available']is False
+    assert '不代表2026Q3' in ''.join(value['coverage_notes'])
+    assert '連至Q1' not in ''.join(value['coverage_notes'])
+    assert diagnostics['walsin_originals_verified'] is True
