@@ -89,6 +89,9 @@ def main() -> int:
             return 2
         tempfile.tempdir = str(base)
         os.environ.update(TMPDIR=str(base), TMP=str(base), TEMP=str(base))
+    isolated_rq = "--isolated-rq" in sys.argv
+    if isolated_rq:
+        sys.argv.remove("--isolated-rq")
     with tempfile.TemporaryDirectory(prefix="prompt-boundary-tests-") as directory:
         root = Path(directory).resolve()
         os.environ.update({
@@ -135,20 +138,45 @@ def main() -> int:
                         raise AssertionError(f"Database access outside isolated test directory: {path}")
             return connect(database, *args, **kwargs)
 
-        def no_network(*args, **kwargs):
+        original_socket_connect = socket.socket.connect
+        original_socket_connect_ex = socket.socket.connect_ex
+        rq_socket = root / "rq.sock"
+        os.environ.pop("STOCK_AGENT_TEST_REDIS_SOCKET", None)
+        if isolated_rq:
+            os.environ["STOCK_AGENT_TEST_REDIS_SOCKET"] = str(rq_socket)
+
+        def allowed_unix(sock, address):
+            import stat
+            if not isolated_rq or sock.family != socket.AF_UNIX or address != str(rq_socket):
+                return False
+            try:
+                info = rq_socket.lstat()
+                return (rq_socket.resolve(strict=True) == rq_socket and stat.S_ISSOCK(info.st_mode)
+                        and info.st_uid == os.getuid() and rq_socket.parent == root)
+            except OSError:
+                return False
+
+        def no_network(sock, address, *args, **kwargs):
+            if allowed_unix(sock, address):
+                return original_socket_connect(sock, address)
             # Optional live suites recognize an unavailable socket and skip normally.
             raise OSError("Isolated tests cannot contact runtime, Redis, or providers")
 
         sqlite3.connect = isolated_connect
         socket.socket.connect = no_network
-        socket.socket.connect_ex = no_network
-        socket.create_connection = no_network
+        def no_network_ex(sock, address, *args, **kwargs):
+            if allowed_unix(sock, address):
+                return original_socket_connect_ex(sock, address)
+            raise OSError("Isolated tests cannot contact runtime, Redis, or providers")
+
+        socket.socket.connect_ex = no_network_ex
+        socket.create_connection = lambda *args, **kwargs: (_ for _ in ()).throw(OSError("Isolated TCP is disabled"))
         if not configure_postgres_boundary():
             print("PostgreSQL validation policy unavailable", flush=True)
             return 2
         import pytest
 
-        print(f"Isolated CACHE/OPERATIONAL/CHECKPOINT databases: {root}; network disabled", flush=True)
+        print(f"Isolated CACHE/OPERATIONAL/CHECKPOINT databases: {root}; network disabled; isolated Unix RQ={isolated_rq}", flush=True)
         return pytest.main(["--basetemp", str(root / "pytest"), *sys.argv[1:]])
 
 

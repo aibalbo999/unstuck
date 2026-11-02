@@ -21,6 +21,11 @@ import worker_main
 ROOT = Path(__file__).resolve().parents[1]
 
 
+class IdleRedisFixture(str):
+    def get(self, key):
+        return None
+
+
 class FakeWorkerRuntime:
     def __init__(self, calls):
         self.calls = calls
@@ -30,7 +35,7 @@ class FakeWorkerRuntime:
             checkpoint_backend="sqlite",
             checkpoint_path="/tmp/checkpoints.sqlite3",
         )
-        self.task_queue = type("TaskQueue", (), {"queue": "queue", "redis": "redis"})()
+        self.task_queue = type("TaskQueue", (), {"queue": "queue", "redis": IdleRedisFixture("redis")})()
         self.data_refresh_service = "refresh-service"
 
     def close(self):

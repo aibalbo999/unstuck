@@ -125,6 +125,8 @@ def find_queue_backed_active_job(task_queue, ticker: str, pipeline_id: str = "v1
     mark_jobs_abandoned([job["job_id"]], RQ_ABANDONED_JOB_REASON)
     return {}
 async def run_scheduler_process(runtime: WorkerRuntime) -> None:
+    from deployment_rq_pause import wait_for_deployment_resume
+    await wait_for_deployment_resume(getattr(runtime.task_queue, 'redis', None))
     if runtime.task_queue is None:
         raise RuntimeError("Scheduler runtime must provide a task queue.")
 

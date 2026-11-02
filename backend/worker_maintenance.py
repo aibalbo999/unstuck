@@ -19,6 +19,9 @@ from runtime_events import emit_log
 async def run_maintenance_process(runtime: WorkerRuntime) -> None:
     report_cache: dict[str, str] = {}
     while True:
+        from deployment_rq_pause import wait_for_deployment_resume
+        queue = getattr(runtime, 'task_queue', None)
+        await wait_for_deployment_resume(getattr(queue, 'redis', None))
         await run_maintenance_iteration(runtime, report_cache)
         await asyncio.sleep(REPORT_CLEANUP_INTERVAL_SECONDS)
 
