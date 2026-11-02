@@ -13,7 +13,6 @@ def test_valuation_missing_scope_does_not_force_rankings_or_classification():
     assert "列舉 3-5 個可比公司的估值現狀" not in task
     assert "禁止提出最終買入/賣出/持有建議" in system
 
-    
 def test_growth_source_contract_keeps_headlines_and_product_mix_from_proving_moat():
     data=json.loads((Path(__file__).resolve().parents[1]/"backend/prompts/agents.json").read_text())
     system=data["system_prompts"]["5"]
@@ -22,7 +21,6 @@ def test_growth_source_contract_keeps_headlines_and_product_mix_from_proving_moa
     assert "不得覆蓋Agent3已標未評估" in system
     assert "後文限制不能抵銷前文" in system
 
-    
 def test_redteam_missing_evidence_is_not_proof_of_distress():
     data=json.loads((Path(__file__).resolve().parents[1]/"backend/prompts/agents.json").read_text())
     system=data["system_prompts"]["21"]
@@ -30,3 +28,9 @@ def test_redteam_missing_evidence_is_not_proof_of_distress():
     assert "不得套用供應商latest_fcf_conversion" in system
     assert "可少列風險" in system
     assert "不是已測得的違約或跌價機率" in system
+
+def test_decision_does_not_require_market_pricing_story_without_valuation():
+    data=json.loads((Path(__file__).resolve().parents[1]/"backend/prompts/agents.json").read_text())
+    assert "不由現價推論市場已反映" in data["analysis_prompts"]["7"]
+    assert "證據資格不等於公司受損" in data["system_prompts"]["7"]
+    assert "confidence_basis" in data["system_prompts"]["7"]

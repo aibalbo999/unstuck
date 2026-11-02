@@ -19,3 +19,11 @@ def test_negative_cashflow_does_not_prove_funding_dependence_without_a_cause_ver
 ])
 def test_questions_hypotheses_and_denial_do_not_assert_dependency(text):
     assert cashflow_driver_inference_issues(text)==[]
+
+def test_future_trigger_requests_reassessment_without_asserting_a_cashflow_driver():
+    text='- 若「官方單季財報顯示營業現金流持續為負且自由現金流淨流出擴大」：建議重新評估營運資金與短債展期風險。'
+    assert cashflow_driver_inference_issues(text)==[]
+
+
+def test_later_reassessment_does_not_excuse_an_earlier_asserted_driver():
+    assert cashflow_driver_inference_issues("負FCF顯示公司積極備料，需重新評估營運資金。")
