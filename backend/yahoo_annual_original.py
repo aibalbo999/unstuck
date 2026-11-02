@@ -3,7 +3,7 @@ import json,re,time
 from urllib.parse import urlsplit,parse_qs,unquote,quote
 from yahoo_public_original import _public_tree
 
-def capture_annual_response(response,*,binding):
+def _capture_annual_response(response,*,binding,selected_peer=None):
  try:
   from curl_cffi.requests import Response
   from provider_correlation import current_correlation
@@ -11,7 +11,10 @@ def capture_annual_response(response,*,binding):
   from yfinance.const import fundamentals_keys
   context=current_correlation()
   if not isinstance(binding,dict)or not all(isinstance(binding.get(k),str)and binding[k]and context.get(k)==binding[k]for k in('ticker','fetch_id','operation_id')):return None
-  symbol=binding['ticker']
+  symbol=binding['ticker'] if selected_peer is None else selected_peer
+  if selected_peer is not None:
+   from provider_correlation import current_source_identity
+   if symbol==binding['ticker']or current_source_identity()!=('dynamic_peer_metrics','FinMind/yfinance'):return None
   if not re.fullmatch(r'[A-Z0-9][A-Z0-9.^=-]{0,39}',symbol):return None
   if(type(response)is not Response or response.status_code!=200 or response.history or response.redirect_count or getattr(response,'from_cache',False)or response.queue is not None or response.stream_task is not None or response.astream_task is not None):return None
   request=response.request
@@ -44,3 +47,11 @@ def capture_annual_response(response,*,binding):
   if proof.get('status')!='archived':return None
   return {**proof,'http_status_observed':True,'response_complete':True,'cache_hit':False,'request_method':'GET','financial_semantics_verified':False}
  except Exception:return None
+
+
+def capture_annual_response(response,*,binding):
+ return _capture_annual_response(response,binding=binding)
+
+
+def capture_peer_annual_response(response,*,binding,symbol):
+ return _capture_annual_response(response,binding=binding,selected_peer=symbol)

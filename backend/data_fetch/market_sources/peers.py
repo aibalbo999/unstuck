@@ -402,7 +402,9 @@ def fetch_dynamic_peer_metrics_with_diagnostics(ticker: str, company_name: str, 
                 or not record["ticker"].endswith((".TW", ".TWO"))):
             continue
         try:
-            annual = _annual_asset_turnover(stocks_by_symbol[record["ticker"]], today=today)
+            from yfinance_transport_receipts import observe_peer_annual_statements
+            with observe_peer_annual_statements(record["ticker"]):
+                annual = _annual_asset_turnover(stocks_by_symbol[record["ticker"]], today=today)
             outcome = "success" if annual is not None else "missing_matching_annual_values"
         except Exception as exc:
             annual, outcome = None, "download_failed:" + type(exc).__name__

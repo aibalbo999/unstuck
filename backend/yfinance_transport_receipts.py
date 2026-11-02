@@ -9,6 +9,7 @@ _LOCK=threading.Lock()
 _GLOBAL_PROXY=ContextVar('yfinance_global_proxy_transport',default=None)
 _ANNUAL=ContextVar('yfinance_annual_statement_transport',default=None)
 _PEER=ContextVar('yfinance_selected_peer_transport',default=None)
+_PEER_ANNUAL=ContextVar('yfinance_selected_peer_annual_transport',default=False)
 
 
 @contextmanager
@@ -29,6 +30,17 @@ def observe_peer_metrics(symbol):
         yield
     finally:
         _PEER.reset(token)
+
+
+@contextmanager
+def observe_peer_annual_statements(symbol):
+    """Observe the existing selected-peer annual read, retaining its root owner."""
+    with observe_peer_metrics(symbol):
+        token=_PEER_ANNUAL.set(True)
+        try:
+            yield
+        finally:
+            _PEER_ANNUAL.reset(token)
 
 
 @contextmanager
@@ -82,11 +94,12 @@ def observe_annual_statements(ticker, metadata):
         _ANNUAL.reset(token)
 
 
-def _annual_symbol(request, actual, params, binding, context):
+def _annual_symbol(request, actual, params, binding, context, *, selected_symbol=None):
     if any(context.get(key) != value for key, value in binding.items()):
         return None
+    target=selected_symbol or binding['ticker']
     match = re.fullmatch(r'/ws/fundamentals-timeseries/v1/finance/timeseries/([^/]+)', request.path)
-    if match is None or unquote(match[1]) != binding['ticker']:
+    if match is None or unquote(match[1]) != target:
         return None
     query = parse_qs(request.query)
     actual_query = parse_qs(actual.query)
@@ -98,7 +111,7 @@ def _annual_symbol(request, actual, params, binding, context):
             original = [raw] if isinstance(raw, str) else raw
         final = actual_query.get(key, original)
         return original if original == final else None
-    if values('symbol') != [binding['ticker']]:
+    if values('symbol') != [target]:
         return None
     types = values('type')
     if not isinstance(types, list) or len(types) != 1 or not isinstance(types[0], str):
@@ -106,7 +119,7 @@ def _annual_symbol(request, actual, params, binding, context):
     from yfinance.const import fundamentals_keys
     allowed = {'annual' + value for fields in fundamentals_keys.values() for value in fields}
     fields = types[0].split(',')
-    return binding['ticker'] if fields and all(field in allowed for field in fields) else None
+    return target if fields and all(field in allowed for field in fields) else None
 
 
 def _record(method,url,params,response,started,stream):
@@ -118,6 +131,27 @@ def _record(method,url,params,response,started,stream):
     if (request.scheme!='https' or actual.scheme!='https' or request.hostname not in {'query1.finance.yahoo.com','query2.finance.yahoo.com'}
         or actual.hostname!=request.hostname or not same_public_path(actual.path,request.path) or request.username or request.password
         or request.port not in (None,443) or getattr(response,'from_cache',False)):return
+    peer_annual=_PEER.get() if _PEER_ANNUAL.get() else None
+    if peer_annual is not None:
+        selected,owner=peer_annual
+        if (current_source_identity()!=('dynamic_peer_metrics','FinMind/yfinance')
+                or _annual_symbol(request,actual,params,owner,context,selected_symbol=selected) is None):
+            return
+        body=response.content
+        if not isinstance(body,bytes):return
+        from yahoo_annual_original import capture_peer_annual_response
+        original=capture_peer_annual_response(response,binding=owner,symbol=selected)
+        record_source_audit_entries([{**context,'source':'dynamic_peer_metrics',
+            'provider':'yfinance peer annual statements native HTTP','peer_symbol':selected,
+            'event_kind':'http_transport_receipt','selection_policy':'transport-receipt-only:v1',
+            'record_count':0,'status':'success' if 200<=response.status_code<300 else 'error',
+            'http_request_sent':True,'http_status':response.status_code,
+            'response_bytes':len(body),'response_sha256':sha256(body).hexdigest(),
+            'component_statuses':{selected:{'status':'transport_received','http_status':response.status_code,'response_sha256':sha256(body).hexdigest()}},
+            **({'raw_http_receipt':original} if original else {}),
+            'duration_ms':max(0,int((time.monotonic()-started)*1000)),
+            'message':'Native selected-peer annual transport only; identity, common period and parsed metrics are separately checked.'}])
+        return
     annual_binding = _ANNUAL.get()
     if annual_binding is not None:
         symbol = _annual_symbol(request, actual, params, annual_binding, context)
