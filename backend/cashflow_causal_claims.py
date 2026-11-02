@@ -43,7 +43,8 @@ def cashflow_driver_inference_issues(text: str) -> list[dict]:
                     # another, earlier unqualified driver in this clause.
                     if (re.match(r'^(?:需求|運用|配置)?(?:仍|尚|應|須|需)(?:要)?(?:持續|密切){0,2}(?:追蹤|核實|觀察|驗證|檢視|監控)',suffix)
                             or re.search(r'(?:應|須|需)(?:要)?(?:持續|密切){0,2}(?:追蹤|核實|觀察|驗證|檢視|監控)(?:其|公司|相關)?$',prefix)
-                            or re.search(r'(?:重新)?評估(?:其|公司|相關)?$', prefix)):
+                            or re.search(r'(?:重新)?評估(?:其|公司|相關)?$', prefix)
+                            or (prefix.endswith('對') and re.match(r'^(?:之|的)?影響(?:仍|尚)?未(?:經)?核實(?:[，,]|$)',suffix))):
                         continue
                 drivers.append(mention)
             driver=drivers[0] if drivers else None

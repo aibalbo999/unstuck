@@ -27,3 +27,11 @@ def test_future_trigger_requests_reassessment_without_asserting_a_cashflow_drive
 
 def test_later_reassessment_does_not_excuse_an_earlier_asserted_driver():
     assert cashflow_driver_inference_issues("負FCF顯示公司積極備料，需重新評估營運資金。")
+
+
+def test_explicit_unverified_working_capital_effect_is_not_an_asserted_cause():
+    assert cashflow_driver_inference_issues("cash_flow.official_income_facts 顯示 TTM 自由現金流為淨流出，具體成因與對營運資金之影響尚未核實。")==[]
+
+
+def test_unverified_effect_does_not_excuse_earlier_asserted_inventory_cause():
+    assert cashflow_driver_inference_issues("負FCF顯示公司積極備料，對營運資金之影響尚未核實。")
