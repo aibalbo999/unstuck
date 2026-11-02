@@ -75,6 +75,14 @@ def stable_snapshot(client,pause):
             if 'key set changed'not in str(e)or attempt==2:raise
             time.sleep(.2)
 
+def validate_recovery_revision(previous,plan,case):
+    if previous and previous['commit']!=plan['expected_commit']:
+        if (plan.get('supersedes_commit')!=previous['commit']
+                or any((case/n).exists()for n in('before-state.json','shutdown-started.json','formal-started.json'))
+                or subprocess.run(['git','merge-base','--is-ancestor',previous['commit'],plan['expected_commit']],cwd=ROOT).returncode):
+            raise PauseError('Recovery revision advance is not a verified pre-deployment successor')
+
+
 def main():
     ap=argparse.ArgumentParser();ap.add_argument('--plan',type=Path,required=True);ap.add_argument('--execute',action='store_true');ap.add_argument('--recover-paused',action='store_true');args=ap.parse_args();plan,case=validate(args.plan)
     if args.recover_paused and not args.execute:raise PauseError('Recovery also requires explicit --execute')
@@ -91,9 +99,10 @@ def main():
         listener=subprocess.run(['lsof','-t','-iTCP:8080','-sTCP:LISTEN'],capture_output=True)
         recovery_absent=(args.recover_paused and(case/'shutdown-started.json').exists()
             and listener.returncode==1 and not listener.stdout.strip())
-        before_workers=workers(client,plan['queue_names'],allow_absent=recovery_absent)
+        before_workers=workers(client,plan['queue_names'],allow_absent=recovery_absent or(args.recover_paused and(case/'bootstrap-worker-retired.json').exists()))
         previous=json.loads((case/'pause-intent.json').read_text())if args.recover_paused else None
-        if previous and(previous['redis']!={k:info[k]for k in('run_id','process_id')}or previous['commit']!=plan['expected_commit']):raise PauseError('Recovery Redis/revision identity changed')
+        if previous and previous['redis']!={k:info[k]for k in('run_id','process_id')}:raise PauseError('Recovery Redis identity changed')
+        validate_recovery_revision(previous,plan,case)
         pause=OwnedRqPause(client,bytes.fromhex(previous['token_hex'])if previous else None)
         intent={'at':time.time(),'pid':os.getpid(),'token_hex':pause.token.hex(),'redis':{k:info[k]for k in('run_id','process_id')},'workers':before_workers,'commit':plan['expected_commit'],'authorized':'Human explicitly requested execute reviewed pause/drain/deploy/verify/resume workflow'}
         write(case/('pause-recovery-'+str(time.time_ns())+'.json'if previous else'pause-intent.json'),intent)
@@ -102,15 +111,29 @@ def main():
         if previous:pause.check()
         else:
             pause.acquire();write(case/'pause-acquired.json',{'at':time.time(),'owned':True,'no_expiry':True})
+        refresh(case/'pause-context.json',{'token_hex':pause.token.hex(),'controller_pid':os.getpid(),'redis_identity':intent['redis']})
         print('Native RQ pause acquired; waiting for existing job to finish',flush=True)
-        until=time.monotonic()+1800;last=0
+        until=time.monotonic()+1800;last=0;retirement_attempted=False;drain_started=time.monotonic()
         while True:
             pause.check()
             try:
-                ws=workers(client,plan['queue_names'],drained=True,allow_absent=recovery_absent);no_active_jobs()
+                ws=workers(client,plan['queue_names'],drained=True,allow_absent=recovery_absent or(case/'bootstrap-worker-retired.json').exists());no_active_jobs()
                 if any(client.zcard(k)for k in client.scan_iter('rq:wip:*')):raise PauseError('Started work remains')
                 break
             except PauseError:
+                # Old installed workers may already be blocked inside dequeue.
+                # A reviewed bootstrap can warm-stop that idle worker once;
+                # no queued task is consumed or synthetic job submitted.
+                bootstrap=plan.get('bootstrap_entrypoint')
+                if bootstrap and not retirement_attempted and time.monotonic()-drain_started>10:
+                    current=workers(client,plan['queue_names'])
+                    if all(w['state']=='idle'and w['job']is None for w in current):
+                        no_active_jobs()
+                        if bootstrap not in plan['reviewed_scripts']or sha(case/bootstrap)!=plan['reviewed_scripts'][bootstrap]:raise PauseError('Unreviewed bootstrap')
+                        retirement_attempted=True
+                        env=dict(os.environ,STOCK_AGENT_DEPLOY_PLAN_PATH=str(args.plan.resolve()))
+                        subprocess.run([sys.executable,'-B',str(case/bootstrap)],cwd=ROOT,env=env,check=True)
+                        continue
                 if time.monotonic()>=until:raise PauseError('Drain incomplete; pause retained')
                 if time.monotonic()-last>30:print('Waiting for the same native job/worker drain',flush=True);last=time.monotonic()
                 time.sleep(1)

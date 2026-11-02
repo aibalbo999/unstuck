@@ -36,8 +36,8 @@ def test_native_running_job_finishes_queued_retry_survives_restart_and_resumes_o
         q=Queue('deployment-fixture',connection=client)
         q.enqueue(time.sleep,2.,job_id='deployment-first',result_ttl=600)
         q.enqueue_at(datetime.now(timezone.utc)+timedelta(seconds=5),time.sleep,.01,job_id='deployment-second',result_ttl=600)
-        def worker(name,max_jobs=None):
-            code='import redis; from rq import Queue,SimpleWorker; c=redis.Redis(unix_socket_path='+repr(path)+'); w=SimpleWorker([Queue("deployment-fixture",connection=c)],connection=c,name='+repr(name)+'); w.work(with_scheduler=False,max_idle_time=30,max_jobs='+repr(max_jobs)+',logging_level="ERROR")'
+        def worker(name,max_jobs=None,wrapped=True):
+            code='import sys; sys.path.insert(0,'+repr(str(Path(__file__).resolve().parents[1]/'backend'))+'); import redis; from rq import Queue,SimpleWorker; from maintenance_rq_worker import maintenance_worker_class; c=redis.Redis(unix_socket_path='+repr(path)+'); w='+('maintenance_worker_class(SimpleWorker)'if wrapped else'SimpleWorker')+'([Queue("deployment-fixture",connection=c)],connection=c,name='+repr(name)+'); w.work(with_scheduler=False,max_idle_time=30,max_jobs='+repr(max_jobs)+',logging_level="ERROR")'
             with (root/(name+'.log')).open('wb')as log:p=subprocess.Popen([sys.executable,'-B','-c',code],stdout=log,stderr=subprocess.STDOUT,env=env)
             processes.append(p);return p
         first=worker('deployment-native-first')
@@ -64,6 +64,23 @@ def test_native_running_job_finishes_queued_retry_survives_restart_and_resumes_o
         assert second.wait(timeout=10)==0
         assert Job.fetch('deployment-second',connection=client).get_status()=='finished'
         assert q.job_ids==[] and q.finished_job_registry.count==2
+        legacy=worker('deployment-native-legacy-idle',wrapped=False)
+        wait_for(lambda:state('deployment-native-legacy-idle')=='idle')
+        time.sleep(.1)
+        legacy_pause=OwnedRqPause(client);legacy_pause.acquire()
+        time.sleep(.2)
+        assert state('deployment-native-legacy-idle')=='idle'
+        legacy_before=snapshot(client,legacy_pause)
+        legacy.terminate();assert legacy.wait(timeout=10)==0
+        assert compare(legacy_before,snapshot(client,legacy_pause))['passed']
+        legacy_pause.resume()
+        idle=worker('deployment-native-idle')
+        wait_for(lambda:state('deployment-native-idle')=='idle')
+        time.sleep(.1)  # Enter the real blocking dequeue before pausing.
+        second_pause=OwnedRqPause(client);second_pause.acquire()
+        wait_for(lambda:state('deployment-native-idle')=='suspended',seconds=8)
+        idle.terminate();assert idle.wait(timeout=10)==0
+        second_pause.resume()
     finally:
         for logpath in root.glob('deployment-native-*.log'):
             print(logpath.name, logpath.read_text()[-3000:])

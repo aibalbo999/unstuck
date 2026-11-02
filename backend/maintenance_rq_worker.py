@@ -33,6 +33,13 @@ def maintenance_worker_class(base_class):
             # Another pop within dequeue_any means the previous raw ID was
             # stale. It is not authority to consume a different job after arm.
             self._release_maintenance_lease()
+            # RQ retries blocking timeouts inside dequeue_any. Recheck native
+            # suspension before each bounded pop, not only outside that loop.
+            check = getattr(self, 'check_for_suspension', None)
+            if check is not None:
+                check(False)
+                if getattr(self, '_stop_requested', False):
+                    raise StopRequested()
             stack = ExitStack()
             self._maintenance_stack = stack
             try:

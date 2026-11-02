@@ -44,3 +44,13 @@ def test_missing_worker_is_accepted_only_for_explicit_known_shutdown_recovery(tm
     m,case,p=fixture(tmp_path,monkeypatch);monkeypatch.setattr(Worker,'all',lambda **kw:[])
     with pytest.raises(PauseError):m.workers(object(),['stock-analysis'],drained=True)
     assert m.workers(object(),['stock-analysis'],drained=True,allow_absent=True)==[]
+
+
+def test_revision_advance_requires_reviewed_ancestor_and_no_started_deployment(tmp_path,monkeypatch):
+    from types import SimpleNamespace
+    m,case,p=fixture(tmp_path,monkeypatch);previous={'commit':'b'*40}
+    monkeypatch.setattr(m.subprocess,'run',lambda *a,**kw:SimpleNamespace(returncode=0))
+    with pytest.raises(PauseError):m.validate_recovery_revision(previous,p,case)
+    p['supersedes_commit']=previous['commit'];m.validate_recovery_revision(previous,p,case)
+    (case/'before-state.json').write_text('{}')
+    with pytest.raises(PauseError):m.validate_recovery_revision(previous,p,case)

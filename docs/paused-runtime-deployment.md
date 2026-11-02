@@ -34,3 +34,12 @@ scripts/project_exec.sh "$(scripts/project_python.sh)" scripts/paused_runtime_de
 ```
 
 恢復需同一 Redis run ID／PID、同一 commit 與原有 token，仍取得共用 flock；不接管其他人的暫停。新讀回的完整保全、RQ 保全、正式版本與健康全部通過後，才以 compare-and-delete 移除自己的 token。恢復接單會讓原本的正式任務繼續，並不新增受控模型請求或重設累計計數。
+
+
+## 首次交接舊 worker
+
+已安裝的舊 RQ worker 若已進入阻塞取件，單設暫停標記可能無法立即喚醒。新版 `maintenance_rq_worker` 在每次有界 pop 前重新檢查原生暫停，包含已閒置的狀態；停止請求不會再進入下一次 pop。
+
+首次部署可由計畫綁定 `bootstrap_entrypoint`：核對同一 canonical API／launcher／supervisor／worker 程序鏈與啟動時間，確認 SQL 無執行中工作、worker 閒置且無 current job，再保存 intent，僅發一次原生正常 SIGTERM。等待 worker 自然退出、逐 byte 核對待辦與排程；不強殺、不提交喚醒用的假工作、不刪除任何排程。完整舊服務重載仍需既有身份與保全檢查；新版啟動必須是真正 suspended 的 canonical worker。
+
+只在尚未擷取正式 before-state、尚未送出服務 shutdown/start 的復原階段，計畫可明列 `supersedes_commit`，並驗證新 commit 是原 commit 的已推送後繼，接續修正部署工具本身。原 pause intent、token 與失敗證據保留；已開始正式切換後不得藉此更換版本。
