@@ -43,3 +43,16 @@ def test_summary_backups_are_existing_google_routes_deduplicated(monkeypatch):
     monkeypatch.setattr(summary, 'TEAR_SHEET_MODEL', 'gemini-primary')
     monkeypatch.setattr(routing, 'get_audit_model_sequence', lambda: ['gemini-primary','gemini-backup','openai:other'])
     assert summary._tear_sheet_model_sequence() == ['gemini-primary','gemini-backup']
+
+
+def test_tear_sheet_prompt_excludes_private_receipt_paths_without_mutating_evidence():
+    from copy import deepcopy
+    from tear_sheet_tasks import _build_tear_sheet_prompt
+    context={"data":{"ticker":"1623.TW","institutional_trading":{"total_net_shares":123,"raw_evidence":{"source_url":"https://www.twse.com.tw/official","raw_response_sha256":"a"*64,"raw_response_path":"/Volumes/X10 Pro Mac/stock-agent/backend/cache/official-response-evidence/private.gz"}}},"analyses":{},"parsed":{}}
+    original=deepcopy(context)
+    prompt=_build_tear_sheet_prompt(context)
+    assert "raw_response_path" not in prompt
+    assert "/Volumes/X10 Pro Mac/" not in prompt
+    assert "https://www.twse.com.tw/official" in prompt
+    assert '"total_net_shares": 123' in prompt
+    assert context==original

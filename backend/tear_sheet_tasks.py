@@ -17,6 +17,7 @@ from llm_client import (
 )
 from pipeline_modes import normalize_pipeline_id
 from prompt_rules import get_task_instruction_lines, get_task_system_instruction
+from prompt_evidence import prompt_evidence_copy
 from llm_key_admission import propagate_admission_cancel
 from runtime_events import emit_context_event, emit_context_event_async, emit_log, make_runtime_event
 from validators import sanitize_model_output, strip_generated_audit_sections
@@ -84,7 +85,7 @@ def _build_tear_sheet_prompt(context: dict) -> str:
     return (
         instruction_block
         + summary_reference_prompt(context) + '\n\n'
-        + f"結構化資料：\n{json.dumps(payload, ensure_ascii=False, indent=2)}\n\n"
+        + f"結構化資料：\n{json.dumps(prompt_evidence_copy(payload), ensure_ascii=False, indent=2)}\n\n"
         + f"各 Agent 摘要：\n{compact_analyses}"
     )
 
