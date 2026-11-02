@@ -29,7 +29,45 @@ def financial_unit_declaration_issues(text, data=None):
    if abs(actual-expected)>tolerance:
     result.append({'line_number':number,'reason_code':'explicit_billion_twd_to_yi_conversion_mismatch','text':line[:500]})
  result.extend(_history_series_conversion_issues(text, data))
+ result.extend(_history_endpoint_conversion_issues(text, data))
  return result
+
+
+def _history_endpoint_conversion_issues(text, data):
+ """Reject exact vendor endpoint copies with wrong units; never verify history."""
+ if not isinstance(data, dict):
+  return []
+ quant = data.get('quant_metrics')
+ contract = quant.get('unit_contract') if isinstance(quant, dict) else None
+ if not isinstance(contract, dict) or contract.get('money') != 'billion_twd':
+  return []
+ years, values = data.get('years'), data.get('revenue_history')
+ if not isinstance(years, list) or not isinstance(values, list) or len(years) != len(values):
+  return []
+ try:
+  source = {str(year): Decimal(str(value)) for year, value in zip(years, values)}
+  if len(source) != len(years) or any(not v.is_finite() for v in source.values()):
+   return []
+ except (InvalidOperation, ValueError, TypeError):
+  return []
+ number = r'([+-]?\d+(?:,\d{3})*(?:\.\d+)?)'
+ endpoint = r'(20\d{2})\s*年\s*' + number + r'\s*億(?:元|新[臺台]幣)'
+ pattern = re.compile(r'供應商歷史營收從\s*' + endpoint + r'\s*成長至\s*' + endpoint)
+ issues = []
+ for line_number, line in enumerate(str(text or '').splitlines(), 1):
+  clean = re.sub(r'[*`\s]', '', line)
+  if re.search(r'同業|不可寫|不能寫|誤寫|錯寫|錯誤示例|錯誤範例', clean):
+   continue
+  for match in pattern.finditer(clean):
+   y1, v1, y2, v2 = match.groups()
+   shown = (Decimal(v1.replace(',', '')), Decimal(v2.replace(',', '')))
+   expected = (source.get(y1), source.get(y2))
+   if shown == expected and any(v != 0 for v in shown):
+    issues.append({'line_number': line_number,
+                   'reason_code': 'history_billion_twd_endpoints_mislabeled_yi',
+                   'source_path': 'data.revenue_history', 'text': line[:500],
+                   'period_verified': False})
+ return issues
 
 
 def _history_series_conversion_issues(text, data):
