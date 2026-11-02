@@ -80,7 +80,7 @@ def _build_tear_sheet_prompt(context: dict) -> str:
         "只輸出可放在報告頂部的摘要；若含官方財務金額，每一項使用獨立完整段落。")
     instruction_text += ("\n官方金額須逐字引用下方完整reference，各自以公司名稱開頭且前後空行；"
                          "不要加『然而』『且』『同期間』或把其他財務數字、原因推論併入該段。"
-                         "其他摘要內容放在另外段落，仍不輸出標題或項目符號；總長保持900字元以內。")
+                         "其他摘要內容放在另外段落，仍不輸出標題或項目符號；總長保持900字元以內。產業題材、AI、電網及合作報導僅為研究背景，若前序角色未核實實際受惠或量產，摘要不得改寫為已受惠、已擴張或已貢獻獲利。工具未產出估值只能說未評估，不代表沒有內在價值支撐；負FCF不直接證明融資依賴或營運受損。")
     instruction_block = f"{instruction_text}\n\n" if instruction_text else ""
     return (
         instruction_block
@@ -94,7 +94,7 @@ def _build_tear_sheet_generation_config():
     return types.GenerateContentConfig(
         temperature=0.35,
         top_p=0.9,
-        max_output_tokens=900,
+        max_output_tokens=4096,
         system_instruction=get_task_system_instruction("tear_sheet"),
     )
 
@@ -158,7 +158,7 @@ def ensure_tear_sheet_summary(context: dict, rotator: KeyRotator, progress_callb
                 ),
                 progress_callback,
             )
-            api_key = acquire_key(rotator, model_id, estimate_text_tokens(prompt, response_budget=900), context, None)
+            api_key = acquire_key(rotator, model_id, estimate_text_tokens(prompt, response_budget=4096), context, None)
             response = _generate_tear_sheet_content(api_key, model_id, prompt)
             raw_text = response_text(response)
             summary = sanitize_model_output(raw_text)
@@ -245,7 +245,7 @@ async def ensure_tear_sheet_summary_async(context: dict, rotator: KeyRotator, pr
                 ),
                 progress_callback,
             )
-            api_key = await acquire_key_async(rotator, model_id, estimate_text_tokens(prompt, response_budget=900), context, None)
+            api_key = await acquire_key_async(rotator, model_id, estimate_text_tokens(prompt, response_budget=4096), context, None)
             response = await _generate_tear_sheet_content_async(api_key, model_id, prompt)
             raw_text = response_text(response)
             summary = sanitize_model_output(raw_text)

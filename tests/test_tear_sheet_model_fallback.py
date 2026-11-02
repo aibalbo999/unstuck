@@ -56,3 +56,10 @@ def test_tear_sheet_prompt_excludes_private_receipt_paths_without_mutating_evide
     assert "https://www.twse.com.tw/official" in prompt
     assert '"total_net_shares": 123' in prompt
     assert context==original
+
+
+def test_summary_completion_budget_is_separate_from_display_length():
+    import tear_sheet_tasks as summary
+    from summary_consistency import summary_issues
+    assert summary._build_tear_sheet_generation_config().max_output_tokens==4096
+    assert any("900" in issue for issue in summary_issues("字"*901,{"data":{},"parsed":{}}))

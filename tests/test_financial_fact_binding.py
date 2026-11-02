@@ -209,3 +209,10 @@ def test_period_assertions_keep_subject_but_not_other_clause_negation(claim):
     assert industry_output_issues(text, DATA, output)
     assert summary_issues('研究分類：持有。' + claim,
         {'data': DATA, 'parsed': {'recommendation': {'建議': '持有'}}})
+
+
+def test_missing_verified_history_is_not_a_ttm_certification():
+    from financial_fact_binding import period_assertion_issues
+    assert not period_assertion_issues("DCF工具因自由現金流為負而未產出，且缺乏連續五年已核實合併財報。",DATA)
+    assert period_assertion_issues("自由現金流期間已核實。",DATA)
+    assert period_assertion_issues("缺乏連續五年已核實合併財報，但TTM期間已核實。",DATA)
