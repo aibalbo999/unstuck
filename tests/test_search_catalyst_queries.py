@@ -5,6 +5,10 @@ from datetime import datetime, timedelta, timezone
 
 def test_initial_query_can_match_a_company_article_with_one_catalyst_topic(monkeypatch):
     import external_search_providers as search
+    class FrozenDatetime(datetime):
+        @classmethod
+        def now(cls, tz=None):return datetime(2026,9,25,tzinfo=timezone.utc)
+    monkeypatch.setattr(search, 'datetime', FrozenDatetime)
     calls = []
 
     async def acquire(query, **options):

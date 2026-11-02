@@ -79,6 +79,26 @@ def _merge_publisher_originals(raw, originals):
     return [v for v in raw if key(v) is None or key(v) not in current] + originals, replaced
 
 
+def _distinct_recent_stories(selected, audit, data, cutoff):
+    """Use the publication projection before deciding that search is complete."""
+    from copy import deepcopy
+    from news_freshness_policy import apply_news_freshness
+    projection = {key: deepcopy(data[key]) for key in ('ticker', 'company_name', 'company_identity') if key in data}
+    apply_news_freshness(projection, records=selected, cutoff=cutoff,
+                         lookback_days=CATALYST_LOOKBACK_DAYS, limit=len(selected))
+    distinct = projection['recent_catalysts']
+    kept_links = {row.get('link') for row in distinct}
+    duplicates = [{'reason': 'duplicate_recent_story', 'record': deepcopy(row)}
+                  for row in selected if row.get('link') not in kept_links]
+    audit = deepcopy(audit)
+    if duplicates:
+        audit.setdefault('source_record_archive', []).extend(duplicates)
+        audit['rejected_count'] = audit.get('rejected_count', 0) + len(duplicates)
+        audit.setdefault('rejected_reason_counts', {})['duplicate_recent_story'] = len(duplicates)
+    audit['usable_count'] = len(distinct)
+    return distinct, audit
+
+
 async def fetch_alternative_search_catalysts_async(
     ticker: str, company_name: str, identity: dict, *,
     max_results: int = SEARCH_CATALYST_MAX_RESULTS, diagnostics: dict | None = None,
@@ -188,6 +208,7 @@ async def fetch_alternative_search_catalysts_async(
         )
         raw.extend(_news_record(result) for result in (observed or results))
         selected, audit = select_company_records(raw, data, cutoff=cutoff, lookback_days=CATALYST_LOOKBACK_DAYS)
+        selected, audit = _distinct_recent_stories(selected, audit, data, cutoff)
         candidates = [SearchResult(r['title'],r['summary'],r['link'],r['source'],r['date']) for r in selected]
         if _search_quality_satisfied(candidates,max_results=max_results,query=official_name,
                                      require_recent=True,lookback_days=CATALYST_LOOKBACK_DAYS,cutoff=cutoff):
@@ -211,6 +232,7 @@ async def fetch_alternative_search_catalysts_async(
             publisher_diagnostics = {'status':'deadline_exhausted','completion_not_observed':True}
         raw, replaced_wrappers = _merge_publisher_originals(raw, originals)
         selected, audit = select_company_records(raw, data, cutoff=cutoff, lookback_days=CATALYST_LOOKBACK_DAYS)
+        selected, audit = _distinct_recent_stories(selected, audit, data, cutoff)
         candidates = [SearchResult(r['title'],r['summary'],r['link'],r['source'],r['date']) for r in selected]
         if replaced_wrappers:
             audit['source_record_archive'].extend(replaced_wrappers)
