@@ -38,7 +38,7 @@ _DEFAULT_GENERATION_PROFILE = {
 AGENT_GENERATION_PROFILES = {
     1: {"temperature": 0.45, "top_p": 0.90, "max_output_tokens": 8192},
     2: {"temperature": 0.25, "top_p": 0.90, "max_output_tokens": 8192},
-    3: {"temperature": 0.30, "top_p": 0.90, "max_output_tokens": 4096},
+    3: {"temperature": 0.30, "top_p": 0.90, "max_output_tokens": 8192},
     4: {"temperature": 0.20, "top_p": 0.85, "max_output_tokens": 6144},
     5: {"temperature": 0.45, "top_p": 0.90, "max_output_tokens": 8192},
     6: {"temperature": 0.25, "top_p": 0.95, "max_output_tokens": 8192},
