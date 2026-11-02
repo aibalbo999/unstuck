@@ -293,6 +293,12 @@ def _alternative_observation_count(data: dict) -> int:
     if official:
         identity = safe_mapping_dict(data.get("company_identity")) or {}
         ticker = _safe_text(data.get("ticker"))
+        if ticker == '2633.TW':
+            from data_fetch.market_sources import thsrc_careers
+            receipt = safe_mapping_dict(payload.get('company_legal_name_evidence'))
+            if thsrc_careers.valid_context(data) and thsrc_careers.verified_issuer(receipt):
+                official_count = thsrc_careers.verified_job_count(
+                    official, ticker, thsrc_careers.LEGAL, thsrc_careers.UBN)
         if (ticker in ("2882.TW", "2891.TW", "2855.TW", "2883.TW", "2412.TW") and identity.get("ticker") == ticker
                 and _safe_text(identity.get("official_name")).strip() == {"2882.TW": "國泰金", "2891.TW": "中信金", "2855.TW": "統一證", "2883.TW": "凱基金", "2412.TW": "中華電"}[ticker]
                 and _safe_text(data.get("quote_type")).upper() == "EQUITY"

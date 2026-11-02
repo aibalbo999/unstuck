@@ -115,7 +115,8 @@ def record_related_alternative_attempts(result):
     if not isinstance(entries, list):
         return
     rows = [entry for entry in entries if isinstance(entry, dict)
-            and entry.get('source') == SOURCE and entry.get('provider') == 'CHT official public careers'
+            and entry.get('source') == SOURCE and entry.get('provider') in {
+                'CHT official public careers', 'THSRC official public careers'}
             and entry.get('status') in {'unavailable', 'error', 'degraded_enrichment'}
             and type(entry.get('record_count')) is int and entry['record_count'] == 0]
     if rows:

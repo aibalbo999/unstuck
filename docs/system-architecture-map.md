@@ -1,5 +1,7 @@
 # 系統架構關聯圖
 
+台灣高鐵 2633 職缺來源由 `data_fetch/thsrc_careers_provider.py` 優先走官方甄選頁連出的公開招募站。`market_sources/thsrc_careers.py` 重播完整 TWSE 主檔、官網連結、tenant 頁、DWR 清單與個別內容，核對公司／統編、開放狀態及日期；不執行來源 JavaScript。清單與個別標題僅以 NFKC 比對且各自保留。原件及 context 最長 1800 秒，外層組裝不得續期；快取不增加 HTTP 成功，失敗沿既有 fallback 保留。職缺樣本不是招聘人數、首次刊登或擴編訊號；正式載入與實際新 HTTP 另依部署／觀測證據驗收。
+
 2026-11-01 工程整合邊界：本次版本的 `canary_release_policy.py` 寫死 `canary_enabled=false`，沒有環境或 API 啟用開關。凍結輸入、raw／semantic claim、登記、dispatcher、campaign 新建／送件及 owned runner 在副作用前拒絕；公開 `--maintenance-arm` 不讀計畫、不轉移維護狀態。下方 canary／controller 接點說明是停用實作與歷史設計，不代表目前可執行或來源／計費／四模式品質驗收。正常工作沿用 main 的原 seal、檔案復原、intent／lease／ACK 及取消語意；私有事件診斷保持不合格、不發布且不回填缺失來源。詳見 [整合範圍](report-quality-hardening-2026-09-12.md)。
 
 正式部署另有 `scripts/paused_runtime_deploy.py`：使用已隔離演練的原生 RQ 暫停，讓既有工作完成，保留 queued／scheduled 任務跨重啟，完成版本及完整保全驗證後才恢復。這是正常服務的部署操作，不啟用上述 canary 或 `--maintenance-arm`。owned 暫停期間，新版應用排程與週期清理延後啟動；到期重試只能以原始 payload／重試次數與時間收據證明 scheduled→queued 的正常移動。工具與實際正式部署結果分開認定，見 [保留待辦的部署窗口](paused-runtime-deployment.md)。

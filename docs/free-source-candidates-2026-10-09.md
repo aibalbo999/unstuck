@@ -1,5 +1,7 @@
 # 免費資料入口實測：2026-10-09
 
+台灣高鐵 2633 新增免費官方職缺入口：[甄選流程](https://www.thsrc.com.tw/ArticleContent/923049a0-10dd-4c2f-927b-66e470c9c16e) 連到統編 16446274 的[專屬招募站](https://ehrweb.104.com.tw/job.do?uno=16446274)。正常 provider 只讀公開清單／個別職缺，不登入、搬移 Cookie 或提交履歷；精確雇主及開放狀態須由完整原件重播。清單數不是招聘人數，建立／異動日不當首次刊登日，樣本也不代表近期擴編。傳輸拒絕與失敗保留，快取與離線回放不當新取得；程式接入、正式載入及原生成功分開驗收。
+
 2026-10-15 06:09：緯穎6669新版官方新聞格式已修正並正式補入兩篇10/12、10/13新原文，近期7→8篇且通過現行8篇／3來源／30天檢查；一次POST200／3.339秒／4 native HTTP。奇鋐3324既有缺件正常重試一次200／6.911秒，補回15頁法說，仍partial；未增加timeout。158相關＋6 helper隔離檢查通過，1 owned＋264 preserved＝265 runtime、health／ready200、模型0；原分析與品質gates、其他148報告與jobs／兩個目標checkpoint保持。原20類17類>80：法說46/83、財報25/44、近期77/121，目標未完成。[正式證據、免費入口與限制](evidence/source-acquisition/20261015/wiwynn-updated-news-profile/README.md)。
 
 2026-10-15 05:53 合庫金5880問答分支已接上既有完整CSV／JSON官方名冊備援；389相關＋5防重送隔離檢查通過。正式一次來源補件200／2.858秒／3 native HTTP，補回10頁問答，453119只計1成功。265 runtime（2 owned＋263 preserved）、health／ready200、模型0及原分析／gates／其他149報告與jobs／checkpoint保持；本次沿有效CSV快取，JSON故障切換只由隔離測試證明。原20類17類>80：法說46/83、財報25/44、近期76/120，目標未完成。見[正式證據與限制](evidence/source-acquisition/20261015/tcfhc-qa-shared-master/README.md)。另[禾伸堂新67頁比較財報](evidence/source-acquisition/20261015/holystone-comparative-financial/README.md)完整下載，但主要財務表為影像、仍缺明列無形購置，未計正式成功。
