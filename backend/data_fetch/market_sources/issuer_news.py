@@ -146,6 +146,9 @@ def verified_issuer_news(record, data, *, today=None):
         if ticker == "2353.TW":
             from .acer_issuer_news import verified_record
             return verified_record(record, data, today=today or datetime.now(TAIPEI).date())
+        if ticker == "3324.TWO":
+            from .auras_issuer_news import verified_record
+            return verified_record(record, data, today=today or datetime.now(TAIPEI).date())
         if ticker == "3443.TW":
             from .guc_issuer_news import verified_record
             return verified_record(record, data, today=today or datetime.now(TAIPEI).date())
@@ -252,6 +255,9 @@ def fetch_recent_issuer_news(ticker, *, now=None, http=None):
         return fetch_recent_news(now=now, http=http)
     if ticker == "2353.TW":
         from .acer_issuer_news import fetch_recent_news
+        return fetch_recent_news(now=now, http=http)
+    if ticker == "3324.TWO":
+        from .auras_issuer_news import fetch_recent_news
         return fetch_recent_news(now=now, http=http)
     if ticker == "3443.TW":
         from .guc_issuer_news import fetch_recent_news

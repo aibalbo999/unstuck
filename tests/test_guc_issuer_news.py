@@ -13,6 +13,12 @@ F=Path(__file__).parent/'fixtures/source_acquisition/guc_news_full_20261011'
 M=json.loads((F/'manifest.json').read_text());MASTER=M['parts']['master']['url'];INDEX=M['parts']['index']['url']
 NOW=datetime(2026,10,11,14,45,tzinfo=timezone.utc)
 DATA={'ticker':'3443.TW','company_name':'創意','instrument_type':'EQUITY','company_identity':{'ticker':'3443.TW','stock_id':'3443','official_name':'創意','legal_name':'創意電子股份有限公司','official_ubn':'16299879','allowed_aliases':['創意'],'forbidden_aliases':[]}}
+@pytest.fixture(autouse=True)
+def frozen_saved_news_cutoff(monkeypatch):
+    # These are October originals; exercise their captured window, not wall time.
+    import time
+    monkeypatch.setattr(time, 'time', lambda: NOW.timestamp())
+
 class Http:
     def __init__(self,*,cached=False):
         self.contents={};self.epochs={};self.calls=[];self.components=[];self.http_request_count=0;self.cached=cached

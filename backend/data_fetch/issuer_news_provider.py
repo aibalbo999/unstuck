@@ -18,7 +18,7 @@ class IssuerNewsProvider(DataProvider):
             return True
         if str(request.ticker or '').upper() in {'2201', '2201.TW', '2464', '2886', '2464.TW', '2886.TW'}:
             return True
-        return str(request.ticker or "").upper() in {"1101", "2206", "2353", "2360", "2379", "2412", "3023", "3042", "3443", "6672", "6669", "8150", "2884", "1101.TW", "2206.TW", "2353.TW", "2360.TW", "2379.TW", "2412.TW", "3023.TW", "3042.TW", "3443.TW", "6672.TW", "6669.TW", "8069.TWO", "8150.TW", "2884.TW"}
+        return str(request.ticker or "").upper() in {"3324.TWO", "1101", "2206", "2353", "2360", "2379", "2412", "3023", "3042", "3443", "6672", "6669", "8150", "2884", "1101.TW", "2206.TW", "2353.TW", "2360.TW", "2379.TW", "2412.TW", "3023.TW", "3042.TW", "3443.TW", "6672.TW", "6669.TW", "8069.TWO", "8150.TW", "2884.TW"}
 
     def fetch(self, request, context=None):
         from .market_sources.issuer_news import fetch_recent_issuer_news
