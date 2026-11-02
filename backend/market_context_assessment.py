@@ -74,7 +74,7 @@ def assess_final_market_context(context: dict) -> dict:
         code = ""
         explicit_unassessed = (impact == "not_assessed" and trusted_manifest and refs_valid_shape
                                and bool(refs) and bool(reason) and len(reason) >= 12
-                               and bool(__import__("re").search(r"缺乏|尚未|未核實|無法|待核實", reason)))
+                               and bool(__import__("re").search(r"缺乏|尚未|未取得|未核實|無法|待核實", reason)))
         if invalid_claim:
             code = "source_reference_invalid"
             message = f"Agent {agent} {label}：{_REASONS[code]}"

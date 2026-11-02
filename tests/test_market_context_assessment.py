@@ -266,7 +266,7 @@ def test_final_report_sections_render_validated_limitations_without_rewriting_ra
 def test_explicit_unassessed_transmission_retains_valid_sources_and_reason():
     context=assessment_context()
     for item in context['structured_outputs'][7]['market_context_assessment'].values():
-        item.update(impact='not_assessed',reason='來源僅為宏觀背景，缺乏本公司直接傳導證據，影響尚未評估。')
+        item.update(impact='not_assessed',reason='來源僅為宏觀背景，未取得本公司直接傳導證據，維持未評估。')
     result=assessment_module().assess_final_market_context(context)
     assert result['status']=='warning'
     assert not result['coverage_repair_agent_issues']

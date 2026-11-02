@@ -379,6 +379,13 @@ def official_debt_component_claims(markdown, snapshot, tolerance_pct=1.0):
                                   +number+r'億元。結構包含[:：]短期借款'+number+r'億元、')
             from evidence_official_income_claims import _identity, _native_report_title, _context_matches
             source_identity = _identity(fact)
+            # The independent income adapter replays the same issuer originals;
+            # use only its verified English name for a native report wrapper.
+            from official_income_prompt import official_income_prompt_facts
+            income_identity = official_income_prompt_facts(data)
+            title_fact = fact
+            if income_identity and income_identity.get('issuer_name') == fact['issuer_name'] and income_identity.get('issuer_english_name'):
+                title_fact = {**fact, 'issuer_english_name': income_identity['issuer_english_name']}
             source_names = [fact['issuer_name'], *source_identity['company_identity']['allowed_aliases']]
             explicit_identity = (r'(?:' + '|'.join(map(re.escape, source_names))
                                  + r')官方個別財報TWD截至' + re.escape(date))
@@ -390,7 +397,7 @@ def official_debt_component_claims(markdown, snapshot, tolerance_pct=1.0):
                 explicit_scope = all(
                     not foreign.search(value) and (
                         re.fullmatch(r'\s*##\s*四、財務槓桿與償債能力\s*', value)
-                        or _native_report_title(value, fact)
+                        or _native_report_title(value, title_fact)
                         or _context_matches(value, source_identity))
                     for _, value in heading_stack)
             direct_scope = explicit_scope or re.fullmatch(identity + preceding, prefix) is not None

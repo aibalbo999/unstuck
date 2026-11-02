@@ -65,3 +65,15 @@ def test_complete_component_local_scope_cannot_be_replaced(old,new):
 def test_complete_component_false_precision_and_unit_factor_remain_mismatch(value):
     data=projected();rows=official_debt_component_claims(explicit_component(data,value),{'data':data})
     assert len(rows)==1 and rows[0]['status']=='mismatch',rows
+
+
+def test_full_native_bilingual_title_needs_same_issuer_verified_english_name(monkeypatch):
+    import official_income_prompt
+    data=projected()
+    title='# 1623.TW 大東電 / Ta Tun Electric Wire & Cable Co., Ltd. - 華爾街深度研究報告'
+    text=title+'\n\n## 官方財務事實清單\n\n'+explicit_component(data)
+    monkeypatch.setattr(official_income_prompt,'official_income_prompt_facts',lambda d:{'issuer_name':'大東電業廠股份有限公司','issuer_english_name':'TA TUN ELECTRIC WIRE & CABLE CO., LTD.'})
+    rows=official_debt_component_claims(text,{'data':data})
+    assert rows[0]['status']=='verified'
+    monkeypatch.setattr(official_income_prompt,'official_income_prompt_facts',lambda d:{'issuer_name':'其他公司','issuer_english_name':'TA TUN ELECTRIC WIRE & CABLE CO., LTD.'})
+    assert official_debt_component_claims(text,{'data':data})[0]['status']=='unverifiable'
