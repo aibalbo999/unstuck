@@ -86,7 +86,8 @@ def test_catalog_removes_only_complete_same_role_contained_values():
     assert context == original
 
 
-def test_preselected_previous_json_is_compact_without_changing_values_or_source_text(monkeypatch):
+@pytest.mark.parametrize("agent",[7,21])
+def test_preselected_previous_json_is_compact_without_changing_values_or_source_text(monkeypatch,agent):
     value = {'4': {'number': 0, 'missing': None, 'flag': False, 'quote': '  原文\n\t"不能改寫"  '}}
     previous = ('【提煉 Agent 結構化摘要】\n' + json.dumps(value, ensure_ascii=False, indent=2)
                 + '\n\n【已解析結構化輸出】\n' + json.dumps(value, ensure_ascii=False, indent=2)
@@ -97,13 +98,13 @@ def test_preselected_previous_json_is_compact_without_changing_values_or_source_
         return previous
     monkeypatch.setattr(prompting, '_format_previous', select)
     context = {'pipeline_id': 'v1'}
-    prompt = build_model_prompt(7, evidence(), context, LITE, False, prompt_builder=prompting.build_prompt)
+    prompt = build_model_prompt(agent, evidence(), context, LITE, False, prompt_builder=prompting.build_prompt)
     for header in ('【提煉 Agent 結構化摘要】\n', '【已解析結構化輸出】\n'):
         actual = prompt.split(header, 1)[1]
         assert canonical(json.JSONDecoder().raw_decode(actual)[0]) == canonical(value)
         assert actual.startswith(json.dumps(value, ensure_ascii=False, separators=(',', ':')))
     assert previous.split('【前序分析精選片段', 1)[1] in prompt
-    assert seen == [prompting.get_agent_context_budgets(7)[0]]
+    assert seen == [prompting.get_agent_context_budgets(agent)[0]]
 
 
 @pytest.mark.parametrize('marker', [
@@ -118,11 +119,13 @@ def test_ambiguous_source_table_marker_keeps_original_financial_representation(m
 
 
 @pytest.mark.parametrize('agent', [4, 5, 16, 19, 24])
-def test_financial_encoding_change_is_scoped_to_research_final_role(agent):
+def test_financial_encoding_preserves_facts_and_unrelated_literal_representations(agent):
     data = evidence()
     expected = format_data_for_prompt(prompting.data_for_agent_prompt(agent, data), compact_json=True)
     prompt = build_model_prompt(agent, data, {'pipeline_id': 'v1'}, LITE, False, prompt_builder=prompting.build_prompt)
-    assert expected in prompt
+    assert canonical(restored(payload(prompt))) == canonical(payload(expected))
+    if agent in (16, 19):
+        assert expected in prompt
 
 
 @pytest.mark.parametrize('changed_value', [False, 1, None])

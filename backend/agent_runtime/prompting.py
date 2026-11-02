@@ -196,7 +196,7 @@ def build_prompt(agent_num: int, data: StockData, context: AnalysisContext) -> s
         fin_data = choose_financial_encoding(fin_data, format_data_for_prompt(
             financial_verification_data, compact=compact_primary, dense=True, role_scoped=False))
     prev = _format_previous(context, agent_num, max_total_chars=max(0, total_budget - state_budget))
-    if agent_num == 7:
+    if agent_num in (7, 21):
         prev = compact_previous_json(prev)
     raw_rag_context = context.get("rag_context")
     rag_contexts = raw_rag_context if isinstance(raw_rag_context, dict) else {}
