@@ -117,3 +117,20 @@ def test_single_explicit_rename_is_hard_failure_after_legitimate_peers(legitimat
 ])
 def test_peer_relationship_is_not_a_same_company_identity_claim(line):
     assert validate_company_identity(peer_report(line), DATA) == []
+
+    
+def test_current_verbatim_quote_group_qualifies_each_exact_peer_pair():
+    line="同業（如榮星 1617.TW、億泰 1616.TW、大山 1615.TW、宏泰 1612.TW、大亞 1609.TW）之財務指標缺乏同期間原件核對。"
+    text="大東電（1623.TW）分析。\n估值引文："+line+"\n計算引文："+line
+    assert validate_company_identity(text,DATA)==[]
+
+
+@pytest.mark.parametrize("line",[
+    "同業（如大亞 1623.TW）營運良好。",
+    "同業（如本公司大亞 1609.TW）營運良好。",
+    "同業（如大亞 1609.TW，即本公司）營運良好。",
+    "同業（如大山 1615.TW）。大亞 1609.TW營運良好。",
+    "同業（如大山 1615.TW）。\n大亞 1609.TW營運良好。",
+])
+def test_peer_group_never_qualifies_wrong_ticker_renaming_or_other_sentence(line):
+    assert validate_company_identity("大東電（1623.TW）分析。\n"+line+"\n"+line,DATA)

@@ -26,6 +26,35 @@ def _peer_heading_at(text, position):
     return bool(_PEER_HEADING.match(title))
 
 
+def _exact_peer_group_at(text, start, end, alias, peer_code):
+    """Return exact membership, rejection, or None outside a typed peer list."""
+    if not peer_code:
+        return None
+    typed_group = False
+    groups = re.finditer(r'(?:同業|同儕|競爭對手|可比公司)\s*[（(]\s*(?:如|包括|包含)?'
+                         r'(?P<items>[^()（）\n。！？；;]{1,320})[)）]', text)
+    member = re.compile(r'\s*(?P<name>[\u3400-\u9fffA-Za-z&][\u3400-\u9fffA-Za-z&\s.-]{0,60}?)'
+                        r'\s+(?P<code>\d{4,6}(?:\.TW(?:O)?)?)\s*', re.I)
+    for group in groups:
+        if not group.start('items') <= start < end <= group.end('items'):
+            continue
+        if not re.search(r'(?<!\w)[1-9]\d{3,5}(?:\.TW(?:O)?)?(?![\w.])', group['items'], re.I):
+            continue
+        typed_group = True
+        pieces = re.split(r'[、,，]', group['items'])
+        matches = [member.fullmatch(piece) for piece in pieces]
+        if not pieces or any(match is None for match in matches):
+            continue
+        offset = group.start('items')
+        for piece, match in zip(pieces, matches):
+            if (match['name'] == alias
+                    and match['code'].upper() in {str(peer_code), f'{peer_code}.TW', f'{peer_code}.TWO'}
+                    and (offset + match.start('name'), offset + match.end('name')) == (start, end)):
+                return True
+            offset += len(piece) + 1
+    return False if typed_group else None
+
+
 def _alias_renames_target(before, after, target_aliases):
     subjects = ["本公司", "本集團", "本次標的", "投資標的", "研究標的", "目標公司", "標的公司", "分析主體", "公司名稱"]
     subjects.extend(str(alias) for alias in target_aliases if alias)
@@ -59,6 +88,11 @@ def count_unqualified_alias(text: str, alias: str, peer_code=None, protected_ali
         before, after = _local_alias_context(text, match.start(), match.end())
         if _alias_renames_target(before, after, protected_aliases):
             count += 1
+            continue
+        peer_group = _exact_peer_group_at(text, match.start(), match.end(), alias, peer_code)
+        if peer_group is not None:
+            if not peer_group:
+                count += 1
             continue
         # A nearby unrelated ticker must not qualify this name. An explicitly
         # stated code must match this exact registered peer, including its end.
