@@ -1,5 +1,7 @@
 # 系統架構關聯圖
 
+泰博 4736 法說由既有 `mops_presentation` 及 `taidoc_mops_qualification` 核對完整主檔、當年明確無結果、前一年已發布場次與精確英文原件。23頁及第14頁未解碼狀態保持 partial；影像財表、歷史EPS、臨床試驗產品行銷與空白問答章節不升級事實。角色只接收已核對的完整頁面與原期間／試驗中／公司自述限制。原件TTL、370日歷史資格、通用reader及完整原件重播要求保持；接入、部署與新HTTP取得分開驗收。
+
 台灣高鐵 2633 職缺來源由 `data_fetch/thsrc_careers_provider.py` 優先走官方甄選頁連出的公開招募站。`market_sources/thsrc_careers.py` 重播完整 TWSE 主檔、官網連結、tenant 頁、DWR 清單與個別內容，核對公司／統編、開放狀態及日期；不執行來源 JavaScript。清單與個別標題僅以 NFKC 比對且各自保留。原件及 context 最長 1800 秒，外層組裝不得續期；快取不增加 HTTP 成功，失敗沿既有 fallback 保留。職缺樣本不是招聘人數、首次刊登或擴編訊號；正式載入與實際新 HTTP 另依部署／觀測證據驗收。
 
 2026-11-01 工程整合邊界：本次版本的 `canary_release_policy.py` 寫死 `canary_enabled=false`，沒有環境或 API 啟用開關。凍結輸入、raw／semantic claim、登記、dispatcher、campaign 新建／送件及 owned runner 在副作用前拒絕；公開 `--maintenance-arm` 不讀計畫、不轉移維護狀態。下方 canary／controller 接點說明是停用實作與歷史設計，不代表目前可執行或來源／計費／四模式品質驗收。正常工作沿用 main 的原 seal、檔案復原、intent／lease／ACK 及取消語意；私有事件診斷保持不合格、不發布且不回填缺失來源。詳見 [整合範圍](report-quality-hardening-2026-09-12.md)。

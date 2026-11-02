@@ -2,7 +2,7 @@
 import re
 
 POLICY = 'mops-qualified-whole-pages-v1'
-QUALIFIED = {'5314.TWO', '3653.TW', '3005.TW', '6282.TW', '9945.TW', '2441.TW', '6669.TW', '2606.TW'}
+QUALIFIED = {'5314.TWO', '3653.TW', '4736.TW', '3005.TW', '6282.TW', '9945.TW', '2441.TW', '6669.TW', '2606.TW'}
 
 
 def _qualified(value):
@@ -17,6 +17,9 @@ def projection(ticker, pages):
         return qualified_projection(pages)
     if ticker == '3653.TW':
         from data_fetch.market_sources.jentech_mops_qualification import qualified_projection
+        return qualified_projection(pages)
+    if ticker == '4736.TW':
+        from data_fetch.market_sources.taidoc_mops_qualification import qualified_projection
         return qualified_projection(pages)
     if ticker == '3005.TW':
         from data_fetch.market_sources.getac_mops_qualification import qualified_projection

@@ -28,6 +28,10 @@ STATIC_POLICY = 'mops-published-presentation-static-get-v1'
 # Identity/format qualification is staged, not a promise that every MOPS file
 # has readable or reusable text. URLs, filenames, years and hashes are dynamic.
 PROFILES = {
+    '4736.TW': {'short':'泰博','legal':'泰博科技股份有限公司','ubn':'16584326',
+                'master_english':'TaiDoc','website':'http://www.taidoc.com.tw','format':'pdf',
+                'native_name':'TaiDoc Technology Corp','previous_year_fallback':True,
+                'aliases':{'taidoc','taidoc technology corporation','taidoc technology corp','taidoc technology corp.'}},
     '5314.TWO': {'short':'世紀*','legal':'世紀民生科技股份有限公司','ubn':'22099815',
                  'master_english':'Myson','website':'www.myson.com.tw','format':'pdf',
                  'native_name':'Ｍyson Century','material_wire_seconds':15.,
@@ -226,6 +230,11 @@ def native_material(raw, selected, deadline):
         period = qualify_native(raw,native,selected)
         _check(deadline)
         return native,period
+    if selected['ticker'] == '4736.TW':
+        from .taidoc_mops_qualification import qualify_native
+        period = qualify_native(raw, native, selected)
+        _check(deadline)
+        return native, period
     if selected['ticker'] == '3005.TW':
         from .getac_mops_qualification import qualify_native
         period = qualify_native(raw,native,selected)
@@ -497,6 +506,10 @@ def _context(selected, native, period, proof):
         from .jentech_mops_qualification import NOTE as JENTECH_NOTE
         doc['presentation_cover_date'] = '2025-11-28'
         doc['period_scope_caution'] = JENTECH_NOTE
+    if ticker == '4736.TW':
+        from .taidoc_mops_qualification import NOTE as TAIDOC_NOTE
+        doc['presentation_cover_date'] = '2025-11-21'
+        doc['period_scope_caution'] = TAIDOC_NOTE
     if ticker == '3005.TW':
         from .getac_conference import NOTE as GETAC_NOTE
         doc['presentation_cover_date'] = '2026-08-14'
