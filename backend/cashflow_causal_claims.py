@@ -16,6 +16,7 @@ _NEGATIVE = re.compile(
  r'negative\s+(?:free\s+cash\s*flow|FCF)',re.I)
 _CAUSE = re.compile(r'應視為|代表其處於|主因|因應|源於|源自|顯示|反映|證實|證明|導致|致使|'
  r'主要受|implies|shows|proves|because|caused\s+by',re.I)
+_DEPENDENCE = re.compile(r'(?:高度)?依賴\s*(?:外部|external)\s*融資', re.I)
 _DRIVER = re.compile(r'備料|擴產|擴張|營運資金(?!(?:管理)?壓力)|'
  r'(?:存貨|應收帳款|應收款).{0,12}(?:鎖定|佔用|占用|墊付)|'
  r'(?:鎖定|佔用|占用).{0,12}(?:存貨|應收帳款|應收款)|'
@@ -45,20 +46,24 @@ def cashflow_driver_inference_issues(text: str) -> list[dict]:
                         continue
                 drivers.append(mention)
             driver=drivers[0] if drivers else None
-            cause=_CAUSE.search(clause)
+            dependency = _DEPENDENCE.search(clause)
+            cause=_CAUSE.search(clause) or dependency
             if not (negative and driver and cause):
                 continue
             start=max(0,min(negative.start(),driver.start(),cause.start())-16)
             end=max(driver.start(),cause.start())
             uncertain = _UNCERTAIN.search(clause[start:end])
+            if dependency and uncertain is None:
+                uncertain = re.search(r'若|如果|是否|能否', clause[start:end])
             if uncertain:
                 later_assertion = False
-                if uncertain.group() == '不構成':
+                if uncertain.group() in ('不構成', '若', '如果', '是否', '能否'):
                     # A denial of proof cannot excuse a new positive assertion
                     # introduced after a contrast in the same sentence.
                     tail = clause[start + uncertain.end():]
                     for part in re.split(r'但(?:是)?|然而|不過|卻', tail)[1:]:
-                        later_cause, later_driver = _CAUSE.search(part), _DRIVER.search(part)
+                        later_cause = _CAUSE.search(part) or (_DEPENDENCE.search(part) if dependency else None)
+                        later_driver = _DRIVER.search(part)
                         if later_cause and later_driver and not _UNCERTAIN.search(
                                 part[:max(later_cause.start(), later_driver.start())]):
                             later_assertion = True
