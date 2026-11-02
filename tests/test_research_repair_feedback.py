@@ -189,3 +189,12 @@ def test_combined_feedback_fits_existing_sixteen_issue_budget():
     issues = repair_contract_issues(7, context)
     assert len(issues) <= 16
     assert '重寫完整候選' in '\n'.join(issues[:16])
+
+    
+def test_unassessed_invalid_ref_explains_binding_not_a_nonexistent_alignment():
+    value=candidate()
+    value["assumption_reconciliation"]["checks"][0]["growth_quote_ref"]="a5-baseline-1"
+    text=feedback(decode(value))
+    assert "upstream_fingerprint" in text
+    assert "不能支持目前 aligned/conflict 判定" not in text
+    assert "ref=null" in text

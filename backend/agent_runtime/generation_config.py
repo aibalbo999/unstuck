@@ -215,6 +215,15 @@ def build_generation_config(agent_num: int, system_instruction: Optional[str] = 
                                 'reasoning_steps')
                     properties = schema_dict.get('properties', {})
                     schema_dict['propertyOrdering'] = [key for key in priority if key in properties] + [key for key in properties if key not in priority and key != 'analysis_markdown'] + (['analysis_markdown'] if 'analysis_markdown' in properties else [])
+                    reconciliation = schema_dict.get('$defs', {}).get('AssumptionReconciliation', {})
+                    if 'upstream_fingerprint' in reconciliation.get('properties', {}):
+                        # Provider output must explicitly opt into current refs
+                        # or emit null. The read model remains legacy compatible.
+                        reconciliation['required'] = ['upstream_fingerprint'] + [
+                            key for key in reconciliation.get('required', [])
+                            if key != 'upstream_fingerprint']
+                        reconciliation['propertyOrdering'] = ['upstream_fingerprint'] + [
+                            key for key in reconciliation['properties'] if key != 'upstream_fingerprint']
                 config_kwargs["response_schema"] = schema_dict
             except Exception:
                 # Fall back to passing the class directly if schema extraction fails.
@@ -280,6 +289,8 @@ def google_safe_agent_system_instruction(agent_num: int, model_id: str) -> str:
             "\n\n完整JSON的輸出順序：先assumption_reconciliation五列與總狀態，再market_context_assessment、"
             "recommendation、scenario_triggers、next_catalysts、reasoning_steps，最後analysis_markdown與結尾大括號。"
             "五列引文優先使用當前quote_ref並保留空quote，由伺服器還原原句；rationale精確說明差異或缺口，"
+            "先填assumption_reconciliation.upstream_fingerprint：使用短編號時逐字複製當前來源目錄完整指紋；"
+            "完全不使用編號時明確填null。找不到對應證據則quote_ref=null、quote留空、status=unassessed。"
             "不要在正文再逐字重複五列或原始財報表。analysis_markdown精煉整合支持/反證/限制，保留模式必要章節。"
             "不得省略任一必要欄位、引用或反證來縮短，不能延續上次截斷JSON；重新輸出完整候選。"
         )

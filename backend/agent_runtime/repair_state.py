@@ -42,9 +42,14 @@ def research_repair_feedback(context: dict) -> list[str]:
                         "找不到對應原文時本列標 unassessed，不能由背景敘述推定一致。")
     for item in assessment["quote_issues"]:
         row = rows[item["topic"]]
-        reason = ("引文為空，不能支持目前 aligned/conflict 判定。"
-                  if not getattr(row, item["field"]).strip()
-                  else "引文不是對應來源中的連續逐字片段。")
+        if getattr(row, item["field"] + "_ref", None) is not None:
+            reason = ("引用編號無法綁定當前角色、主題或 upstream_fingerprint；"
+                      "核對當前目錄與完整指紋，或改用連續逐字原文。"
+                      "無對應證據時 ref=null、quote 留空並標 unassessed。")
+        else:
+            reason = ("引文為空，不能支持目前 aligned/conflict 判定。"
+                      if not getattr(row, item["field"]).strip()
+                      else "引文不是對應來源中的連續逐字片段。")
         feedback.append(f"假設對照 {row.topic}.{item['field']}（來源 Agent {item['source_agent']}；"
                         f"目前 status={row.status}）：{reason}")
     if "missing_reconciliation_rationale" in assessment["issues"]:
