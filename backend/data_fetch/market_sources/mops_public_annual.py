@@ -391,6 +391,9 @@ def _fetch_public_annual_histories(ticker,http,*,index_original=None):
     issuer=ticker.split('.')[0]
     index,index_receipt=index_original if index_original is not None else http.request(INDEX_URL,request={'step':'1','firstin':'ture','off':'1','queryName':'co_id','inpuType':'co_id','TYPEK':'all','co_id':issuer})
     urls=_filing_urls(index,issuer);years=sorted(urls)[-5:]
+    individual_years=_filing_urls(index,issuer,report_id='A')
+    if individual_years and max(individual_years)>max(urls,default=0):
+        raise FilingError('newer individual annual filings require a verified individual basis')
     comparative_start=len(years)==4 and years[0]>2013
     if len(years)not in(4,5)or(len(years)==4 and not comparative_start)or years!=list(range(years[0],years[0]+len(years)))or years[-1]>=date.today().year:raise FilingError('fewer than five contiguous published consolidated annual filings')
     templates={s:http.request(template_url(s))for s in STATEMENTS}

@@ -234,7 +234,14 @@ def test_source_only_refusal_keeps_all_original_artifacts(monkeypatch, tmp_path)
     assert failure.value.status_code == 502
     assert {k: storage.get_report(k).content for k in originals} == originals
     assert len(transport.components) == 7 and transport.closed
-    assert len(events()) == 1 and events()[0]['record_count'] == 0
+    from data_fetch.market_sources.official_quarterly_financials import PROVIDER as QUARTERLY_PROVIDER
+    observed = events()
+    # The annual refusal and unsuccessful partial-quarter fallback are both
+    # retained. A failed fallback is not a second annual acquisition success.
+    assert len(observed) == 2
+    assert [row['provider'] for row in observed] == [PROVIDER, QUARTERLY_PROVIDER]
+    assert all(row['source'] == 'financial_statements' and row['status'] == 'error'
+               and row['record_count'] == 0 for row in observed)
 
 
 def test_full_public_prompt_has_typed_net_revenue_without_internal_original_paths():

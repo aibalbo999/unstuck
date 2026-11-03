@@ -20,13 +20,15 @@ from .mops_public_annual import PublicMopsHttp, _receipt, _fetch_public_annual_h
 
 SCHEMA='ordinary_individual.v1'
 PROVIDER='TWSE MOPS issuer annual statements'
-ISSUERS={'2646.TW':'星宇航空股份有限公司','2033.TW':'佳大世界股份有限公司'}
+ISSUERS={'2646.TW':'星宇航空股份有限公司','2033.TW':'佳大世界股份有限公司',
+         '2025.TW':'千興不銹鋼股份有限公司'}
 # Short published series are admitted only to separate annual references, not
 # the canonical five-year source or its issuer routing.
 REFERENCE_ISSUERS={'1623.TW':'大東電業廠股份有限公司','7799.TW':'禾榮科技股份有限公司'}
 ISSUER_NAME_ALIASES={
     '2646.TW':frozenset({'星宇航空','星宇航空股份有限公司'}),
     '2033.TW':frozenset({'佳大','佳大世界','佳大世界股份有限公司'}),
+    '2025.TW':frozenset({'千興','千興不銹鋼(股)公司','千興不銹鋼股份有限公司'}),
 }
 FIELDS={'Revenue':'reported_revenue','ProfitLoss':'profit_loss','GrossProfit':'gross_profit',
         'ProfitLossFromOperatingActivities':'operating_income','Assets':'assets','Equity':'equity',
@@ -55,6 +57,8 @@ def validate_context(data,ticker):
             if key in item and item[key] not in (None,expected):raise ValueError('ordinary_individual_identity_conflict')
         for key in ('quote_type','quoteType','instrument_type'):
             if key in item and item[key] not in (None,'EQUITY'):raise ValueError('ordinary_individual_instrument_conflict')
+        if ticker=='2025.TW' and item.get('official_ubn') not in (None,'70005915'):
+            raise ValueError('ordinary_individual_identity_conflict')
     for key in ('official_name','legal_name'):
         name=(identity or {}).get(key)
         if name is not None and name not in ISSUER_NAME_ALIASES.get(ticker,{ISSUERS[ticker]}):raise ValueError('ordinary_individual_name_conflict')
@@ -157,7 +161,11 @@ def parse_individual_filing(raw,issuer,filing_year,*,reference_only=False):
                          'ReportCategory':'Individual report','ReportType':report_type,
                          'IndustrySector':'Commercial and industrial'}.items():
         matches=[n for n in root.iter(IX+'nonNumeric')if n.get('name')=='tifrs-notes:'+tag]
-        if len(matches)!=1 or contexts.get(matches[0].get('contextRef'))!=duration or ''.join(matches[0].itertext()).strip()!=expected:
+        accepted={expected}
+        # The issuer's actual iXBRL and whole TWSE master use this exact
+        # registered abbreviation. Do not normalize or admit other names.
+        if issuer=='2025'and tag=='CompanyChineseName':accepted.add('千興不銹鋼(股)公司')
+        if len(matches)!=1 or contexts.get(matches[0].get('contextRef'))!=duration or ''.join(matches[0].itertext()).strip()not in accepted:
             raise FilingError('individual scope metadata mismatch: '+tag)
     rows={};inferred_zero_facts=[]
     for year in (filing_year,filing_year-1):
