@@ -28,6 +28,11 @@ def _source(monkeypatch, fixture=None):
     # The saved source/roster fixture has a fixed acquisition date. Keep its
     # freshness clock fixed as well; wall-clock deadlines still use monotonic.
     monkeypatch.setattr(tdr.time, 'time', lambda: NOW.timestamp())
+    class FixtureDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return NOW.astimezone(tz) if tz else NOW.replace(tzinfo=None)
+    monkeypatch.setattr(tdr, 'datetime', FixtureDateTime)
     f = deepcopy(fixture or _fixture())
     raw = json.dumps(f['selected_master'], ensure_ascii=False).encode()
     monkeypatch.setattr(identity, 'read_cached_listed_roster_bytes', lambda: (raw, {
@@ -77,6 +82,18 @@ def test_public_history_recovers_tdr_originals_without_unsupported_general_index
     assert '單位：仟美元' in financial['text']
     assert '-4,760' in financial['text']
     assert '2026年上半年' in financial['text']
+
+
+@pytest.mark.parametrize('published', ['1150925', '1151011'])
+def test_fixture_clock_still_rejects_stale_or_future_issuer_roster(monkeypatch, published):
+    f = _fixture()
+    for row in f['selected_master']:
+        if row.get('公司代號') == '9103':
+            row['出表日期'] = published
+    get, post, calls = _source(monkeypatch, f)
+    rows, audit = fetch_recent_company_announcements('9103.TW', now=NOW, get=get, post=post)
+    assert rows == [] and audit['status'] == 'error'
+    assert not any(url in (INDEX, DETAIL, PDF) for _, url, _ in calls)
 
 
 def test_tdr_records_retain_checked_issuer_scope_and_reject_modified_body(monkeypatch):

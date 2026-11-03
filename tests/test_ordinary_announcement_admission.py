@@ -257,7 +257,12 @@ def test_ez_only_requires_same_native_code_market_company_and_body(monkeypatch, 
         indexes = result.source_audit[0]['source_record_archive'][-1]['indexes']
         assert len(indexes) == 1 and indexes[0]['request']['url'] == transport.EZ_URL
     else: assert result.source_audit[0]['status'] != 'success'
-    assert len(replay.calls) <= 4
+    # The native workflow also tries the English index after the primary
+    # timeout, before using EZSearch. Account for that existing request and
+    # require each selected body exactly once, including rejected originals.
+    assert replay.calls[:3] == [transport.IIH_URL+'?code=2059',
+                                transport.IIH_EN_URL+'?code=2059', transport.EZ_URL]
+    assert sorted(replay.calls[3:]) == ([] if damage == 'market' else sorted(replay.by_url))
 
 
 def test_warm_dynamic_packet_preserves_epoch_and_never_counts_new_acquisition(monkeypatch):

@@ -136,6 +136,39 @@ def test_truncated_retry_after_header_is_not_recorded_as_a_shorter_delay(transpo
     assert error.value.status_code == 429 and "retry-after" not in error.value.response.headers
 
 
+@pytest.mark.parametrize("previous_status", [200, 429, 503])
+@pytest.mark.parametrize("local_block", [False, True])
+def test_unknown_current_request_cannot_borrow_previous_status_in_failure_guard(
+        transport, monkeypatch, previous_status, local_block):
+    from copy import deepcopy
+    from types import SimpleNamespace
+    import search_provider_runtime as runtime
+    saved = {}
+    monkeypatch.setattr(runtime, "get_cache_json", lambda key: deepcopy(saved.get(key)))
+    monkeypatch.setattr(runtime, "set_cache_json",
+                        lambda key, value, ttl_seconds: saved.__setitem__(key, deepcopy(value)))
+    token = runtime._HTTP_STATUS.set(None)
+    try:
+        runtime.observe_http_response(SimpleNamespace(status_code=previous_status))
+        p = {"body": b"", "headers": b"", "metadata": b"", "process_started": True}
+        monkeypatch.setattr(transport, "collect_capped_process", lambda *a, **k: (p, -9, "timeout"))
+        if local_block:
+            monkeypatch.setattr(transport, "cooldown_state", lambda key: {"retry_at": time.time()+3600})
+            monkeypatch.setattr(transport, "collect_capped_process", lambda *a, **k: pytest.fail("unexpected send"))
+        client = transport.BoundedHistoryHttp(time.monotonic()+20)
+        with pytest.raises(SourceResponseError) as caught:
+            client.post(transport.JSON_URL, json={"companyId": "2308"})
+        state = runtime.remember_failure("test:history:unknown-status", caught.value)
+        assert state["http_status"] is None
+        assert state["error_kind"] == ("cooldown" if local_block else "timeout")
+        assert caught.value.diagnostic["http_status_observed"] is False
+        assert caught.value.diagnostic["response_bytes"] == 0
+        assert client.request_observations[-1]["http_request_sent"] is (not local_block)
+        assert client.http_request_count == (0 if local_block else 1)
+    finally:
+        runtime._HTTP_STATUS.reset(token)
+
+
 @pytest.mark.parametrize("behavior", ["drip", "overflow"])
 def test_slow_or_oversized_real_child_is_stopped_and_reaped(transport, monkeypatch, behavior):
     import subprocess

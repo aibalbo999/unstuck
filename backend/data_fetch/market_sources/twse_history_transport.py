@@ -170,6 +170,16 @@ class BoundedHistoryHttp:
             return response
         except Exception as exc:
             observation["error_kind"] = getattr(exc, "error_kind", type(exc).__name__)
+            if isinstance(exc, SourceResponseError):
+                # A prior index response belongs to that request only. Keep
+                # no-header failures and local blocks explicitly unknown so
+                # persistent failure guards cannot inherit its HTTP status.
+                exc.diagnostic.update(
+                    http_status_observed=observation["http_status_observed"],
+                    response_bytes=observation["response_bytes"],
+                    response_sha256=observation["response_sha256"],
+                    response_complete=observation["response_complete"],
+                )
             raise
         finally:
             observation.update(http_request_count=self.http_request_count-count,

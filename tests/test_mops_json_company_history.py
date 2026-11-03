@@ -57,8 +57,11 @@ def test_checked_supplementary_original_uses_published_action_and_publication_da
     assert data['news_selection']['publisher_count']==1
 
 
-def test_source_component_refresh_keeps_conclusions_and_original_core_age(tmp_path):
+def test_source_component_refresh_keeps_conclusions_and_original_core_age(tmp_path, monkeypatch):
     import asyncio,time
+    # Exercise the captured publication window, rather than let this immutable
+    # offline fixture age out of the production thirty-day eligibility rule.
+    monkeypatch.setattr(time, 'time', lambda: NOW.timestamp())
     from test_report_source_refresh import saved_report
     from test_report_refresh_acquisition_audit import init_db,events
     from data_fetch.provider_base import CallableProvider
