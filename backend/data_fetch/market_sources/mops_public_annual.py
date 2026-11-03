@@ -88,28 +88,38 @@ def _reconciled_investing_cashflows(rows,periods):
     return sums
 
 def parse_statement(raw,issuer,year,statement,template,*,include_prior=True,allow_missing_intangible=False,
-                    allow_reconciled_missing_purchases=False):
+                    allow_reconciled_missing_purchases=False,report_scope='consolidated'):
     if (statement not in STATEMENTS or not re.fullmatch(r'[1-9]\d{3}',issuer)
             or type(year)is not int or not 2013<=year<date.today().year
             or not isinstance(raw,bytes)or not 0<len(raw)<=MAX_BYTES):
         raise FilingError('invalid public MOPS statement identity or body')
+    if report_scope not in {'consolidated','individual'}or report_scope=='individual'and issuer!='2633':
+        raise FilingError('public MOPS statement scope not admitted')
+    fields=STATEMENT_FIELDS
+    if report_scope=='individual':
+        fields={**STATEMENT_FIELDS,
+            'BalanceSheet':{'Assets':'資產總額','Equity':'權益總額'},
+            'IncomeStatement':{'Revenue':'營業收入合計','ProfitLoss':'本期淨利（淨損）',
+                'GrossProfit':'營業毛利（毛損）','ProfitLossFromOperatingActivities':'營業利益（損失）'}}
     _template(template,statement)
     try:
         value=json.loads(raw.decode('utf8',errors='strict'),object_pairs_hook=_object)
         result=value['result']
         if (type(value['code'])is not int or value['code']!=200 or not isinstance(result,dict)
-                or result['reportType']!='合併'or result['year']!=str(year-1911)or result['season']!='4'
+                or result['reportType']!=('個別'if report_scope=='individual'else'合併')or result['year']!=str(year-1911)or result['season']!='4'
                 or type(result['fiscalYear'])is not str or result['fiscalYear'].strip()
                 or not isinstance(result['companyAbbreviation'],str)or not result['companyAbbreviation'].strip()
                 or len(result['companyAbbreviation'])>100 or not isinstance(result.get('subsidiary'),list)
                 or result.get('subsidiaryCompanyId','')!=''
                 or any(k in result for k in ('currency','unit','scale'))):
             raise FilingError('public MOPS scope/period/unit metadata not verified')
+        if report_scope=='individual'and result['companyAbbreviation']!='台灣高鐵':
+            raise FilingError('public MOPS individual issuer name mismatch')
         refs=[v['url']for v in result['urlList']if isinstance(v,dict)and v.get('name')=='XBRL資訊平台']
         if len(refs)!=1:raise FilingError('ambiguous public MOPS issuer reference')
         ref=urlsplit(refs[0]);q=parse_qs(ref.query,keep_blank_values=True)
         if (ref.scheme!='https'or ref.netloc!='mopsov.twse.com.tw'or ref.path!='/server-java/t164sb01'or ref.fragment
-                or q!={'step':['1'],'CO_ID':[issuer],'SYEAR':[str(year)],'SSEASON':['4'],'REPORT_ID':['C']}):
+                or q!={'step':['1'],'CO_ID':[issuer],'SYEAR':[str(year)],'SSEASON':['4'],'REPORT_ID':['A'if report_scope=='individual'else'C']}):
             raise FilingError('public MOPS issuer reference mismatch')
         suffix='年12月31日'if statement=='BalanceSheet'else'年度'
         subs=[{'main':'金額','sub':[]}]+([]if statement=='CashflowStatement'else[{'main':'%','sub':[]}])
@@ -122,7 +132,7 @@ def parse_statement(raw,issuer,year,statement,template,*,include_prior=True,allo
         columns=(1,2)if statement=='CashflowStatement'else(1,3)
         width=3 if statement=='CashflowStatement'else 1+2*(len(result['titles'])-1)
         facts={year:{},year-1:{}};missing_purchases=[]
-        for tag,label in STATEMENT_FIELDS[statement].items():
+        for tag,label in fields[statement].items():
             matches=[row for row in rows if isinstance(row,list)and row and isinstance(row[0],str)and row[0].strip()==label]
             # Absence stays unknown. Only the complete five-year caller may
             # carry this one absent row to explicit later comparative facts.
@@ -332,7 +342,7 @@ class PublicMopsHttp:
             from .ordinary_individual_annual import individual_url
             individual=individual_url(url)
         if url not in urls and not individual:raise FilingError('public MOPS transport URL invalid')
-        diag={'url':url,'http_request_sent':False};self.components.append(diag)
+        diag={'url':url,'http_request_sent':False,'response_complete':False};self.components.append(diag)
         limit=6000000 if individual else 2500000 if url==INDEX_URL else MAX_BYTES
         if self.factory is None and os.getenv('STOCK_AGENT_TEST_NO_NETWORK')=='1':raise FilingError('network is disabled for tests')
         if proxy_url_for_request(url,PROVIDER)or any(os.getenv(k)for k in PROXY_ENV):raise SourceResponseError('proxy_configuration_unsupported')
@@ -345,6 +355,7 @@ class PublicMopsHttp:
         stop=time.monotonic()+remaining;timeout=httpx.Timeout(remaining,connect=min(2.,remaining))
         method='POST'if request is not None or json_body is not None else'GET'
         diag.update(request_method=method)
+        raw=b''
         try:
             with self._request_client(timeout)as client:
                 kwargs={'json':json_body}if json_body is not None else{'data':request}if request is not None else{}
@@ -356,7 +367,6 @@ class PublicMopsHttp:
                         exc.response=response
                         if response.status_code in {401,403,429}or response.status_code>=500:remember_failure(key,exc)
                         raise exc
-                    raw=b''
                     for chunk in response.iter_bytes():
                         raw+=chunk
                         if len(raw)>limit:raise SourceResponseError('response_too_large')
@@ -371,13 +381,15 @@ class PublicMopsHttp:
             try:receipt=archive_response(raw,source_url=url,retrieved_at=time.time(),http_status=200)
             except (OSError,ValueError,EOFError,zlib.error):raise FilingError('public MOPS native body archive unavailable')from None
             if _receipt(receipt,url,limit)!=raw:raise FilingError('public MOPS archive failed')
-            diag.update(response_sha256=sha256(raw).hexdigest(),response_bytes=len(raw),status='complete')
+            diag.update(response_sha256=sha256(raw).hexdigest(),response_bytes=len(raw),status='complete',response_complete=True)
             return raw,receipt
         except httpx.HTTPError as exc:
-            diag.update(error_kind='timeout'if isinstance(exc,httpx.TimeoutException)else'transport_error')
+            diag.update(error_kind='timeout'if isinstance(exc,httpx.TimeoutException)else'transport_error',
+                        response_bytes=len(raw),response_sha256=sha256(raw).hexdigest(),response_complete=False)
             raise SourceResponseError(diag['error_kind'])from exc
         except Exception as exc:
-            diag.update(error_kind=getattr(exc,'error_kind',type(exc).__name__));raise
+            diag.update(error_kind=getattr(exc,'error_kind',type(exc).__name__),
+                        response_bytes=len(raw),response_sha256=sha256(raw).hexdigest(),response_complete=False);raise
 
 def fetch_public_annual_histories(ticker,*,transport=None):
     if not isinstance(ticker,str)or not re.fullmatch(r'[1-9]\d{3}\.TW(?:O)?',ticker):raise FilingError('invalid public MOPS annual ticker')

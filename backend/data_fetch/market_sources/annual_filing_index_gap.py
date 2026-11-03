@@ -57,7 +57,7 @@ def confirmed_short_annual_index(raw, issuer, message=MESSAGE):
     tables = container.find_all("table")
     if len(tables) != 1 or "hasBorder" not in tables[0].get("class", []):
         return None
-    regions, headers, downloads, annual, seen = [], 0, [], {}, set()
+    regions, headers, downloads, annual, other_annual, seen = [], 0, [], {}, {}, set()
     today = datetime.now(ZoneInfo("Asia/Taipei")).date()
     for row in tables[0].find_all("tr"):
         cells = row.find_all(["td", "th"], recursive=False)
@@ -71,41 +71,46 @@ def confirmed_short_annual_index(raw, issuer, message=MESSAGE):
         if len(cells) != 4 or not regions or regions[-1] != "IFRSs後" or not all(cell.name == "td" for cell in cells):
             return None
         period = re.fullmatch(r"(1\d{2})Q([1-4])", labels[0])
-        if not period or labels[1] != "合併":
+        if not period or labels[1] not in {"合併", "個別"}:
             return None
+        scope = "C" if labels[1] == "合併" else "A"
         year, quarter = int(period[1]) + 1911, int(period[2])
         month = quarter * 3
         end = date(year, month, 31 if quarter in {1, 4} else 30)
-        if year < 2013 or end > today or (year, quarter) in seen or len(seen) >= 64:
+        if year < 2013 or end > today or (scope, year, quarter) in seen or len(seen) >= 64:
             return None
-        seen.add((year, quarter))
+        seen.add((scope, year, quarter))
         relative = _window_url(cells[3], "下載")
         preview = _window_url(cells[2], "查詢")
         if not relative or not preview:
             return None
         parsed, display = urlsplit(relative), urlsplit(preview)
         wanted = {"functionName": ["t164sb01"], "step": ["9"], "co_id": [issuer],
-                  "year": [str(year)], "season": [str(quarter)], "report_id": ["C"]}
+                  "year": [str(year)], "season": [str(quarter)], "report_id": [scope]}
         query = parse_qs(display.query, keep_blank_values=True)
         if (parsed.scheme or parsed.netloc or parsed.fragment or parsed.path != "/server-java/FileDownLoad"
                 or parse_qs(parsed.query, keep_blank_values=True) != wanted or display.scheme or display.netloc or display.fragment
                 or display.path != "/server-java/t164sb01" or set(query) != {"step", "SYEAR", "file_name"}
                 or query.get("step") != ["3"] or query.get("SYEAR") != [str(year)]
                 or len(query.get("file_name", [])) != 1
-                or not re.fullmatch(rf"tifrs-fr[12]-m[12]-ci-cr-{issuer}-{year}Q{quarter}\.html", query["file_name"][0])):
+                or not re.fullmatch(rf"tifrs-fr[12]-m[12]-ci-{'cr' if scope == 'C' else 'ir'}-{issuer}-{year}Q{quarter}\.html", query["file_name"][0])):
             return None
         downloads.append(relative)
         if quarter == 4:
-            annual[year] = BASE + relative
+            (annual if scope == "C" else other_annual)[year] = BASE + relative
     years = sorted(annual)
     if (regions != ["IFRSs後", "IFRSs前"] or headers != 2 or not 0 < len(years) < 5
             or years != list(range(years[0], years[-1] + 1))
             or sorted(DOWNLOAD.findall(text.replace("&amp;", "&"))) != sorted(downloads)):
         return None
-    return {"schema": SCHEMA, "issuer": issuer, "message": message, "index_url": INDEX_URL,
+    proof = {"schema": SCHEMA, "issuer": issuer, "message": message, "index_url": INDEX_URL,
             "index_utf8": text, "index_sha256": sha256(raw).hexdigest(), "index_bytes": len(raw),
             "available_consolidated_annual_years": years,
             "filing_urls_by_year": {str(year): annual[year] for year in years}}
+    if other_annual:
+        proof["other_annual_filing_years"] = {"A": sorted(other_annual)}
+        proof["other_annual_filing_urls_by_year"] = {"A": {str(y): other_annual[y] for y in sorted(other_annual)}}
+    return proof
 
 
 def validate_short_annual_index_proof(proof, issuer, message):
