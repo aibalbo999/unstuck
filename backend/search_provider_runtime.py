@@ -71,13 +71,18 @@ def cooldown_state(key: str) -> dict:
 def error_details(exc: Exception) -> dict:
     response = getattr(exc, 'response', None)
     status = getattr(response, 'status_code', getattr(exc, 'status_code', None))
+    diagnostic = getattr(exc, 'diagnostic', {})
     kind = getattr(exc, 'error_kind', '')
     if not kind:
         kind = {401: 'authentication', 402: 'payment_required', 403: 'access_denied', 429: 'rate_limited', 432: 'provider_rejected'}.get(status, '')
     if not kind:
         kind = 'server_error' if status and status >= 500 else ('http_error' if status else ('parse_error' if isinstance(exc, ValueError) else 'timeout' if 'timeout' in type(exc).__name__.lower() else 'transport_error'))
-    diagnostic = getattr(exc, 'diagnostic', {})
-    return {'error_kind': kind, 'http_status': status if status is not None else _HTTP_STATUS.get(), **{name: diagnostic[name] for name in ('response_sha256', 'response_bytes', 'parser_version') if name in diagnostic}}
+    # A multi-request workflow can observe a valid index before a document
+    # connection times out. Its explicit per-request unknown must not inherit
+    # that earlier response; legacy parsers without this flag keep their context.
+    if status is None and diagnostic.get('http_status_observed') is not False:
+        status = _HTTP_STATUS.get()
+    return {'error_kind': kind, 'http_status': status, **{name: diagnostic[name] for name in ('response_sha256', 'response_bytes', 'parser_version') if name in diagnostic}}
 
 
 def _failure_fingerprint(state: dict) -> str:
