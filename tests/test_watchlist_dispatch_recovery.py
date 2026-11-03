@@ -80,6 +80,9 @@ def queue(redis):
     return RQTaskQueue(redis_client=redis,queue=q)
 @pytest.fixture
 def environment(monkeypatch,tmp_path):
+    # Exercise this suite's legacy dispatch path independently of the enabled
+    # nightly policy, whose deferral and prepared-input behavior have own tests.
+    monkeypatch.setenv('NIGHTLY_TAIWAN_ANALYSIS_ENABLED','0')
     monkeypatch.setattr(watchlist_service,'WATCHLIST_PATH',tmp_path/'watchlist.json');watchlist_service.reset_watchlist_store_for_tests()
     monkeypatch.setattr(job_store,'TASK_DB_PATH',str(tmp_path/'jobs.sqlite3'));job_store.reset_job_store_for_tests()
     monkeypatch.setattr(watchlist_service.time,'sleep',lambda _:None)

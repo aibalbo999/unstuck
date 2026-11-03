@@ -5,10 +5,11 @@ Redis and a bound archive executor. Any uncertain failure retains suspension;
 no automatic resume, deadline expiry, task deletion, or forced process kill.
 """
 from pathlib import Path
-import argparse,fcntl,hashlib,json,os,sqlite3,subprocess,sys,time
+import argparse,fcntl,hashlib,json,math,os,sqlite3,subprocess,sys,time
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'backend'))
 from deployment_rq_pause import OwnedRqPause,PauseError,snapshot,compare
+from nightly_deployment_gate import NightlyWorkFence
 
 
 def sha(p):return hashlib.sha256(p.read_bytes()).hexdigest()
@@ -66,6 +67,10 @@ def workers(client,queues,*,drained=False,allow_absent=False):
 def no_active_jobs():
     with sqlite3.connect((ROOT/'backend/cache/operational.sqlite3').as_uri()+'?mode=ro',uri=True)as db:
         rows=db.execute("SELECT job_id FROM analysis_jobs WHERE status NOT IN ('done','error','cancelled','waiting_retry','queued')").fetchall()
+        if db.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='nightly_analysis_work_v1'").fetchone():
+            claims=db.execute('SELECT job_id,lease_until FROM nightly_analysis_work_v1 WHERE lease_token IS NOT NULL').fetchall()
+            if any(type(until) not in (int,float) or not math.isfinite(until) or until>time.time() for _,until in claims):
+                raise PauseError('Nightly source claims have not drained')
     if rows:raise PauseError('Running SQL jobs have not drained')
 
 def stable_snapshot(client,pause):
@@ -89,7 +94,7 @@ def main():
     if not args.execute:print(json.dumps({'plan':'validated','formal_actions':False,'commit':plan['expected_commit']}));return
     import redis,requests
     archive=ROOT.parent/'stock-agent-archives'
-    with(archive/'shared-runtime-release.lock').open('a+')as lock:
+    with(archive/'shared-runtime-release.lock').open('a+')as lock, NightlyWorkFence(ROOT/'backend/cache/nightly-deployment-admission.lock') as nightly_fence:
         fcntl.flock(lock,fcntl.LOCK_EX|fcntl.LOCK_NB)
         client=redis.Redis.from_url('redis://127.0.0.1:6379/0',socket_timeout=3,socket_connect_timeout=3)
         info=client.info('server');config=client.config_get('dir')
@@ -117,6 +122,7 @@ def main():
         while True:
             pause.check()
             try:
+                if not nightly_fence.acquire():raise PauseError('Nightly source/dispatch fence has not drained')
                 ws=workers(client,plan['queue_names'],drained=True,allow_absent=recovery_absent or(case/'bootstrap-worker-retired.json').exists());no_active_jobs()
                 if any(client.zcard(k)for k in client.scan_iter('rq:wip:*')):raise PauseError('Started work remains')
                 break
@@ -138,9 +144,10 @@ def main():
                 if time.monotonic()-last>30:print('Waiting for the same native job/worker drain',flush=True);last=time.monotonic()
                 time.sleep(1)
         baseline=json.loads((case/'paused-rq-before.json').read_text())if previous and(case/'paused-rq-before.json').exists()else stable_snapshot(client,pause)
+        nightly_fence.check()
         if not(case/'paused-rq-before.json').exists():write(case/'paused-rq-before.json',baseline)
         compare(baseline,stable_snapshot(client,pause))
-        refresh(case/'pause-drained.json',{'at':time.time(),'workers':ws})
+        refresh(case/'pause-drained.json',{'at':time.time(),'workers':ws,'nightly_source_and_dispatch_fence_exclusive':True})
         refresh(case/'pause-context.json',{'token_hex':pause.token.hex(),'controller_pid':os.getpid(),'redis_identity':intent['redis']})
         validate(args.plan)
         execution_env=dict(os.environ,STOCK_AGENT_DEPLOY_PLAN_PATH=str(args.plan.resolve()))
@@ -153,7 +160,7 @@ def main():
             if http.get('http://127.0.0.1:8080'+route,timeout=10).status_code!=200:raise PauseError('Runtime not healthy; pause retained')
         identity=http.get('http://127.0.0.1:8080/api/runtime-identity',timeout=10).json()
         if identity.get('commit')!=plan['expected_commit']:raise PauseError('Wrong runtime revision')
-        no_active_jobs();ws=workers(client,plan['queue_names'],drained=True)
+        nightly_fence.check();no_active_jobs();ws=workers(client,plan['queue_names'],drained=True)
         after=stable_snapshot(client,pause);proof=compare(baseline,after);write(case/'paused-rq-after.json',after);write(case/'paused-rq-preservation.json',proof)
         write(case/'resume-verified.json',{'at':time.time(),'workers':ws,'runtime':identity,'full_preservation':True,'rq_preservation':proof})
         pause.resume();write(case/'resumed.json',{'at':time.time(),'owned_suspend_key_removed':True,'no_task_enqueued_or_deleted_by_controller':True})

@@ -30,6 +30,9 @@ def env(monkeypatch,tmp_path):
         assert request.options.force_refresh
         return FetchResult(request=request,data={'ticker':request.ticker,'current_price':100})
     redis=MemoryRedis()
+    # This isolated RQ double has no suspension unless a boundary test sets one.
+    redis.get=lambda key:None
+    redis.pttl=lambda key:-2
     return SimpleNamespace(calls=calls,redis=redis,queue=queue(redis),service=SimpleNamespace(fetch_async=fetch))
 
 def tick(env,now=NOW):
@@ -172,7 +175,7 @@ def test_trigger_deferred_only_when_nightly_covers_same_mode(env,monkeypatch,slo
     async def radar(*a):return {}
     async def no_wait(*a):return None
     monkeypatch.setattr(watchlist_service,'fetch_radar_data',radar)
-    monkeypatch.setattr(watchlist_service,'asyncio',SimpleNamespace(sleep=no_wait))
+    monkeypatch.setattr(watchlist_service.asyncio,'sleep',no_wait)
     monkeypatch.setattr(watchlist_service,'evaluate_watchlist_triggers',lambda *a,**k:[{'matched':True,'pipeline_selected':selected}])
     monkeypatch.setattr(watchlist_service.watchlist_trigger_store,'record_trigger_event',lambda *a:{'inserted':True})
     queued=[]

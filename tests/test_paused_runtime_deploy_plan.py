@@ -1,4 +1,4 @@
-import hashlib,importlib.util,json
+import hashlib,importlib.util,json,sqlite3,time
 from pathlib import Path
 import pytest
 from deployment_rq_pause import PauseError
@@ -54,3 +54,20 @@ def test_revision_advance_requires_reviewed_ancestor_and_no_started_deployment(t
     p['supersedes_commit']=previous['commit'];m.validate_recovery_revision(previous,p,case)
     (case/'before-state.json').write_text('{}')
     with pytest.raises(PauseError):m.validate_recovery_revision(previous,p,case)
+
+
+@pytest.mark.parametrize('kind', ['active', 'expired', 'unowned', 'invalid'])
+def test_source_leases_are_part_of_read_only_deployment_drain(tmp_path,monkeypatch,kind):
+    m,case,p=fixture(tmp_path,monkeypatch)
+    dbpath=m.ROOT/'backend/cache/operational.sqlite3';dbpath.parent.mkdir(parents=True)
+    with sqlite3.connect(dbpath) as db:
+        db.execute('CREATE TABLE analysis_jobs (job_id TEXT,status TEXT)')
+        db.execute('CREATE TABLE nightly_analysis_work_v1 (job_id TEXT,lease_token TEXT,lease_until REAL)')
+        until=time.time()+600 if kind=='active' else time.time()-1 if kind=='expired' else None
+        db.execute('INSERT INTO nightly_analysis_work_v1 VALUES (?,?,?)',('same-nightly-job',None if kind=='unowned' else 'owner',until))
+    before=dbpath.read_bytes()
+    if kind in {'active','invalid'}:
+        with pytest.raises(PauseError,match='Nightly source claims'):m.no_active_jobs()
+    else:
+        m.no_active_jobs()
+    assert dbpath.read_bytes()==before
