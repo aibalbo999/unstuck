@@ -91,6 +91,9 @@ class StockDataService:
             if policy == 'ncc' and request.options.force_refresh:
                 from fastapi import HTTPException
                 raise HTTPException(status_code=400, detail='NCC 同業來源僅接受保留正常快取的流程')
+            if policy == 'ic_distribution' and request.options.force_refresh:
+                from fastapi import HTTPException
+                raise HTTPException(status_code=400, detail='IC 通路同業來源僅接受保留正常快取的流程')
             candidates = [p for p in self.registry.for_request(request, source) if p.name == 'FinMind/yfinance']
             provider = candidates[0] if len(candidates) == 1 else None
             canonical_source = source

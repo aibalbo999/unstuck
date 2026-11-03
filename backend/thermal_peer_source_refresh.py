@@ -53,12 +53,18 @@ def _usable_metrics(record, today):
 
 
 def merge_thermal_peer_source(old_data, old_audits, value, audits, ticker):
+    return _merge_segment_peer_source(old_data, old_audits, value, audits, ticker,
+        validate_context=validate_thermal_refresh_context, verify_candidates=verified_thermal_candidates)
+
+
+def _merge_segment_peer_source(old_data, old_audits, value, audits, ticker, *, validate_context, verify_candidates):
+    """Preserve the same source-only merge contract across exact segment profiles."""
     from report_source_refresh import _timestamp, _reassess_original_freshness
-    validate_thermal_refresh_context(old_data, ticker)
+    validate_context(old_data, ticker)
     today = datetime.now(ZoneInfo('Asia/Taipei')).date()
     try:
-        if not verified_thermal_candidates(value, ticker, today=today):
-            raise ValueError('thermal membership originals unverified')
+        if not verify_candidates(value, ticker, today=today):
+            raise ValueError('segment membership originals unverified')
         usable = sum(_usable_metrics(row, today) for row in value)
         if usable == 0 or not isinstance(audits, list) or not audits:
             raise ValueError('no acquired metric evidence')

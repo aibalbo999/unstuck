@@ -18,6 +18,10 @@ from .official_steel_wire_peer_cohort import get_official_steel_wire_candidates
 from .official_construction_peer_cohort import get_official_construction_candidates
 from .official_food_processing_peer_cohort import get_official_food_processing_candidates
 from .official_thermal_peer_cohort import get_official_thermal_candidates, verified_thermal_candidates, supports_thermal_target
+from .official_ic_distribution_peer_cohort import (
+    get_candidates as get_official_ic_candidates, verified_candidates as verified_ic_candidates,
+    TARGET as IC_TARGET, SCOPE as IC_SCOPE,
+)
 from .official_airline_peer_cohort import (get_official_airline_candidates, verified_airline_candidates,
                                           related_airline, IDENTITIES as AIRLINES, SCOPE as AIRLINE_SCOPE)
 from .ncc_mobile_peer_cohort import (get_candidates as get_official_ncc_candidates, verified_candidates as verified_ncc_candidates,
@@ -141,10 +145,19 @@ def fetch_dynamic_peer_metrics_with_diagnostics(ticker: str, company_name: str, 
     membership alone is labeled as a candidate, never a ranked business match.
     """
     today = _today()
-    ranked = ranked_profiles_from_identity(identity)
+    ranked = None if ticker == IC_TARGET else ranked_profiles_from_identity(identity)
     selection_rows = {}
     selection_policy = None
-    if ranked is not None:
+    if ticker == IC_TARGET:
+        ic = get_official_ic_candidates(ticker, today=today)
+        candidates = ic['candidates']
+        audit = {'selection_status': 'selected' if candidates else ic['status'],
+                 'selection_basis': 'current_official_master_and_undated_ic_segment',
+                 'selection_rejected_reason_counts': {},
+                 'official_ic_candidate_status': ic['status'],
+                 'official_ic_candidate_details': {k: v for k, v in ic.items() if k != 'candidates'},
+                 'candidate_order_policy': 'official_ic_publisher_order_only_not_economic_rank'}
+    elif ranked is not None:
         selected, selection_rows, selection_policy = ranked
         candidates = [{"name": name, "ticker": symbol.upper(), "identity_status": "profile_supplied",
                        "comparison_status": "profile_ranked"} for name, symbol in selected]
@@ -315,7 +328,8 @@ def fetch_dynamic_peer_metrics_with_diagnostics(ticker: str, company_name: str, 
                 yf_status = "identity_or_industry_unverified"
         record = {**candidate, "source": "peer identity with per-field metric provenance"}
         thermal_scope = candidate.get("comparison_scope") == "thermal_management_segment"
-        if ((candidate.get("comparison_status") == "published_segment_candidate" or thermal_scope)
+        ic_scope = candidate.get('comparison_scope') == IC_SCOPE
+        if ((candidate.get("comparison_status") == "published_segment_candidate" or thermal_scope or ic_scope)
                 and (str(info.get("symbol") or "").upper() != symbol
                      or str(info.get("quoteType") or "").upper() != "EQUITY")):
             info, yf_status = {}, "identity_unverified"
@@ -341,7 +355,7 @@ def fetch_dynamic_peer_metrics_with_diagnostics(ticker: str, company_name: str, 
             record[field] = round(number * (100 if field.endswith("_pct") else 1), 2) if number is not None else None
         revenue, assets = finite_number(info.get("totalRevenue")), finite_number(info.get("totalAssets"), positive=True)
         record["asset_turnover"] = round(revenue / assets, 4) if revenue is not None and assets is not None else None
-        if candidate.get("comparison_status") == "published_segment_candidate" or medical_scope or thermal_scope or airline_scope:
+        if candidate.get("comparison_status") == "published_segment_candidate" or medical_scope or thermal_scope or airline_scope or ic_scope:
             # Undated quote aggregates cannot establish a common annual period.
             record["asset_turnover"] = None
         financial_signature = " ".join([industry, str(info.get("industry", "")), *candidate.get("industry_categories", [])]).casefold()
@@ -423,6 +437,13 @@ def fetch_dynamic_peer_metrics_with_diagnostics(ticker: str, company_name: str, 
     if thermal_records and not verified_thermal_candidates(thermal_records, ticker, today=today):
         selected_records = [r for r in selected_records if r.get("comparison_scope") != "thermal_management_segment"]
         audit["official_thermal_candidate_status"] = "originals_expired_or_unverified_after_metrics"
+    ic_records = [r for r in selected_records if r.get('comparison_scope') == IC_SCOPE]
+    if ticker == IC_TARGET:
+        # A generic nearby-code fallback cannot impersonate this exact profile.
+        selected_records = ic_records
+    if ic_records and not verified_ic_candidates(ic_records, ticker, today=today):
+        selected_records = [r for r in selected_records if r.get('comparison_scope') != IC_SCOPE]
+        audit['official_ic_candidate_status'] = 'originals_expired_or_unverified_after_metrics'
     airline_records = [r for r in selected_records if r.get("comparison_scope") == AIRLINE_SCOPE]
     if airline_records and not verified_airline_candidates(airline_records, ticker, today=today):
         selected_records = [r for r in selected_records if r.get("comparison_scope") != AIRLINE_SCOPE]

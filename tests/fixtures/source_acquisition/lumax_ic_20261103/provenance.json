@@ -1,0 +1,37 @@
+{
+  "purpose": "Complete public preserved bodies for isolated replay; cache origin and actual retrieval retained. Mock test transport does not claim a new real request or historical membership effective date.",
+  "files": {
+    "listed.json.gz": {
+      "url": "https://openapi.twse.com.tw/v1/opendata/t187ap03_L",
+      "sha256": "cf9007da58ee20976498d4c7f482ce8a61da73b11e89be0d32e72bc5f5c9da45",
+      "bytes": 1332397,
+      "retrieved_at": 1793605955.9689002,
+      "evidence_kind": "cached_complete_source_payload_verified_by_digest",
+      "http_status_observed": false
+    },
+    "otc.json.gz": {
+      "url": "https://www.tpex.org.tw/openapi/v1/mopsfin_t187ap03_O",
+      "sha256": "fe2d1239c1114080253bc76e04cc4594fa789cc695801b80f1ac6752bba7ef7b",
+      "bytes": 1079379,
+      "retrieved_at": 1793682939.61277,
+      "evidence_kind": "raw_http_response_bytes",
+      "http_status_observed": true
+    },
+    "issuer.html.gz": {
+      "source_url": "https://ic.tpex.org.tw/company_chain.php?stk_code=6192",
+      "raw_response_sha256": "46f34c30b01fab5ffb0bbdf3545b4b33f8c2d057a9f3c5f4f3cf5863dda60e51",
+      "raw_response_bytes": 10070,
+      "retrieved_at": 1793681472.624013,
+      "response_complete": true,
+      "cache_hit": false
+    },
+    "segment.html.gz": {
+      "source_url": "https://ic.tpex.org.tw/introduce.php?ic=D000",
+      "raw_response_sha256": "1b6e297a4fb8078c8788bde58248f6c58cd53d0d379125c69654206e7da277cd",
+      "raw_response_bytes": 313348,
+      "retrieved_at": 1793685551.9898298,
+      "response_complete": true,
+      "cache_hit": false
+    }
+  }
+}
