@@ -1,6 +1,8 @@
 """Bounded, exact-issuer open-job sample from TaiwanJobs' public company search."""
 from __future__ import annotations
 
+from contextlib import contextmanager, suppress
+from contextvars import ContextVar
 from datetime import date, datetime
 from hashlib import sha256
 import csv
@@ -36,6 +38,109 @@ _TICKER = re.compile(r"\d{4,6}\.(?:TW|TWO)")
 _DIGEST = re.compile(r"[0-9a-f]{64}")
 _ID = re.compile(r"[1-9]\d{0,11}")
 _TZ = ZoneInfo("Asia/Taipei")
+_OBSERVE_RECEIPTS = ContextVar('taiwanjobs_observe_receipts', default=False)
+
+
+@contextmanager
+def receipt_observation_scope(enabled):
+    """Only the enclosing provider decides whether transport telemetry is saved."""
+    token = _OBSERVE_RECEIPTS.set(enabled is True)
+    try:
+        yield
+    finally:
+        _OBSERVE_RECEIPTS.reset(token)
+
+
+def _capture_responses(response, receipts, stage, native_call, *, max_bytes,
+                       body_complete=True, include_history=True):
+    """Retain bounded anonymous originals, independently of job qualification."""
+    from official_response_evidence import archive_response
+    chain = [*getattr(response, 'history', []), response] if include_history else [response]
+    for item in chain:
+        url = str(item.url)
+        try:
+            method = item.request.method
+        except (AttributeError, RuntimeError):
+            method = None
+        parts = urlsplit(url)
+        allowed = (parts.scheme == 'https' and parts.netloc == 'job.taiwanjobs.gov.tw'
+                   and not parts.fragment and parts.username is None and parts.password is None
+                   and ((parts.path.lower() in {urlsplit(SEARCH_URL).path, RESULT_PATH} and not parts.query)
+                        or _ids(url, path=COMPANY_PATH) is not None
+                        or _ids(url, path=DETAIL_PATH) is not None))
+        cached = getattr(item, 'from_cache', False) is True
+        observed = (native_call and isinstance(item, httpx.Response)
+                    and parts.scheme == 'https' and parts.netloc == 'job.taiwanjobs.gov.tw'
+                    and method in {'GET', 'POST'} and not cached)
+        complete = body_complete and isinstance(item, httpx.Response) and item.is_stream_consumed
+        body = item.content if body_complete else None
+        status = getattr(item, 'status_code', None)
+        row = {'stage': stage, 'source_url': url if allowed else None,
+               'request_url_sha256': sha256(url.encode()).hexdigest(),
+               'request_method': method if method in {'GET', 'POST'} else None,
+               'http_status': status, 'http_status_observed': bool(observed),
+               'http_request_sent': True if observed else False if cached else None,
+               'http_request_count': int(observed), 'cache_hit': cached,
+               'response_complete': complete}
+        if body is not None:
+            row.update(response_bytes=len(body), response_sha256=sha256(body).hexdigest())
+        if observed and allowed and complete and 0 < len(body) <= max_bytes:
+            proof = archive_response(body, source_url=url, retrieved_at=time.time(),
+                                     http_status=status,
+                                     evidence_kind='decoded_complete_http_response_body', max_bytes=max_bytes)
+            if proof.get('status') == 'archived':
+                proof.update(request_method=method, http_status_observed=True, response_complete=True,
+                             cache_hit=False, issuer_and_open_job_semantics_verified=False)
+                row['original_receipt'] = proof
+        receipts.append(row)
+        if observed and _OBSERVE_RECEIPTS.get():
+            from provider_correlation import current_correlation
+            from provider_sla import record_source_audit_entries
+            import sqlite3
+            context = current_correlation()
+            if context.get('ticker') and context.get('fetch_id'):
+                entry = {**context, 'source': 'alternative_data', 'provider': PROVIDER + ' native HTTP',
+                         'event_kind': 'http_transport_receipt', 'selection_policy': 'transport-receipt-only:v1',
+                         'status': 'error' if status >= 400 or not complete else 'success', 'record_count': 0,
+                         'http_request_sent': True, 'http_status': status,
+                         'message': 'Public employer HTTP transport only; issuer and open-job qualification is separate.'}
+                if body is not None:
+                    entry.update(response_bytes=len(body), response_sha256=row['response_sha256'])
+                entry['component_statuses'] = {'transport': {
+                    'url': url, 'request_method': method, 'http_status': status,
+                    'http_request_sent': True, 'http_status_observed': True, 'response_complete': complete,
+                    **({'response_bytes': len(body), 'response_sha256': row['response_sha256']}
+                       if body is not None else {})}}
+                if 'original_receipt' in row:
+                    entry['raw_http_receipt'] = row['original_receipt']
+                with suppress(sqlite3.Error):
+                    record_source_audit_entries([entry])
+
+
+def _failure_reason(exc):
+    if isinstance(exc, httpx.TimeoutException):
+        return 'timeout'
+    if isinstance(exc, httpx.HTTPStatusError):
+        code = exc.response.status_code
+        return {401: 'authentication', 403: 'access_denied', 429: 'rate_limited'}.get(
+            code, 'server_error' if code >= 500 else 'http_error')
+    if isinstance(exc, httpx.HTTPError):
+        return 'transport_error'
+    if isinstance(exc, TimeoutError):
+        return 'workflow_timeout'
+    return {'TaiwanJobs search form missing': 'search_form_unverified',
+            'TaiwanJobs search form changed': 'search_form_changed',
+            'TaiwanJobs exact employer absent or ambiguous': 'employer_not_found_or_ambiguous',
+            'TaiwanJobs company identity mismatch': 'employer_identity_mismatch',
+            'TaiwanJobs no verified open issuer postings': 'no_qualified_open_postings',
+            'TaiwanJobs response origin, path or size invalid': 'response_origin_or_size_invalid',
+            }.get(str(exc), 'company_or_open_job_unverified')
+
+
+def _with_receipts(value, receipts):
+    value.update(component_receipts=receipts,
+                 http_request_count=sum(r['http_request_count'] for r in receipts))
+    return value
 
 
 def _fcfc_employer_reconciliation(ticker: str, company: str, ubn: str) -> dict | None:
@@ -60,12 +165,30 @@ def _verified_url(url: str, path: str) -> bool:
 
 
 def _read(client, method: str, url: str, *, data: dict | None, deadline: float, path: str,
-          max_bytes: int = MAX_BYTES):
+          max_bytes: int = MAX_BYTES, receipts=None, stage=None, native_call=False,
+          header_responses=None):
     remaining = deadline - time.monotonic()
     if remaining <= 0:
         raise TimeoutError("TaiwanJobs acquisition deadline exhausted")
-    response = (client.get(url, timeout=min(remaining, 8)) if method == "GET" else
-                client.post(url, data=data, timeout=min(remaining, 8)))
+    header_start = len(header_responses) if header_responses is not None else 0
+    try:
+        response = (client.get(url, timeout=min(remaining, 8)) if method == "GET" else
+                    client.post(url, data=data, timeout=min(remaining, 8)))
+    except httpx.HTTPError as exc:
+        if receipts is not None:
+            headers = header_responses[header_start:] if header_responses is not None else []
+            if headers:
+                for response in headers:
+                    _capture_responses(response, receipts, stage, native_call, max_bytes=max_bytes,
+                                       body_complete=False, include_history=False)
+                receipts[-1]['error_kind'] = _failure_reason(exc)
+            else:
+                receipts.append({'stage': stage, 'http_status': None, 'http_request_sent': None,
+                                 'http_status_observed': False, 'response_complete': False,
+                                 'http_request_count': 0, 'error_kind': _failure_reason(exc)})
+        raise
+    if receipts is not None:
+        _capture_responses(response, receipts, stage, native_call, max_bytes=max_bytes)
     response.raise_for_status()
     if not _verified_url(str(response.url), path) or not 0 < len(response.content) <= max_bytes:
         raise ValueError("TaiwanJobs response origin, path or size invalid")
@@ -114,18 +237,22 @@ def fetch_taiwanjobs_company_jobs(
     reconciliation = _fcfc_employer_reconciliation(ticker, company, ubn)
     source_company = reconciliation["source_legal_name"] if reconciliation else company
     own_client = client is None
+    header_responses = []
     if own_client:
         kwargs = {"timeout": 8, "follow_redirects": True,
-                  "headers": {"User-Agent": "Mozilla/5.0 stock-agent/1.0", "Accept-Language": "zh-TW"}}
+                  "headers": {"User-Agent": "Mozilla/5.0 stock-agent/1.0", "Accept-Language": "zh-TW"},
+                  "event_hooks": {"response": [header_responses.append]}}
         proxy = proxy_url_for_provider(PROVIDER)
         if proxy:
             kwargs["proxy"] = proxy
         client = httpx.Client(**kwargs)
     deadline = time.monotonic() + MAX_SECONDS
     digests: list[str] = []
+    receipts: list[dict] = []
     try:
         start, soup = _read(client, "GET", SEARCH_URL, data=None, deadline=deadline,
-                            path=urlsplit(SEARCH_URL).path.lower())
+                            path=urlsplit(SEARCH_URL).path.lower(), receipts=receipts,
+                            stage='search_form', native_call=own_client, header_responses=header_responses)
         form = soup.find("form", id="form1")
         if form is None:
             raise ValueError("TaiwanJobs search form missing")
@@ -137,7 +264,8 @@ def fetch_taiwanjobs_company_jobs(
                        "ctl00$CPH1$SearchBar$txtKeywordComp": source_company.removesuffix("股份有限公司"),
                        "ctl00$CPH1$SearchBar$btnQuery": "查詢"})
         result, soup = _read(client, "POST", str(start.url), data=fields, deadline=deadline,
-                             path=RESULT_PATH)
+                             path=RESULT_PATH, receipts=receipts, stage='search_results', native_call=own_client,
+                             header_responses=header_responses)
         digests += [sha256(start.content).hexdigest(), sha256(result.content).hexdigest()]
         matches = []
         for anchor in soup.find_all("a", href=True):
@@ -152,7 +280,8 @@ def fetch_taiwanjobs_company_jobs(
         employer_id = matches[0]
         company_url = f"https://job.taiwanjobs.gov.tw/internet/jobwanted/company_desc2.aspx?EMPLOYER_ID={employer_id}&BRANCH_ID="
         listing, soup = _read(client, "GET", company_url, data=None, deadline=deadline,
-                              path=COMPANY_PATH)
+                              path=COMPANY_PATH, receipts=receipts, stage='company', native_call=own_client,
+                              header_responses=header_responses)
         heading = soup.select_one("#CPH1_h1_COMPNAME")
         if (heading is None or heading.get_text(" ", strip=True) != source_company
                 or _term(soup, "統一編號") != ubn):
@@ -168,7 +297,8 @@ def fetch_taiwanjobs_company_jobs(
                 continue
             seen.add(ids[1])
             detail, page = _read(client, "GET", link, data=None, deadline=deadline,
-                                 path=DETAIL_PATH)
+                                 path=DETAIL_PATH, receipts=receipts, stage='job_detail', native_call=own_client,
+                                 header_responses=header_responses)
             digests.append(sha256(detail.content).hexdigest())
             title = page.select_one("h2")
             title = title.get_text(" ", strip=True) if title else ""
@@ -193,7 +323,7 @@ def fetch_taiwanjobs_company_jobs(
                          **({"source_employer": source_company} if reconciliation else {})})
         if not rows:
             raise ValueError("TaiwanJobs no verified open issuer postings")
-        return {"status": "success", "ticker": ticker, "company_name": company,
+        return _with_receipts({"status": "success", "ticker": ticker, "company_name": company,
                 "official_ubn": ubn, "employer_id": employer_id, "source": PROVIDER,
                 "source_url": company_url, "job_count": None,
                 "current_open_job_count": len(rows), "job_postings": rows,
@@ -205,9 +335,11 @@ def fetch_taiwanjobs_company_jobs(
                 "coverage_status": "current_open_posting_sample",
                 **({"source_company_name": source_company,
                     "employer_name_reconciliation": reconciliation} if reconciliation else {}),
-                "message": "按官方公司全名與統編核對台灣就業通公司頁，逐筆核對開放中職缺與截止日；僅為樣本，不推定全站職缺數或刊登日。"}
-    except (httpx.HTTPError, TimeoutError, ValueError, TypeError, AttributeError, KeyError):
-        return _unavailable(ticker, company, "company_or_open_job_unverified")
+                "message": "按官方公司全名與統編核對台灣就業通公司頁，逐筆核對開放中職缺與截止日；僅為樣本，不推定全站職缺數或刊登日。"}, receipts)
+    except (httpx.HTTPError, TimeoutError, ValueError, TypeError, AttributeError, KeyError) as exc:
+        value = _unavailable(ticker, company, _failure_reason(exc))
+        value['failure_stage'] = receipts[-1]['stage'] if receipts else None
+        return _with_receipts(value, receipts)
     finally:
         if own_client:
             client.close()

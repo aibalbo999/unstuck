@@ -250,8 +250,9 @@ class AlternativeJobOpeningsProvider(DataProvider):
                                 "primary_reason_code": company_jobs.get("reason_code")}
         taiwanjobs = None
         if verified_ubn and legal_name and not (isinstance(company_jobs, dict) and company_jobs.get("status") == "success"):
-            from .market_sources.taiwanjobs_company_jobs import fetch_taiwanjobs_company_jobs
-            taiwanjobs = fetch_taiwanjobs_company_jobs(request.ticker, legal_name, verified_ubn)
+            from .market_sources.taiwanjobs_company_jobs import fetch_taiwanjobs_company_jobs, receipt_observation_scope
+            with receipt_observation_scope(request.options.record_provider_sla):
+                taiwanjobs = fetch_taiwanjobs_company_jobs(request.ticker, legal_name, verified_ubn)
         official_jobs = None
         if (request.ticker == "2882.TW" and legal_name == "國泰金融控股股份有限公司"
                 and identity.get("ticker") == request.ticker
@@ -426,7 +427,8 @@ class AlternativeJobOpeningsProvider(DataProvider):
                 "reason_code": str(taiwanjobs.get("reason_code") or
                                    ("exact_open_issuer_postings" if taiwanjobs_verified_jobs else "company_or_open_job_unverified")),
                 **{key: taiwanjobs[key] for key in ("source_url", "response_sha256", "fetched_at_epoch",
-                                                    "current_open_job_count", "rejected_count") if key in taiwanjobs},
+                                                    "current_open_job_count", "rejected_count", "failure_stage",
+                                                    "http_request_count", "component_receipts") if key in taiwanjobs},
             }
         coverage = ("partial" if numeric and not complete_numeric else
                     "valid_empty" if numeric and all(item["job_count"] == 0 for item in numeric)
