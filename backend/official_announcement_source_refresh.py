@@ -409,6 +409,16 @@ def guard_result(result, data):
     from data_fetch.types import ProviderResult
     if result.status not in {'success','degraded_enrichment','skipped_fresh_cache'} or not result.value:
         return result
+    # A typed JSON original must never fall through to legacy HTML/text proof.
+    if isinstance(result.value,list) and any(isinstance(row,dict) and 'mops_json_receipt' in row for row in result.value):
+        try:
+            validate_context(data,data.get('ticker'))
+        except (ValueError,TypeError,AttributeError):
+            from dataclasses import replace
+            return replace(result,status='error',value=[],audit={**result.audit,'status':'error','record_count':0,
+                'coverage_status':'partial','error_kind':'original_unverified'})
+        from data_fetch.market_sources.mops_json_company_history import guard_json_result
+        return guard_json_result(result,data)
     deadline = time.monotonic()+LOCAL_REPLAY_SECONDS
     try:
         if result.audit.get('status') != result.status:

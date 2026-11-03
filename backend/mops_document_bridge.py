@@ -15,8 +15,8 @@ KIND = 'mops_major_announcement'
 RECEIPT_KEYS = {'status','source_url','retrieved_at','http_status','raw_response_sha256',
     'raw_response_bytes','evidence_kind','historical_point_in_time_verified','finality_guaranteed'}
 PACKET_KEYS = {'policy','ticker','index_query','index_row','index_receipt','detail_receipt'}
-CONTEXT_KEYS = {'ticker','instrument_type','quote_type','quoteType','company_identity'}
-IDENTITY_KEYS = {'ticker','official_name','instrument_type','forbidden_aliases'}
+CONTEXT_KEYS = {'ticker','stock_id','instrument_type','quote_type','quoteType','company_identity'}
+IDENTITY_KEYS = {'ticker','stock_id','official_name','legal_name','instrument_type','forbidden_aliases'}
 
 
 def _context(data):
@@ -51,11 +51,29 @@ def _restore(reference):
     return {**reference,'raw_response_path':str(path)}
 
 
+
+def _pathless_master(value, *, restore=False):
+    if isinstance(value,list):
+        return [_pathless_master(item,restore=restore)for item in value]
+    if not isinstance(value,dict):return deepcopy(value)
+    if restore and 'raw_response_path' in value:
+        raise ValueError('MOPS master proof contains a private path')
+    result = {k:_pathless_master(v,restore=restore)for k,v in value.items()if k!='raw_response_path'}
+    if restore and 'raw_response_sha256'in result:
+        from runtime_paths import current_runtime_paths
+        digest = result['raw_response_sha256']
+        if not isinstance(digest,str)or not re.fullmatch(r'[0-9a-f]{64}',digest):
+            raise ValueError('MOPS master proof hash invalid')
+        result['raw_response_path'] = str(current_runtime_paths().cache_dir/'official-response-evidence'/(digest+'.gz'))
+    return result
+
+
 def _canonical(evidence):
     from data_fetch.market_sources import mops_json_company_history as source
+    from data_fetch.market_sources.mops_master_bound_announcements import POLICY as MASTER_POLICY
     if (not isinstance(evidence,dict) or set(evidence) != {'schema','context','packet'}
             or evidence['schema'] != SCHEMA or not isinstance(evidence['packet'],dict)
-            or set(evidence['packet']) != PACKET_KEYS):
+            or set(evidence['packet']) != (PACKET_KEYS|{'issuer_master'} if evidence['packet'].get('policy')==MASTER_POLICY else PACKET_KEYS)):
         raise ValueError('MOPS document proof invalid')
     context = _context(evidence['context'])
     if context != evidence['context']:
@@ -63,6 +81,8 @@ def _canonical(evidence):
     packet = deepcopy(evidence['packet'])
     for key in ('index_receipt','detail_receipt'):
         packet[key] = _restore(packet[key])
+    if 'issuer_master'in packet:
+        packet['issuer_master'] = _pathless_master(packet['issuer_master'],restore=True)
     result = source.rebuild_json_original(packet,context)
     if result is None: raise ValueError('MOPS document original replay rejected')
     record, _ = result
@@ -88,6 +108,8 @@ def document_from_record(record, data):
         raise ValueError('MOPS record original rejected')
     original = record['mops_json_receipt']
     packet = {k:deepcopy(original[k]) for k in PACKET_KEYS}
+    if 'issuer_master'in original:
+        packet['issuer_master'] = _pathless_master(original['issuer_master'])
     for key in ('index_receipt','detail_receipt'): packet[key] = _reference(packet[key])
     return _canonical({'schema':SCHEMA,'context':_context(data),'packet':packet})
 

@@ -112,6 +112,9 @@ class TwseCompanyHistoryProvider(DataProvider):
         return bool(re.fullmatch(r"[1-9]\d{3,5}\.TW", ticker))
 
     def _fetch_records(self, ticker: str):
+        from .market_sources.mops_master_bound_announcements import prefer_master_bound_route, fetch_master_bound_announcements
+        if prefer_master_bound_route(ticker):
+            return fetch_master_bound_announcements(ticker)
         from .market_sources.twse_company_history import fetch_recent_company_announcements
         return fetch_recent_company_announcements(ticker)
 
@@ -195,8 +198,12 @@ class TwseCompanyHistoryProvider(DataProvider):
             audit["http_request_count"] = 0
             if 'request_observations' in audit:
                 audit['request_observations'] = []
-        return ProviderResult(self.source, self.name, status, value=records, audit=audit,
-                              duration_ms=audit["duration_ms"])
+        result = ProviderResult(self.source, self.name, status, value=records, audit=audit,
+                                duration_ms=audit["duration_ms"])
+        if any(isinstance(row,dict) and 'mops_json_receipt' in row for row in records):
+            from .market_sources.mops_json_company_history import guard_json_result
+            return guard_json_result(result,{**data,'ticker':ticker})
+        return result
 
 
 class TpexCompanyHistoryProvider(TwseCompanyHistoryProvider):

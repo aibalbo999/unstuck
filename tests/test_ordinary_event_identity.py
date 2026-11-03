@@ -16,6 +16,17 @@ HERE = Path(__file__).resolve().parents[1] / 'docs/evidence/source-acquisition/2
 INPUT = json.loads((HERE.parent / '1216-dedupe-input.json').read_text())
 ORIGINALS = json.loads((HERE / 'fixtures/originals.json').read_text())
 
+
+@pytest.fixture(autouse=True)
+def legacy_html_original_protocol(monkeypatch):
+    # These saved 1216 GET bodies predate the JSON admission. Exercise their
+    # historical HTML producer/consumer contract explicitly; the current JSON
+    # route and its identity guards are tested in test_mops_json_company_history
+    # and test_multi_issuer_announcement_refresh. Never use this fixture live.
+    from data_fetch.market_sources import mops_json_company_history as modern
+    monkeypatch.setattr(modern,'TICKERS',modern.TICKERS-{'1216.TW'})
+
+
 def collect():
     calls = []
     index = []

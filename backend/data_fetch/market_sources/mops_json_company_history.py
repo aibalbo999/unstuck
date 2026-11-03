@@ -66,9 +66,9 @@ def _result(raw, code):
     return result
 
 
-def _candidate(row, query, company, tz):
+def _candidate(row, query, company, tz, *, admitted_code=None):
     if (not isinstance(query, dict) or set(query) != {'companyId','year','month','firstDay','lastDay'}
-            or query.get('companyId') not in ORDINARY_DETAIL_CODES
+            or (query.get('companyId') not in ORDINARY_DETAIL_CODES and query.get('companyId') != admitted_code)
             or any(not isinstance(query.get(k), str) or not query[k].isdigit()
                    for k in ('year','month','firstDay','lastDay'))
             or not isinstance(row, list) or len(row) != 6 or row[:2] != [query['companyId'], company]
@@ -134,10 +134,17 @@ def _original(response, url, deadline):
     return response.content, receipt
 
 
-def fetch_json_announcements(ticker, *, now, post, deadline):
+def fetch_json_announcements(ticker, *, now, post, deadline, issuer_master=None, publish_index=None):
     audit = {'status': 'unavailable', 'record_count': 0, 'parser_version': POLICY,
              'coverage_status': 'partial', 'requests': [], 'rejected_reason_counts': {}, 'detail_limit': 64}
-    if ticker not in TICKERS:
+    admitted = None
+    policy = POLICY
+    if issuer_master is not None:
+        from .mops_master_bound_announcements import master_identity, POLICY as MASTER_POLICY
+        admitted = master_identity(issuer_master,ticker)
+        policy = MASTER_POLICY
+        audit['parser_version'] = policy
+    if ticker not in TICKERS and admitted is None:
         return [], {**audit, 'status': 'not_applicable'}
     code, lower = ticker.split('.')[0], now-timedelta(days=30)
     cursor, candidates, records, seen = lower.replace(day=1), [], [], set()
@@ -150,7 +157,8 @@ def fetch_json_announcements(ticker, *, now, post, deadline):
                      'firstDay': str(max(cursor.date(),lower.date()).day), 'lastDay': str(min(last.date(),now.date()).day)}
             if time.monotonic() >= deadline:
                 raise TimeoutError('mops_shared_deadline')
-            raw, receipt = _original(post(JSON_URL,json=query,timeout=(2,4),provider=PROVIDER),JSON_URL,deadline)
+            raw_response = post(JSON_URL,json=query,timeout=(2,4),provider=PROVIDER)
+            raw, receipt = _original(raw_response,JSON_URL,deadline)
             audit['requests'].append({'query': query, 'receipt': receipt})
             result = _result(raw,code)
             if result is not None:
@@ -159,9 +167,13 @@ def fetch_json_announcements(ticker, *, now, post, deadline):
                         or company is not None and company != result['companyAbbreviation']):
                     raise ValueError('mops_index_shape_or_company_changed')
                 company = result['companyAbbreviation']
+                if admitted and company != admitted['official_name']:
+                    raise ValueError('MOPS index differs from independent issuer master')
+                if publish_index is not None:
+                    publish_index(raw_response,query)
                 for row in result['data']:
                     try:
-                        published,params = _candidate(row,query,company,now.tzinfo)
+                        published,params = _candidate(row,query,company,now.tzinfo,admitted_code=code if admitted else None)
                         key = json.dumps(params,sort_keys=True)
                         if key in seen:
                             raise ValueError('mops_duplicate_action')
@@ -179,8 +191,11 @@ def fetch_json_announcements(ticker, *, now, post, deadline):
             try:
                 raw,detail_receipt = _original(post(ORDINARY_DETAIL_URL,json=params,timeout=(2,4),provider=PROVIDER),ORDINARY_DETAIL_URL,deadline)
                 record = _record(_result(raw,code),row,published,params,ticker)
-                record['mops_json_receipt'] = {'policy':POLICY,'ticker':ticker,'index_query':query,'index_row':row,
+                record['mops_json_receipt'] = {'policy':policy,'ticker':ticker,'index_query':query,'index_row':row,
                                                'index_receipt':index_receipt,'detail_receipt':detail_receipt}
+                if issuer_master is not None:
+                    from copy import deepcopy
+                    record['mops_json_receipt']['issuer_master'] = deepcopy(issuer_master)
                 if time.monotonic() >= deadline:
                     raise TimeoutError('mops_shared_deadline')
                 records.append(record)
@@ -212,8 +227,16 @@ def rebuild_json_original(receipt, data):
     """Rebuild one historical original without HTTP, archive writes or new time."""
     try:
         ticker = data['ticker']
-        validate_json_context(data, ticker)
-        if (ticker not in TICKERS or receipt.get('ticker') != ticker or receipt.get('policy') != POLICY
+        from .mops_master_bound_announcements import master_identity, POLICY as MASTER_POLICY
+        admitted = None
+        if receipt.get('policy') == MASTER_POLICY:
+            if set(receipt) != {'policy','ticker','index_query','index_row','index_receipt','detail_receipt','issuer_master'}:
+                return None
+            admitted = master_identity(receipt['issuer_master'],ticker,data,historical=True)
+        else:
+            validate_json_context(data, ticker)
+        if (receipt.get('ticker') != ticker or receipt.get('policy') not in {POLICY,MASTER_POLICY}
+                or receipt.get('policy') == POLICY and ticker not in TICKERS
                 or any(data.get(k) not in (None,'','EQUITY') for k in ('instrument_type','quote_type','quoteType'))):
             return None
         code = ticker.split('.')[0]
@@ -221,6 +244,8 @@ def rebuild_json_original(receipt, data):
         if result is None or result['data'].count(receipt['index_row']) != 1:
             return None
         company = result['companyAbbreviation']
+        if admitted and company != admitted['official_name']:
+            return None
         identity = data.get('company_identity')
         if identity is None:
             identity = {}
@@ -233,7 +258,7 @@ def rebuild_json_original(receipt, data):
                        for x in forbidden)):
             return None
         from zoneinfo import ZoneInfo
-        published,params = _candidate(receipt['index_row'],receipt['index_query'],company,ZoneInfo('Asia/Taipei'))
+        published,params = _candidate(receipt['index_row'],receipt['index_query'],company,ZoneInfo('Asia/Taipei'),admitted_code=code if admitted else None)
         rebuilt = _record(_result(_saved(receipt['detail_receipt'],ORDINARY_DETAIL_URL),code),receipt['index_row'],published,params,ticker)
         return rebuilt, company
     except (KeyError,TypeError,ValueError,AttributeError,OverflowError,OSError,EOFError):
@@ -263,12 +288,21 @@ def guard_json_result(result, data):
         return result
     rows, audit = result.value, result.audit if isinstance(result.audit,dict) else {}
     stamp = audit.get('fetched_at_epoch')
+    def current_identity(row):
+        from .mops_master_bound_announcements import POLICY as MASTER_POLICY, master_identity
+        try:
+            packet = row.get('mops_json_receipt') if isinstance(row,dict) else None
+            if isinstance(packet,dict) and packet.get('policy')==MASTER_POLICY:
+                master_identity(packet['issuer_master'],data['ticker'],data)
+            return True
+        except (ValueError,TypeError,KeyError,OverflowError,OSError):
+            return False
     if (isinstance(rows,list) and 1 <= len(rows) <= 64
             and type(audit.get('record_count')) is int and audit['record_count']==len(rows)
             and audit.get('status')==result.status and audit.get('provider')==PROVIDER
             and audit.get('source')=='recent_catalysts'
             and type(stamp) in (int,float) and math.isfinite(stamp) and 0 < stamp <= time.time()+300
-            and all(isinstance(row,dict) and verified_json_record(row,data) for row in rows)):
+            and all(isinstance(row,dict) and verified_json_record(row,data) and current_identity(row) for row in rows)):
         return result
     failed = {**audit,'status':'error','record_count':0,'coverage_status':'partial',
               'error_kind':'original_unverified','message':'新版公告原件或憑據未通過核對，保留原快照。'}

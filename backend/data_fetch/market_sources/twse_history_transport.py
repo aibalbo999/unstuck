@@ -143,6 +143,44 @@ class BoundedHistoryHttp:
         self.provider = provider
         self.http_request_count = 0
         self.request_observations = []
+        self._native_json_indexes = {}
+        self._published_json_actions = {}
+
+    def register_published_json_index(self, response, query, master_receipt):
+        """Grant only exact actions from this transport's complete native index."""
+        from .mops_master_bound_announcements import master_identity
+        from . import mops_json_company_history as source
+        from .twse_announcement_progress import request_fingerprint
+        if not isinstance(query,dict):raise ValueError('published index query missing')
+        ticker = str(query.get('companyId') or '')+'.TW'
+        identity = master_identity(master_receipt,ticker)
+        observed = self._native_json_indexes.get(id(response))
+        expected = request_fingerprint('POST',JSON_URL,payload=query)
+        if (observed is None or observed[0] is not response or observed[1] != expected
+                or observed[2] != hashlib.sha256(response.content).hexdigest()):
+            raise ValueError('published action requires this native index response')
+        result = source._result(response.content,ticker.split('.')[0])
+        if (result is None or result['companyAbbreviation'] != identity['official_name']
+                or [t.get('main')for t in result.get('titles',[])if isinstance(t,dict)] != source.INDEX_TITLES
+                or not isinstance(result.get('data'),list)or len(result['data'])>64):
+            raise ValueError('published index/master mismatch')
+        from zoneinfo import ZoneInfo
+        for row in result['data']:
+            try:
+                _,action = source._candidate(row,query,identity['official_name'],ZoneInfo('Asia/Taipei'),
+                    admitted_code=ticker.split('.')[0])
+            except (ValueError,TypeError,KeyError):
+                continue
+            key = json.dumps(action,sort_keys=True,separators=(',',':'))
+            self._published_json_actions[key] = master_receipt['fresh_until_epoch']
+        if len(self._published_json_actions)>192:
+            raise ValueError('published action bound exceeded')
+
+    def _published_json_action(self, payload):
+        if not isinstance(payload,dict):return False
+        key = json.dumps(payload,sort_keys=True,separators=(',',':'))
+        until = self._published_json_actions.get(key)
+        return type(until)in(int,float)and time.time()<until
 
     def get(self, url, *, params=None, **kwargs):
         return self._request("GET", url, params=params)
@@ -207,7 +245,8 @@ class BoundedHistoryHttp:
         ordinary_detail = (method == "POST" and url == ORDINARY_DETAIL_URL and isinstance(payload, dict)
                            and set(payload) == {"marketKind", "companyId", "serialNumber", "enterDate"}
                            and payload.get("marketKind") == "sii" and isinstance(payload.get("companyId"), str)
-                           and payload["companyId"] in ORDINARY_DETAIL_CODES
+                           and (payload["companyId"] in ORDINARY_DETAIL_CODES
+                                or params is None and data is None and self._published_json_action(payload))
                            and isinstance(payload.get("serialNumber"), str)
                            and re.fullmatch(r"[1-9]\d{0,5}", payload["serialNumber"]) is not None
                            and isinstance(payload.get("enterDate"), str)
@@ -313,6 +352,10 @@ class BoundedHistoryHttp:
             response.extensions["announcement_native_response"] = {
                 "method":method, "url":target, "retrieved_at":native_epoch, "complete":True,
                 "http_status_observed":True, "response_sha256":observation["response_sha256"]}
+        if url == JSON_URL and parts.get("process_started") is True:
+            self._native_json_indexes[id(response)] = (response,observation['request_fingerprint'],observation['response_sha256'])
+            if len(self._native_json_indexes)>3:
+                raise SourceResponseError('index_window_over_limit')
         if url in {IIH_URL, IIH_EN_URL, EZ_URL, JSON_URL} and parts.get("process_started") is True:
             response.extensions["announcement_index_native_response"] = {
                 "method":method, "url":target, "retrieved_at":native_epoch, "complete":True,
