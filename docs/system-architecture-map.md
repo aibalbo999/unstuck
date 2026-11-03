@@ -1,6 +1,6 @@
 # 系統架構關聯圖
 
-原生 RQ 部署快照同時保存完整 payload／結果 bytes、Redis `TIME`／`PTTL` 與唯讀 operational SQL 工作身分／終態。僅已成功完成且 SQL `done` 始終一致、原始完成時間加保留期與 TTL／finished registry 相符、確實到期的成對結果快取可列為自然到期，原快照與原始差異仍保留；不刪除、重建或延長 Redis 資料。queued／scheduled／待重試、缺少原件或 SQL 證據、提前消失及其他 payload／重試變更全部拒收，報告品質門檻不變。
+原生 RQ 部署快照同時保存完整 payload／結果 bytes、Redis `TIME`／`PTTL` 與唯讀 operational SQL 工作身分／終態。僅已結束且 SQL `done`／`error`／`cancelled` 始終一致、原始完成時間加保留期與 TTL／finished registry 相符、確實到期的成對結果快取可列為自然到期；原快照、失敗終態及原始差異仍保留，不把 callable 的完成當成報告通過，不刪除、重建或延長 Redis 資料。queued／scheduled／待重試、缺少原件或 SQL 證據、提前消失及其他 payload／重試變更全部拒收，報告品質門檻不變。
 
 台灣高鐵 2633 的鐵道參考來源由 `official_railway_peer_cohort` 核對完整 TWSE 主檔、公司營運頁及 JPX 當次匿名查詢原件。JPX 只依公開表單建立獨立短暫 session，精確五碼查詢，重播代號、法定名稱、Prime 市場、產業、年度結算月與原件期限；搜尋表單重置、錯公司、掛牌警示與未完整下載均拒收，不借用瀏覽器登入或重試繞過限制。東日本／西日本另由完整官方發布索引綁定當年度完整 PDF，東海／九州使用具名營運原件；未核實的財務數字、稽核狀態及整體業務可比性維持未知。來源只提供四家跨市場鐵路參考，JPY／TWD、年度口徑及業務組合限制保留，角色比較與估值不因此放行。一般分析及指定來源刷新共用正常快取流程，部分成員取得不標為完整成功；補來源不改寫原價格、結論或品質檢查。傳輸收據僅記錄傳輸，匿名 session 與 cookie 不進公開觀測；隔離回放、正式載入與新 HTTP 取得分開驗收。
 

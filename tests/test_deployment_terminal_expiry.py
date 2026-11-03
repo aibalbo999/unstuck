@@ -27,6 +27,14 @@ def test_complete_native_terminal_expiry_is_qualified_without_relaxing_pending_w
     assert result['exact_job_count']==1 and result['expired_terminal_caches'][0]['job_id']==JOB
     assert KEY in b['keys']and RESULT in b['keys']
 
+@pytest.mark.parametrize('terminal',['done','error','cancelled'])
+def test_terminal_error_and_cancellation_remain_their_original_status(terminal):
+    b,a=pair();b['application_states']['jobs'][JOB]['status']=terminal;a['application_states']['jobs'][JOB]['status']=terminal
+    result=compare(b,a)
+    assert result['passed']and result['expired_terminal_caches'][0]['sql_status']==terminal
+    assert result['expired_terminal_caches'][0]['native_callable_finished_is_not_report_acceptance']is True
+    assert b['application_states']['jobs'][JOB]['status']==a['application_states']['jobs'][JOB]['status']==terminal
+
 @pytest.mark.parametrize('change',['before_sql','after_sql','sql_pending','sql_changed','sql_time','status','description','payload','ttl','early','retention','result_present','result_missing','result_failed','registry_missing','pending_queue','pending_registry'])
 def test_any_missing_or_contradictory_native_witness_stays_blocked(change):
     b,a=pair();row=b['keys'][KEY]

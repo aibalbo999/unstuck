@@ -75,9 +75,9 @@ def snapshot(client,pause):
 def compare(before,after):
     """Only normal due scheduled->queued promotion may alter pending jobs.
 
-    Exact payload/meta/retries/results retained. Successful terminal caches may
+    Exact payload/meta/retries/results retained. Terminal caches may
     expire only with complete original bytes, native TIME/PTTL/end/retention,
-    finished registry and unchanged canonical SQL done witnesses. Pending work
+    finished registry and unchanged canonical SQL done/error/cancelled witnesses. Pending work
     never qualifies; new jobs, execution or arbitrary differences still fail.
     """
     if before.get('schema')!=1 or after.get('schema')!=1:raise PauseError('Snapshot schema mismatch')

@@ -1,4 +1,4 @@
-"""Qualify natural retention expiry of archived, successful terminal RQ caches.
+"""Qualify natural retention expiry of archived terminal RQ caches.
 
 Pending jobs and retries never qualify. Bytes remain in the original snapshot;
 this module reads SQLite and derives comparisons, never changes Redis or TTLs.
@@ -31,7 +31,7 @@ def scoped_comparison(before,after):
     def fail(reason):raise PauseError(reason)
     def witness(snapshot,job):
         w=snapshot.get('application_states');stamp=w.get('recorded_at')if isinstance(w,dict)else None
-        if(not isinstance(w,dict)or w.get('schema')!=1 or w.get('source')!=SOURCE
+        if(not isinstance(w,dict)or type(w.get('schema'))is not int or w.get('schema')!=1 or w.get('source')!=SOURCE
                 or type(stamp)not in(int,float)or not math.isfinite(stamp)
                 or not snapshot['server_time']-2<=stamp<=snapshot['server_time']+30
                 or not isinstance(w.get('jobs'),dict)):
@@ -42,9 +42,9 @@ def scoped_comparison(before,after):
         match=re.fullmatch(r'rq:job:analysis:([0-9a-f]{32})',key)
         if not match:fail('Lost job is not a qualified native analysis job')
         job=match[1];old=witness(before,job);new=witness(after,job)
-        if(not isinstance(old,dict)or old!=new or old.get('job_id')!=job or old.get('status')!='done'
+        if(not isinstance(old,dict)or old!=new or old.get('job_id')!=job or old.get('status')not in{'done','error','cancelled'}
                 or not isinstance(old.get('ticker'),str)or not isinstance(old.get('pipeline_id'),str)):
-            fail('Application job is not unchanged and done')
+            fail('Application job is not unchanged and terminal')
         row=b[key]
         if row['type']!='hash':fail('Original job payload type changed')
         fields=row['value']
@@ -90,8 +90,9 @@ def scoped_comparison(before,after):
             retained=[v for v in scoped['keys'][registry]['value']if v[0]!=encoded]
             if not retained and registry not in a:del scoped['keys'][registry]
             else:scoped['keys'][registry]['value']=retained
-        proofs.append({'job_id':job,'original_keys':[key,resultkey],'sql_status':'done',
+        proofs.append({'job_id':job,'original_keys':[key,resultkey],'sql_status':old['status'],
                        'original_retention_seconds':retention,'native_expiry_epoch':deadline,
                        'original_bytes_preserved_in_before_snapshot':True,
-                       'classification':'witnessed_successful_terminal_cache_retention_elapsed'})
+                       'native_callable_finished_is_not_report_acceptance':True,
+                       'classification':'witnessed_terminal_cache_retention_elapsed_application_status_preserved'})
     return scoped,after,proofs
