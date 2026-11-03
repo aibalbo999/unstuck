@@ -123,7 +123,7 @@ def harness(monkeypatch):
     monkeypatch.setattr(source.MasterHttp,'download_original',master)
     monkeypatch.setattr(source,'download_conference_index',lambda ticker,year,deadline,diagnostics:post(index_request(ticker,year=year),diagnostics))
     def material(spec,deadline,diagnostics,**wire_options):
-        assert not wire_options or (spec['ticker']=='5314.TWO' and wire_options=={'wire_budget_seconds':15.})
+        assert not wire_options or (spec['ticker'] in {'5314.TWO','4736.TW'} and wire_options=={'wire_budget_seconds':15.})
         return post(spec,diagnostics)
     monkeypatch.setattr(source,'download_published_material',material)
     yield bodies,calls

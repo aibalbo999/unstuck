@@ -78,6 +78,23 @@ def test_unqualified_roles_cannot_read_retained_image_financials_or_marketing_pa
         assert not presentation_prompt_context(value, role).get('documents')
 
 
+def test_taidoc_uses_bounded_material_allocation_without_extending_workflow(packet, monkeypatch):
+    from data_fetch.market_sources import mops_presentation as m
+    assert m.PROFILES['4736.TW']['material_wire_seconds'] == 15.
+    original = m.download_published_material
+    observed = []
+    start = time.monotonic()
+    def download(spec, *, deadline, diagnostics, wire_budget_seconds):
+        observed.append((spec['ticker'], wire_budget_seconds, deadline))
+        return original(spec, deadline=deadline, diagnostics=diagnostics,
+                        wire_budget_seconds=wire_budget_seconds)
+    monkeypatch.setattr(m, 'download_published_material', download)
+    value = m.fetch_presentation_context('4736.TW', force_refresh=False, use_cache=True)
+    assert len(observed) == 1 and observed[0][:2] == ('4736.TW', 15.)
+    assert 0 < observed[0][2] - start <= 25.1
+    assert m.verify_context(value, '4736.TW')
+
+
 @pytest.mark.parametrize('damage', ['role_whitelist', 'image_fact', 'clinical_claim', 'scope', 'period', 'absence'])
 def test_changed_scope_period_or_role_pages_never_reach_prompts(packet, damage):
     from data_fetch.market_sources import mops_presentation as m

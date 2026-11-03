@@ -29,9 +29,9 @@ def test_invalid_allocation_never_starts_request(offline,budget):
 
 from test_myson_mops_workflow import packet,common_harness
 
-def test_only_qualified_myson_profile_allocates_longer_wire_budget(packet,monkeypatch):
+def test_only_qualified_profiles_allocate_longer_wire_budget(packet,monkeypatch):
  from data_fetch.market_sources import mops_presentation as source
- assert {k:v['material_wire_seconds'] for k,v in source.PROFILES.items() if 'material_wire_seconds' in v}=={'5314.TWO':15.}
+ assert {k:v['material_wire_seconds'] for k,v in source.PROFILES.items() if 'material_wire_seconds' in v}=={'5314.TWO':15.,'4736.TW':15.}
  original=source.download_published_material;budgets=[]
  def download(spec,*,deadline,diagnostics,wire_budget_seconds):
   budgets.append(wire_budget_seconds)

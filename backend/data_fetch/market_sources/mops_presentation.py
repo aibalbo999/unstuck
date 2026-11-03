@@ -30,7 +30,7 @@ STATIC_POLICY = 'mops-published-presentation-static-get-v1'
 PROFILES = {
     '4736.TW': {'short':'泰博','legal':'泰博科技股份有限公司','ubn':'16584326',
                 'master_english':'TaiDoc','website':'http://www.taidoc.com.tw','format':'pdf',
-                'native_name':'TaiDoc Technology Corp','previous_year_fallback':True,
+                'native_name':'TaiDoc Technology Corp','previous_year_fallback':True,'material_wire_seconds':15.,
                 'aliases':{'taidoc','taidoc technology corporation','taidoc technology corp','taidoc technology corp.'}},
     '5314.TWO': {'short':'世紀*','legal':'世紀民生科技股份有限公司','ubn':'22099815',
                  'master_english':'Myson','website':'www.myson.com.tw','format':'pdf',
