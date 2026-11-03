@@ -208,11 +208,11 @@ def _saved(receipt, url):
     return raw
 
 
-def verified_json_record(record, data):
+def rebuild_json_original(receipt, data):
+    """Rebuild one historical original without HTTP, archive writes or new time."""
     try:
         ticker = data['ticker']
         validate_json_context(data, ticker)
-        receipt = record['mops_json_receipt']
         if (ticker not in TICKERS or receipt.get('ticker') != ticker or receipt.get('policy') != POLICY
                 or any(data.get(k) not in (None,'','EQUITY') for k in ('instrument_type','quote_type','quoteType'))):
             return None
@@ -235,6 +235,18 @@ def verified_json_record(record, data):
         from zoneinfo import ZoneInfo
         published,params = _candidate(receipt['index_row'],receipt['index_query'],company,ZoneInfo('Asia/Taipei'))
         rebuilt = _record(_result(_saved(receipt['detail_receipt'],ORDINARY_DETAIL_URL),code),receipt['index_row'],published,params,ticker)
+        return rebuilt, company
+    except (KeyError,TypeError,ValueError,AttributeError,OverflowError,OSError,EOFError):
+        return None
+
+
+def verified_json_record(record, data):
+    try:
+        original = rebuild_json_original(record['mops_json_receipt'], data)
+        if original is None:
+            return None
+        rebuilt, company = original
+        published = parse_news_datetime(rebuilt['published_at'])
         if any(record.get(k)!=rebuilt[k] for k in CONTENT_FIELDS if k not in ('date','published_at')):
             return None
         if any(parse_news_datetime(record.get(k))!=published for k in ('date','published_at')):

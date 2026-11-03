@@ -267,6 +267,11 @@ async def _run_optional_provider_plan(request: FetchRequest, registry: ProviderR
                     "existing_evidence":decision, "message":"skip: 現有合格資料已達原搜尋筆數及來源門檻。"}))
         elif not _sufficient_non_yahoo_catalysts(provider_results):
             provider_results.extend(await fetch_provider_results(request, yahoo_fallback, context))
+    # Join only after parallel providers settle: newly verified MOPS bodies
+    # remain visible even if the daily-disclosure query completed first.
+    from mops_document_bridge import hydrate_provider_documents
+    provider_results = await asyncio.to_thread(hydrate_provider_documents,provider_results,data,
+        persist=request.options.record_provider_sla)
     fmp_news_records = provider_value(provider_results, "recent_catalysts", "FMP news")
     async_audit_entries = _audit_entries_from_provider_results(provider_results)
 

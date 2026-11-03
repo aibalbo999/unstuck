@@ -98,7 +98,16 @@ def _normalize(raw, observed_at):
                coverage_status='text_available' if full_text.strip() else 'metadata_only')
     # This hash always describes the exact stored text, not a clipped provider body.
     doc['content_sha256'] = hashlib.sha256(doc['text'].encode('utf-8')).hexdigest()
-    semantic = {key: value for key, value in doc.items() if key != 'retrieved_at_epoch'}
+    if (raw.get('document_kind') == 'mops_major_announcement' or 'original_evidence' in raw
+            or str(raw.get('document_id') or '').startswith('mops-json:')):
+        from mops_document_bridge import validate_document
+        verified = validate_document(raw)
+        if any(doc.get(k) != v for k,v in verified.items() if k not in {'original_evidence','original_body_sha256'}):
+            raise ValueError('Indexed MOPS document differs from its complete original')
+        doc.update(original_evidence=verified['original_evidence'],original_body_sha256=verified['original_body_sha256'])
+    # A changed monthly discovery index is acquisition provenance, not a new
+    # revision of an otherwise unchanged original announcement body.
+    semantic = {key: value for key, value in doc.items() if key not in {'retrieved_at_epoch','original_evidence'}}
     revision = hashlib.sha256(json.dumps(semantic, ensure_ascii=False, sort_keys=True).encode()).hexdigest()
     return doc, published_epoch, revision
 
@@ -175,7 +184,7 @@ def search_source_documents(ticker, *, text='', kinds=(), since=None, until=None
         SELECT *, ROW_NUMBER() OVER (PARTITION BY source_type, document_id
             ORDER BY last_observed_at_epoch DESC, rowid DESC) AS version_rank
         FROM source_documents WHERE ticker=?)
-        SELECT document_json, last_observed_at_epoch FROM latest WHERE ''' + ' AND '.join(conditions) + '''
+        SELECT document_json, last_observed_at_epoch, document_id, revision_sha256 FROM latest WHERE ''' + ' AND '.join(conditions) + '''
         ORDER BY published_epoch DESC, document_id ASC LIMIT ?'''
     with sqlite3.connect(path.resolve().as_uri() + '?mode=ro', uri=True, timeout=3) as conn:
         try:
@@ -184,4 +193,13 @@ def search_source_documents(ticker, *, text='', kinds=(), since=None, until=None
             if 'no such table: source_documents' in str(exc):
                 return []
             raise
-    return [dict(json.loads(raw), last_observed_at_epoch=observed) for raw, observed in rows]
+    documents = []
+    for raw, observed, document_id, revision in rows:
+        try:
+            doc, _, rebuilt_revision = _normalize(json.loads(raw),observed)
+            if doc['ticker'] != ticker or doc['document_id'] != document_id or rebuilt_revision != revision:
+                continue
+            documents.append(dict(doc,last_observed_at_epoch=observed))
+        except (ValueError,TypeError,KeyError,OverflowError,OSError):
+            continue  # Keep the stored evidence; an unverifiable latest row cannot roll back to an old revision.
+    return documents

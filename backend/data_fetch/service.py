@@ -5,6 +5,7 @@ from __future__ import annotations
 from .provider_execution import fetch_correlated_provider
 
 import time
+import asyncio
 import re
 from contextlib import suppress
 from typing import Awaitable, Callable, Optional
@@ -161,6 +162,11 @@ class StockDataService:
             else:
                 from .market_sources.mops_json_company_history import guard_json_result
             result = guard_json_result(result, context['data'])
+            if isinstance(result.value,list) and result.value:
+                from mops_document_bridge import index_records
+                _, index_receipt = await asyncio.to_thread(index_records,result.value,context['data'],
+                    persist=request.options.record_provider_sla)
+                result.audit = {**result.audit,'local_original_documents':index_receipt}
         if source == 'dynamic_peer_metrics':
             from peer_source_refresh import guard_peer_result
             result = guard_peer_result(result, context['data'], request.ticker)
