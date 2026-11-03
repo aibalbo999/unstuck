@@ -134,7 +134,11 @@ def parse_statement(raw,issuer,year,statement,template,*,include_prior=True,allo
         width=3 if statement=='CashflowStatement'else 1+2*(len(result['titles'])-1)
         facts={year:{},year-1:{}};missing_purchases=[]
         for tag,label in fields[statement].items():
-            matches=[row for row in rows if isinstance(row,list)and row and isinstance(row[0],str)and row[0].strip()==label]
+            # The same fingerprinted consolidated renderer publishes both exact
+            # asset-total labels. Require one row across both spellings; never
+            # substitute subtotals or total equity for parent-attributable equity.
+            labels = ('資產總額','資產總計') if report_scope=='consolidated' and statement=='BalanceSheet' and tag=='Assets' else (label,)
+            matches=[row for row in rows if isinstance(row,list)and row and isinstance(row[0],str)and row[0].strip()in labels]
             # Absence stays unknown. Only the complete five-year caller may
             # carry this one absent row to explicit later comparative facts.
             if not matches and allow_reconciled_missing_purchases and tag in PURCHASE_TAGS:

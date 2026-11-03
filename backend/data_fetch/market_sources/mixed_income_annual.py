@@ -17,6 +17,11 @@ from .official_xbrl_financial import INDEX_URL,FilingError,_filing_urls
 from .official_mopsfin_financial import _amount
 
 TICKER='2905.TW'
+ISSUERS={
+    TICKER:{'ticker':TICKER,'stock_id':'2905','official_name':'三商',
+        'legal_name':'三商投資控股股份有限公司','official_ubn':'11052709','instrument_type':'EQUITY'},
+    '2207.TW':{'ticker':'2207.TW','stock_id':'2207','official_name':'和泰車','instrument_type':'EQUITY'},
+}
 SCHEMA='mixed_income_consolidated_annual.v1'
 PROTOCOL='mops-public-mixed-income-three-statements.v1'
 PROVIDER='TWSE MOPS mixed-income annual JSON'
@@ -36,24 +41,32 @@ LABELS={
 FIELDS=tuple(k for labels in LABELS.values()for k in labels)+('free_cash_flow',)
 
 
-def supports_annual(ticker):return ticker==TICKER
+def supports_annual(ticker):return isinstance(ticker,str) and ticker in ISSUERS
+
+
+def origin_note(ticker):
+    if ticker==TICKER:return NOTE
+    if ticker=='2207.TW':
+        return ('和泰車合併年報的收入合計包含汽車銷售、利息、保費及其他業務，保留 total_income 原科目，'
+            '不代填一般營收、毛利、營業利益或銀行淨收益；淨利及權益採母公司歸屬，'
+            '自由現金流只按同年營業現金流加明列帶符號設備與無形資產支出計算，未驗證一般業DCF適用性。')
+    raise FilingError('mixed income issuer not admitted')
 
 
 def validate_context(data,ticker):
-    if ticker!=TICKER:return
+    if not supports_annual(ticker):return
     identity=data.get('company_identity')or{}
-    expected={'ticker':TICKER,'stock_id':'2905','official_name':'三商',
-        'legal_name':'三商投資控股股份有限公司','official_ubn':'11052709','instrument_type':'EQUITY'}
+    expected=ISSUERS[ticker]
     if not isinstance(identity,dict)or any(identity.get(k)not in(None,'',v)for k,v in expected.items()):
         raise ValueError('mixed_income_annual_issuer_conflict')
     forbidden=identity.get('forbidden_aliases',[])
     if (not isinstance(forbidden,(list,tuple))or any(not isinstance(v,str)for v in forbidden)
-            or {'三商','三商投資控股股份有限公司'}&{v.strip()for v in forbidden}):
+            or {expected[k] for k in ('official_name','legal_name') if k in expected}&{v.strip()for v in forbidden}):
         raise ValueError('mixed_income_annual_forbidden_issuer')
 
 
 def parse_statement(raw,ticker,year,statement,template):
-    if (ticker!=TICKER or statement not in STATEMENTS or type(year)is not int
+    if (not supports_annual(ticker) or statement not in STATEMENTS or type(year)is not int
             or not 2013<=year<date.today().year or not isinstance(raw,bytes)or not 0<len(raw)<=MAX_BYTES):
         raise FilingError('mixed income statement identity or body invalid')
     _template(template,statement)
@@ -62,7 +75,7 @@ def parse_statement(raw,ticker,year,statement,template):
         if (type(v['code'])is not int or v['code']!=200 or not isinstance(r,dict)
                 or r['reportType']!='合併'or r['year']!=str(year-1911)or r['season']!='4'
                 or type(r['fiscalYear'])is not str or r['fiscalYear'].strip()
-                or r['companyAbbreviation']!='三商'or not isinstance(r.get('subsidiary'),list)
+                or r['companyAbbreviation']!=ISSUERS[ticker]['official_name']or not isinstance(r.get('subsidiary'),list)
                 or r.get('subsidiaryCompanyId','')not in(None,'')
                 or any(k in r for k in ('currency','unit','scale'))):
             raise FilingError('mixed income scope, period or unit metadata invalid')
@@ -70,7 +83,7 @@ def parse_statement(raw,ticker,year,statement,template):
         if len(refs)!=1:raise FilingError('mixed income issuer reference ambiguous')
         p=urlsplit(refs[0])
         if (p.scheme!='https'or p.netloc!='mopsov.twse.com.tw'or p.path!='/server-java/t164sb01'or p.fragment
-                or parse_qs(p.query,keep_blank_values=True)!={'step':['1'],'CO_ID':['2905'],
+                or parse_qs(p.query,keep_blank_values=True)!={'step':['1'],'CO_ID':[ISSUERS[ticker]['stock_id']],
                     'SYEAR':[str(year)],'SSEASON':['4'],'REPORT_ID':['C']}):
             raise FilingError('mixed income issuer reference mismatch')
         suffix='年12月31日'if statement=='BalanceSheet'else'年度'
@@ -120,18 +133,22 @@ def parse_statement(raw,ticker,year,statement,template):
 def _close(year):return datetime(year+1,1,1,tzinfo=ZoneInfo('Asia/Taipei')).timestamp()
 
 
-def _select(index):
+def _select(index,ticker=TICKER):
+    if not supports_annual(ticker):raise FilingError('mixed income issuer not admitted')
     text=index.decode('utf8','strict')
     starts=list(re.finditer(r'<html\b[^>]*>',text,re.I));ends=list(re.finditer(r'</html\s*>',text,re.I))
     if (len(starts)!=1 or len(ends)!=1 or starts[0].start()>=ends[0].start()
             or text[ends[0].end():].strip()):raise FilingError('mixed income published index incomplete')
-    urls=_filing_urls(index,'2905');years=sorted(urls)[-5:];individual=_filing_urls(index,'2905',report_id='A')
+    issuer=ISSUERS[ticker]['stock_id']
+    urls=_filing_urls(index,issuer);years=sorted(urls)[-5:];individual=_filing_urls(index,issuer,report_id='A')
     if (len(years)!=5 or years!=list(range(years[0],years[0]+5))or years[-1]>=date.today().year
             or individual and max(individual)>years[-1]):raise FilingError('mixed income five latest published C filings invalid')
     return years,urls
 
 
-def _assemble(documents,years):
+def _assemble(documents,years,ticker=TICKER):
+    if not supports_annual(ticker):raise FilingError('mixed income issuer not admitted')
+    issuer=ISSUERS[ticker]['stock_id']
     primary={};comparative={};templates={}
     for year,doc in zip(years,documents):
         if (not isinstance(doc,dict)or type(doc.get('year'))is not int or doc['year']!=year
@@ -142,13 +159,13 @@ def _assemble(documents,years):
         facts={};prior={}
         for s,part in zip(STATEMENTS,doc['components']):
             if (not isinstance(part,dict)or type(part.get('year'))is not int or part['year']!=year
-                    or part.get('statement')!=s or part.get('url')!=api_url(s)or part.get('request')!=payload('2905',year)):
+                    or part.get('statement')!=s or part.get('url')!=api_url(s)or part.get('request')!=payload(issuer,year)):
                 raise FilingError('mixed income source request invalid')
             raw=_receipt(part['raw_receipt'],api_url(s),not_before=_close(year))
             if sha256(raw).hexdigest()!=part.get('sha256'):raise FilingError('mixed income original digest differs')
             tr=part['unit_template_receipt'];key=json.dumps(tr,sort_keys=True)
             if key not in templates:templates[key]=_receipt(tr,template_url(s),not_before=_close(years[-1]))
-            parsed=parse_statement(raw,TICKER,year,s,templates[key]);facts.update(parsed[year]);prior.update(parsed[year-1])
+            parsed=parse_statement(raw,ticker,year,s,templates[key]);facts.update(parsed[year]);prior.update(parsed[year-1])
         if doc.get('sha256')!=sha256(';'.join(p['sha256']for p in doc['components']).encode()).hexdigest():
             raise FilingError('mixed income annual manifest digest differs')
         primary[year]=facts
@@ -168,7 +185,7 @@ def _assemble(documents,years):
 
 def project_history(value,ticker):
     try:
-        if (ticker!=TICKER or not isinstance(value,dict)or value.get('ticker')!=ticker
+        if (not supports_annual(ticker) or not isinstance(value,dict)or value.get('ticker')!=ticker
                 or value.get('schema')!=SCHEMA or value.get('protocol')!=PROTOCOL
                 or value.get('currency')!='TWD'or value.get('report_scope')!='consolidated'
                 or value.get('source_url')!=SOURCE_URL):return None
@@ -176,12 +193,12 @@ def project_history(value,ticker):
         if (not isinstance(years,list)or len(years)!=5 or any(type(y)is not str or len(y)!=4 or not y.isdigit()for y in years)
                 or not isinstance(docs,list)or len(docs)!=5):return None
         index=_receipt(value['published_index_receipt'],INDEX_URL,2500000,not_before=_close(int(years[-1])))
-        selected,urls=_select(index)
+        selected,urls=_select(index,ticker)
         if years!=list(map(str,selected))or any(not isinstance(d,dict)or d.get('indexed_xbrl_url')!=urls[y]for d,y in zip(docs,selected)):return None
         saved=value['raw_twd_by_year']
         if (not isinstance(saved,dict)or set(saved)!=set(years)or any(not isinstance(r,dict)
                 or set(r)!=set(FIELDS)or any(type(n)is not int for n in r.values())for r in saved.values())):return None
-        rows,revisions=_assemble(docs,selected)
+        rows,revisions=_assemble(docs,selected,ticker)
         if rows!=saved or json.dumps(revisions,sort_keys=True)!=json.dumps(value['comparative_revisions'],sort_keys=True):return None
         from ..financial_history_basis import _history_projection
         labels={'net_income_history':('net_income_attributable','淨利（淨損）歸屬於：母公司業主'),
@@ -189,29 +206,30 @@ def project_history(value,ticker):
             'fcf_history':('free_cash_flow','營業現金流加明列設備與無形資產支出')}
         fields={key:(field,'mops-public-mixed-income-row:'+label,label)for key,(field,label)in labels.items()}
         return {**_history_projection(rows,years,ticker,schema=SCHEMA,common_fields=fields,
-            unsupplied_fields=('revenue_history','gross_profit_history','operating_income_history'),scope='consolidated',note=NOTE),
+            unsupplied_fields=('revenue_history','gross_profit_history','operating_income_history'),scope='consolidated',note=origin_note(ticker)),
             'sector_specific_financials':deepcopy(value)}
     except (KeyError,ValueError,TypeError,OverflowError,OSError,EOFError,AttributeError):return None
 
 
 def fetch_histories(ticker,*,transport=None):
-    if ticker!=TICKER:raise FilingError('mixed income issuer not admitted')
+    if not supports_annual(ticker):raise FilingError('mixed income issuer not admitted')
+    issuer=ISSUERS[ticker]['stock_id']
     http=transport or PublicMopsHttp()
     with http.batch():
-        index,index_receipt=http.request(INDEX_URL,request={'step':'1','firstin':'ture','off':'1','queryName':'co_id','inpuType':'co_id','TYPEK':'all','co_id':'2905'})
-        years,urls=_select(index);templates={s:http.request(template_url(s))for s in STATEMENTS};docs=[]
+        index,index_receipt=http.request(INDEX_URL,request={'step':'1','firstin':'ture','off':'1','queryName':'co_id','inpuType':'co_id','TYPEK':'all','co_id':issuer})
+        years,urls=_select(index,ticker);templates={s:http.request(template_url(s))for s in STATEMENTS};docs=[]
         for s,(raw,_)in templates.items():_template(raw,s)
         for year in years:
             parts=[]
             for s in STATEMENTS:
-                raw,receipt=http.request(api_url(s),json_body=payload('2905',year))
+                raw,receipt=http.request(api_url(s),json_body=payload(issuer,year))
                 parse_statement(raw,ticker,year,s,templates[s][0])
-                parts.append({'year':year,'statement':s,'url':api_url(s),'request':payload('2905',year),
+                parts.append({'year':year,'statement':s,'url':api_url(s),'request':payload(issuer,year),
                     'sha256':sha256(raw).hexdigest(),'raw_receipt':receipt,'unit_template_receipt':templates[s][1]})
             docs.append({'year':year,'period_end':f'{year}-12-31','provider':PROVIDER,'report_scope':'consolidated',
                 'url':api_url('BalanceSheet'),'indexed_xbrl_url':urls[year],'format':PROTOCOL,'components':parts,
                 'sha256':sha256(';'.join(p['sha256']for p in parts).encode()).hexdigest()})
-        rows,revisions=_assemble(docs,years)
+        rows,revisions=_assemble(docs,years,ticker)
         value={'ticker':ticker,'schema':SCHEMA,'protocol':PROTOCOL,'currency':'TWD','report_scope':'consolidated',
             'source_url':SOURCE_URL,'published_index_receipt':index_receipt,'years':list(map(str,years)),
             'documents':docs,'raw_twd_by_year':rows,'comparative_revisions':revisions}

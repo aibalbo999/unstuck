@@ -55,10 +55,11 @@ def test_legacy_five_year_originals_are_preserved_without_inventing_index_proven
     assert project_public_history(old,'3443.TW')is not None
     assert 'published_index_receipt'not in old
 
-def test_existing_verified_failure_keeps_original_retry_time_across_manifest_release(monkeypatch):
+@pytest.mark.parametrize('previous', [PREVIOUS, '791111e0a397d280d189002757df47884f6e8a07f1dc8d35f5f3ff35484be689'])
+def test_existing_verified_failure_keeps_original_retry_time_across_manifest_release(monkeypatch, previous):
     from data_fetch.market_sources import mops_public_gap_cache as m
     from test_public_short_annual_index_gap_cache import ShortIndexTransport,run
-    monkeypatch.setattr(m,'_fingerprint',lambda:PREVIOUS)
+    monkeypatch.setattr(m,'_fingerprint',lambda:previous)
     cold_http=ShortIndexTransport();cold=run(cold_http)
     writes=[];original_set=m.set_cache_json
     monkeypatch.setattr(m,'set_cache_json',lambda *args,**kw:(writes.append((args,kw)),original_set(*args,**kw))[1])

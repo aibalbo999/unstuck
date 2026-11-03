@@ -36,8 +36,8 @@ def validate_context(data,ticker):
     if ticker=='2610.TW':
         from .market_sources.cal_annual_bridge import validate_bridge_context
         validate_bridge_context(data,ticker)
-    if ticker=='2905.TW':
-        from .market_sources.mixed_income_annual import validate_context as validate_mixed_context
+    from .market_sources.mixed_income_annual import supports_annual as supports_mixed, validate_context as validate_mixed_context
+    if supports_mixed(ticker):
         validate_mixed_context(data,ticker)
 
 
@@ -158,7 +158,8 @@ class AnnualFinancialSourceProvider(DataProvider):
         from .financial_history_basis import INSTITUTION_SCHEMAS
         from mapping_fields import safe_mapping_dict
         typed_schema=(safe_mapping_dict(data.get('sector_specific_financials'))or{}).get('schema')or(safe_mapping_dict(data.get('financial_history_basis'))or{}).get('statement_schema')
-        financial=(request.ticker=='2905.TW'or _is_financial_industry(' '.join(str(data.get(k)or'')for k in ['sector','industry']))
+        from .market_sources.mixed_income_annual import supports_annual as supports_mixed
+        financial=(supports_mixed(request.ticker)or _is_financial_industry(' '.join(str(data.get(k)or'')for k in ['sector','industry']))
                    or typed_schema in {*INSTITUTION_SCHEMAS,'broker_consolidated.v1','insurer_individual.v1','insurer_standalone.v1'})
         from .market_sources.ordinary_individual_annual import supports_annual as supports_individual,fetch_annual_result as fetch_individual,PROVIDER as INDIVIDUAL_PROVIDER
         individual=supports_individual(request.ticker) and not financial
@@ -169,7 +170,7 @@ class AnnualFinancialSourceProvider(DataProvider):
             from .market_sources.financial_institution_xbrl import fetch_financial_institution_histories,PROVIDER as INSTITUTION_PROVIDER
             from .market_sources.mops_public_holding import supports_public_holding,fetch_public_holding_result,PROVIDER as HOLDING_PUBLIC_PROVIDER
             from .market_sources.tcfhc_annual_financial import supports_annual,fetch_annual_result,PROVIDER as AUDITED_HOLDING_PROVIDER
-            if request.ticker=='2905.TW':
+            if supports_mixed(request.ticker):
                 from .market_sources.mixed_income_annual import fetch_result,PROVIDER as MIXED_PROVIDER
                 expected_provider=MIXED_PROVIDER
                 result=fetch_result(request.ticker)

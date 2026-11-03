@@ -216,12 +216,13 @@ def _extract_financial_histories_uncached(stock, ticker: str, data_source_notes:
     official_financial_audit = None
     sector_specific_financial_audit = None
     sector_specific_financials = None
-    financial_industry = ticker=='2905.TW' or _is_financial_industry(industry_context)
+    from .market_sources.mixed_income_annual import supports_annual as supports_mixed
+    financial_industry = supports_mixed(ticker) or _is_financial_industry(industry_context)
     if (ticker.endswith((".TW", ".TWO")) and financial_industry
             and os.getenv("STOCK_AGENT_TEST_NO_NETWORK") != "1"):
         from .market_sources.mops_public_holding import supports_public_holding, fetch_public_holding_result
         from .market_sources.tcfhc_annual_financial import supports_annual, fetch_annual_result, SCHEMA as AUDITED_HOLDING_SCHEMA, origin_note as audited_holding_note
-        if ticker=='2905.TW':
+        if supports_mixed(ticker):
             from .market_sources.mixed_income_annual import fetch_result as fetch_mixed_result
             sector_result = fetch_mixed_result(ticker)
         elif supports_annual(ticker):

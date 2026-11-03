@@ -29,7 +29,12 @@ GAP_RETRY_SECONDS = 24 * 60 * 60
 # This release adds successful-acquisition provenance, not different failed
 # annual facts. Replay the previous complete failure under the current parser
 # and retain its original epoch/TTL; never rewrite or renew that cache entry.
-COMPATIBLE_GAP_FINGERPRINTS = ('10b71fc346a7584aadba622b1d4ee6458017a8eee51ba6c8aef99bdd8be72750',)
+COMPATIBLE_GAP_FINGERPRINTS = (
+    '10b71fc346a7584aadba622b1d4ee6458017a8eee51ba6c8aef99bdd8be72750',
+    # Exact consolidated asset-label support does not invalidate an unrelated
+    # complete gap: replay still must reproduce that same failure and epoch.
+    '791111e0a397d280d189002757df47884f6e8a07f1dc8d35f5f3ff35484be689',
+)
 SHORT_INDEX_MESSAGE = 'fewer than five contiguous published consolidated annual filings'
 CORRELATION_KEYS = {'job_id', 'fetch_id', 'operation_id', 'attempt_id', 'provider_attempts',
                     'provider_attempt_count', 'provider_sla_event_id', 'ticker',
