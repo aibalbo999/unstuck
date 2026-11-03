@@ -1,6 +1,7 @@
 """Bounded anonymous JPX reads; cached originals never become new HTTP."""
+from contextlib import suppress
 from hashlib import sha256
-import json,math,os,re,tempfile,time
+import json,math,os,re,sqlite3,tempfile,time
 from pathlib import Path
 from urllib.parse import urlencode,urlsplit
 from uuid import uuid4

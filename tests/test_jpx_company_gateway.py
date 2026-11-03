@@ -115,3 +115,20 @@ def test_unavailable_admission_storage_stops_before_native_io(monkeypatch):
     monkeypatch.setattr(cache_store,'set_cache_json',unavailable)
     with pytest.raises(OSError):JpxCompanyGateway(time.monotonic()+20).get('90200')
     assert calls==[]
+
+
+def test_observation_sql_failure_keeps_complete_qualified_gateway_originals(monkeypatch):
+    import sqlite3,provider_sla,provider_correlation
+    from data_fetch.market_sources.jpx_company_transport import JpxCompanyGateway
+    from data_fetch.market_sources.ncc_mobile_peer_transport import receipt_observation_scope
+    calls=native_boundary(monkeypatch);attempted=[]
+    def unavailable(rows):
+        attempted.extend(rows)
+        raise sqlite3.OperationalError('isolated observation sink unavailable')
+    monkeypatch.setattr(provider_sla,'record_source_audit_entries',unavailable)
+    monkeypatch.setattr(provider_correlation,'current_source_identity',lambda:('dynamic_peer_metrics','FinMind/yfinance'))
+    with provider_correlation.correlation_scope(replace=True,ticker='2633.TW',fetch_id='test-native-fetch',operation_id='test-native-op'):
+        with receipt_observation_scope(True):result=JpxCompanyGateway(time.monotonic()+20).get('90200',details=True)
+    assert result['listing']['ticker']=='9020.T'and len(result['originals'])==3 and len(calls)==3
+    assert len(attempted)==3 and all(row['record_count']==0 for row in attempted)
+    assert all(row['raw_http_receipt']['response_complete']is True for row in attempted)
