@@ -1,0 +1,15 @@
+{
+  "scope": "Complete public Yahoo annual balance body from actual source event492161. Used as an isolated regression fixture, not a new fetch or historical receipt reconstruction.",
+  "provider": "yfinance peer annual statements native HTTP",
+  "source": "dynamic_peer_metrics",
+  "event_id": 492161,
+  "created_at": 1793682941.489255,
+  "response_sha256": "d7affcd7b41a90a915493e2a9f4cfd99fac6964fe51b1351c1284c2df61ee8a2",
+  "raw_bytes": 49619,
+  "symbol": "3017.TW",
+  "fields": 145,
+  "actual_canonical_url_summary_missing": true,
+  "test_url": "Derived canonical public query from the same SDK field list; not claimed as a retained historical request URL.",
+  "new_external_requests": 0,
+  "new_models": 0
+}

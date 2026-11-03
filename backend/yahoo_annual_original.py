@@ -1,7 +1,34 @@
 """Passive native annual Yahoo originals; no acquisition or financial certification."""
 import json,re,time
-from urllib.parse import urlsplit,parse_qs,unquote,quote
+from urllib.parse import urlsplit,parse_qs,parse_qsl,unquote,quote
 from yahoo_public_original import _public_tree
+
+
+def is_canonical_public_annual_url(url):
+ """Bound only hash-only observation metadata, never source/data admission.
+
+ A full145-field balance-sheet query exceeds the generic4096-character URL
+ allowance. This finite profile accepts only the capture's exact anonymous
+ canonical URL; no crumb, credentials, arbitrary query or raw URL is retained.
+ """
+ try:
+  if not isinstance(url,str)or not 0<len(url)<=8192:return False
+  parts=urlsplit(url)
+  if(parts.scheme!='https'or parts.netloc not in{'query1.finance.yahoo.com','query2.finance.yahoo.com'}or parts.fragment):return False
+  pairs=parse_qsl(parts.query,keep_blank_values=True,strict_parsing=True)
+  if len(pairs)!=2 or [k for k,_ in pairs]!=['symbol','type']:return False
+  symbol,series=pairs[0][1],pairs[1][1]
+  if not re.fullmatch(r'[A-Z0-9][A-Z0-9.^=-]{0,39}',symbol):return False
+  path='/ws/fundamentals-timeseries/v1/finance/timeseries/'+quote(symbol,safe='.^=-')
+  types=series.split(',')
+  if parts.path!=path or not 1<=len(types)<=300 or len(types)!=len(set(types)):return False
+  from yfinance.const import fundamentals_keys
+  allowed={'annual'+v for fields in fundamentals_keys.values()for v in fields}
+  if any(t not in allowed for t in types):return False
+  canonical='https://'+parts.netloc+path+'?symbol='+quote(symbol,safe='')+'&type='+quote(series,safe=',')
+  return canonical==url
+ except (ImportError,ValueError,TypeError,UnicodeError):return False
+
 
 def _capture_annual_response(response,*,binding,selected_peer=None):
  try:

@@ -1,5 +1,7 @@
 # 系統架構關聯圖
 
+Yahoo 年度資產負債表的完整145欄公開查詢約4325字元，曾因觀測層4096字元上限遺失原件關聯，原件 bytes 並未遺失。`yahoo_annual_original.is_canonical_public_annual_url` 只為雜湊明細核對有限的公開年度查詢格式：限定 Yahoo 主機、精確標的／路徑、symbol 與已知 annual series 兩個參數、無重複欄位或額外 query，最長8192字元。僅 GET、decoded 原件且 financial_semantics_verified 明確 false 的憑據可用此格式；一般網址／component 的4096上限保持。SQLite仍只存 URL 雜湊，不保存查詢、原件路徑或帳密；不補造 HTTP 完整旗標、不回填歷史事件、不改來源成功率或財務准入。
+
 鴻準 2354 的同業資料使用既有 `official_thermal_peer_cohort` 的精確目標規格：完整公司產業鏈頁、散熱區段的桌機／行動兩份成員名單及完整 TWSE／TPEx 主檔共同核對。公司名稱、統編、代號／市場、原件與較短到期時間均保持；雙鴻原規格不變。這只提供具名散熱區段候選與逐欄指標，不證明整家公司業務或估值可比；角色比較及估值同業排除仍生效。正常分析與指定來源刷新共用此規格，補資料不改寫原結論；研究 HTTP、隔離回放、正式重載與正常新取得分開驗收。
 
 `provider_observation_details` 保留來源實際提供的 HTTP 送出、完整下載及狀態觀測布林值與限定 request method；component 字典／清單各最多20項，清單位置與未知項保持。網址只存 SHA-256，不保存查詢字串、帳密、headers、body 或原件路徑；不由200、雜湊或非空 bytes 推定曾送出請求、完整下載、公司／期間或內容已驗證。錯型態的 HTTP 狀態、bytes、digest 與非有限／溢位數字拒收，避免壞的明細數值讓失敗觀測及分母整筆遺失。修正僅作用於後續觀測，不回填歷史事件、不增加抓取或改算來源成功。

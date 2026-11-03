@@ -148,7 +148,14 @@ def _original_http_receipts(entry):
         digest, size, stamp, status = (receipt.get(key) for key in
             ('raw_response_sha256', 'raw_response_bytes', 'retrieved_at', 'http_status'))
         try:
-            parsed = urlsplit(url) if isinstance(url, str) and len(url) <= 4096 else None
+            long_annual = False
+            if (isinstance(url, str) and 4096 < len(url) <= 8192
+                    and receipt.get('evidence_kind') == 'decoded_complete_http_response_body'
+                    and receipt.get('financial_semantics_verified') is False
+                    and receipt.get('request_method') == 'GET'):
+                from yahoo_annual_original import is_canonical_public_annual_url
+                long_annual = is_canonical_public_annual_url(url)
+            parsed = urlsplit(url) if isinstance(url, str) and (len(url) <= 4096 or long_annual) else None
             valid = (receipt.get('status') == 'archived'
                 and receipt.get('evidence_kind') in {'raw_http_response_bytes', 'decoded_complete_http_response_body'}
                 and parsed is not None and parsed.scheme == 'https' and parsed.hostname
@@ -158,7 +165,7 @@ def _original_http_receipts(entry):
                 and type(size) is int and 0 < size <= 100_000_000
                 and type(stamp) in (int, float) and math.isfinite(stamp) and 0 < stamp <= 1_000_000_000_000
                 and type(status) is int and 100 <= status <= 599)
-        except (TypeError, ValueError, OverflowError):
+        except (ImportError, TypeError, ValueError, OverflowError):
             valid = False
         if not valid:
             continue
