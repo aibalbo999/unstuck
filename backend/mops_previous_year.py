@@ -5,9 +5,14 @@ import math
 from zoneinfo import ZoneInfo
 
 POLICY = 'mops-published-presentation-previous-year-v1'
+STATIC_POLICY = 'mops-published-presentation-previous-year-static-get-v1'
 # Two independent issuer requests returned this identical official no-results
 # template. Its malformed closing tags are NOT accepted as a populated table.
 EMPTY_SHA256 = '87e52938f7b40c03e624eb4838fec6b506f1b61eb0fdd03fb54fdf0dabdb84c9'
+
+
+def is_previous_policy(policy):
+    return policy in (POLICY, STATIC_POLICY)
 
 
 def exact_no_results(raw):

@@ -4,7 +4,8 @@ import re
 import time
 from cache_store import get_cache_json, set_cache_json
 from mops_material_originals import RAW_TTL
-from mops_previous_year import POLICY as PREVIOUS_POLICY
+from mops_previous_year import (POLICY as PREVIOUS_POLICY, STATIC_POLICY as PREVIOUS_STATIC_POLICY,
+                                is_previous_policy)
 from mops_qualified_role_pages import QUALIFIED, POLICY as ROLE_POLICY
 
 PREFIX='mops-body-ready:v2:'
@@ -31,7 +32,7 @@ def publish_body_hint(value):
         if not supported(ticker):return False
         proof=value['mops_material_receipt'];doc=value['documents'][0];now=time.time()
         if proof['ticker']!=ticker or doc['ticker']!=ticker:return False
-        keys=('master','index','material')+(('absence_current_index',)if proof['policy']==PREVIOUS_POLICY else ())
+        keys=('master','index','material')+(('absence_current_index',)if is_previous_policy(proof['policy']) else ())
         expiries=[]
         for key in keys:
             receipt=proof[key];stamp=receipt['retrieved_at']
@@ -85,7 +86,7 @@ def originals_due(value,ticker):
     try:
         proof=value['mops_material_receipt'];doc=value['documents'][0]
         return (value['ticker']!=ticker or proof['ticker']!=ticker or doc['ticker']!=ticker
-                or proof.get('policy') not in (MATERIAL_POLICY,STATIC_POLICY,PREVIOUS_POLICY)
+                or proof.get('policy') not in (MATERIAL_POLICY,STATIC_POLICY,PREVIOUS_POLICY,PREVIOUS_STATIC_POLICY)
                 or supported(ticker) and (doc.get('role_projection_policy')!=ROLE_POLICY
                     or not isinstance(doc.get('role_page_allowlist'),dict))
                 or not _originals_current_at_handoff(proof))

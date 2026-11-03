@@ -28,6 +28,7 @@ INDEX_URL = 'https://mopsov.twse.com.tw/mops/web/ajax_t100sb02_1'
 BODY_LIMIT = 16 * 1024 * 1024
 INDEX_LIMIT = 1024 * 1024
 PROVIDER = 'MOPS published presentation'
+STATIC_TICKERS = frozenset({'2023.TW', '6282.TW'})
 PROXY_ENV = ('HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'http_proxy', 'https_proxy', 'all_proxy')
 META_FIELDS = {'http_status', 'effective_url', 'num_redirects', 'size_download',
                'content_type', 'content_length', 'method', 'proxy_used'}
@@ -82,9 +83,10 @@ def validate_download_request(descriptor: dict) -> dict:
     """
     try:
         if isinstance(descriptor,dict) and descriptor.get('method') == 'GET':
+            symbol, _ = _ticker(descriptor.get('ticker'))
             filename=descriptor.get('filename')
-            match=re.fullmatch(r'2023(20\d{6})E\d{3}\.pdf',filename) if isinstance(filename,str) else None
-            if (descriptor.get('ticker')!='2023.TW' or descriptor.get('symbol')!='2023'
+            match=re.fullmatch(re.escape(symbol)+r'(20\d{6})E\d{3}\.pdf',filename) if isinstance(filename,str) else None
+            if (descriptor.get('ticker') not in STATIC_TICKERS or descriptor.get('symbol')!=symbol
                     or descriptor.get('format')!='pdf' or descriptor.get('language')!='en' or not match
                     or descriptor.get('url')!='https://mopsov.twse.com.tw/nas/STR/'+filename
                     or descriptor.get('request_body')!=''
@@ -117,7 +119,7 @@ def static_material_request(published: dict) -> dict:
     identity is retained separately in its versioned proof, never rewritten.
     """
     selected=validate_download_request(published)
-    if selected.get('method')!='POST' or selected.get('ticker')!='2023.TW':
+    if selected.get('method')!='POST' or selected.get('ticker') not in STATIC_TICKERS:
         raise SourceResponseError('transport_request_invalid')
     spec={**selected,'method':'GET','url':'https://mopsov.twse.com.tw/nas/STR/'+selected['filename'],
           'request_body':''}

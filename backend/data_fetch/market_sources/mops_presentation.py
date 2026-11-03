@@ -16,15 +16,22 @@ from search_provider_runtime import SourceResponseError
 from source_pdf_reader import extract_pdf_pages, SourcePdfError
 from source_pptx_reader import extract_pptx_pages, SourcePptxError
 from mops_published_materials import select_published_material
-from mops_material_transport import (index_request, download_conference_index, download_published_material, static_material_request, PROVIDER)
+from mops_material_transport import (index_request, download_conference_index, download_published_material, static_material_request, STATIC_TICKERS, PROVIDER)
 from mops_material_originals import get_original, original_bytes, RAW_TTL, GUARD, _check
-from mops_previous_year import POLICY as PREVIOUS_POLICY, exact_no_results, eligible_previous
+from mops_previous_year import (POLICY as PREVIOUS_POLICY, STATIC_POLICY as PREVIOUS_STATIC_POLICY,
+                                is_previous_policy, exact_no_results, eligible_previous)
 from .official_issuer_master_transport import IssuerMasterHttp as MasterHttp, MASTER_URL, JSON_URL, original_bytes as master_bytes
 
 from .mops_otc_master import OtcMasterHttp, OTC_MASTER, original_bytes as otc_master_bytes
 
 POLICY = 'mops-published-presentation-v1'
 STATIC_POLICY = 'mops-published-presentation-static-get-v1'
+
+
+def _is_static_policy(policy):
+    return policy in (STATIC_POLICY, PREVIOUS_STATIC_POLICY)
+
+
 # Identity/format qualification is staged, not a promise that every MOPS file
 # has readable or reusable text. URLs, filenames, years and hashes are dynamic.
 PROFILES = {
@@ -55,7 +62,7 @@ PROFILES = {
                 'aliases':{'u-ming','u-ming marine transport corporation','u-ming marine transport corp.','u-ming marine transport corp'}},
     '6282.TW': {'short':'康舒','legal':'康舒科技股份有限公司','ubn':'12341051',
                 'master_english':'Acbel','website':'http://www.acbel.com','format':'pdf',
-                'native_name':'Acbel Polytech Inc.','previous_year_fallback':True,
+                'native_name':'Acbel Polytech Inc.','previous_year_fallback':True,'material_wire_seconds':15.,
                 'aliases':{'acbel','acbel polytech inc.','acbel polytech inc'}},
     '9945.TW': {'short':'潤泰新','legal':'潤泰創新國際股份有限公司','ubn':'12139612',
                 'master_english':'RUENTEX DEVELOP','website':'www.rt-develop.com.tw','format':'pdf',
@@ -474,7 +481,7 @@ def native_material(raw, selected, deadline):
 
 def _context(selected, native, period, proof):
     stamp = proof['material']['retrieved_at'];ticker = selected['ticker']
-    wire = proof['material_request'] if proof.get('policy') == STATIC_POLICY else selected
+    wire = proof['material_request'] if _is_static_policy(proof.get('policy')) else selected
     doc = {'document_id':ticker+':'+selected['material_file_date']+':'+native['content_sha256'][:16],
            'ticker':ticker,'source':PROVIDER,'source_type':'regulated_issuer_presentation','document_kind':'presentation',
            'projection_policy':POLICY,'title':selected['company_name']+' 已發布法說簡報','url':wire['url'],
@@ -569,9 +576,9 @@ def _context(selected, native, period, proof):
     elif ticker == '2023.TW':
         doc['period_scope_caution'] = (
             '原文 To 年度／季度的合併營收為截至該季度的表述；各頁原始期間須分別保留，不能據此推導單季財務數字，圖表亦未做視覺核驗。'
-            if proof.get('policy')==STATIC_POLICY else
+            if _is_static_policy(proof.get('policy')) else
             '第11頁標示To 2026 Q2的合併營收；這是截至季度的表述，不能據此推導單季財務數字，圖表亦未做視覺核驗。')
-    if proof.get('policy') == PREVIOUS_POLICY:
+    if is_previous_policy(proof.get('policy')):
         doc['period_scope_caution'] += ' 當年官方索引明確無結果，本件為前一年已發布的歷史材料，不代表當期營運或最新財報；僅限370日內場次。'
     from mops_qualified_role_pages import projection
     doc.update(projection(ticker,native['pages']))
@@ -600,7 +607,7 @@ def _originals_current_at_handoff(proof, max_age=RAW_TTL):
     observed = time.time()
     if type(max_age) not in (int,float) or not math.isfinite(max_age) or max_age <= 0:
         return False
-    keys=('master','index','material') + (('absence_current_index',) if proof.get('policy')==PREVIOUS_POLICY else ())
+    keys=('master','index','material') + (('absence_current_index',) if is_previous_policy(proof.get('policy')) else ())
     for key in keys:
         stamp = proof[key]['retrieved_at']
         expiry = (stamp+RAW_TTL if key=='master' and proof[key]['source_url']==OTC_MASTER
@@ -635,14 +642,15 @@ def verify_context(value, ticker, *, deadline=None, max_age=RAW_TTL, diagnostics
         stage='proof'
         proof = value['mops_material_receipt']
         fields={'policy','ticker','master','index','material','selected','index_request'}
-        previous = proof.get('policy') == PREVIOUS_POLICY
+        previous = is_previous_policy(proof.get('policy'))
+        static = _is_static_policy(proof.get('policy'))
         if previous:
             if PROFILES[ticker].get('previous_year_fallback') is not True:return verdict(False,'invalid_proof')
             fields=fields|{'absence_current_index','absence_current_request'}
-        elif proof.get('policy') == STATIC_POLICY:
+        if static:
             fields=fields|{'material_request'}
-            if ticker!='2023.TW':return verdict(False,'invalid_proof')
-        elif proof.get('policy') != POLICY:return verdict(False,'invalid_proof')
+            if ticker not in STATIC_TICKERS:return verdict(False,'invalid_proof')
+        elif not previous and proof.get('policy') != POLICY:return verdict(False,'invalid_proof')
         if set(proof)!=fields or proof['ticker']!=ticker:return verdict(False,'invalid_proof')
         stage='master_original'
         master_url = proof['master']['source_url']
@@ -672,7 +680,7 @@ def verify_context(value, ticker, *, deadline=None, max_age=RAW_TTL, diagnostics
             return verdict(False,'selection_mismatch')
         stage='material_request'
         material_spec=selected
-        if proof['policy']==STATIC_POLICY:
+        if static:
             material_spec=static_material_request(selected)
             if material_spec!=proof['material_request']:return verdict(False,'request_mismatch')
         stage='material_original'
@@ -748,7 +756,7 @@ def fetch_presentation_context(ticker, *, diagnostics=None, force_refresh=False,
                     parser=lambda raw,receipt:select_published_material(raw,ticker,as_of_epoch=receipt['retrieved_at'],company_name=anchor['short_name']))
                 if not eligible_previous(selected,year,time.time()):raise SourceResponseError('published_material_unavailable')
             if not selected:raise SourceResponseError('published_material_unavailable')
-            material_spec=static_material_request(selected) if ticker=='2023.TW' else selected
+            material_spec=static_material_request(selected) if ticker in STATIC_TICKERS else selected
             detail = {};components.append(detail)
             wire_options = ({'wire_budget_seconds':PROFILES[ticker]['material_wire_seconds']}
                             if 'material_wire_seconds' in PROFILES[ticker] else {})
@@ -760,7 +768,8 @@ def fetch_presentation_context(ticker, *, diagnostics=None, force_refresh=False,
             if absence is not None:
                 proof.update(policy=PREVIOUS_POLICY,absence_current_index=absence,absence_current_request=absence_spec)
             if material_spec is not selected:
-                proof.update(policy=STATIC_POLICY,material_request=material_spec)
+                proof.update(policy=PREVIOUS_STATIC_POLICY if absence is not None else STATIC_POLICY,
+                             material_request=material_spec)
             value = deepcopy(_context(selected,native,period,proof))
             verification={}
             verified=verify_context(value,ticker,deadline=deadline,diagnostics=verification)
