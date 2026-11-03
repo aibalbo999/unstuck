@@ -17,7 +17,7 @@ from .official_convenience_peer_cohort import get_official_convenience_candidate
 from .official_steel_wire_peer_cohort import get_official_steel_wire_candidates
 from .official_construction_peer_cohort import get_official_construction_candidates
 from .official_food_processing_peer_cohort import get_official_food_processing_candidates
-from .official_thermal_peer_cohort import get_official_thermal_candidates, verified_thermal_candidates
+from .official_thermal_peer_cohort import get_official_thermal_candidates, verified_thermal_candidates, supports_thermal_target
 from .official_airline_peer_cohort import (get_official_airline_candidates, verified_airline_candidates,
                                           related_airline, IDENTITIES as AIRLINES, SCOPE as AIRLINE_SCOPE)
 from .ncc_mobile_peer_cohort import (get_candidates as get_official_ncc_candidates, verified_candidates as verified_ncc_candidates,
@@ -175,7 +175,7 @@ def fetch_dynamic_peer_metrics_with_diagnostics(ticker: str, company_name: str, 
                 candidates = ncc["candidates"] + candidates
                 audit["selection_status"] = "selected"
                 audit["candidate_order_policy"] = "dated_ncc_mobile_operators_then_stock_code_proximity"
-        if ticker == "3324.TWO":
+        if supports_thermal_target(ticker):
             thermal = get_official_thermal_candidates(ticker, today=today)
             audit["official_thermal_candidate_status"] = thermal["status"]
             audit["official_thermal_candidate_details"] = {

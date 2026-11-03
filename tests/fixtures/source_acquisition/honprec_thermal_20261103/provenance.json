@@ -1,0 +1,25 @@
+{
+  "purpose": "Complete public native research bodies. Test transport clocks and older issuer-master fixtures are isolated simulations; no historical membership/effective-date claim. Research receipts do not themselves count as parsed-source success.",
+  "files": {
+    "issuer.html.gz": {
+      "source_url": "https://ic.tpex.org.tw/company_chain.php?stk_code=2354",
+      "retrieved_at": 1793681472.442382,
+      "http_status": 200,
+      "raw_response_sha256": "5340271c34798f095fcf91b6bf062cdb649afbeed6125a2014f0f93f96d515fd",
+      "raw_response_bytes": 9909,
+      "response_complete": true,
+      "cache_hit": false,
+      "request_method": "GET"
+    },
+    "segment.html.gz": {
+      "source_url": "https://ic.tpex.org.tw/introduce.php?ic=F000",
+      "retrieved_at": 1793681610.747948,
+      "http_status": 200,
+      "raw_response_sha256": "53fde83208fe3b71f209688fabe0bb1cc414c40b1a614f7c7591aa56dbac0ed8",
+      "raw_response_bytes": 333928,
+      "response_complete": true,
+      "cache_hit": false,
+      "request_method": "GET"
+    }
+  }
+}

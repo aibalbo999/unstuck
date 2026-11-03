@@ -7,18 +7,21 @@ from zoneinfo import ZoneInfo
 
 from fastapi import HTTPException
 
-from data_fetch.market_sources.official_thermal_peer_cohort import TARGET, verified_thermal_candidates
+from data_fetch.market_sources.official_thermal_peer_cohort import (
+    TARGET_IDENTITIES, supports_thermal_target, verified_thermal_candidates,
+)
 from data_fetch.market_sources.peers import PEER_METRIC_FIELDS
 
 
 def validate_thermal_refresh_context(data, ticker):
     from source_applicability import instrument_type
-    if (ticker != TARGET or not isinstance(data, dict) or data.get('ticker') != TARGET
-            or str(data.get('company_name') or '').split('/')[0].strip() not in {'雙鴻', '雙鴻科技股份有限公司'}
+    names = set(TARGET_IDENTITIES[ticker][:2]) if supports_thermal_target(ticker) else set()
+    if (not names or not isinstance(data, dict) or data.get('ticker') != ticker
+            or str(data.get('company_name') or '').split('/')[0].strip() not in names
             or instrument_type(data) != 'EQUITY'
             or any(data.get(key) not in (None, '', 'EQUITY') for key in ('instrument_type', 'quoteType', 'quote_type'))
             or not isinstance(data.get('dynamic_peer_metrics'), list)):
-        raise HTTPException(status_code=400, detail='此同業來源刷新須有一致的雙鴻股票身分及原指標清單')
+        raise HTTPException(status_code=400, detail='此同業來源刷新須有已支援且一致的股票身分及原指標清單')
 
 
 def _usable_metrics(record, today):

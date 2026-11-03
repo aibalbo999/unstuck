@@ -32,9 +32,21 @@ IDENTITIES = {
     '2421.TW': ('建準', '建準電機工業股份有限公司', '81448796'),
     '3483.TWO': ('力致', '力致科技股份有限公司', '16266820'),
 }
+TARGET_IDENTITIES = {
+    TARGET: IDENTITIES[TARGET],
+    '2354.TW': ('鴻準', '鴻準精密工業股份有限公司', '23707801'),
+}
+ISSUER_URLS = {
+    ticker: f'https://ic.tpex.org.tw/company_chain.php?stk_code={ticker.split(".")[0]}'
+    for ticker in TARGET_IDENTITIES
+}
 PEERS = tuple(ticker for ticker in IDENTITIES if ticker != TARGET)
 RECEIPT_KEY = 'thermal_membership_originals'
 SHARED_KIND = 'cached_complete_source_payload_verified_by_digest'
+
+
+def supports_thermal_target(ticker):
+    return isinstance(ticker, str) and ticker in TARGET_IDENTITIES
 
 
 def _page(raw, limit):
@@ -47,10 +59,12 @@ def _compact(value):
     return re.sub(r'\s+', '', value)
 
 
-def _issuer_member(raw):
+def _issuer_member(raw, target=TARGET):
     page = _page(raw, 25_000)
+    short = TARGET_IDENTITIES[target][0]
+    code = target.split('.')[0]
     headings = [h for h in page.find_all('h4')
-                if _compact(h.get_text()) == '3324雙鴻所屬產業鏈如下:']
+                if _compact(h.get_text()) == code + short + '所屬產業鏈如下:']
     if len(headings) != 1:
         raise ValueError('thermal_target_section_unverified')
     section = headings[0].find_parent('div', class_='content')
@@ -65,7 +79,7 @@ def _issuer_member(raw):
         raise ValueError('thermal_target_membership_unverified')
 
 
-def _members(raw):
+def _members(raw, target=TARGET):
     groups = _page(raw, 500_000).select(f'div#companyList_FB00[title="{SEGMENT}"]')
     if len(groups) != 2 or not any(b.get_text(' ', strip=True) == SEGMENT
                                  for group in groups for b in group.find_all('b')):
@@ -77,7 +91,8 @@ def _members(raw):
             match = re.fullmatch(r'company_basic\.php\?stk_code=([1-9]\d{3})', link['href'])
             if match:
                 found.setdefault(match[1], []).append((link.get_text(' ', strip=True), link.get('title')))
-        if found.get('3324') != [('雙鴻', '雙鴻')]:
+        short = TARGET_IDENTITIES[target][0]
+        if found.get(target.split('.')[0]) != [(short, short)]:
             raise ValueError('thermal_target_absent_from_segment')
         panels.append(found)
     return [ticker for ticker in PEERS
@@ -93,11 +108,17 @@ def _roster(raw, suffix):
 
 
 class ThermalHttp(IssuerNewsHttp):
+    def __init__(self, deadline, *, target=TARGET):
+        if not supports_thermal_target(target):
+            raise SourceResponseError('thermal_target_unsupported')
+        super().__init__(deadline)
+        self.target = target
+
     @staticmethod
     def route_contract(url):
         if url in MASTERS.values():
             return 2_500_000, {'application/json', 'text/json'}
-        if url == ISSUER_URL:
+        if url in ISSUER_URLS.values():
             return 25_000, {'text/html', 'application/xhtml+xml'}
         if url == SEGMENT_URL:
             return 500_000, {'text/html', 'application/xhtml+xml'}
@@ -130,10 +151,10 @@ class ThermalHttp(IssuerNewsHttp):
         value = super()._download(url, diagnostic)
         raw = base64.b64decode(value['body_b64'], validate=True)
         try:
-            if url == ISSUER_URL:
-                _issuer_member(raw)
+            if url in ISSUER_URLS.values():
+                _issuer_member(raw, next(ticker for ticker, source in ISSUER_URLS.items() if source == url))
             elif url == SEGMENT_URL:
-                _members(raw)
+                _members(raw, self.target)
             else:
                 _roster(raw, next(suffix for suffix, source in MASTERS.items() if source == url))
         except (ValueError, UnicodeError) as exc:
@@ -177,13 +198,15 @@ def _original(receipt, url):
     return raw
 
 
-def _candidates(originals, today):
-    if not isinstance(originals, dict) or set(originals) != {*MASTERS.values(), ISSUER_URL, SEGMENT_URL}:
+def _candidates(originals, today, target=TARGET):
+    issuer_url = ISSUER_URLS[target]
+    if not isinstance(originals, dict) or set(originals) != {*MASTERS.values(), issuer_url, SEGMENT_URL}:
         raise ValueError('thermal_original_set_invalid')
     raw = {url: _original(receipt, url) for url, receipt in originals.items()}
     rosters = {suffix: _roster(raw[url], suffix) for suffix, url in MASTERS.items()}
     identities = {}
-    for ticker, (short, legal, ubn) in IDENTITIES.items():
+    required = {target: TARGET_IDENTITIES[target], **{ticker: IDENTITIES[ticker] for ticker in PEERS}}
+    for ticker, (short, legal, ubn) in required.items():
         suffix = '.TWO' if ticker.endswith('.TWO') else '.TW'
         anchor = select_legal_name(rosters[suffix], ticker, short, today=today)
         retrieved_day = datetime.fromtimestamp(originals[MASTERS[suffix]]['retrieved_at'], ZoneInfo('Asia/Taipei')).date()
@@ -191,10 +214,10 @@ def _candidates(originals, today):
                 and date.fromisoformat(anchor['as_of']) <= retrieved_day <= today
                 and 0 <= (today - date.fromisoformat(anchor['as_of'])).days <= 7):
             identities[ticker] = anchor
-    if TARGET not in identities:
+    if target not in identities:
         raise ValueError('thermal_current_target_unverified')
-    _issuer_member(raw[ISSUER_URL])
-    members = _members(raw[SEGMENT_URL])
+    _issuer_member(raw[issuer_url], target)
+    members = _members(raw[SEGMENT_URL], target)
     rows = []
     for ticker in PEERS:
         if ticker not in members or ticker not in identities:
@@ -208,8 +231,8 @@ def _candidates(originals, today):
             'relationship_basis': 'same_undated_tpex_thermal_segment',
             'comparison_limitations': ['undated_segment_membership', 'whole_company_business_mix_not_verified',
                                        'financial_period_comparability_not_verified'],
-            'issuer_master_anchor': identities[TARGET], 'master_anchor': identities[ticker],
-            'issuer_source_url': ISSUER_URL, 'segment_source_url': SEGMENT_URL,
+            'issuer_master_anchor': identities[target], 'master_anchor': identities[ticker],
+            'issuer_source_url': issuer_url, 'segment_source_url': SEGMENT_URL,
             RECEIPT_KEY: originals,
         })
     return rows
@@ -222,10 +245,10 @@ def verified_thermal_candidate(record, ticker, *, today):
 def verified_thermal_candidates(records, ticker, *, today):
     """One original readback for a batch; no per-row page downloads or reparse."""
     try:
-        if (ticker != TARGET or not isinstance(records, list) or not 1 <= len(records) <= 5
+        if (not supports_thermal_target(ticker) or not isinstance(records, list) or not 1 <= len(records) <= 5
                 or any(not isinstance(row, dict) for row in records)):
             return False
-        expected_by_ticker = {row['ticker']: row for row in _candidates(records[0].get(RECEIPT_KEY), today)}
+        expected_by_ticker = {row['ticker']: row for row in _candidates(records[0].get(RECEIPT_KEY), today, ticker)}
         seen = set()
         for record in records:
             symbol = record.get('ticker')
@@ -249,13 +272,13 @@ def verified_thermal_candidates(records, ticker, *, today):
 
 
 def get_official_thermal_candidates(ticker, *, today):
-    if ticker != TARGET:
+    if not supports_thermal_target(ticker):
         return {'candidates': [], 'status': 'not_applicable'}
     deadline = time.monotonic() + 12
-    http = ThermalHttp(deadline)
+    http = ThermalHttp(deadline, target=ticker)
     originals = {}
     try:
-        for url in (MASTERS['.TWO'], MASTERS['.TW'], ISSUER_URL, SEGMENT_URL):
+        for url in (MASTERS['.TWO'], MASTERS['.TW'], ISSUER_URLS[ticker], SEGMENT_URL):
             raw = http.get(url)
             component = http.components[-1]
             originals[url] = archive_response(raw, source_url=url,
@@ -265,7 +288,7 @@ def get_official_thermal_candidates(ticker, *, today):
                                   http_status_observed=component['http_status_observed'])
             if time.monotonic() >= deadline:
                 raise SourceResponseError('timeout')
-        rows = _candidates(originals, today)
+        rows = _candidates(originals, today, ticker)
         if not all(_receipt_current(receipt, url) for url, receipt in originals.items()):
             raise SourceResponseError('cache_receipt_expired')
         if time.monotonic() >= deadline:
