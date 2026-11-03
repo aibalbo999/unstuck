@@ -22,6 +22,10 @@ def receipt_observation_scope(enabled):
  finally:_RECORD_RECEIPTS.reset(token)
 
 
+def peer_receipt_observation_enabled():
+ return _RECORD_RECEIPTS.get() is True
+
+
 class MobileHttp:
  def __init__(self,deadline):
   self.deadline=deadline;self.http_request_count=0;self.components=[]

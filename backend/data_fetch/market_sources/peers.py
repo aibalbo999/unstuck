@@ -22,6 +22,10 @@ from .official_ic_distribution_peer_cohort import (
     get_candidates as get_official_ic_candidates, verified_candidates as verified_ic_candidates,
     TARGET as IC_TARGET, SCOPE as IC_SCOPE,
 )
+from .official_railway_peer_cohort import (
+    get_candidates as get_official_rail_candidates, verified_candidates as verified_rail_candidates,
+    TARGET as RAIL_TARGET, SCOPE as RAIL_SCOPE, IDENTITIES as RAIL_IDENTITIES,
+)
 from .official_airline_peer_cohort import (get_official_airline_candidates, verified_airline_candidates,
                                           related_airline, IDENTITIES as AIRLINES, SCOPE as AIRLINE_SCOPE)
 from .ncc_mobile_peer_cohort import (get_candidates as get_official_ncc_candidates, verified_candidates as verified_ncc_candidates,
@@ -145,10 +149,20 @@ def fetch_dynamic_peer_metrics_with_diagnostics(ticker: str, company_name: str, 
     membership alone is labeled as a candidate, never a ranked business match.
     """
     today = _today()
-    ranked = None if ticker == IC_TARGET else ranked_profiles_from_identity(identity)
+    ranked = None if ticker in {IC_TARGET, RAIL_TARGET} else ranked_profiles_from_identity(identity)
     selection_rows = {}
     selection_policy = None
-    if ticker == IC_TARGET:
+    if ticker == RAIL_TARGET:
+        rail = get_official_rail_candidates(ticker, today=today)
+        candidates = rail['candidates']
+        audit = {'selection_status': 'selected' if candidates else rail['status'],
+                 'selection_basis': 'current_official_issuer_jpx_and_dated_operator_references',
+                 'selection_rejected_reason_counts': {},
+                 'official_rail_candidate_status': rail['status'],
+                 'official_rail_candidate_details': {k: v for k, v in rail.items() if k != 'candidates'},
+                 'expected_candidate_count': len(RAIL_IDENTITIES),
+                 'candidate_order_policy': 'official_rail_code_order_only_not_economic_rank'}
+    elif ticker == IC_TARGET:
         ic = get_official_ic_candidates(ticker, today=today)
         candidates = ic['candidates']
         audit = {'selection_status': 'selected' if candidates else ic['status'],
@@ -329,11 +343,17 @@ def fetch_dynamic_peer_metrics_with_diagnostics(ticker: str, company_name: str, 
         record = {**candidate, "source": "peer identity with per-field metric provenance"}
         thermal_scope = candidate.get("comparison_scope") == "thermal_management_segment"
         ic_scope = candidate.get('comparison_scope') == IC_SCOPE
-        if ((candidate.get("comparison_status") == "published_segment_candidate" or thermal_scope or ic_scope)
+        rail_scope = candidate.get('comparison_scope') == RAIL_SCOPE
+        if ((candidate.get("comparison_status") == "published_segment_candidate" or thermal_scope or ic_scope or rail_scope)
                 and (str(info.get("symbol") or "").upper() != symbol
                      or str(info.get("quoteType") or "").upper() != "EQUITY")):
             info, yf_status = {}, "identity_unverified"
             record["comparison_status"] = "identity_unverified"
+        if rail_scope:
+            record['quote_currency'], record['financial_currency'] = info.get('currency'), info.get('financialCurrency')
+            if record['quote_currency'] != 'JPY' or record['financial_currency'] != 'JPY':
+                info, yf_status = {}, 'financial_currency_unverified'
+                record['comparison_status'] = 'identity_unverified'
         if candidate["comparison_status"] == "industry_candidate_only":
             record["comparison_status"] = industry_comparability(industry, info.get("industry", ""))
             record["reported_industry"] = info.get("industry")
@@ -355,7 +375,7 @@ def fetch_dynamic_peer_metrics_with_diagnostics(ticker: str, company_name: str, 
             record[field] = round(number * (100 if field.endswith("_pct") else 1), 2) if number is not None else None
         revenue, assets = finite_number(info.get("totalRevenue")), finite_number(info.get("totalAssets"), positive=True)
         record["asset_turnover"] = round(revenue / assets, 4) if revenue is not None and assets is not None else None
-        if candidate.get("comparison_status") == "published_segment_candidate" or medical_scope or thermal_scope or airline_scope or ic_scope:
+        if candidate.get("comparison_status") == "published_segment_candidate" or medical_scope or thermal_scope or airline_scope or ic_scope or rail_scope:
             # Undated quote aggregates cannot establish a common annual period.
             record["asset_turnover"] = None
         financial_signature = " ".join([industry, str(info.get("industry", "")), *candidate.get("industry_categories", [])]).casefold()
@@ -410,10 +430,11 @@ def fetch_dynamic_peer_metrics_with_diagnostics(ticker: str, company_name: str, 
         "business_industry_mismatch", "identity_unverified"}]
     selected_records = sorted(eligible_records, key=lambda r: r["metrics_status"] == "unavailable")[:5]
     for record in selected_records:
+        rail_scope = record.get('comparison_scope') == RAIL_SCOPE
         if (record["asset_turnover"] is not None
                 or record["metric_applicability"]["asset_turnover"] != "applicable"
                 or record["comparison_status"] not in {"business_industry_matched", "official_convenience_candidate", "official_segment_candidate", "published_segment_candidate"}
-                or not record["ticker"].endswith((".TW", ".TWO"))):
+                or not (record["ticker"].endswith((".TW", ".TWO")) or rail_scope and record['ticker'] in RAIL_IDENTITIES)):
             continue
         try:
             from yfinance_transport_receipts import observe_peer_annual_statements
@@ -423,6 +444,13 @@ def fetch_dynamic_peer_metrics_with_diagnostics(ticker: str, company_name: str, 
         except Exception as exc:
             annual, outcome = None, "download_failed:" + type(exc).__name__
         record["acquisition_attempts"].append({"provider": "Yahoo annual financial statements", "status": outcome})
+        if rail_scope and annual is not None:
+            period = date.fromisoformat(annual['observed_at'])
+            if (period.month != 3 or period.day != 31 or not 0 <= (today-period).days <= 370
+                    or record['quote_currency'] != 'JPY' or record['financial_currency'] != 'JPY'
+                    or record['business_reference'].get('fiscal_year_end', annual['observed_at']) != annual['observed_at']):
+                annual = None
+                record['acquisition_attempts'][-1]['status'] = 'annual_period_or_currency_unverified'
         if annual is None:
             continue
         record["asset_turnover"] = annual["value"]
@@ -431,6 +459,10 @@ def fetch_dynamic_peer_metrics_with_diagnostics(ticker: str, company_name: str, 
             "basis": "annual_revenue / same_date_year_end_assets",
             "observation_note": "same-date SDK annual frames; HTTP cache status unknown",
         }
+        if rail_scope:
+            record['metric_sources']['asset_turnover'].update(currency='JPY',
+                currency_basis='same_stock_provider_financialCurrency_and_same_date_annual_frames',
+                scope_note='provider annual ratio; consolidation and cross-market comparability not independently certified')
         record["missing_metrics"] = [field for field in record["missing_metrics"] if field != "asset_turnover"]
         record["metrics_status"] = "complete" if not record["missing_metrics"] else "partial"
     thermal_records = [r for r in selected_records if r.get("comparison_scope") == "thermal_management_segment"]
@@ -444,6 +476,11 @@ def fetch_dynamic_peer_metrics_with_diagnostics(ticker: str, company_name: str, 
     if ic_records and not verified_ic_candidates(ic_records, ticker, today=today):
         selected_records = [r for r in selected_records if r.get('comparison_scope') != IC_SCOPE]
         audit['official_ic_candidate_status'] = 'originals_expired_or_unverified_after_metrics'
+    if ticker == RAIL_TARGET:
+        selected_records = [r for r in selected_records if r.get('comparison_scope') == RAIL_SCOPE]
+        if selected_records and not verified_rail_candidates(selected_records, ticker, today=today):
+            selected_records = []
+            audit['official_rail_candidate_status'] = 'originals_expired_or_unverified_after_metrics'
     airline_records = [r for r in selected_records if r.get("comparison_scope") == AIRLINE_SCOPE]
     if airline_records and not verified_airline_candidates(airline_records, ticker, today=today):
         selected_records = [r for r in selected_records if r.get("comparison_scope") != AIRLINE_SCOPE]
@@ -453,7 +490,9 @@ def fetch_dynamic_peer_metrics_with_diagnostics(ticker: str, company_name: str, 
         selected_records = [r for r in selected_records if r.get("comparison_scope") != NCC_SCOPE]
         audit["official_ncc_candidate_status"] = "originals_expired_or_unverified_after_metrics"
     usable_count = sum(r["metrics_status"] != "unavailable" for r in selected_records)
-    partial = any(r["metrics_status"] != "complete" for r in selected_records)
+    partial = any(r["metrics_status"] != "complete" for r in selected_records) or (
+        ticker == RAIL_TARGET and (len(selected_records) != len(RAIL_IDENTITIES)
+                                  or audit.get('official_rail_candidate_status') != 'success'))
     selected_symbols = {r["ticker"] for r in selected_records}
     audit.update(candidate_count=candidate_count, candidate_attempt_count=len(records), identity_count=len(selected_records),
                  raw_count=len(records), usable_count=usable_count,

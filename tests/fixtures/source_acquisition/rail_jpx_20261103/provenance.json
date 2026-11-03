@@ -1,0 +1,110 @@
+{
+  "purpose": "Derived public source fixtures for isolated tests. Opaque anonymous URL sessions and page nonces are masked. Edited bodies are not literal native originals. Mock acquisition does not establish new HTTP, reporting-period equivalence, audit status or production success. True complete originals and source receipts remain in external private research evidence.",
+  "files": {
+    "listed.json.gz": {
+      "native_original_sha256": "cf9007da58ee20976498d4c7f482ce8a61da73b11e89be0d32e72bc5f5c9da45",
+      "fixture_sha256": "cf9007da58ee20976498d4c7f482ce8a61da73b11e89be0d32e72bc5f5c9da45",
+      "fixture_bytes": 1332397,
+      "opaque_identifiers_masked": 0,
+      "literal_native_body": true
+    },
+    "issuer.html.gz": {
+      "native_original_sha256": "6ca4013a390ec1813a9a9e155d71718149a5cb8b348d82c40b0c10521da8d9f9",
+      "fixture_sha256": "6ca4013a390ec1813a9a9e155d71718149a5cb8b348d82c40b0c10521da8d9f9",
+      "fixture_bytes": 52321,
+      "opaque_identifiers_masked": 0,
+      "literal_native_body": true
+    },
+    "entry.html.gz": {
+      "native_original_sha256": "45289a65a5be6e1cc7b2791bccc25bf2b76b9eeb1c8ccb674bf4ef0e6388ad0d",
+      "fixture_sha256": "f38718a96679121fbe4072ad65bde8448fa5d026fe91838dd960f8320abc15b4",
+      "fixture_bytes": 9363,
+      "opaque_identifiers_masked": 1,
+      "literal_native_body": false
+    },
+    "search9020.html.gz": {
+      "native_original_sha256": "b3513c0e520443c60d137e56ccdfabbe0371a7c92c68ab0094620127896932cc",
+      "fixture_sha256": "fb8293ac8402595098ac5039a382bffaa0fb13a017a38307689a06e541deafa8",
+      "fixture_bytes": 10948,
+      "opaque_identifiers_masked": 2,
+      "literal_native_body": false
+    },
+    "search9021.html.gz": {
+      "native_original_sha256": "6c56f65a36dcfee786ca2ff27c5819e03f4735efb7f48cff84fe31e92c15fc21",
+      "fixture_sha256": "6c56f65a36dcfee786ca2ff27c5819e03f4735efb7f48cff84fe31e92c15fc21",
+      "fixture_bytes": 10858,
+      "opaque_identifiers_masked": 0,
+      "literal_native_body": true
+    },
+    "search9022.html.gz": {
+      "native_original_sha256": "17455f21331ce58f3815b737144f4c434ce9cc11b9645a5ecd50303cea949aff",
+      "fixture_sha256": "6a6cf0baf96226a494aef48925810a587d0b087acbaf3bca9891b01c3c39458e",
+      "fixture_bytes": 10954,
+      "opaque_identifiers_masked": 2,
+      "literal_native_body": false
+    },
+    "search9142.html.gz": {
+      "native_original_sha256": "802bab1e3cd85b135eb3958d7f8cc2c777d27942ece39fc6ce2b4df22f163236",
+      "fixture_sha256": "42bc41e9e5c55cb511a0f5731edf10e7c30b81b4c0848cd00c1bb4c777453b5f",
+      "fixture_bytes": 10940,
+      "opaque_identifiers_masked": 2,
+      "literal_native_body": false
+    },
+    "details9020.html.gz": {
+      "native_original_sha256": "5d9498c68619b3c70f232c656f2913551dd5506d1bee1ad93b17d14360c00d45",
+      "fixture_sha256": "5d9498c68619b3c70f232c656f2913551dd5506d1bee1ad93b17d14360c00d45",
+      "fixture_bytes": 382205,
+      "opaque_identifiers_masked": 0,
+      "literal_native_body": true
+    },
+    "details9021.html.gz": {
+      "native_original_sha256": "dc888b2629f584e7f7c03faccf38383d32f4765eb1dc5e62d6fc649052e4f6d9",
+      "fixture_sha256": "dc888b2629f584e7f7c03faccf38383d32f4765eb1dc5e62d6fc649052e4f6d9",
+      "fixture_bytes": 315126,
+      "opaque_identifiers_masked": 0,
+      "literal_native_body": true
+    },
+    "annual9020.pdf.gz": {
+      "native_original_sha256": "e05b62a010268562b5884c1216c53b7ccfc6b423d5dd29709058de5c765fb109",
+      "fixture_sha256": "e05b62a010268562b5884c1216c53b7ccfc6b423d5dd29709058de5c765fb109",
+      "fixture_bytes": 1024468,
+      "opaque_identifiers_masked": 0,
+      "literal_native_body": true
+    },
+    "annual9021.pdf.gz": {
+      "native_original_sha256": "91cd9c222eff4219dd427ec25fc353c3082747c0805b3570b57656fd86db2523",
+      "fixture_sha256": "91cd9c222eff4219dd427ec25fc353c3082747c0805b3570b57656fd86db2523",
+      "fixture_bytes": 546917,
+      "opaque_identifiers_masked": 0,
+      "literal_native_body": true
+    },
+    "central.html.gz": {
+      "native_original_sha256": "1fa304377e70125f6fd3785b23584a30aeee5a545e60d91b5c153bd49d398316",
+      "fixture_sha256": "1fa304377e70125f6fd3785b23584a30aeee5a545e60d91b5c153bd49d398316",
+      "fixture_bytes": 7485,
+      "opaque_identifiers_masked": 0,
+      "literal_native_body": true
+    },
+    "kyushu-company.html.gz": {
+      "native_original_sha256": "3e2aa972554d5813d146584f68001fddd8b040f9d7fd6a4460e9b5e9a1d19039",
+      "fixture_sha256": "3e2aa972554d5813d146584f68001fddd8b040f9d7fd6a4460e9b5e9a1d19039",
+      "fixture_bytes": 19336,
+      "opaque_identifiers_masked": 0,
+      "literal_native_body": true
+    },
+    "kyushu-trains.html.gz": {
+      "native_original_sha256": "1298581f30d83bd14861f6563a2210c065517f38f06cbb18f0d1433cec102bd8",
+      "fixture_sha256": "1298581f30d83bd14861f6563a2210c065517f38f06cbb18f0d1433cec102bd8",
+      "fixture_bytes": 61785,
+      "opaque_identifiers_masked": 0,
+      "literal_native_body": true
+    },
+    "search-reset.html.gz": {
+      "native_original_sha256": "dfac07d68f271f8bf5b56a527d273331dc6a3912134ae67553a21f55f85475cb",
+      "fixture_sha256": "f38718a96679121fbe4072ad65bde8448fa5d026fe91838dd960f8320abc15b4",
+      "fixture_bytes": 9363,
+      "opaque_identifiers_masked": 1,
+      "literal_native_body": false
+    }
+  }
+}
