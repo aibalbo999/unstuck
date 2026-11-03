@@ -155,7 +155,8 @@ def test_attempt_diagnostics_are_bounded_and_reject_invalid_metadata():
             'error_kind': 'oops token=secret', 'response_sha256': 'secret',
             'response_complete': 'true'}] * 100,
     })
-    assert len(details['request_observations']) <= 64
+    # The bounded workflow can observe six indices as well as 64 bodies.
+    assert len(details['request_observations']) <= 70
     for attempt in details['request_observations']:
         assert set(attempt) <= {'method'}
 

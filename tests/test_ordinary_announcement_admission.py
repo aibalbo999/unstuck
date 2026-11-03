@@ -111,7 +111,7 @@ def test_saved_identity_conflicts_must_still_fail_before_transport(monkeypatch, 
 def test_existing_special_json_and_tdr_routing_are_not_ordinary_admission():
     from official_announcement_source_refresh import supports
     from data_fetch.market_sources.mops_json_company_history import TICKERS
-    assert TICKERS == {'1216.TW', '2442.TW', '2838.TW', '2845.TW', '6550.TW', '6924.TW'}
+    assert TICKERS == {'1216.TW', '1623.TW', '2442.TW', '2838.TW', '2845.TW', '6550.TW', '6924.TW'}
     assert all(not supports(ticker) for ticker in TICKERS | {'9103.TW', '0050.TW', '2059.TWO'})
 
 

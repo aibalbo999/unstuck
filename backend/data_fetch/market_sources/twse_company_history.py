@@ -194,14 +194,16 @@ def fetch_recent_company_announcements(ticker: str, *, now: datetime | None = No
         records, diagnostic = fetch_json_announcements(ticker, now=now, post=post, deadline=deadline)
         if not injected:
             diagnostic.update(http_request_sent=transport.http_request_count > 0,
-                              http_request_count=transport.http_request_count)
+                              http_request_count=transport.http_request_count,
+                              request_observations=[dict(item) for item in transport.request_observations])
         return records, diagnostic
     if ticker == "9103.TW":
         from .tdr_mops_history import fetch_tdr_announcements
         records, diagnostic = fetch_tdr_announcements(ticker, now=now, get=get, post=post, deadline=deadline)
         if not injected:
             diagnostic.update(http_request_sent=transport.http_request_count > 0,
-                              http_request_count=transport.http_request_count)
+                              http_request_count=transport.http_request_count,
+                              request_observations=[dict(item) for item in transport.request_observations])
         return records, diagnostic
     from official_announcement_source_refresh import supports as supports_ordinary
     index_originals = []

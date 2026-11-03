@@ -1,0 +1,64 @@
+{
+  "ticker": "1623.TW",
+  "official_name": "大東電",
+  "fixture_time": "2026-11-03T23:00:00+08:00",
+  "kind": "synthetic_contract_fixture_not_native_receipt",
+  "new_acquisition_on_replay": false,
+  "note": "Public issuer/action identifiers and schema only. Speaker,phone,clause and body are explicitly synthetic. Original native bodies stay private.",
+  "wire_originals": [
+    {
+      "url": "https://mops.twse.com.tw/mops/api/t05st01",
+      "method": "POST",
+      "parameters": {
+        "companyId": "1623",
+        "year": "115",
+        "month": "10",
+        "firstDay": "4",
+        "lastDay": "31"
+      },
+      "raw_body_utf8": "{\"code\":200,\"message\":\"查詢成功\",\"result\":{\"marketName\":\"上市公司\",\"companyId\":\"1623\",\"companyAbbreviation\":\"大東電\",\"titles\":[{\"main\":\"公司代號\"},{\"main\":\"公司名稱\"},{\"main\":\"發言日期\"},{\"main\":\"發言時間\"},{\"main\":\"主旨\"},{\"main\":\"詳細資料\"}],\"data\":[[\"1623\",\"大東電\",\"115/10/19\",\"17:59:13\",\"公告本公司董事會決議通過向關係人取得使用權資產\",{\"apiName\":\"t05st01_detail\",\"parameters\":{\"companyId\":\"1623\",\"marketKind\":\"sii\",\"enterDate\":\"1151019\",\"serialNumber\":\"1\"}}],[\"1623\",\"大東電\",\"115/10/27\",\"10:33:54\",\"澄清媒體報導\",{\"apiName\":\"t05st01_detail\",\"parameters\":{\"companyId\":\"1623\",\"marketKind\":\"sii\",\"enterDate\":\"1151027\",\"serialNumber\":\"1\"}}]]}}",
+      "response_sha256": "876e10f9c9a2a7504c6613f1ae81f15c64805297f6ba93ffd3c0c06553b60c75",
+      "response_bytes": 714
+    },
+    {
+      "url": "https://mops.twse.com.tw/mops/api/t05st01",
+      "method": "POST",
+      "parameters": {
+        "companyId": "1623",
+        "year": "115",
+        "month": "11",
+        "firstDay": "1",
+        "lastDay": "3"
+      },
+      "raw_body_utf8": "{\"code\":406,\"message\":\"查無相符資料\",\"result\":null}",
+      "response_sha256": "a7e40197a0672aeea087d52b5c608cceb4c6f06c419ce54db526768aec6d0e77",
+      "response_bytes": 57
+    },
+    {
+      "url": "https://mops.twse.com.tw/mops/api/t05st01_detail",
+      "method": "POST",
+      "parameters": {
+        "companyId": "1623",
+        "marketKind": "sii",
+        "enterDate": "1151019",
+        "serialNumber": "1"
+      },
+      "raw_body_utf8": "{\"code\":200,\"message\":\"查詢成功\",\"result\":{\"marketName\":\"上市公司\",\"companyId\":\"1623\",\"companyAbbreviation\":\"大東電\",\"titles\":[{\"main\":\"序號\"},{\"main\":\"發言日期\"},{\"main\":\"發言時間\"},{\"main\":\"發言人\"},{\"main\":\"發言人職稱\"},{\"main\":\"發言人電話\"},{\"main\":\"主旨\"},{\"main\":\"符合條款\"},{\"main\":\"事實發生日\"},{\"main\":\"說明\"}],\"data\":[[\"1\",\"115/10/19\",\"17:59:13\",\"測試發言人\",\"測試職稱\",\"TEST_ONLY\",\"公告本公司董事會決議通過向關係人取得使用權資產\",\"合成條款\",\"115/10/19\",\"合成測試說明：本文只用於驗證公告資料的公司、日期與憑據規則，不是原生來源證據，也不構成實際公司公告或分析結論。\"]]}}",
+      "response_sha256": "a3d7bc63aeec3188b83c7363ecdf80e0f9ce8248a9e8aec8dc15e7c00582c699",
+      "response_bytes": 718
+    },
+    {
+      "url": "https://mops.twse.com.tw/mops/api/t05st01_detail",
+      "method": "POST",
+      "parameters": {
+        "companyId": "1623",
+        "marketKind": "sii",
+        "enterDate": "1151027",
+        "serialNumber": "1"
+      },
+      "raw_body_utf8": "{\"code\":200,\"message\":\"查詢成功\",\"result\":{\"marketName\":\"上市公司\",\"companyId\":\"1623\",\"companyAbbreviation\":\"大東電\",\"titles\":[{\"main\":\"序號\"},{\"main\":\"發言日期\"},{\"main\":\"發言時間\"},{\"main\":\"發言人\"},{\"main\":\"發言人職稱\"},{\"main\":\"發言人電話\"},{\"main\":\"主旨\"},{\"main\":\"符合條款\"},{\"main\":\"事實發生日\"},{\"main\":\"說明\"}],\"data\":[[\"1\",\"115/10/27\",\"10:33:54\",\"測試發言人\",\"測試職稱\",\"TEST_ONLY\",\"澄清媒體報導\",\"合成條款\",\"115/10/27\",\"合成測試說明：本文只用於驗證公告資料的公司、日期與憑據規則，不是原生來源證據，也不構成實際公司公告或分析結論。\"]]}}",
+      "response_sha256": "4c30b3dc61a19420485a7f0adc19a8151fa16d059f065e068be3b0a01caee355",
+      "response_bytes": 667
+    }
+  ]
+}

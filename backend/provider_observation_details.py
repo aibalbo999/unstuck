@@ -81,12 +81,17 @@ def _announcement_attempts(value):
     """Keep typed failure evidence, without queries, headers or original bodies."""
     endpoints = {
         ('wwwc.twse.com.tw', '/rwd/zh/IIH/company/events'),
+        ('wwwc.twse.com.tw', '/rwd/en/IIH/company/events'),
         ('mopsov.twse.com.tw', '/mops/web/ezsearch_query'),
         ('mopsov.twse.com.tw', '/mops/web/ajax_t05sr01_1'),
         ('mops.twse.com.tw', '/mops/api/t05st01'),
+        ('mops.twse.com.tw', '/mops/api/t05st01_detail'),
+        ('mops.twse.com.tw', '/mops/api/t59sb01_detail'),
     }
     out = []
-    for item in value[:64]:
+    # Keep all bounded source attempts: up to six legacy/window indices plus
+    # sixty-four originals (JSON alone needs up to three indices + 64 bodies).
+    for item in value[:70]:
         if not isinstance(item, dict):
             continue
         row = {}
@@ -94,7 +99,9 @@ def _announcement_attempts(value):
         if isinstance(url, str) and len(url) <= 4096:
             try:
                 parsed = urlsplit(url)
-                if parsed.scheme == 'https' and (parsed.netloc, parsed.path) in endpoints:
+                tdr_pdf = (parsed.netloc == 'mopsov.twse.com.tw' and re.fullmatch(
+                    r'/nas/t59/t59sa01/9103_\d{8}\d{2}_FIM\.pdf', parsed.path) is not None)
+                if parsed.scheme == 'https' and ((parsed.netloc, parsed.path) in endpoints or tdr_pdf):
                     row['url'] = f'https://{parsed.netloc}{parsed.path}'
             except ValueError:
                 pass
