@@ -41,9 +41,10 @@ def build_capital_structure_notes(
             institution = official_basis["statement_schema"] in INSTITUTION_SCHEMAS
             insurer = official_basis["statement_schema"] == "insurer_standalone.v1"
             ordinary_individual = official_basis["statement_schema"] == "ordinary_individual.v1"
+            mixed_income = official_basis['statement_schema'] == 'mixed_income_consolidated_annual.v1'
             individual = insurer or ordinary_individual
             income_label = "合併淨收益" if institution else "保險業個別營業收入" if insurer else "個別營業收入" if ordinary_individual else "申報營業收入"
-            sector_label = "金融業" if institution else "保險業" if insurer else "一般業個別" if ordinary_individual else "證券商"
+            sector_label = "多業務合併" if mixed_income else "金融業" if institution else "保險業" if insurer else "一般業個別" if ordinary_individual else "證券商"
             asset_label = "個別資產" if individual else "合併資產"
             equity_label = "期末個別權益" if individual else "期末母公司權益"
             profit_label = "個別本期損益" if individual else "母公司淨利"
@@ -55,7 +56,7 @@ def build_capital_structure_notes(
                 equity_multiplier = f"{em:.3f}x"
                 year = official_basis["years"][-1]
                 equity_multiplier_note = f"{year} 年{sector_label}官方{asset_label}／{equity_label}；同年度原始科目。"
-                if latest_rev > 0:
+                if latest_rev is not None and latest_rev > 0:
                     margin, turnover = latest_ni / latest_rev, latest_rev / latest_assets
                     same_period_roe = latest_ni / latest_equity * 100
                     dupont_identity_note = (

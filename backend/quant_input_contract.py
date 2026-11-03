@@ -86,6 +86,11 @@ def read_quant_inputs(data):
     if ((safe_mapping_dict(statement)or{}).get('schema')=='ordinary_individual.v1'
             or basis.get('statement_schema')=='ordinary_individual.v1'):
         reasons['dcf'].append('ordinary_individual_group_basis_unverified')
+    if ((safe_mapping_dict(statement)or{}).get('schema')=='mixed_income_consolidated_annual.v1'
+            or basis.get('statement_schema')=='mixed_income_consolidated_annual.v1'):
+        from data_fetch.market_sources.mixed_income_annual import project_history
+        reasons['dcf'].append('mixed_income_fcf_not_normalized_for_dcf'
+            if project_history(statement,data.get('ticker')or'')is not None else'mixed_income_basis_unverified')
     if project_financial_institution_histories(statement, data.get("ticker") or "") is not None:
         reasons["dcf"].append("financial_institution_fcf_not_normalized_for_dcf")
     elif ((safe_mapping_dict(statement) or {}).get("schema") in INSTITUTION_SCHEMAS

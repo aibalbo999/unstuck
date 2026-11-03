@@ -69,6 +69,13 @@ def _prompt_financial_institution_history(data: dict) -> dict:
         if project_individual_history(statement,dict.get(data,'ticker','')) is None:return {}
         fields=(*FIELDS.values(),'free_cash_flow')
         basis_note=NOTE
+    elif schema == 'mixed_income_consolidated_annual.v1':
+        from data_fetch.market_sources.mixed_income_annual import project_history,FIELDS
+        if project_history(statement,dict.get(data,'ticker',''))is None:return {}
+        fields=FIELDS
+        basis_note=('reported_total_income_includes_insurance_and_other_businesses_not_bank_net_revenue; '
+            'not_general_revenue_or_sales_component; parent_profit_not_comprehensive_income; '
+            'gross_profit_and_operating_income_not_supplied; cashflow_not_normalized_for_industrial_dcf')
     elif schema == "broker_consolidated.v1":
         fields = ("reported_revenue", "brokerage_fee_income", "underwriting_revenue",
                   "net_income_attributable", "assets", "equity", "operating_cash_flow",

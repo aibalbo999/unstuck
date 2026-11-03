@@ -64,6 +64,10 @@ def build_html_chart_context(data: dict, parsed: dict, *, pipeline_id: str = "v1
                           netRevenueMargin=institution_metrics["net_income_to_net_revenue_pct_history"]["values"],
                           netMarginLabel="母公司淨利／合併淨收益")
         financial_history_chart_title = "年度合併淨收益與母公司淨利（億元台幣）"
+    elif prompt_history_basis(data).get('statement_schema')=='mixed_income_consolidated_annual.v1':
+        chart_data.update(incomeSeries=chart_data['revenue'],incomeLabel='一般營收（未提供）',
+                         netIncomeLabel='母公司淨利',netMarginLabel='一般營收口徑未提供')
+        financial_history_chart_title='年度母公司淨利（一般營收口徑未提供，億元台幣）'
     elif prompt_history_basis(data).get('statement_schema')=='ordinary_individual.v1':
         chart_data.update(incomeSeries=chart_data['revenue'],incomeLabel='年度個別營業收入',netIncomeLabel='個別本期損益',netMarginLabel='個別本期損益／個別營業收入')
         financial_history_chart_title='年度個別營業收入與本期損益（億元台幣）'

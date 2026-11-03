@@ -217,6 +217,13 @@ def prompt_history_basis(data: dict) -> dict:
     if data is None:
         return {}
     statement = safe_mapping_dict(data.get("sector_specific_financials")) or {}
+    if statement.get('schema')=='mixed_income_consolidated_annual.v1':
+        from .market_sources.mixed_income_annual import project_history
+        mixed=project_history(statement,data.get('ticker')or'')
+        if mixed is None:return {}
+        projected={k:v for k,v in mixed.items()if k!='sector_specific_financials'}
+        if any(data.get(k)!=v for k,v in projected.items()):return {}
+        return projected['financial_history_basis']
     projector = (project_ordinary_individual_histories if statement.get("schema")=="ordinary_individual.v1"
                  else project_financial_institution_histories if statement.get("schema") in INSTITUTION_SCHEMAS
                  else project_insurer_standalone_histories if statement.get("schema") == STANDALONE_SCHEMA

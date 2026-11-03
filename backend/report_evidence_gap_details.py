@@ -100,7 +100,8 @@ def cash_flow_detail(data):
         if projected is not None and all(projected.get(key) == data.get(key) for key in HISTORY_FIELDS):
             return _annual_detail(result, statement, PROVIDER, 'individual')
     strict_financial_schemas = {'bank_consolidated.v1', 'financial_holding_consolidated.v2',
-                                'financial_holding_public_annual.v1', 'financial_holding_audited_annual.v1'}
+                                'financial_holding_public_annual.v1', 'financial_holding_audited_annual.v1',
+                                'mixed_income_consolidated_annual.v1'}
     if schema in strict_financial_schemas:
         statement = _map(data.get('sector_specific_financials'))
         try:

@@ -216,12 +216,15 @@ def _extract_financial_histories_uncached(stock, ticker: str, data_source_notes:
     official_financial_audit = None
     sector_specific_financial_audit = None
     sector_specific_financials = None
-    financial_industry = _is_financial_industry(industry_context)
+    financial_industry = ticker=='2905.TW' or _is_financial_industry(industry_context)
     if (ticker.endswith((".TW", ".TWO")) and financial_industry
             and os.getenv("STOCK_AGENT_TEST_NO_NETWORK") != "1"):
         from .market_sources.mops_public_holding import supports_public_holding, fetch_public_holding_result
         from .market_sources.tcfhc_annual_financial import supports_annual, fetch_annual_result, SCHEMA as AUDITED_HOLDING_SCHEMA, origin_note as audited_holding_note
-        if supports_annual(ticker):
+        if ticker=='2905.TW':
+            from .market_sources.mixed_income_annual import fetch_result as fetch_mixed_result
+            sector_result = fetch_mixed_result(ticker)
+        elif supports_annual(ticker):
             sector_result = fetch_annual_result(ticker)
         elif supports_public_holding(ticker):
             sector_result = fetch_public_holding_result(ticker)
@@ -237,10 +240,12 @@ def _extract_financial_histories_uncached(stock, ticker: str, data_source_notes:
         statement_projection = None
         if (sector_specific_financial_audit and sector_specific_financial_audit.get("status") == "success"
                 and isinstance(sector_specific_financials, dict)
-                and sector_specific_financials.get("schema") in {"broker_consolidated.v1", "financial_institution_consolidated.v1", "financial_holding_consolidated.v2", "financial_holding_public_annual.v1", "financial_holding_audited_annual.v1", "bank_consolidated.v1", "insurer_standalone.v1"}):
+                and sector_specific_financials.get("schema") in {"broker_consolidated.v1", "financial_institution_consolidated.v1", "financial_holding_consolidated.v2", "financial_holding_public_annual.v1", "financial_holding_audited_annual.v1", "bank_consolidated.v1", "insurer_standalone.v1", "mixed_income_consolidated_annual.v1"}):
             from .financial_history_basis import project_broker_histories, project_financial_institution_histories, project_insurer_standalone_histories
             broker = sector_specific_financials["schema"] == "broker_consolidated.v1"
-            projector = (project_broker_histories if broker else project_insurer_standalone_histories
+            from .market_sources.mixed_income_annual import project_history as project_mixed_history
+            projector = (project_mixed_history if sector_specific_financials['schema']=='mixed_income_consolidated_annual.v1'
+                         else project_broker_histories if broker else project_insurer_standalone_histories
                          if sector_specific_financials["schema"] == "insurer_standalone.v1"
                          else project_financial_institution_histories)
             statement_projection = projector(sector_specific_financials, ticker)
@@ -256,6 +261,8 @@ def _extract_financial_histories_uncached(stock, ticker: str, data_source_notes:
             broker_statement = sector_specific_financials["schema"] == "broker_consolidated.v1"
             insurer_individual = sector_specific_financials["schema"] == "insurer_individual.v1"
             insurer_standalone = sector_specific_financials["schema"] == "insurer_standalone.v1"
+            mixed_income = sector_specific_financials['schema'] == 'mixed_income_consolidated_annual.v1'
+            from .market_sources.mixed_income_annual import NOTE as MIXED_NOTE
             bank_fcf_unknown = (
                 sector_specific_financials["schema"] == "bank_consolidated.v1"
                 and any(isinstance(row, dict) and row.get("intangible_purchase") is None
@@ -273,12 +280,12 @@ def _extract_financial_histories_uncached(stock, ticker: str, data_source_notes:
                 comparative_revisions=sector_specific_financials["comparative_revisions"],
                 response_sha256=sha256(";".join(f"{item['year']}:{item['sha256']}" for item in manifest).encode()).hexdigest(),
                 component_statuses=(sector_specific_financial_audit.get("component_statuses", {})
-                    if sector_specific_financials["schema"] in {"financial_holding_public_annual.v1", AUDITED_HOLDING_SCHEMA} else {f"filing_{item['year']}": {
+                    if sector_specific_financials["schema"] in {"financial_holding_public_annual.v1", AUDITED_HOLDING_SCHEMA, 'mixed_income_consolidated_annual.v1'} else {f"filing_{item['year']}": {
                     "status": "complete", "as_of": f"{item['year']}-12-31",
                     "provider": FINANCIAL_INSTITUTION_XBRL_PROVIDER,
                     "response_sha256": item["sha256"],
                 } for item in manifest}),
-                message=("五年保險業個別年報已取得，逐年無子公司註記已核對；營業收入、本期損益及現金流保留個別範圍。"
+                message=(MIXED_NOTE if mixed_income else "五年保險業個別年報已取得，逐年無子公司註記已核對；營業收入、本期損益及現金流保留個別範圍。"
                          if insurer_standalone else
                          "五年保險業個體年報專用科目已取得；保險業營業收入、營業淨利及本期損益保留原科目，不補入一般產業欄位。"
                          if insurer_individual else
@@ -289,7 +296,7 @@ def _extract_financial_histories_uncached(stock, ticker: str, data_source_notes:
                          "五年金融業專用科目已取得；未補入一般產業的營收、毛利或營業利益欄位。"),
             )
             data_source_notes.append(
-                "五年保險業個別年報已取得官方 XBRL 專用科目；各年原件明示無子公司，保留個別範圍及原科目。"
+                MIXED_NOTE if mixed_income else "五年保險業個別年報已取得官方 XBRL 專用科目；各年原件明示無子公司，保留個別範圍及原科目。"
                 if insurer_standalone else
                 "五年保險業個體年報已取得官方 XBRL 專用科目；其數值不代表合併集團，且未代填一般產業欄位。"
                 if insurer_individual else
@@ -303,7 +310,7 @@ def _extract_financial_histories_uncached(stock, ticker: str, data_source_notes:
             if statement_projection is not None:
                 sector_specific_financial_audit.update(
                     history_projection_schema="financial_history_basis.v1",
-                    message=("五年保險業個別年報已按原申報科目對齊年度序列；逐年無子公司依據已核對，毛利及一般業營業利益維持未提供。"
+                    message=(MIXED_NOTE if mixed_income else "五年保險業個別年報已按原申報科目對齊年度序列；逐年無子公司依據已核對，毛利及一般業營業利益維持未提供。"
                              if insurer_standalone else
                              "五年證券商合併年報已按原申報科目對齊年度序列；保留來源、合併範圍及科目標籤，毛利及營業利益維持未提供。"
                              if broker_statement else
@@ -311,7 +318,7 @@ def _extract_financial_histories_uncached(stock, ticker: str, data_source_notes:
                              if bank_fcf_unknown else
                              "五年金融業合併年報已按原申報科目對齊年度序列；淨收益為獨立欄位，一般產業營收、毛利及營業利益維持未提供。"))
                 data_source_notes.append(
-                    "年度序列採保險業官方個別年報明列營業收入、本期損益、資產、權益及現金流；沒有子公司，不另讀通用年度 SDK／FinMind 備援。"
+                    MIXED_NOTE if mixed_income else "年度序列採保險業官方個別年報明列營業收入、本期損益、資產、權益及現金流；沒有子公司，不另讀通用年度 SDK／FinMind 備援。"
                     if insurer_standalone else
                     "年度序列採證券商官方合併年報明列營業收入、母公司淨利、資產、母公司權益及現金流；未另讀通用年度 SDK／FinMind 備援。"
                     if broker_statement else
