@@ -1,0 +1,206 @@
+{
+  "source": "financial_statements",
+  "provider": "TWSE MOPS mixed-income annual JSON",
+  "status": "success",
+  "record_count": 5,
+  "ticker": "2905.TW",
+  "cache_hit": false,
+  "stale": false,
+  "http_request_count": 19,
+  "http_request_sent": true,
+  "event_kind": "aggregate",
+  "component_statuses": {
+    "0": {
+      "url": "https://mopsov.twse.com.tw/mops/web/ajax_t203sb01",
+      "http_request_sent": true,
+      "response_complete": true,
+      "request_method": "POST",
+      "http_status": 200,
+      "response_sha256": "0b026d0aa388c74cb731e7b8382555502666815f420b5efc240a3065c3162bdf",
+      "response_bytes": 35952,
+      "status": "complete"
+    },
+    "1": {
+      "url": "https://mops.twse.com.tw/mops/assets/t164sb03.js",
+      "http_request_sent": true,
+      "response_complete": true,
+      "request_method": "GET",
+      "http_status": 200,
+      "response_sha256": "6d1695de0f0234163792333a4cf07ef9316f01687ef1a0928fa6ddc9feecc7ba",
+      "response_bytes": 6549,
+      "status": "complete"
+    },
+    "2": {
+      "url": "https://mops.twse.com.tw/mops/assets/t164sb04.js",
+      "http_request_sent": true,
+      "response_complete": true,
+      "request_method": "GET",
+      "http_status": 200,
+      "response_sha256": "fbfd5754dd2ce843cadd7a800e188fc84acda6ee61bfb64d5afd3a1ac9cfee23",
+      "response_bytes": 6507,
+      "status": "complete"
+    },
+    "3": {
+      "url": "https://mops.twse.com.tw/mops/assets/t164sb05.js",
+      "http_request_sent": true,
+      "response_complete": true,
+      "request_method": "GET",
+      "http_status": 200,
+      "response_sha256": "4f2491487da3489f8cb5cb9acd95dd6ee73981ebbbb0c45e8df4c5e2bfc0b413",
+      "response_bytes": 6480,
+      "status": "complete"
+    },
+    "4": {
+      "url": "https://mops.twse.com.tw/mops/api/t164sb03",
+      "http_request_sent": true,
+      "response_complete": true,
+      "request_method": "POST",
+      "http_status": 200,
+      "response_sha256": "cd38c8b9dc4881760f067d8244fc5311079bec376e20a3273834b9b70f38215e",
+      "response_bytes": 7211,
+      "status": "complete"
+    },
+    "5": {
+      "url": "https://mops.twse.com.tw/mops/api/t164sb04",
+      "http_request_sent": true,
+      "response_complete": true,
+      "request_method": "POST",
+      "http_status": 200,
+      "response_sha256": "3869efe7f531f2d24af534124b2d535d2a78ef2f2a75624a13ebdf1378a66df0",
+      "response_bytes": 5544,
+      "status": "complete"
+    },
+    "6": {
+      "url": "https://mops.twse.com.tw/mops/api/t164sb05",
+      "http_request_sent": true,
+      "response_complete": true,
+      "request_method": "POST",
+      "http_status": 200,
+      "response_sha256": "3fa45133a3590311b3a8097b1e2f7072f8ca1f8451f5021113d16d7a486ff27f",
+      "response_bytes": 6692,
+      "status": "complete"
+    },
+    "7": {
+      "url": "https://mops.twse.com.tw/mops/api/t164sb03",
+      "http_request_sent": true,
+      "response_complete": true,
+      "request_method": "POST",
+      "http_status": 200,
+      "response_sha256": "fc470ddec87f3387f9d643ba124e5d5f42a9881a438dbe667ef84bbd9a12315b",
+      "response_bytes": 7433,
+      "status": "complete"
+    },
+    "8": {
+      "url": "https://mops.twse.com.tw/mops/api/t164sb04",
+      "http_request_sent": true,
+      "response_complete": true,
+      "request_method": "POST",
+      "http_status": 200,
+      "response_sha256": "3c491a95ec2fd17dbd2ed218ea3f2db7edfd20abaf9358f17888e13abfedd1f7",
+      "response_bytes": 5856,
+      "status": "complete"
+    },
+    "9": {
+      "url": "https://mops.twse.com.tw/mops/api/t164sb05",
+      "http_request_sent": true,
+      "response_complete": true,
+      "request_method": "POST",
+      "http_status": 200,
+      "response_sha256": "89d67df71993895667883009e5d78db6e0977d1ae97a51e7df691754e018ed74",
+      "response_bytes": 7034,
+      "status": "complete"
+    },
+    "10": {
+      "url": "https://mops.twse.com.tw/mops/api/t164sb03",
+      "http_request_sent": true,
+      "response_complete": true,
+      "request_method": "POST",
+      "http_status": 200,
+      "response_sha256": "089b04099f001192e40e09b1ad9bfd045b019099a010df79dc4b454cb1d24f2e",
+      "response_bytes": 7613,
+      "status": "complete"
+    },
+    "11": {
+      "url": "https://mops.twse.com.tw/mops/api/t164sb04",
+      "http_request_sent": true,
+      "response_complete": true,
+      "request_method": "POST",
+      "http_status": 200,
+      "response_sha256": "407d7fbb92a5b2c8d956855e8c2e46d8d7c280d57be0c7e981c1234be1af27a4",
+      "response_bytes": 5785,
+      "status": "complete"
+    },
+    "12": {
+      "url": "https://mops.twse.com.tw/mops/api/t164sb05",
+      "http_request_sent": true,
+      "response_complete": true,
+      "request_method": "POST",
+      "http_status": 200,
+      "response_sha256": "48aaf536cb192045bddab42f106c5ffa13c665d557797962dbf8e6ee222e4c96",
+      "response_bytes": 7018,
+      "status": "complete"
+    },
+    "13": {
+      "url": "https://mops.twse.com.tw/mops/api/t164sb03",
+      "http_request_sent": true,
+      "response_complete": true,
+      "request_method": "POST",
+      "http_status": 200,
+      "response_sha256": "771ef8531eb94b505cac2f2f8181a9b48930fb19c2122d0ba4323c6ad634a085",
+      "response_bytes": 7689,
+      "status": "complete"
+    },
+    "14": {
+      "url": "https://mops.twse.com.tw/mops/api/t164sb04",
+      "http_request_sent": true,
+      "response_complete": true,
+      "request_method": "POST",
+      "http_status": 200,
+      "response_sha256": "db71f2d6b66b53db66c4455481f88a944294f870cbb7c7f332bfbc6e08d85dee",
+      "response_bytes": 6091,
+      "status": "complete"
+    },
+    "15": {
+      "url": "https://mops.twse.com.tw/mops/api/t164sb05",
+      "http_request_sent": true,
+      "response_complete": true,
+      "request_method": "POST",
+      "http_status": 200,
+      "response_sha256": "8b7829175a133c31ba3306a86014d5a831ae9415ce9d2a954295a5e2dd2e2406",
+      "response_bytes": 7236,
+      "status": "complete"
+    },
+    "16": {
+      "url": "https://mops.twse.com.tw/mops/api/t164sb03",
+      "http_request_sent": true,
+      "response_complete": true,
+      "request_method": "POST",
+      "http_status": 200,
+      "response_sha256": "ef3a0260710bd192373c482a5f14f8a2b06fd3368b7f72458389c7f6d15d4292",
+      "response_bytes": 7651,
+      "status": "complete"
+    },
+    "17": {
+      "url": "https://mops.twse.com.tw/mops/api/t164sb04",
+      "http_request_sent": true,
+      "response_complete": true,
+      "request_method": "POST",
+      "http_status": 200,
+      "response_sha256": "6e94727da77e26756b3445c8f36e2ed40a2e1edc994e01e2fd354bf852512bed",
+      "response_bytes": 6165,
+      "status": "complete"
+    },
+    "18": {
+      "url": "https://mops.twse.com.tw/mops/api/t164sb05",
+      "http_request_sent": true,
+      "response_complete": true,
+      "request_method": "POST",
+      "http_status": 200,
+      "response_sha256": "024e9ccf1a045d00bb4e379cb3ae829780423eaaaaecfbb3e138fd31e737f1b6",
+      "response_bytes": 7339,
+      "status": "complete"
+    }
+  },
+  "fetch_id": "offline-captured-native-492141",
+  "operation_id": "offline-component-evidence-replay"
+}

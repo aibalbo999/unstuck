@@ -11,11 +11,52 @@ from provider_correlation import correlation_metadata
 _TEXT = {'outcome', 'error_kind', 'acquisition_count_policy', 'parser_version', 'response_sha256', 'actual_provider',
          'coverage_status', 'quality_status', 'retrieval_status', 'qualified_result_status', 'selection_policy', 'selection_cutoff', 'fallback_reason', 'market', 'instrument_type', 'rate_kind'}
 _BOOL = {'http_request_sent', 'cache_hit', 'stale', 'mapping_verified', 'progress_resume_possible',
-         'body_cache_hit', 'result_quality_satisfied'}
+         'body_cache_hit', 'result_quality_satisfied', 'response_complete', 'http_status_observed'}
 _NUMBER = {'acquisition_record_count', 'http_status', 'retry_at', 'fetched_at_epoch', 'response_bytes', 'raw_count', 'usable_count', 'rejected_count',
            'http_request_count', 'progress_missing_count', 'progress_fresh_until_epoch',
            'progress_remaining_seconds', 'detail_cache_hit_count', 'detail_new_body_count', 'body_fetched_at_epoch',
            'result_publisher_count'}
+
+_COMPONENT_FIELDS = {'status', 'as_of', 'provider', 'reason_code', 'series_id', 'error_kind',
+    'fetched_at_epoch', 'stale', 'cache_hit', 'retry_after_epoch', 'observation_status',
+    'observation_age_days', 'date_status', 'retrieval_status', 'page_kind', 'parser_version',
+    'primary_provider', 'primary_status', 'fallback_status'}
+
+
+def _component_details(item):
+    """Keep actual typed transport observations; never infer them from a 200.
+
+    Only the URL digest is retained. Queries, credentials, headers, bodies and
+    original paths cannot enter canonical event details through this adapter.
+    This metadata does not establish issuer/period/parser/content acceptance.
+    """
+    if isinstance(item,str):return item[:80]
+    if not isinstance(item,dict):return {}
+    row={}
+    for key in _COMPONENT_FIELDS:
+        value=item.get(key)
+        if not isinstance(value,(str,bool,int,float)):continue
+        try:
+            if isinstance(value,(int,float))and not math.isfinite(value):continue
+        except OverflowError:continue
+        row[key]=value[:160]if isinstance(value,str)else value
+    for key in ('http_request_sent','response_complete','http_status_observed'):
+        if type(item.get(key))is bool:row[key]=item[key]
+    for key,lower,upper in (('http_status',100,599),('response_bytes',0,100_000_000)):
+        value=item.get(key)
+        if type(value)is int and lower<=value<=upper:row[key]=value
+    digest=item.get('response_sha256')
+    if isinstance(digest,str)and re.fullmatch(r'[0-9a-f]{64}',digest):row['response_sha256']=digest
+    method=item.get('request_method')
+    if isinstance(method,str)and method in {'GET','POST','HEAD'}:row['request_method']=method
+    url=item.get('url')
+    if isinstance(url,str)and len(url)<=4096 and not any(ord(c)<32 for c in url):
+        try:
+            parsed=urlsplit(url)
+            if parsed.scheme=='https'and parsed.hostname and parsed.username is None and parsed.password is None:
+                row['request_url_sha256']=sha256(url.encode('utf8','strict')).hexdigest()
+        except (ValueError,UnicodeError):pass
+    return row
 
 
 _VERIFICATION = {
@@ -320,15 +361,11 @@ def observation_details(entry: dict) -> dict:
         value = entry.get(key)
         if isinstance(value, dict):
             result[key] = {
-                str(name)[:80]: ({str(k): v[:160] if isinstance(v, str) else v for k, v in item.items()
-                                 if k in {'status', 'as_of', 'provider', 'reason_code', 'series_id', 'error_kind',
-                                          'fetched_at_epoch', 'stale', 'cache_hit', 'retry_after_epoch',
-                                          'observation_status', 'observation_age_days', 'date_status', 'retrieval_status', 'page_kind',
-                                          'http_status', 'response_sha256', 'response_bytes', 'parser_version',
-                                          'primary_provider', 'primary_status', 'fallback_status'}
-                                 and isinstance(v, (str, bool, int, float))
-                                 and (not isinstance(v, (int, float)) or math.isfinite(v))}
-                                if isinstance(item, dict) else item[:80])
+                str(name)[:80]: _component_details(item)
                 for name, item in list(value.items())[:20] if isinstance(item, (dict, str))
             }
+        elif key=='component_statuses'and isinstance(value,list):
+            # Keep positions, including unknown entries, aligned with original
+            # receipt roles while retaining the existing twenty-component cap.
+            result[key]=[_component_details(item)for item in value[:20]]
     return result
