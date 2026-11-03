@@ -68,18 +68,23 @@ def snapshot(client,pause):
         kind,ttl,value=values[3+3*i:6+3*i]
         if kind.decode()!=_kind(key)or ttl< -1:raise PauseError('RQ type changed during snapshot')
         out[key.decode()]={'type':kind.decode(),'pttl':ttl,'value':_encoded(kind.decode(),value)}
-    return {'schema':1,'server_time':stamp,'keys':out}
+    from deployment_terminal_expiry import capture_application_states
+    return {'schema':1,'server_time':stamp,'keys':out,'application_states':capture_application_states()}
 
 
 def compare(before,after):
     """Only normal due scheduled->queued promotion may alter pending jobs.
 
-    Exact payload/meta/retries/results retained. No execution, new or lost jobs,
-    queue reordering, time edits or arbitrary Redis differences are accepted.
+    Exact payload/meta/retries/results retained. Successful terminal caches may
+    expire only with complete original bytes, native TIME/PTTL/end/retention,
+    finished registry and unchanged canonical SQL done witnesses. Pending work
+    never qualifies; new jobs, execution or arbitrary differences still fail.
     """
     if before.get('schema')!=1 or after.get('schema')!=1:raise PauseError('Snapshot schema mismatch')
     elapsed=after['server_time']-before['server_time']
     if not 0<=elapsed<=86400:raise PauseError('Invalid snapshot time range')
+    from deployment_terminal_expiry import scoped_comparison
+    before,after,expired=scoped_comparison(before,after)
     b,a=before['keys'],after['keys'];promoted={};queue_additions={};checks=[]
     def value(rows,key,kind):
         if key not in rows:return {}if kind=='hash'else []
@@ -141,7 +146,8 @@ def compare(before,after):
             if new!=-1:raise PauseError('Persistent work received an expiry')
         elif not 0<=new<=old or abs((old-new)-elapsed*1000)>3000:raise PauseError('Durable TTL changed beyond natural passage')
     return {'passed':True,'promoted_job_ids':[bytes.fromhex(k).decode()for k in promoted],
-            'exact_job_count':len(job_keys),'payloads_retries_results_preserved':True}
+            'exact_job_count':len(job_keys),'payloads_retries_results_preserved':True,
+            'expired_terminal_caches':expired}
 
 
 def deployment_pause_active(client):

@@ -33,6 +33,17 @@ def test_native_running_job_finishes_queued_retry_survives_restart_and_resumes_o
     try:
         wait_for(lambda:Path(path).exists())
         assert client.ping()
+        # A deployment snapshot now binds terminal result caches to canonical
+        # SQL state. Initialize the runner's private application DB as startup
+        # does; this never creates or connects to the formal project database.
+        import sqlite3
+        from runtime_paths import current_runtime_paths
+        from job_store_schema import init_job_store_schema
+        database=current_runtime_paths().operational_db
+        assert database.is_relative_to(root)
+        with sqlite3.connect(database)as db:
+            db.row_factory=sqlite3.Row
+            init_job_store_schema(db)
         q=Queue('deployment-fixture',connection=client)
         q.enqueue(time.sleep,2.,job_id='deployment-first',result_ttl=600)
         q.enqueue_at(datetime.now(timezone.utc)+timedelta(seconds=5),time.sleep,.01,job_id='deployment-second',result_ttl=600)
