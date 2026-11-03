@@ -21,6 +21,7 @@ from .official_xbrl_financial import (FIELDS,INDEX_URL,FilingError,PROVIDER as O
 
 PROVIDER='TWSE MOPS public annual JSON'
 SOURCE_URL='https://mops.twse.com.tw/mops/#/web/t164sb03'
+INDEX_PROTOCOL='mops-public-consolidated-index-bound.v1'
 STATEMENTS={'BalanceSheet':'t164sb03','IncomeStatement':'t164sb04','CashflowStatement':'t164sb05'}
 TEMPLATE_HASHES={'t164sb03':'6d1695de0f0234163792333a4cf07ef9316f01687ef1a0928fa6ddc9feecc7ba','t164sb04':'fbfd5754dd2ce843cadd7a800e188fc84acda6ee61bfb64d5afd3a1ac9cfee23','t164sb05':'4f2491487da3489f8cb5cb9acd95dd6ee73981ebbbb0c45e8df4c5e2bfc0b413'}
 MAX_BYTES=250000
@@ -239,6 +240,18 @@ def project_public_history(value,ticker):
         latest_close=datetime(int(years[-1])+1,1,1,tzinfo=ZoneInfo('Asia/Taipei')).timestamp()
         comparative_start=len(docs)==4
         filing_years=years[1:]if comparative_start else years
+        # New acquisitions retain the actual discovery receipt. Legacy saved
+        # facts remain replayable, without inventing missing index provenance.
+        if 'acquisition_protocol'in value or 'published_index_receipt'in value:
+            if value.get('acquisition_protocol')!=INDEX_PROTOCOL:return None
+            index=_receipt(value.get('published_index_receipt'),INDEX_URL,2_500_000,not_before=latest_close)
+            text=index.decode('utf8','strict')
+            starts=list(re.finditer(r'<html(?:\s[^<>]*)?>',text,re.I));ends=list(re.finditer(r'</html\s*>',text,re.I))
+            if len(starts)!=1 or len(ends)!=1 or starts[0].start()>=ends[0].start()or text[ends[0].end():].strip():return None
+            consolidated=_filing_urls(index,issuer);individual=_filing_urls(index,issuer,report_id='A')
+            if (sorted(consolidated)[-5:]!=[int(y)for y in filing_years]
+                    or max(individual,default=0)>max(consolidated,default=0)):return None
+            if comparative_start and (not isinstance(docs[0],dict)or docs[0].get('published_index_receipt')!=value['published_index_receipt']):return None
         if comparative_start:
             if int(years[0])<2013:return None
             first=docs[0]
@@ -432,7 +445,8 @@ def _fetch_public_annual_histories(ticker,http,*,index_original=None):
         docs[0]['published_index_receipt']=index_receipt
     resolved,revisions=reconcile_comparative_rows(primary,comparatives)
     inferred_zero_facts=sorted(inferred_zero_facts,key=lambda item:(item['period_year'],item['fact'],item['filing_year']))
-    value={**assemble_annual_histories(resolved,expected_years=years),'ticker':ticker,'currency':'TWD','schema':'ordinary_consolidated_annual_history.v1','report_scope':'consolidated','source_url':SOURCE_URL,'documents':docs,'comparative_revisions':revisions,'comparative_coverage':_comparative_coverage(primary,comparatives,inferred_zero_facts),'inferred_zero_facts':inferred_zero_facts}
+    value={**assemble_annual_histories(resolved,expected_years=years),'ticker':ticker,'currency':'TWD','schema':'ordinary_consolidated_annual_history.v1','report_scope':'consolidated','source_url':SOURCE_URL,'documents':docs,'comparative_revisions':revisions,'comparative_coverage':_comparative_coverage(primary,comparatives,inferred_zero_facts),'inferred_zero_facts':inferred_zero_facts,
+           'acquisition_protocol':INDEX_PROTOCOL,'published_index_receipt':deepcopy(index_receipt)}
     if project_public_history(value,ticker)is None:raise FilingError('public MOPS original history projection invalid')
     if time.monotonic()>=http.deadline:raise SourceResponseError('timeout')
     return value

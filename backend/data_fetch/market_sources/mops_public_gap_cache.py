@@ -26,6 +26,10 @@ from .mops_public_annual import (
 
 SCHEMA = 'mops-public-annual-validation-gap.v1'
 GAP_RETRY_SECONDS = 24 * 60 * 60
+# This release adds successful-acquisition provenance, not different failed
+# annual facts. Replay the previous complete failure under the current parser
+# and retain its original epoch/TTL; never rewrite or renew that cache entry.
+COMPATIBLE_GAP_FINGERPRINTS = ('10b71fc346a7584aadba622b1d4ee6458017a8eee51ba6c8aef99bdd8be72750',)
 SHORT_INDEX_MESSAGE = 'fewer than five contiguous published consolidated annual filings'
 CORRELATION_KEYS = {'job_id', 'fetch_id', 'operation_id', 'attempt_id', 'provider_attempts',
                     'provider_attempt_count', 'provider_sla_event_id', 'ticker',
@@ -131,14 +135,24 @@ def _valid(stored, ticker, fingerprint):
 
 def fetch_cached_public_result(ticker, *, transport=None):
     started = time.monotonic(); key = None; stored = None; fingerprint = None
+    stored_fingerprint = None
     cache_read_failed = False
     if isinstance(ticker, str) and re.fullmatch(r'[1-9]\d{3}\.TW(?:O)?', ticker):
         try:
             fingerprint = _fingerprint()
+            stored_fingerprint = fingerprint
             key = f'mops-public-annual-validation-gap:{fingerprint}:{datetime.now(ZoneInfo("Asia/Taipei")).year}:{ticker}'
             stored = get_cache_json(key)
+            if stored is None:
+                for previous in COMPATIBLE_GAP_FINGERPRINTS:
+                    if previous == fingerprint:continue
+                    old_key = f'mops-public-annual-validation-gap:{previous}:{datetime.now(ZoneInfo("Asia/Taipei")).year}:{ticker}'
+                    old = get_cache_json(old_key)
+                    if _valid(old,ticker,previous):
+                        stored,stored_fingerprint = old,previous
+                        break
         except Exception: cache_read_failed = True
-    if key and _valid(stored, ticker, fingerprint):
+    if key and _valid(stored, ticker, stored_fingerprint):
         with source_operation('financial_statements', PROVIDER):
             old_keys = CORRELATION_KEYS | set(correlation_metadata(stored['audit']))
             a = {k: deepcopy(v) for k, v in stored['audit'].items() if k not in old_keys}

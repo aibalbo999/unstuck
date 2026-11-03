@@ -1,5 +1,9 @@
 # 系統架構關聯圖
 
+一般合併年度 JSON 新取得結果採 `mops-public-consolidated-index-bound.v1`，在三表／單位原件之外保留當次完整發布索引。准入時重播索引，核對最新 C 年度、四份年報的明示比較期及是否已有更新 A 範圍；索引截斷、錯公司、期間或 receipt 矛盾均拒收。`yfinance_extractors` 的正常快照／年度快取投影也保留索引憑據與原 19 個 HTTP 明細，不再換成無傳輸細節的年度摘要。舊原件保留原有逐年事實資格，不補造缺少的索引或新 HTTP 成功。
+
+`mops_public_gap_cache` 對前一個已核對 parser fingerprint 的完整失敗憑據，仍須在目前 parser 下重播出相同缺口，才沿用原 fetched_at／retry_at；不搬寫、不續期或清除舊項目。過期、損壞及新 parser 已不再判定失敗的舊憑據不能抑制正常抓取。每次5秒／整批45秒、原尺寸與品質門檻保持。
+
 台灣高鐵 2633 年度來源由 `ordinary_individual_annual` 路由到 `individual_public_annual`：先核完整發布索引的最新五年個別序列，再取得 MOPS `t164sb03/04/05` JSON 三表與三份前端單位／年號契約。每份原件重播公司代碼、精確簡稱、A 範圍、年度、比較欄及 TWD 千元換算，投影保留實際列名，不冒稱已下載 iXBRL taxonomy；本期損益／權益及 FCF 仍為個別，集團 DCF 與未核實 TTM 混算限制保持。每次5秒、整批45秒及原尺寸／冷卻／TTL不變；未完成回應保留狀態與已收 bytes，不能升級成功。
 
 `annual_filing_index_gap` 可資格化同時含 A／C 的完整官方索引，但各範圍分開；不足五年的 C 序列仍是失敗，A 年度另列，不拼成五年。冷、暖缺口快取沿用既有期限及失敗分母，暖快取不產生新 HTTP 或成功樣本。研究回放、正式載入與正常來源取得分開驗證。

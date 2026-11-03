@@ -15,6 +15,9 @@ def restore_fixture_provider_guard():
     # The individual-report adapter subclasses this transport at import time;
     # load it before tests replace the public factory with a fixture callable.
     import data_fetch.market_sources.ordinary_individual_annual
+    import data_fetch.market_sources.syntec_annual_transport
+    import data_fetch.market_sources.cal_annual_transport
+    import data_fetch.market_sources.annual_filing_reference
     from provider_resilience import clear_provider_circuits
     from provider_throttle import clear_provider_throttles
     clear_provider_circuits(PUBLIC);clear_provider_throttles(PUBLIC)
@@ -50,7 +53,7 @@ def fixture_http(*,mutate=None,calls=None):
             if changed is not None:return changed
         if str(request.url).endswith('ajax_t203sb01'):
             raw=' '.join('/server-java/FileDownLoad?functionName=t164sb01&step=9&co_id=3443&year='+str(y)+'&season=4&report_id=C'for y in range(2021,2026)).encode()
-            return httpx.Response(200,content=raw,headers={'Content-Type':'text/html'})
+            return httpx.Response(200,content=b'<html>'+raw+b'</html>',headers={'Content-Type':'text/html'})
         for v in FIXTURE['templates']:
             if str(request.url)==v['url']:return httpx.Response(200,content=base64.b64decode(v['body_b64']),headers={'Content-Type':'text/javascript'})
         payload=json.loads(request.content)
@@ -334,6 +337,10 @@ def test_normal_uncached_annual_flow_uses_public_source_before_SDK_and_names_uni
     assert result['official_financial_audit']['provider']==PUBLIC and result['official_financial_audit']['record_count']==5
     assert result['fcf_history'][-1]==-2.313966 and result['primary_financial_audit']is None
     assert any('JSON'in n and '新台幣仟元'in n for n in notes)
+    audit=result['official_financial_audit']
+    assert audit.get('acquisition_protocol')=='mops-public-consolidated-index-bound.v1'
+    assert audit['published_index_receipt']['source_url']==public.INDEX_URL
+    assert len(audit['component_statuses'])==19 and audit['component_statuses']['0']['url']==public.INDEX_URL
 
 @pytest.mark.parametrize('shape',[None,False,'not-a-part'])
 def test_malformed_component_receipt_fails_closed(shape):

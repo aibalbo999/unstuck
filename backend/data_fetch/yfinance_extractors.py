@@ -350,7 +350,7 @@ def _extract_financial_histories_uncached(stock, ticker: str, data_source_notes:
                 recovered_documents=official.get("recovered_documents", []),
                 response_sha256=sha256(";".join(f"{item['year']}:{item['sha256']}" for item in manifest).encode()).hexdigest(),
                 component_statuses=(official_financial_audit.get('component_statuses', {})
-                    if (official_financial_audit.get('provider') in (BRIDGE_PROVIDER,CAL_PROVIDER,INDIVIDUAL_PROVIDER)
+                    if (official_financial_audit.get('provider') in (BRIDGE_PROVIDER,CAL_PROVIDER,INDIVIDUAL_PROVIDER,'TWSE MOPS public annual JSON')
                         or str(official_financial_audit.get('source_mix') or '').startswith('official_xbrl_after_public_json_transport_failure')) else {f"filing_{item['year']}": {
                     "status": "complete", "as_of": f"{item['year']}-12-31",
                     "provider": item.get("provider", OFFICIAL_XBRL_PROVIDER),
@@ -381,6 +381,9 @@ def _extract_financial_histories_uncached(stock, ticker: str, data_source_notes:
             elif official_financial_audit.get('provider') == 'TWSE MOPS public annual JSON':
                 official_financial_audit['source_mix'] = 'public_json_with_verified_available_comparatives'
                 official_financial_audit['comparative_coverage'] = deepcopy(official['comparative_coverage'])
+                if 'acquisition_protocol'in official:
+                    official_financial_audit['acquisition_protocol']=official['acquisition_protocol']
+                    official_financial_audit['published_index_receipt']=deepcopy(official['published_index_receipt'])
                 data_source_notes.append("五年合併年報採公開資訊觀測站公開 JSON 三表；金額單位依各表官方顯示模板的『新台幣仟元』契約核對，並保留完整原件。必要科目只採明示值，原年度缺列僅由較新明示比較值補齊；無衝突的不完整比較期保留已明示原年度值，另列比較期覆蓋。自由現金流只由同年明列營業現金流、設備及無形資產支出計算。")
                 from .market_sources.mops_public_annual import first_comparative_origin_note
                 origin_note=first_comparative_origin_note(official)
