@@ -35,7 +35,7 @@ def native_response(url, response):
 
 def _complete_body(response, body):
     """httpx exposes decoded bytes; never label these as wire bytes."""
-    if (response.status_code != 200 or not response.is_stream_consumed
+    if (response.status_code == 206 or not response.is_stream_consumed
             or not response.is_closed or response.headers.get("content-range")):
         return False
     if response.headers.get("content-encoding", "identity").lower() in {"", "identity"}:
@@ -95,7 +95,7 @@ def observe_response(url, response, *, max_bytes):
                 or not isinstance(body, bytes) or not 0 < len(body) <= max_bytes):
             return
         complete = _complete_body(response, body)
-        original = _archive_original(url, response, body, max_bytes) if complete else None
+        original = _archive_original(url, response, body, max_bytes) if complete and status == 200 else None
         entry = {**context, 'source': source,
             'provider': provider + ' native HTTP', 'event_kind': 'http_transport_receipt',
             'selection_policy': 'transport-receipt-only:v1', 'record_count': 0,

@@ -29,7 +29,8 @@ class TaiwanOpenDataProvider(DataProvider):
 
     def fetch(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
         from provider_correlation import source_operation
-        with source_operation(self.source, self.name):
+        from fx_transport_receipts import receipt_observation_scope
+        with source_operation(self.source, self.name), receipt_observation_scope(request.options.record_provider_sla):
             return self._fetch(request, context)
 
     def _fetch(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
