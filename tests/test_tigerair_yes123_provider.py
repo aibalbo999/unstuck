@@ -14,7 +14,8 @@ def setup(monkeypatch):
     return e,now,owners,issuer,data,jobs
 
 
-def test_normal_job_provider_and_source_only_guard_replay_all_originals(monkeypatch):
+@pytest.mark.parametrize('saved_label',[False,True])
+def test_normal_job_provider_and_source_only_guard_replay_all_originals(saved_label,monkeypatch):
     from data_fetch import tigerair_yes123_provider as p
     from data_fetch.market_sources import official_company_legal_name as master
     from data_fetch.market_sources.tigerair_yes123_transport import TigerairCareersHttp
@@ -24,6 +25,10 @@ def test_normal_job_provider_and_source_only_guard_replay_all_originals(monkeypa
     from alternative_source_refresh import guard_alternative_result
     import shared_provider_cache
     e,now,owners,issuer,data,jobs=setup(monkeypatch);calls=[]
+    if saved_label:
+        data['company_identity']['official_name']='台灣虎航-創'
+        data['company_identity']['english_names']=['Tigerair Taiwan Co., Ltd.']
+        data['company_name']='台灣虎航-創 / Tigerair Taiwan Co., Ltd.'
     monkeypatch.setattr(master,'get_official_legal_name',lambda *a:issuer)
     receipts=jobs['source_record_archive']['receipts'];byurl={r['url']:r for r in receipts}
     def read(self,url):
@@ -171,8 +176,8 @@ def test_native_complete_corpus_replays_normal_protocol_and_preserves_analysis(m
         requested.append(url);self.components.append({'cache_hit':True,'http_request_sent':False})
         return deepcopy(receipts[url])
     monkeypatch.setattr(TigerairCareersHttp,'read',read)
-    data={'ticker':e.TICKER,'quote_type':'EQUITY','company_name':e.SHORT,
-        'company_identity':{'ticker':e.TICKER,'instrument_type':'EQUITY','official_name':e.SHORT},
+    data={'ticker':e.TICKER,'quote_type':'EQUITY','company_name':'台灣虎航-創',
+        'company_identity':{'ticker':e.TICKER,'instrument_type':'EQUITY','official_name':'台灣虎航-創'},
         'current_price':77,'analysis_completeness':{'original':True},'alternative_data':{'status':'unavailable'}}
     original=deepcopy(data)
     result=_acquire(FetchRequest.from_ticker(e.TICKER),data)

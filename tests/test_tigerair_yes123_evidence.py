@@ -81,6 +81,24 @@ def test_receipt_expiry_is_not_extended_by_owner_cache_rounding(monkeypatch):
     assert e.verified_job_count(value,data,issuer,now=stamp+e.TTL)==0
 
 
+def test_saved_innovation_board_label_requires_same_current_full_issuer_original(monkeypatch):
+    e,now,owners,issuer,data,value=bound(monkeypatch)
+    data['company_identity']['official_name']='台灣虎航-創'
+    data['company_name']='台灣虎航-創'
+    original=deepcopy(data)
+    assert e.verified_job_count(value,data,issuer,now=now)==1
+    assert data==original
+    issuer['official_ubn']='12345678'
+    assert e.verified_job_count(value,data,issuer,now=now)==0
+
+
+@pytest.mark.parametrize('name',['台灣虎航*-創','台灣虎航-KY','虎航-創','台灣虎航-創子公司'])
+def test_no_generic_board_suffix_or_name_normalization(name,monkeypatch):
+    e,now,owners,issuer,data,value=bound(monkeypatch)
+    data['company_identity']['official_name']=name;data['company_name']=name
+    assert e.verified_job_count(value,data,issuer,now=now)==0
+
+
 @pytest.mark.parametrize('damage',['response_complete','ssl_verify_result','proxy_used','num_redirects','return_code','http_status','response_bytes'])
 def test_partial_or_non_native_transport_cannot_create_a_receipt(damage):
     from data_fetch.market_sources import tigerair_yes123_evidence as e

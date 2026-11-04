@@ -14,6 +14,11 @@ from .tigerair_yes123 import (TICKER, SHORT, LEGAL, UBN, PROVIDER, PAGE, ARTICLE
 
 RAW_PREFIX = 'tigerair-yes123-raw:v1:'
 SCHEMA = 'tigerair-yes123-http.v1'
+# TWSE's historical listing table names 6757 as 台灣虎航-創 (112.08.15).
+# https://www.twse.com.tw/rwd/zh/company/newlisting?response=html
+# Only this exact saved label is compatible; every accepted source still
+# replays the current full roster with SHORT, LEGAL, UBN and registered site.
+SAVED_SHORT = '台灣虎航-創'
 ARCHIVE_FIELDS = {'status', 'source_url', 'retrieved_at', 'http_status',
     'raw_response_sha256', 'raw_response_path', 'raw_response_bytes', 'evidence_kind',
     'historical_point_in_time_verified', 'finality_guaranteed'}
@@ -104,7 +109,7 @@ def valid_context(data):
     if not isinstance(data, dict) or data.get('ticker') != TICKER or data.get('quote_type') != 'EQUITY':
         return False
     i = data.get('company_identity')
-    if (not isinstance(i, dict) or i.get('ticker') != TICKER or i.get('official_name') != SHORT
+    if (not isinstance(i, dict) or i.get('ticker') != TICKER or i.get('official_name') not in (SHORT, SAVED_SHORT)
             or i.get('instrument_type') != 'EQUITY'
             or any(data.get(k) not in (None, '', 'EQUITY') for k in ('instrument_type', 'quoteType'))
             or any(v not in (None, '', '6757') for v in (data.get('stock_id'), i.get('stock_id')))
@@ -114,7 +119,7 @@ def valid_context(data):
     name = data.get('company_name')
     return (isinstance(english, list) and all(isinstance(v, str) for v in english)
             and isinstance(name, str) and bool(name.strip())
-            and all(p.strip() and p.strip() in {SHORT, LEGAL, *english} for p in name.split(' / ')))
+            and all(p.strip() and p.strip() in {SHORT, SAVED_SHORT, LEGAL, *english} for p in name.split(' / ')))
 
 
 def verified_issuer(evidence, *, now=None):
