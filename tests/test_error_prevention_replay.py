@@ -62,13 +62,13 @@ def test_report_unknown_original_input_binding_is_not_a_fixed_case():
     assert m.replay_case(case)['classification']=='evidence_missing'
 
 
-def test_registered_full_corpus_when_explicitly_provided():
+def test_registered_full_corpus_when_explicitly_provided(tmp_path):
     import os
     location=os.environ.get('STOCK_ERROR_PREVENTION_CORPUS')
     if not location:pytest.skip('Full retained corpus is private; set STOCK_ERROR_PREVENTION_CORPUS for offline replay')
     m=module();root=Path(location)
     result=m.replay_manifest(root/'manifest.json')
-    m.write_json(root/'current-replay.json',result)
+    m.write_new_result(tmp_path/'current-replay.json',result)
     registry=json.loads((Path(__file__).parent/'fixtures/error_prevention_manifest_20260922.json').read_text())
     assert {r['identity'] for r in result['results']}=={r['identity'] for r in registry['cases']}
     assert all(r['classification'] in {'evidence_missing','fixed_in_scoped_replay','still_reproduced','true_error_still_blocked'} for r in result['results'])
