@@ -177,6 +177,27 @@ def select_peer_valuation_observation(rows: list[dict], ticker: str, *, today: d
                              "pb": "exchange_reported_price_to_book"}}
 
 
+def _attach_reference_income(result, official, ticker, today):
+    """Recover an undefined-field reason only after the existing numeric paths."""
+    from .peer_reference_income import TICKER, SHORT
+    if (ticker != TICKER or result.get('metrics', {}).get('pe_ttm') is not None
+            or official.get('official_company_name') != SHORT):
+        return result
+    from .peer_reference_evidence import collect_reference_income
+    from .peer_reference_transport import PROVIDER
+    try:
+        reason = collect_reference_income(ticker, official.get('observed_at'), today=today)
+    except Exception:
+        # Typed native failures are preserved by the passive transport child.
+        # Do not turn a denied/incomplete source into an applicability claim.
+        attempt = {'provider': PROVIDER, 'status': 'unavailable'}
+    else:
+        result = {**result, 'pe_applicability_evidence': reason}
+        attempt = {'provider': PROVIDER, 'status': 'success', 'observed_at': reason['observed_at']}
+    result['attempts'] = [*(result.get('attempts') or []), attempt]
+    return result
+
+
 def fetch_peer_valuation_fallback(ticker: str, *, today: date | None = None) -> dict:
     from cache_store import get_cache_json, set_cache_json
     from .official_peer_valuation import fetch_official_peer_valuation
@@ -188,7 +209,13 @@ def fetch_peer_valuation_fallback(ticker: str, *, today: date | None = None) -> 
     cache_key = f"peer_valuation:v2:{ticker}:{today.isoformat()}"
     cached = get_cache_json(cache_key)
     if isinstance(cached, dict):
-        return {**cached, "cache_hit": True}
+        result = {**cached, "cache_hit": True}
+        if 'pe_applicability_evidence' in result:
+            from .peer_reference_applicability import verified_explanation
+            if not verified_explanation(result['pe_applicability_evidence'], ticker, today=today):
+                result.pop('pe_applicability_evidence')
+        # Losing auxiliary proof never clears, rewrites or renews a valid cache.
+        return result
     try:
         official = fetch_official_peer_valuation(ticker, today=today)
     except Exception as exc:
@@ -215,6 +242,7 @@ def fetch_peer_valuation_fallback(ticker: str, *, today: date | None = None) -> 
         return {**result, "cache_hit": False}
     if DataLoader is None:
         result = {**official, "metrics": official_metrics, "attempts": attempts}
+        result = _attach_reference_income(result, official, ticker, today)
         set_cache_json(cache_key, result, 1800 if official_metrics else 300)
         return {**result, "cache_hit": False}
     try:
@@ -239,5 +267,6 @@ def fetch_peer_valuation_fallback(ticker: str, *, today: date | None = None) -> 
               "source": (official.get("source") if official_metrics else finmind.get("source")),
               "metric_sources": metric_sources, "attempts": attempts,
               "observed_at": (official.get("observed_at") if official_metrics else finmind.get("observed_at"))}
+    result = _attach_reference_income(result, official, ticker, today)
     set_cache_json(cache_key, result, 1800 if result.get("metrics") else 300)
     return {**result, "cache_hit": False}

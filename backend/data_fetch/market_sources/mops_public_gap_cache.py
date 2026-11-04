@@ -34,6 +34,11 @@ COMPATIBLE_GAP_FINGERPRINTS = (
     # Exact consolidated asset-label support does not invalidate an unrelated
     # complete gap: replay still must reproduce that same failure and epoch.
     '791111e0a397d280d189002757df47884f6e8a07f1dc8d35f5f3ff35484be689',
+    # 6b7e88b1 -> bbe33c0c changes only native security-refusal handling.
+    # Replay each complete old gap under current financial rules; do not copy,
+    # renew, shorten or overwrite the original entry and retry deadline.
+    'a8f260bb7a8830b1e31676c31dc3e4dc14bfac450ebbdc6db926194afdb3ce6a',
+    '2906de27e3fd3b70761cfa743217308c83d31303210fb9501f6926c8062fb9b1',
 )
 SHORT_INDEX_MESSAGE = 'fewer than five contiguous published consolidated annual filings'
 CORRELATION_KEYS = {'job_id', 'fetch_id', 'operation_id', 'attempt_id', 'provider_attempts',

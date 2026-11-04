@@ -248,7 +248,7 @@ def _peer_candidate_diagnostics(entry):
     fields = {'gross_margin_pct', 'operating_margin_pct', 'profit_margin_pct', 'roe_pct',
               'asset_turnover', 'pe_ttm', 'pb', 'ps_ttm'}
     providers = {'yfinance', 'FinMind TaiwanStockPER', 'TWSE/TPEx official peer valuation OpenAPI',
-                 'Yahoo annual financial statements'}
+                 'Yahoo annual financial statements', 'TWSE official peer reference income'}
     statuses = {'success', 'not_needed', 'empty_response', 'download_failed', 'missing_matching_annual_values',
                 'identity_mismatch', 'not_equity', 'unavailable', 'valid_empty', 'conflicting_observations',
                 'metrics_missing', 'not_applicable', 'rate_limited', 'cache_hit'}

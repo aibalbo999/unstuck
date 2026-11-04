@@ -402,8 +402,9 @@ def fetch_dynamic_peer_metrics_with_diagnostics(ticker: str, company_name: str, 
                     "profit_margin_pct": "profitMargins", "roe_pct": "returnOnEquity",
                     "pe_ttm": "trailingPE", "pb": "priceToBook", "ps_ttm": "priceToSalesTrailing12Months"}
         for field, key in mappings.items():
-            number = finite_number(info.get(key))
-            record[field] = round(number * (100 if field.endswith("_pct") else 1), 2) if number is not None else None
+            number = finite_number(info.get(key), positive=field == 'pe_ttm')
+            record[field] = round(number * (100 if field.endswith("_pct") else 1),
+                                  4 if field == 'pe_ttm' else 2) if number is not None else None
         revenue, assets = finite_number(info.get("totalRevenue")), finite_number(info.get("totalAssets"), positive=True)
         record["asset_turnover"] = round(revenue / assets, 4) if revenue is not None and assets is not None else None
         if candidate.get("comparison_status") == "published_segment_candidate" or medical_scope or thermal_scope or airline_scope or ic_scope or rail_scope or security_scope or auto_sales_scope:
@@ -442,6 +443,10 @@ def fetch_dynamic_peer_metrics_with_diagnostics(ticker: str, company_name: str, 
                       acquisition_attempts=[{"provider": "yfinance", "status": yf_status if yf_status != "success" else "success" if info else "empty_response"},
                                             *(fallback.get("attempts") or [{"provider": fallback.get("source", "FinMind TaiwanStockPER"),
                                                                               "status": fallback.get("status", "unavailable")}])])
+        if 'pe_applicability_evidence' in fallback and record['pe_ttm'] is None:
+            from .peer_reference_applicability import reassess_reference_applicability
+            record['pe_applicability_evidence'] = fallback['pe_applicability_evidence']
+            reassess_reference_applicability(record, today=today)
         selection = selection_rows.get(symbol)
         if selection is not None and selection_policy is not None:
             record.update({key: selection[key] for key in ("market_cap_ratio", "revenue_ratio", "business_overlap", "product_overlap", "segment_overlap")})
@@ -528,6 +533,12 @@ def fetch_dynamic_peer_metrics_with_diagnostics(ticker: str, company_name: str, 
     if auto_sales_records and not verified_auto_sales_related_candidates(auto_sales_records, ticker, today=today):
         selected_records = [r for r in selected_records if r.get('comparison_scope') != AUTO_SALES_SCOPE]
         audit['published_auto_sales_related_status'] = 'originals_expired_or_unverified_after_metrics'
+    # Other peer/source work can consume the raw evidence's remaining lifetime.
+    # Recheck at delivery; a stale explanation restores the ordinary missing P/E.
+    from .peer_reference_applicability import reassess_reference_applicability
+    for record in selected_records:
+        if 'pe_applicability_evidence' in record:
+            reassess_reference_applicability(record, today=today)
     usable_count = sum(r["metrics_status"] != "unavailable" for r in selected_records)
     partial = any(r["metrics_status"] != "complete" for r in selected_records) or (
         ticker == RAIL_TARGET and (len(selected_records) != len(RAIL_IDENTITIES)

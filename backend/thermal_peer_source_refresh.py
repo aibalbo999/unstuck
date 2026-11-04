@@ -25,9 +25,19 @@ def validate_thermal_refresh_context(data, ticker):
 
 
 def _usable_metrics(record, today):
+    from data_fetch.market_sources.peer_reference_income import APPLICABILITY
+    from data_fetch.market_sources.peer_reference_applicability import verified_undefined_pe
+    applicability = record.get('metric_applicability', {})
+    if not isinstance(applicability, dict):
+        raise ValueError('invalid metric applicability')
+    undefined_pe = applicability.get('pe_ttm') == APPLICABILITY
+    if undefined_pe and not verified_undefined_pe(record, today=today):
+        raise ValueError('reference-income applicability originals unverified')
     available, missing = [], []
     for key in PEER_METRIC_FIELDS:
         number = record.get(key)
+        if key == 'pe_ttm' and undefined_pe:
+            continue
         if number is None:
             missing.append(key)
         elif type(number) not in (int, float) or not math.isfinite(number):

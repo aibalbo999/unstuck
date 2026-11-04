@@ -6,6 +6,11 @@ from statistics import median
 from .utils import _label, _metric, _number, _pct_points, _percent_change, _text
 
 
+def _positive_pe(*values):
+    value = _number(*values)
+    return value if value is not None and value > 0 else None
+
+
 def _peer_comparison(data: dict[str, Any]) -> dict[str, Any]:
     peers = []
     for item in data.get("dynamic_peer_metrics") or []:
@@ -51,7 +56,7 @@ def _target_peer_row(data: dict[str, Any]) -> dict[str, Any]:
         "gross_margin_pct": _pct_points(data.get("gross_margin_raw"), data.get("gross_margin")),
         "profit_margin_pct": _pct_points(data.get("profit_margin_raw"), data.get("profit_margin")),
         "roe_pct": _pct_points(data.get("roe_raw"), data.get("roe")),
-        "pe_ttm": _number(data.get("pe_ratio_raw"), data.get("pe_ratio")),
+        "pe_ttm": _positive_pe(data.get("pe_ratio_raw"), data.get("pe_ratio")),
         "ps_ttm": _number(data.get("ps_ratio_raw"), data.get("ps_ratio")),
     }
 
@@ -64,7 +69,7 @@ def _peer_row(item: dict[str, Any], *, is_target: bool) -> dict[str, Any]:
         "profit_margin_pct": _number(item.get("profit_margin_pct")),
         "roe_pct": _number(item.get("roe_pct")),
         "asset_turnover": _number(item.get("asset_turnover")),
-        "pe_ttm": _number(item.get("pe_ttm")),
+        "pe_ttm": _positive_pe(item.get("pe_ttm")),
         "ps_ttm": _number(item.get("ps_ttm")),
         "source": _text(item.get("source")),
     }
