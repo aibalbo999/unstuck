@@ -46,7 +46,9 @@ def parse_page(raw, master_rows, *, today):
     if len(soup.find_all('title')) != 1 or soup.title.get_text(' ', strip=True) != TITLE:
         raise ValueError('auto_sales publisher cohort changed')
     canonical = soup.find_all('link', rel='canonical')
-    if len(canonical) != 1 or canonical[0].get('href') != 'https://www.moneydj.com/Z/ZH/ZH0/ZH00/ZH00.djhtm?A=C022010':
+    if len(canonical) != 1 or canonical[0].get('href') not in {
+            'https://www.moneydj.com/Z/ZH/ZH0/ZH00/ZH00.djhtm?A=C022010',
+            'https://www.moneydj.com/Z/ZH/ZH0/ZH00/ZH00.djhtm?a=C022010'}:
         raise ValueError('auto sales publication identity changed')
     tables = soup.find_all('table', id='oMainTable')
     if len(tables) != 1:
@@ -215,7 +217,7 @@ def get_candidates(ticker, master_rows, *, today, transport=None):
         started_at_epoch=started, finished_at_epoch=time.time(),
         fetched_at_epoch=components[-1].get('fetched_at_epoch') if components else None,
         record_count=len(candidates), cache_hit=cache_hit, stale=False, error_kind=str(error or ''),
-        message='汽車銷售相關公司研究候選；競爭關係、整體業務及財期可比性尚未驗證。')
+        message='汽車銷售相關公司候選；競爭關係、整體業務及財期可比性尚未驗證。')
     audit.update(selection_policy=POLICY, source_url=URL, http_request_sent=bool(sent),
         http_request_count=sent, component_statuses=components,
         event_kind='http_request' if sent else 'cache_hit' if cache_hit else 'local_block',

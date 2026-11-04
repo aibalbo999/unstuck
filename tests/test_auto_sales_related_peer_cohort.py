@@ -207,3 +207,25 @@ def test_expired_publication_during_metrics_rejects_handoff(monkeypatch):
     value=pipeline(monkeypatch)
     assert value['peers']==[]
     assert value['audit']['published_auto_sales_related_status']=='originals_expired_or_unverified_after_metrics'
+
+
+@pytest.mark.parametrize('parameter',['A','a'])
+def test_two_native_canonical_parameter_spellings_keep_same_cohort_identity(parameter):
+    from data_fetch.market_sources.auto_sales_related_peer_cohort import parse_page
+    raw=page().replace(b'?A=C022010',('?'+parameter+'=C022010').encode())
+    assert len(parse_page(raw,master(),today=date.today())['candidates'])==2
+
+@pytest.mark.parametrize('suffix',['?a=C022010&A=C022010','?a=C022010&b=1','?a=C099040','?%61=C022010','?a=C022010#fragment'])
+def test_canonical_variant_does_not_admit_extra_ambiguous_or_different_selection(suffix):
+    from data_fetch.market_sources.auto_sales_related_peer_cohort import parse_page
+    raw=page().replace(b'?A=C022010',suffix.encode())
+    with pytest.raises(ValueError):parse_page(raw,master(),today=date.today())
+
+def test_failed_c0_native_canonical_original_is_replayed_without_new_http():
+    from data_fetch.market_sources.auto_sales_related_peer_cohort import parse_page
+    from data_fetch.market_sources.stock_identity_master import parse_master
+    d=Path('/Volumes/X10 Pro Mac/stock-agent-archives/normal-free-auto-sales-peer-2207-20261104')
+    m=Path('/Volumes/X10 Pro Mac/stock-agent-archives/continuation-20261104-auto-sales-peer-research/identity-original.bin')
+    if not(d/'failed-publisher-original.body').exists()or not m.exists():pytest.skip('private failed native original unavailable')
+    value=parse_page((d/'failed-publisher-original.body').read_bytes(),parse_master(m.read_bytes()),today=date(2026,11,4))
+    assert [r['ticker']for r in value['candidates']]==['2201.TW','2204.TW','2206.TW','2227.TW','2247.TW']
