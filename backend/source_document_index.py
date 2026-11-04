@@ -118,6 +118,11 @@ def _ensure_schema(conn):
         revision_sha256 TEXT NOT NULL, published_epoch REAL, retrieved_at_epoch REAL NOT NULL,
         last_observed_at_epoch REAL NOT NULL, search_text TEXT NOT NULL, document_json TEXT NOT NULL,
         PRIMARY KEY (ticker, source_type, document_id, revision_sha256))''')
+    conn.execute('''CREATE TABLE IF NOT EXISTS source_document_observations (
+        ticker TEXT NOT NULL, source_type TEXT NOT NULL, document_id TEXT NOT NULL,
+        revision_sha256 TEXT NOT NULL, original_body_sha256 TEXT NOT NULL,
+        acquired_at_epoch REAL NOT NULL, content_fingerprint TEXT NOT NULL, document_json TEXT NOT NULL,
+        PRIMARY KEY (ticker,source_type,document_id,original_body_sha256,acquired_at_epoch))''')
     conn.execute('''CREATE INDEX IF NOT EXISTS source_documents_ticker_date
                     ON source_documents(ticker, source_type, published_epoch DESC)''')
 
@@ -137,7 +142,7 @@ def upsert_source_documents(documents, *, observed_at_epoch=None) -> dict:
                          doc['retrieved_at_epoch'], doc['retrieved_at_epoch'],
                          '\n'.join(doc[key] for key in ('title', 'summary', 'text')),
                          json.dumps(doc, ensure_ascii=False, sort_keys=True)))
-        except (ValueError, TypeError, OverflowError):
+        except (ValueError, TypeError, KeyError, OverflowError, OSError):
             rejected += 1
     if not rows:
         return {'accepted': 0, 'rejected': rejected}
@@ -145,10 +150,32 @@ def upsert_source_documents(documents, *, observed_at_epoch=None) -> dict:
     path.parent.mkdir(parents=True, exist_ok=True)
     with sqlite3.connect(path, timeout=5) as conn:
         _ensure_schema(conn)
-        conn.executemany('''INSERT INTO source_documents VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            ON CONFLICT(ticker, source_type, document_id, revision_sha256) DO UPDATE SET
-            last_observed_at_epoch=excluded.last_observed_at_epoch
-            WHERE excluded.last_observed_at_epoch > source_documents.last_observed_at_epoch''', rows)
+        for row in rows:
+            doc=json.loads(row[-1]);fingerprint=None
+            if 'original_evidence'in doc:
+                from mops_document_bridge import document_revision_fingerprint
+                fingerprint=document_revision_fingerprint(doc)
+                prior=conn.execute("SELECT document_json,revision_sha256,published_epoch,retrieved_at_epoch FROM source_documents WHERE ticker=? AND source_type=? AND document_id=? ORDER BY last_observed_at_epoch DESC,rowid DESC",row[:3]).fetchall()
+                for raw,revision,published,acquired in prior:
+                    try:
+                        old,old_published,rebuilt=_normalize(json.loads(raw),acquired)
+                        if (tuple(old[k]for k in ('ticker','source_type','document_id'))!=row[:3]
+                                or rebuilt!=revision or old_published!=published or old['retrieved_at_epoch']!=acquired):
+                            continue
+                        if document_revision_fingerprint(old)!=fingerprint:continue
+                        # Keep the immutable first version and its original proof.
+                        row=(*row[:3],revision,*row[4:])
+                        break
+                    except (ValueError,TypeError,KeyError,OverflowError,OSError):
+                        continue
+            conn.execute('''INSERT INTO source_documents VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ON CONFLICT(ticker, source_type, document_id, revision_sha256) DO UPDATE SET
+                last_observed_at_epoch=excluded.last_observed_at_epoch
+                WHERE excluded.last_observed_at_epoch > source_documents.last_observed_at_epoch''',row)
+            if fingerprint is not None:
+                conn.execute('''INSERT INTO source_document_observations VALUES (?,?,?,?,?,?,?,?)
+                    ON CONFLICT DO NOTHING''',(*row[:4],doc['original_body_sha256'],
+                        doc['retrieved_at_epoch'],fingerprint,json.dumps(doc,ensure_ascii=False,sort_keys=True)))
     return {'accepted': len(rows), 'rejected': rejected}
 
 
@@ -184,22 +211,48 @@ def search_source_documents(ticker, *, text='', kinds=(), since=None, until=None
         SELECT *, ROW_NUMBER() OVER (PARTITION BY source_type, document_id
             ORDER BY last_observed_at_epoch DESC, rowid DESC) AS version_rank
         FROM source_documents WHERE ticker=?)
-        SELECT document_json, last_observed_at_epoch, document_id, revision_sha256 FROM latest WHERE ''' + ' AND '.join(conditions) + '''
+        SELECT document_json, last_observed_at_epoch, document_id, revision_sha256, source_type, published_epoch, retrieved_at_epoch FROM latest WHERE ''' + ' AND '.join(conditions) + '''
         ORDER BY published_epoch DESC, document_id ASC LIMIT ?'''
     with sqlite3.connect(path.resolve().as_uri() + '?mode=ro', uri=True, timeout=3) as conn:
         try:
             rows = conn.execute(query, values).fetchall()
+            has_observations=conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='source_document_observations'").fetchone()
+            observations={}
+            if has_observations:
+                for _,observed,document_id,revision,source_type,_,_ in rows:
+                    observations[(source_type,document_id,revision)]=conn.execute(
+                        'SELECT original_body_sha256,acquired_at_epoch,content_fingerprint,document_json FROM source_document_observations WHERE ticker=? AND source_type=? AND document_id=? AND revision_sha256=? AND acquired_at_epoch=?',
+                        (ticker,source_type,document_id,revision,observed)).fetchall()
         except sqlite3.OperationalError as exc:
             if 'no such table: source_documents' in str(exc):
                 return []
             raise
     documents = []
-    for raw, observed, document_id, revision in rows:
+    for raw, observed, document_id, revision, source_type, published, acquired in rows:
         try:
-            doc, _, rebuilt_revision = _normalize(json.loads(raw),observed)
-            if doc['ticker'] != ticker or doc['document_id'] != document_id or rebuilt_revision != revision:
+            doc, actual_published, rebuilt_revision = _normalize(json.loads(raw),observed)
+            if (doc['ticker']!=ticker or doc['document_id']!=document_id or doc['source_type']!=source_type
+                    or rebuilt_revision!=revision or actual_published!=published or doc['retrieved_at_epoch']!=acquired):
                 continue
-            documents.append(dict(doc,last_observed_at_epoch=observed))
+            result=dict(doc,last_observed_at_epoch=observed)
+            latest=observations.get((source_type,document_id,revision),[])
+            if 'original_evidence'in doc:
+                from mops_document_bridge import document_revision_fingerprint
+                content_fingerprint=document_revision_fingerprint(doc)
+                # Old rows without this table retain their original proof. A
+                # newer observation must have its own complete proof at that time.
+                if observed>acquired and not latest:raise ValueError('Latest original observation missing')
+                if latest:
+                    if len(latest)!=1:raise ValueError('Ambiguous latest original observation')
+                    body_hash,stamp,fingerprint,observation_json=latest[0]
+                    observation,_,_=_normalize(json.loads(observation_json),stamp)
+                    if (tuple(observation[k]for k in ('ticker','source_type','document_id'))!=(ticker,source_type,document_id)
+                            or observation['retrieved_at_epoch']!=stamp or stamp!=observed
+                            or observation['original_body_sha256']!=body_hash
+                            or document_revision_fingerprint(observation)!=fingerprint or fingerprint!=content_fingerprint):
+                        raise ValueError('Latest original observation differs from version')
+                    result['last_observation']={k:observation[k]for k in ('retrieved_at_epoch','original_body_sha256','original_evidence')}
+            documents.append(result)
         except (ValueError,TypeError,KeyError,OverflowError,OSError):
             continue  # Keep the stored evidence; an unverifiable latest row cannot roll back to an old revision.
     return documents

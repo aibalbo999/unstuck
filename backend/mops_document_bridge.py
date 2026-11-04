@@ -68,7 +68,7 @@ def _pathless_master(value, *, restore=False):
     return result
 
 
-def _canonical(evidence):
+def _canonical(evidence, *, fingerprint=False):
     from data_fetch.market_sources import mops_json_company_history as source
     from data_fetch.market_sources.mops_master_bound_announcements import POLICY as MASTER_POLICY
     if (not isinstance(evidence,dict) or set(evidence) != {'schema','context','packet'}
@@ -93,13 +93,21 @@ def _canonical(evidence):
         raise ValueError('MOPS document publication/acquisition order invalid')
     action = record['source_request_parameters']
     identity = json.dumps([record['ticker'],action],sort_keys=True,separators=(',',':'))
-    return {'ticker':record['ticker'],'document_id':'mops-json:'+sha256(identity.encode()).hexdigest(),
+    document = {'ticker':record['ticker'],'document_id':'mops-json:'+sha256(identity.encode()).hexdigest(),
         'title':record['title'],'url':source.PAGE_URL,'published_at':record['published_at'],
         'event_date':None,'source':source.PROVIDER,'source_type':'official_disclosure','document_kind':KIND,
         'text':record['text'],'summary':record['summary'],'content_truncated':False,
         'content_sha256':sha256(record['text'].encode()).hexdigest(),'coverage_status':'text_available',
         'retrieved_at_epoch':stamp,'original_body_sha256':packet['detail_receipt']['raw_response_sha256'],
         'original_evidence':deepcopy(evidence)}
+    if not fingerprint:return document
+    # Preserve the entire publisher result, including unrendered fields. Only
+    # the known response clock is envelope metadata rather than content.
+    payload=json.loads(source._saved(packet['detail_receipt'],source.ORDINARY_DETAIL_URL))
+    payload.pop('datetime',None)
+    digest=sha256(json.dumps([identity,payload],ensure_ascii=False,sort_keys=True,
+        separators=(',',':'),allow_nan=False).encode()).hexdigest()
+    return document,digest
 
 
 def document_from_record(record, data):
@@ -120,6 +128,13 @@ def validate_document(document):
     if any(document.get(k) != v for k,v in canonical.items()):
         raise ValueError('MOPS document differs from its original')
     return canonical
+
+
+def document_revision_fingerprint(document):
+    canonical,digest=_canonical(document.get('original_evidence'),fingerprint=True)
+    if any(document.get(k)!=v for k,v in canonical.items()):
+        raise ValueError('MOPS document differs from its original')
+    return digest
 
 
 def index_records(records, data, *, persist=True):

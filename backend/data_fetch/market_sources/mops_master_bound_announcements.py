@@ -9,6 +9,7 @@ from datetime import datetime
 import csv
 import io
 import json
+import math
 import re
 import time
 from zoneinfo import ZoneInfo
@@ -33,15 +34,14 @@ def prefer_master_bound_route(ticker):
     if not path.exists():return False
     try:
         with sqlite3.connect(path.resolve().as_uri()+'?mode=ro',uri=True,timeout=1)as db:
-            rows=db.execute("SELECT status,record_count,details_json FROM provider_sla_events WHERE source=? AND provider=? ORDER BY id DESC LIMIT 512",
+            rows=db.execute("SELECT status,record_count,details_json,created_at FROM provider_sla_events WHERE source=? AND provider=? ORDER BY id DESC LIMIT 512",
                 ('recent_catalysts','TWSE company announcement history')).fetchall()
-        for status,count,raw in rows:
+        for status,count,raw,created in rows:
             try:details=json.loads(raw or '{}')
             except (ValueError,TypeError):continue
             if not isinstance(details,dict)or details.get('ticker')!=ticker:continue
             if type(count)is not int or count<0:return False
             if details.get('parser_version')==POLICY:return True
-            if count>0:return False
             # Cache/cooldown observations do not replace the last real route
             # result, and the outer shared cache still enforces their expiry.
             if details.get('cache_hit')is True or details.get('cooldown')is True:
@@ -54,8 +54,30 @@ def prefer_master_bound_route(ticker):
             if isinstance(attempts,list) and (len(attempts)>70 or any(not isinstance(a,dict)or refused(a.get('http_status'))for a in attempts)):
                 return False
             recoverable={None,'','timeout','transport_error','server_error','TimeoutError','ConnectError','ReadTimeout','ConnectTimeout'}
+            if count>0:
+                from .twse_announcement_progress import RAW_TTL
+                # Event creation follows the complete invocation. Waiting a
+                # full raw TTL from it protects even its last accepted body.
+                expiry=details.get('progress_fresh_until_epoch',0)
+                if (status!='degraded_enrichment' or details.get('coverage_status')!='partial'
+                        or details.get('progress_resume_possible')is not True
+                        or type(created)not in(int,float)or not math.isfinite(created)or created<=0
+                        or type(expiry)not in(int,float)or not math.isfinite(expiry)
+                        or time.time()<max(created+RAW_TTL,expiry)):
+                    return False
+                if details.get('error_kind')not in recoverable or details.get('detail_stop_reason')not in recoverable:
+                    return False
+                observations=details.get('detail_observations',[])
+                reasons=details.get('rejected_reason_counts',{})
+                if (not isinstance(observations,list)or len(observations)>70
+                        or any(not isinstance(a,dict)or refused(a.get('http_status'))
+                            or a.get('error_kind')not in recoverable for a in observations)
+                        or not isinstance(reasons,dict)or any(k not in {'outside_window','detail_fetch_error','deadline_exhausted'}for k in reasons)
+                        or isinstance(attempts,list)and any(a.get('error_kind')not in recoverable for a in attempts)):
+                    return False
+                return True
             return status in {'error','unavailable'}and count==0 and (details.get('error_kind')is None or isinstance(details.get('error_kind'),str))and details.get('error_kind')in recoverable
-    except (OSError,sqlite3.Error):
+    except (OSError,sqlite3.Error,TypeError,ValueError,OverflowError):
         pass
     return False
 

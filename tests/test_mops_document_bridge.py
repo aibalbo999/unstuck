@@ -267,3 +267,67 @@ def test_merge_rejects_foreign_out_of_window_or_forged_saved_originals(db):
     result = hydrate_provider_documents([],data,persist=False)[0]
     assert {d['document_id'] for d in result.value['documents']} == {d['document_id'] for d in docs}
     assert not db.exists()
+
+
+def changed_envelope_documents(*, change_result=False):
+    from mops_document_bridge import document_from_record
+    def change(originals):
+        for item in originals:
+            if not item['url'].endswith('_detail'):continue
+            value=json.loads(item['raw_body_utf8'])
+            value['datetime']='115/11/04 19:00:00'  # Offline response-clock variation only.
+            if change_result:value['result']['data'][0][3]+='更新發言人'
+            item['raw_body_utf8']=json.dumps(value,ensure_ascii=False)
+    rows,_,_,_=replay(change)
+    return [document_from_record(row,CONTEXT)for row in rows]
+
+
+def test_response_clock_keeps_content_revision_and_retains_both_originals(db):
+    docs,_=documents();index.upsert_source_documents(docs)
+    with sqlite3.connect(db)as c:
+        original=c.execute('SELECT document_json FROM source_documents ORDER BY document_id').fetchall()
+    newer=changed_envelope_documents()
+    assert docs[0]['original_body_sha256']!=newer[0]['original_body_sha256']
+    index.upsert_source_documents(newer)
+    index.upsert_source_documents(docs,observed_at_epoch=docs[0]['retrieved_at_epoch']+200)
+    with sqlite3.connect(db)as c:
+        assert c.execute('SELECT document_json FROM source_documents ORDER BY document_id').fetchall()==original
+        assert c.execute('SELECT count(*) FROM source_documents').fetchone()[0]==2
+        assert c.execute('SELECT count(*) FROM source_document_observations').fetchone()[0]==4
+    found=index.search_source_documents('1623.TW')
+    assert len(found)==2
+    for doc in found:
+        new=next(d for d in newer if d['document_id']==doc['document_id'])
+        assert doc['last_observed_at_epoch']==new['retrieved_at_epoch']
+        assert doc['last_observation']['original_body_sha256']==new['original_body_sha256']
+    assert 'raw_response_path'not in json.dumps(found)
+
+
+def test_unrendered_publisher_result_change_is_a_real_revision(db):
+    docs,_=documents();index.upsert_source_documents(docs)
+    newer=changed_envelope_documents(change_result=True)
+    assert [d['text']for d in docs]==[d['text']for d in newer]
+    index.upsert_source_documents(newer)
+    with sqlite3.connect(db)as c:
+        assert c.execute('SELECT count(*) FROM source_documents').fetchone()[0]==4
+
+
+def test_corrupt_latest_observation_cannot_fall_back_to_previous_original(db):
+    docs,_=documents();index.upsert_source_documents(docs)
+    newer=changed_envelope_documents();index.upsert_source_documents(newer)
+    with sqlite3.connect(db)as c:
+        c.execute("UPDATE source_document_observations SET document_json='{}' WHERE original_body_sha256 IN (?,?)",
+            tuple(d['original_body_sha256']for d in newer))
+    assert index.search_source_documents('1623.TW')==[]
+
+
+def test_existing_version_without_observation_table_is_not_rewritten(db):
+    docs,_=documents();index.upsert_source_documents(docs)
+    with sqlite3.connect(db)as c:
+        c.execute('DROP TABLE source_document_observations')  # Isolated old-schema fixture.
+        originals=c.execute('SELECT revision_sha256,document_json FROM source_documents ORDER BY document_id').fetchall()
+    assert len(index.search_source_documents('1623.TW'))==2
+    index.upsert_source_documents(changed_envelope_documents())
+    with sqlite3.connect(db)as c:
+        assert c.execute('SELECT revision_sha256,document_json FROM source_documents ORDER BY document_id').fetchall()==originals
+        assert c.execute('SELECT count(*) FROM source_document_observations').fetchone()[0]==2

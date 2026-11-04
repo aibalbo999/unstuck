@@ -242,3 +242,41 @@ def test_normal_service_preserves_old_failure_and_counts_warm_reuse_as_zero_HTTP
     assert events()[0]==original
     summary=next(r for r in get_provider_acquisition_summary()['sources']if r['source']=='recent_catalysts')
     assert summary['fetched_count']==1 and summary['fetch_attempts']==2
+
+
+@pytest.mark.parametrize('age,changes,expected', [
+    (1799,{},False),(1801,{},True),(1801,{'coverage_status':'complete'},False),
+    (1801,{'detail_stop_reason':'http_429'},False),
+    (1801,{'detail_observations':[{'http_status':403}]},False),
+    (1801,{'detail_observations':[{'http_status':200,'error_kind':'detail_mismatch'}]},False),
+    (1801,{'progress_fresh_until_epoch':time.time()+3600},False),
+])
+def test_partial_recovery_waits_for_all_originals_and_never_bypasses_refusal(memory_cache,age,changes,expected):
+    import sqlite3,json
+    from test_report_refresh_acquisition_audit import init_db
+    from provider_sla import record_source_audit_entries,TASK_DB_PATH
+    from data_fetch.market_sources.mops_master_bound_announcements import prefer_master_bound_route
+    init_db()
+    record_source_audit_entries([{'source':'recent_catalysts','provider':'TWSE company announcement history',
+        'ticker':'2002.TW','status':'degraded_enrichment','record_count':1,'http_request_sent':True,
+        'coverage_status':'partial','progress_resume_possible':True,**changes}])
+    with sqlite3.connect(TASK_DB_PATH)as c:
+        raw=json.loads(c.execute('SELECT details_json FROM provider_sla_events').fetchone()[0])
+        raw.update(changes)  # Also exercise opaque/legacy metadata without the audit sanitizer.
+        c.execute('UPDATE provider_sla_events SET created_at=?,details_json=?',(time.time()-age,json.dumps(raw)))
+    assert prefer_master_bound_route('2002.TW')is expected
+
+
+def test_partial_cache_observation_does_not_renew_native_expiry(memory_cache):
+    import sqlite3
+    from test_report_refresh_acquisition_audit import init_db
+    from provider_sla import record_source_audit_entries,TASK_DB_PATH
+    from data_fetch.market_sources.mops_master_bound_announcements import prefer_master_bound_route
+    init_db()
+    entry={'source':'recent_catalysts','provider':'TWSE company announcement history',
+        'ticker':'2002.TW','status':'degraded_enrichment','record_count':1,'http_request_sent':True,'coverage_status':'partial','progress_resume_possible':True}
+    record_source_audit_entries([entry])
+    with sqlite3.connect(TASK_DB_PATH)as c:
+        c.execute('UPDATE provider_sla_events SET created_at=?',(time.time()-1801,))
+    record_source_audit_entries([{**entry,'status':'skipped_fresh_cache','cache_hit':True,'http_request_sent':False}])
+    assert prefer_master_bound_route('2002.TW')is True
