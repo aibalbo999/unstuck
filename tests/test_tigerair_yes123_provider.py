@@ -146,7 +146,8 @@ def test_legacy_negative_cache_cooldown_is_not_bypassed(monkeypatch):
     assert tigerair_context_result(FetchRequest.from_ticker(e.TICKER),{'data':data})is None
 
 
-def test_native_complete_corpus_replays_normal_protocol_and_preserves_analysis(monkeypatch):
+@pytest.mark.parametrize('corpus',['pre_midnight','post_midnight'])
+def test_native_complete_corpus_replays_normal_protocol_and_preserves_analysis(corpus,monkeypatch):
     """Offline old originals are not new HTTP or formal acquisition evidence."""
     from pathlib import Path
     from hashlib import sha256
@@ -159,10 +160,13 @@ def test_native_complete_corpus_replays_normal_protocol_and_preserves_analysis(m
     from alternative_source_refresh import merge_alternative_source
     from official_response_evidence import archive_response
     import cache_store
-    D=Path('/Volumes/X10 Pro Mac/stock-agent-archives/continuation-20261104-tigerair-yes123-research')
+    D=Path('/Volumes/X10 Pro Mac/stock-agent-archives/'+(
+        'continuation-20261104-tigerair-yes123-research'if corpus=='pre_midnight'else
+        'normal-free-tigerair-yes123-6757-20261105'))
     if not(D/'complete-master.body').exists():pytest.skip('Private complete native corpus intentionally not published')
     identity=json.loads((D/'identity-full-master-readonly.json').read_text())
-    rows=json.loads((D/'native-result.json').read_text())['results']+json.loads((D/'additional-selected-detail-results.json').read_text())['results']
+    rows=(json.loads((D/'native-result.json').read_text())['results']+json.loads((D/'additional-selected-detail-results.json').read_text())['results']
+          if corpus=='pre_midnight'else json.loads((D/'native-replay-index.json').read_text())['results'])
     now=max(r['at']for r in rows)+1;owners={}
     monkeypatch.setattr(e.time,'time',lambda:now)
     monkeypatch.setattr(cache_store,'get_cache_json',lambda key:deepcopy(owners.get(key)))

@@ -171,6 +171,13 @@ def parse_detail(raw, candidate, *, observed_at, now):
         offset = 1
     elif re.fullmatch(r'[2-9]天前|[12][0-9]天前|30天前', label):
         offset = int(label.removesuffix('天前'))
+    elif re.fullmatch(r'星期[一二三四五六日]', label):
+        # The post-midnight native original uses 星期二 for a two-day-old
+        # update. Bind to its independently declared date, never infer which
+        # week from the weekday alone or promote it to first publication.
+        offset = (observed_day - updated).days
+        if not 2 <= offset <= 6 or updated.weekday() != '一二三四五六日'.index(label[-1]):
+            raise ValueError('yes123 weekday update period ambiguous')
     else:
         raise ValueError('yes123 visible update date unknown')
     if (updated != observed_day - timedelta(days=offset) or not 0 <= (today - updated).days <= 30

@@ -43,6 +43,42 @@ def test_public_synthetic_contract_runs_without_private_native_corpus():
     assert value['declared_demand_text']=='1人'and value['employer_application_deadline']is None
 
 
+def test_native_weekday_label_requires_exact_json_date_and_recent_observation():
+    from data_fetch.market_sources.tigerair_yes123 import parse_detail
+    D2=Path('/Volumes/X10 Pro Mac/stock-agent-archives/normal-free-tigerair-yes123-6757-20261105')
+    if not(D2/'failure-replay.json').exists():pytest.skip('Private post-midnight source original intentionally not published')
+    receipts=json.loads((D2/'failed-native-receipts.json').read_text())
+    # Private external snapshots already copied by the audited source replay.
+    row={'url':receipts[6]['url'],'title':'聯管中心助理簽派員/簽派員'}
+    raw=(D2/'detail-4.body').read_bytes();at=receipts[6]['fetched_at_epoch']
+    value=parse_detail(raw,row,observed_at=at,now=at)
+    assert value['last_updated_date']=='2026-11-03' and value['first_publication_date']is None
+    assert value['employer_application_deadline']is None
+
+
+@pytest.mark.parametrize('damage',['different_weekday','older_week','today','yesterday','future'])
+def test_weekday_label_cannot_select_another_week_or_override_json_date(damage):
+    from data_fetch.market_sources.tigerair_yes123 import parse_detail
+    _,_,_,raw,row=synthetic_protocol()
+    raw=raw.replace('職缺更新：昨天'.encode(),'職缺更新：星期二'.encode())
+    at=datetime.fromisoformat('2026-11-05T01:10:00+08:00').timestamp()
+    if damage=='different_weekday':raw=raw.replace('星期二'.encode(),'星期三'.encode())
+    elif damage=='older_week':raw=raw.replace(b'2026-11-3',b'2026-10-27')
+    elif damage=='today':raw=raw.replace(b'2026-11-3',b'2026-11-5')
+    elif damage=='yesterday':raw=raw.replace(b'2026-11-3',b'2026-11-4')
+    else:raw=raw.replace(b'2026-11-3',b'2026-11-10')
+    with pytest.raises(ValueError):parse_detail(raw,row,observed_at=at,now=at)
+
+
+def test_public_weekday_protocol_and_midnight_replay():
+    from data_fetch.market_sources.tigerair_yes123 import parse_detail
+    _,_,_,raw,row=synthetic_protocol()
+    raw=raw.replace('職缺更新：昨天'.encode(),'職缺更新：星期二'.encode())
+    at=datetime.fromisoformat('2026-11-05T01:10:00+08:00').timestamp()
+    value=parse_detail(raw,row,observed_at=at,now=at+5)
+    assert value['last_updated_date']=='2026-11-03'and value['date_basis']=='portal_update_not_original_first_publication'
+
+
 @pytest.mark.parametrize('damage',['wrong_employer','wrong_title','body_mismatch','relative_date','expiry','foreign_action','wrong_profile','truncated','duplicate_json'])
 def test_public_synthetic_rejections_do_not_depend_on_private_files(damage):
     from data_fetch.market_sources.tigerair_yes123 import parse_detail,LEGAL
