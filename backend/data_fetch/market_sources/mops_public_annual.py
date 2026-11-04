@@ -11,6 +11,7 @@ import json,math,os,re,time,zlib
 from urllib.parse import parse_qs,urlsplit
 from zoneinfo import ZoneInfo
 import httpx
+from bs4 import BeautifulSoup
 
 from official_response_evidence import archive_response,read_response
 from external_http_client import proxy_url_for_request
@@ -318,6 +319,18 @@ def project_public_history(value,ticker):
         return {**deepcopy(value),'comparative_coverage':coverage,'inferred_zero_facts':inferred_zero_facts}
     except (KeyError,ValueError,TypeError,OverflowError):return None
 
+def _security_refusal_page(raw):
+    """Recognize TWSE's actual HTML denial, never a JS/JSON string literal."""
+    if not re.match(br'(?is)\s*(?:\xef\xbb\xbf)?\s*(?:<!doctype\s+html\b[^>]*>\s*)?<html\b',raw[:1024]):
+        return False
+    body=BeautifulSoup(raw.decode('utf-8',errors='ignore'),'html.parser').body
+    if body is None:return False
+    text=' '.join(body.get_text(' ',strip=True).split())
+    return (text.startswith(('因為安全性考量，您所執行的頁面無法呈現。','FOR SECURITY REASONS,'))
+            and 'FOR SECURITY REASONS, THIS PAGE CAN NOT BE ACCESSED.'in text
+            and 'OR CALL US FOR FURTHER HELP'in text)
+
+
 class PublicMopsHttp:
     """Operation-local connections; no cookies, retries or renewed body cache."""
     def __init__(self,*,client_factory=None,seconds=45):
@@ -389,6 +402,13 @@ class PublicMopsHttp:
                         if len(raw)>limit:raise SourceResponseError('response_too_large')
                         if time.monotonic()>=stop:raise SourceResponseError('timeout')
                     ctype=response.headers.get('content-type','').split(';')[0].strip().lower()
+            if _security_refusal_page(raw):
+                # A refusal body can have HTTP 200. Retain that real status and
+                # use the existing access-denied cooldown, not a fabricated 403/429.
+                exc=SourceResponseError('access_denied',status_code=response.status_code)
+                exc.response=response
+                remember_failure(key,exc)
+                raise exc
             types={'application/json'}if json_body is not None else{'text/html','application/xhtml+xml'}if url==INDEX_URL else{'text/javascript','application/javascript'}
             if individual:
                 types={'application/xml','text/xml','application/xhtml+xml','text/html','application/octet-stream',''}
