@@ -263,6 +263,24 @@ def call_provider_with_resilience(provider: str, func: Callable, args: tuple = (
         raise exc
 
 
+def call_provider_component_once(provider: str, func: Callable, args: tuple = (), kwargs: dict | None = None) -> Any:
+    """One nested component under its caller's existing audited operation.
+
+    Reuse the shared/local native guards and persistence, but add no retry or
+    nested attempt identity that could sever the enclosing SDK input proof.
+    """
+    _check_provider_state(provider)
+    enforce_provider_throttle(provider)
+    try:
+        result=func(*args,**(kwargs or {}))
+    except Exception as exc:
+        mark_rate_limit_cooldown(provider,exc)
+        if _counts_toward_circuit(exc):_record_provider_failure(provider,exc)
+        raise
+    _record_provider_success(provider)
+    return result
+
+
 async def call_provider_with_resilience_async(provider: str, func_or_awaitable, args: tuple = (), kwargs: dict | None = None) -> Any:
     """Async wrapper combining Circuit Breaker and Tenacity Retries."""
     _check_provider_state(provider)

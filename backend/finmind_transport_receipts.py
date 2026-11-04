@@ -32,6 +32,25 @@ def _record(session,request,response,started):
     parts=urlsplit(request.url);query=parse_qs(parts.query)
     dataset=query.get('dataset',[]);identity=query.get('data_id',query.get('stock_id',[]))
     context=current_correlation();ticker=context.get('ticker','')
+    owner=current_source_identity()
+    if (request.method=='GET'and parts.scheme=='https'and parts.hostname=='api.web.finmindtrade.com'
+            and parts.port in(None,443)and not parts.username and not parts.password and not parts.query and not parts.fragment
+            and parts.path=='/v2/user_info'and owner and owner[0]in set(_DATASETS.values())|{'twse_official','dynamic_peer_metrics','peer_discovery'}
+            and owner[1].startswith('FinMind')and all(context.get(k)for k in('ticker','fetch_id','operation_id'))):
+        adapter=session.get_adapter(request.url)
+        if(type(adapter)is requests.adapters.HTTPAdapter and adapter.max_retries.total==0
+                and type(response)is requests.Response and response.request is request and response.url==request.url
+                and not response.history and not getattr(response,'from_cache',False)
+                and type(response.status_code)is int and response._content_consumed is True):
+            # Account contents/headers/hash are private and are not evidence
+            # for company data. Keep only this actual zero-record HTTP receipt.
+            record_source_audit_entries([{**context,'source':owner[0],'provider':'FinMind account native HTTP',
+                'event_kind':'http_transport_receipt','selection_policy':'transport-receipt-only:v1',
+                'record_count':0,'status':'success'if response.status_code==200 else'error',
+                'http_request_sent':True,'http_status':response.status_code,'http_status_observed':True,
+                'response_complete':True,'cache_hit':False,'duration_ms':max(0,int((time.monotonic()-started)*1000)),
+                'message':'Native SDK login HTTP only; account body, headers and credentials are not retained.'}])
+        return None
     if (request.method!='GET' or parts.scheme!='https' or parts.hostname!='api.finmindtrade.com'
         or parts.port not in (None,443) or parts.username or parts.password
         or parts.path not in ('/api/v3/data','/api/v4/data')
@@ -111,5 +130,22 @@ def observed_loader_class(base):
             super().__init__(*args,**kwargs)
             try:observe_loader(self)
             except Exception:pass
+            # Active request policy is separate from optional passive telemetry.
+            # A changed real SDK contract must fail closed, not run unbounded.
+            from finmind_loader_limits import install_loader_limits
+            install_loader_limits(self)
+    if callable(getattr(base,'login_by_token',None)):
+        def login(self,*args,**kwargs):
+            # DataLoader calls login during its constructor. Install before its
+            # first user_info GET, without replacing or skipping the SDK login.
+            try:observe_loader(self)
+            except Exception:pass
+            from finmind_loader_limits import install_loader_limits,call_native_login
+            install_loader_limits(self)
+            return call_native_login(super(ObservedLoader,self).login_by_token,*args,**kwargs)
+        ObservedLoader.login_by_token=login
+    import inspect
+    ObservedLoader._stock_native_token_constructor=(base.__module__.startswith('FinMind.')
+        and 'token'in inspect.signature(base.__init__).parameters)
     ObservedLoader.__name__=base.__name__
     return ObservedLoader

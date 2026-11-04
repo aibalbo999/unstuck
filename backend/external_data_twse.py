@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 import logging
-import time
 import urllib.request
 from datetime import datetime, timedelta
 from typing import Any, Optional
@@ -65,22 +64,25 @@ def _fetch_finmind_with_retry(symbol: str) -> Optional[dict[str, Any]]:
         logger.warning("FinMind DataLoader is unavailable; trying TWSE OpenAPI fallback.")
         return None
 
-    for attempt in range(1, 4):
-        try:
-            payload = _fetch_finmind_payload(symbol)
-            if payload:
-                return payload
-            return None
-        except Exception as exc:
-            logger.warning("FinMind TWSE official fetch failed for %s (attempt %s/3): %s", symbol, attempt, exc)
-            if attempt < 3:
-                time.sleep(2)
-    return None
+    from provider_resilience import call_provider_component_once
+    # This component guard does not block the independent existing TWSE fallback.
+    # The enclosing provider's original guards still run before this function.
+    sdk_provider='FinMind SDK TWSE financials'
+    try:
+        return call_provider_component_once(sdk_provider,_fetch_finmind_payload,(symbol,))
+    except Exception as exc:
+        logger.warning("FinMind TWSE financial fetch unavailable for %s (%s); using existing fallback.", symbol,type(exc).__name__)
+        return None
 
 
 def _fetch_finmind_payload(symbol: str) -> Optional[dict[str, Any]]:
-    loader = DataLoader()
-    _login_finmind(loader)
+    if getattr(DataLoader,'_stock_native_token_constructor',False):
+        # The native constructor performs the same login once, with the
+        # existing configured token; avoid anonymous login followed by relogin.
+        loader = DataLoader(token=FINMIND_API_TOKEN or '')
+    else:
+        loader = DataLoader()
+        _login_finmind(loader)
     start_date = (datetime.now() - timedelta(days=560)).strftime("%Y-%m-%d")
     income = _call_loader(loader, ("taiwan_stock_income_statement", "taiwan_stock_financial_statement"), symbol, start_date)
     balance = _call_loader(loader, ("taiwan_stock_balance_sheet",), symbol, start_date)

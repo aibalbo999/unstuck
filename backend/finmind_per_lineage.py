@@ -175,8 +175,15 @@ retains its original interface and cannot gain a native proof from this helper.
   return original(request,*args,**kwargs)
  session.send=send_once
  try:
-  return loader.taiwan_stock_per_pbr(stock_id=stock_id,start_date=start_date,timeout=12)
+  from finmind_loader_limits import existing_per_socket_budget
+  with existing_per_socket_budget():
+   return loader.taiwan_stock_per_pbr(stock_id=stock_id,start_date=start_date,timeout=12)
  except _PerRequestAborted:
   raise PerTransportError('PER source single-send budget exhausted')from None
+ except requests.RequestException as error:
+  # The generic SDK adapter now exits after its first actual failure, before
+  # the old second-send abort fires. Preserve this workflow's no-resend policy.
+  error.retryable=False
+  raise
  finally:
   if session.send is send_once:session.send=original

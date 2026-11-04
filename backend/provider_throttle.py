@@ -5,6 +5,8 @@ from __future__ import annotations
 import asyncio
 import os
 import time
+import math
+from email.utils import parsedate_to_datetime
 from provider_quota_signals import is_finmind_sdk_request_quota
 
 
@@ -101,6 +103,10 @@ async def enforce_provider_throttle_async(provider: str) -> None:
 
 
 def _exception_status_code(exc: BaseException) -> int | None:
+    details=getattr(exc,'details',None)
+    if (getattr(exc,'http_status_observed',None)is False
+            or isinstance(details,dict)and details.get('http_status_observed')is False):
+        return None  # This request did not observe a status; do not reuse a prior response.
     response = getattr(exc, "response", None)
     status_code = getattr(response, "status_code", None)
     if status_code is None:
@@ -123,6 +129,23 @@ def mark_rate_limit_cooldown(provider: str, exc: BaseException) -> None:
     cooldown_seconds = _rate_limit_cooldown_seconds(provider)
     if cooldown_seconds <= 0:
         return
+    # A real response may ask for longer than the configured minimum. Never
+    # infer Retry-After from exception text or replace a native status with it.
+    response=getattr(exc,'response',None)
+    headers=getattr(response,'headers',None)
+    code=getattr(response,'status_code',None)
+    if(type(code)is int and code in _restricted_status_codes()
+            and getattr(exc,'http_status_observed',True)is not False and hasattr(headers,'get')):
+        raw=headers.get('Retry-After')
+        if isinstance(raw,str)and len(raw)<=128:
+            raw=raw.strip()
+            try:
+                if raw.isascii()and raw.isdecimal():seconds=float(raw)
+                else:
+                    stamp=parsedate_to_datetime(raw)
+                    seconds=stamp.timestamp()-time.time()if stamp.tzinfo is not None else 0
+                if math.isfinite(seconds)and seconds>0:cooldown_seconds=max(cooldown_seconds,seconds)
+            except (ValueError,TypeError,OverflowError):pass
     state = _throttle_state(provider)
     state["cooldown_until"] = max(float(state.get("cooldown_until") or 0.0), time.time() + cooldown_seconds)
 
