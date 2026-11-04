@@ -146,12 +146,17 @@ class ConferenceHttp(_ConferenceHttp):
         try:meta=json.loads(parts['metadata'])
         except (ValueError,UnicodeDecodeError):meta={}
         if not isinstance(meta,dict):meta={}
+        if master_request:
+            from official_master_transport_observation import observe_transfer
+            diagnostic['transfer_observation']=observe_transfer(url,parts,rc,meta)
         observed=meta.get('http_code')
         if type(observed) is int and 100<=observed<=599:diagnostic['http_status']=observed
         try:status,headers=_headers(parts['headers'])
         except SourceResponseError as exc:
             diagnostic['error_kind']=exc.error_kind
             raise SourceResponseError(exc.error_kind,status_code=diagnostic.get('http_status')) from exc
+        if master_request:
+            diagnostic['http_status_observed']=status is not None
         response=httpx.Response(status,headers=headers,request=httpx.Request(spec['request_method'],url)) if status else None
         if response is not None:observe_http_response(response)
         def fail(kind):

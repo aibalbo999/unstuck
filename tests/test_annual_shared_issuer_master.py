@@ -1,5 +1,6 @@
 """Captured complete master fallback through actual annual acquisition interfaces."""
 from copy import deepcopy
+from datetime import datetime
 from hashlib import sha256
 import json
 import time
@@ -27,6 +28,15 @@ def native_master(monkeypatch,memory_cache):
         clear_provider_circuits(provider);clear_provider_throttles(provider)
     from data_fetch.market_sources import issuer_news_transport as old, gce_conference_transport as native, official_issuer_master_json as compressed
     monkeypatch.setattr(time,'time',lambda:NOW)
+    # The complete captured master is dated at NOW. Keep the issuer's existing
+    # seven-day wall-clock gate aligned with that frozen acquisition clock;
+    # running this replay weeks later must not substitute today's date.
+    from data_fetch.market_sources import cal_annual_transport as cal
+    class FixtureDateTime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return cls.fromtimestamp(time.time(), tz)
+    monkeypatch.setattr(cal, 'datetime', FixtureDateTime)
     monkeypatch.delenv('STOCK_AGENT_TEST_NO_NETWORK',raising=False)
     for key in old.PROXY_ENV:monkeypatch.delenv(key,raising=False)
     calls=[];control={'csv_status':200,'csv_rc':28,'wire':WIRE,'json_status':200,'json_rc':0,'policy':''}

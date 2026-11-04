@@ -128,10 +128,13 @@ def download_original(http,diagnostic,*,parse_headers):
     try:meta=json.loads(parts['metadata'])
     except (ValueError,UnicodeDecodeError):meta={}
     if not isinstance(meta,dict):meta={}
+    from official_master_transport_observation import observe_transfer
+    diagnostic['transfer_observation']=observe_transfer(URL,parts,rc,meta)
     observed=meta.get('http_code')
     if type(observed) is int and 100<=observed<=599:diagnostic['http_status']=observed
     try:status,headers=parse_headers(parts['headers'])
     except (ValueError,SourceResponseError) as exc:raise SourceResponseError('transport_metadata_invalid',status_code=diagnostic.get('http_status')) from exc
+    diagnostic['http_status_observed']=status is not None
     response=httpx.Response(status,headers=headers,request=httpx.Request('GET',URL)) if status else None
     if response is not None:observe_http_response(response)
     def fail(kind):

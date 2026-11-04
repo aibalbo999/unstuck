@@ -56,6 +56,12 @@ def _component_details(item):
             if parsed.scheme=='https'and parsed.hostname and parsed.username is None and parsed.password is None:
                 row['request_url_sha256']=sha256(url.encode('utf8','strict')).hexdigest()
         except (ValueError,UnicodeError):pass
+    from official_master_transport_observation import MASTER_ENDPOINTS, sanitize_observation
+    if (isinstance(item.get('url'), str) and item['url'] in MASTER_ENDPOINTS and item.get('request_method') == 'GET'
+            and item.get('http_request_sent') is True and item.get('cache_hit') is False):
+        observation = sanitize_observation(item.get('transfer_observation'))
+        if observation:
+            row['transfer_observation'] = observation
     return row
 
 
