@@ -178,8 +178,8 @@ class StockDataService:
             result = guard_alternative_result(result, context['data'])
             if request.options.record_provider_sla:
                 record_related_alternative_attempts(result)
-        # Build the canonical result before the caller rejects a failure. Radar
-        # intentionally raises early and cannot retain this failure observation.
+        # Build the canonical source result before a caller rejects a failure.
+        # Radar instead persists its observed audits before propagating rejection.
         source_audits = [result.audit]
         if source in {'financial_statements', 'annual_workforce'}:
             related = result.audit.get('related_entries') if isinstance(result.audit,dict) else None

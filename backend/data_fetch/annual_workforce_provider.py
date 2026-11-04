@@ -169,10 +169,12 @@ def _fetch_dataset(url: str) -> str:
 
 def _tracked_dataset_fetch(url: str, request_evidence: dict) -> str:
     """Unknown transport remains unknown; receipt is independent of parsed success."""
-    request_evidence.update(http_request_sent=None, http_request_count=0)
+    request_evidence.update(http_request_sent=None, http_request_count=0,
+                            _annual_attempt_entered=True, _annual_attempt_failed=False)
     try:
         result = _fetch_dataset(url)
     except Exception as exc:
+        request_evidence['_annual_attempt_failed'] = True
         request_evidence.update(getattr(exc, 'annual_http_evidence', {}) or {})
         raise
     if isinstance(result, _DatasetText):
@@ -352,6 +354,10 @@ class AnnualWorkforceProvider(DataProvider):
             "stale": bool(meta.get("stale")),
             "fetched_at_epoch": meta.get("fetched_at_epoch"),
         }
+        from annual_disclosure_acquisition import mark_failed_refresh
+        safety_audit = mark_failed_refresh(safety_audit, safety_request, ticker=ticker)
+        audit['related_entries'] = [safety_audit]
+        audit = mark_failed_refresh(audit, workforce_request, ticker=ticker)
         return ProviderResult(source=self.source, provider=self.name, status=status,
                               value=observation or {}, audit=audit,
                               as_of=f"{observation['report_year']}-12-31" if observation else None)

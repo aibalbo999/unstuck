@@ -12,6 +12,7 @@ import sqlite3
 import json
 import time
 from pathlib import Path
+from annual_disclosure_acquisition import failed_operation_key
 
 COUNTERS = (
     "fetched_count", "empty_count", "failed_count", "degraded_count",
@@ -60,6 +61,8 @@ def observation_kind(row: dict) -> str:
             or provider in NATIVE_COMPONENT_AGGREGATE_PROVIDERS
             and details.get('event_kind') == 'aggregate'):
         return "aggregate_count"
+    if failed_operation_key(row) is not None:
+        return 'failed_count'  # Failed new call, even though retained facts remain available.
     if details.get('cache_hit') is True:
         return 'stale_cache_count' if details.get('stale') else 'fresh_cache_count' if count > 0 else 'empty_cache_count'
     if details.get('http_request_sent') is False:
@@ -132,6 +135,7 @@ def project_acquisition_events(events, *, window: str, now: float) -> dict:
     """Project ordered audit rows; keep repeated actual attempts and all failures."""
     groups = {}
     attempted_aggregate_operations = set()
+    attempted_stale_operations = set()
     first_at = None
     start = now - WINDOW_SECONDS[window] if window in WINDOW_SECONDS else None
     for raw in events:
@@ -148,6 +152,12 @@ def project_acquisition_events(events, *, window: str, now: float) -> dict:
         source = row["source"]
         group = groups.setdefault(source, dict(source=source, providers={}, **_empty_counts()))
         selection = row['details']
+        stale_key = failed_operation_key(row)
+        if stale_key is not None:
+            if stale_key in attempted_stale_operations:
+                group['aggregate_count'] += 1
+                continue
+            attempted_stale_operations.add(stale_key)
         aggregate_key = _aggregate_operation_key(row)
         if aggregate_key and selection.get('http_request_sent') is True:
             attempted_aggregate_operations.add(aggregate_key)

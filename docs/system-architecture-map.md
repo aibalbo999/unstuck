@@ -1,3 +1,5 @@
+年度人力／職安補抓失敗但保留舊資料時，只有實際進入並失敗的當次 callback 可加 `annual-current-attempt-stale-fallback:v1`。保留值、fetched／retained期限及 availability 狀態不改；此標記代表 provider invocation，不猜 HTTP。SLA 序列化依當時 ticker／fetch context 重新判定，舊 cache 交付不能沿用當次標記；取得率將新失敗保留為一個分母，同 operation 的關聯複本不重計。純快取、冷卻、未知 SDK 舊旗標與既有歷史紀錄維持原分類，不回填或改寫。
+
 雷達在部分資料、空結果、缺少後續供應商、欄位萃取失敗或例外／取消時，先保存本次已產生的 source audits 再沿原例外離開；成功仍只由共用結果建構器保存一次，研究 `record_provider_sla=False` 不寫父觀測。`fetch_correlated_provider` 的被動 error audit sink 在當次呼叫 context 內保留精確關聯，不保存例外文字或猜 HTTP 狀態，取消維持 unknown，原 exception object／重試／快取行為不變。觀測寫入失敗不替換來源例外、不重抓，也不回填歷史失敗。
 
 年度與匯率傳輸的完整旗標描述實際消費完成／尺寸一致，不把完整429／503／504錯稱截斷；錯誤仍保留原狀態、零筆傳輸與失敗語意，不封存為成功原件。

@@ -9,7 +9,7 @@ from urllib.parse import urlsplit
 from provider_correlation import correlation_metadata
 
 _TEXT = {'outcome', 'error_kind', 'acquisition_count_policy', 'parser_version', 'response_sha256', 'actual_provider',
-         'coverage_status', 'quality_status', 'retrieval_status', 'qualified_result_status', 'selection_policy', 'selection_cutoff', 'fallback_reason', 'market', 'instrument_type', 'rate_kind'}
+         'acquisition_attempt_kind', 'coverage_status', 'quality_status', 'retrieval_status', 'qualified_result_status', 'selection_policy', 'selection_cutoff', 'fallback_reason', 'market', 'instrument_type', 'rate_kind'}
 _BOOL = {'http_request_sent', 'cache_hit', 'stale', 'mapping_verified', 'progress_resume_possible',
          'body_cache_hit', 'result_quality_satisfied', 'response_complete', 'http_status_observed'}
 _NUMBER = {'acquisition_record_count', 'http_status', 'retry_at', 'fetched_at_epoch', 'response_bytes', 'raw_count', 'usable_count', 'rejected_count',
@@ -388,4 +388,8 @@ def observation_details(entry: dict) -> dict:
             # Keep positions, including unknown entries, aligned with original
             # receipt roles while retaining the existing twenty-component cap.
             result[key]=[_component_details(item)for item in value[:20]]
+    from annual_disclosure_acquisition import current_delivery
+    current = current_delivery(entry)
+    if current is not None:
+        result['acquisition_context_current'] = current
     return result
