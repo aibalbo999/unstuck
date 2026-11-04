@@ -41,6 +41,15 @@ def fetch_free_earnings_call_context(ticker: str, *, diagnostics: dict | None = 
     if supports_jentech(ticker):
         from .market_sources.mops_presentation import supports as supports_material, fetch_presentation_context
         if supports_material('3653.TW'):
+            from .market_sources.jentech_source_routing import prior_mops_transport_failure, POLICY as ROUTE_POLICY
+            prior=prior_mops_transport_failure(ticker)
+            if prior:
+                diagnostics.update(selection_policy=ROUTE_POLICY,
+                    fallback_reason='prior_mops_'+prior['error_kind']+':'+str(prior['event_id']))
+                # Choose once from previous evidence. A current rejection or
+                # timeout must propagate, never retry another host in this call.
+                return fetch_jentech_context(ticker,diagnostics=diagnostics,
+                    force_refresh=force_refresh,use_cache=use_cache)
             # Independently published and qualified government original, not a
             # retry after the issuer host's timeout or admission block.
             return fetch_presentation_context('3653.TW', diagnostics=diagnostics, force_refresh=force_refresh, use_cache=use_cache)
