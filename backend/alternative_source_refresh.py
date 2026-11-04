@@ -77,6 +77,12 @@ def valid_alternative_receipt(value, audit, data, *, require_fetch_id=True):
         return False
     if source_record_count(SOURCE, {**data, SOURCE: value}) != audit['record_count']:
         return False
+    yes123 = value.get('job_openings_yes123')
+    if isinstance(yes123, dict):
+        from data_fetch.market_sources.tigerair_yes123 import PROVIDER as YES123_PROVIDER
+        if (audit.get('actual_provider') != YES123_PROVIDER
+                or stamp != yes123.get('fetched_at_epoch')):
+            return False
     official = value.get('job_openings_official')
     if isinstance(official, dict) and official.get('source') == 'KGI Financial Holding official Workday careers':
         from data_fetch.context_provider_cache import _kgi_live_remaining
@@ -116,7 +122,8 @@ def record_related_alternative_attempts(result):
         return
     rows = [entry for entry in entries if isinstance(entry, dict)
             and entry.get('source') == SOURCE and entry.get('provider') in {
-                'CHT official public careers', 'THSRC official public careers'}
+                'CHT official public careers', 'THSRC official public careers',
+                'Tigerair official-linked yes123 public careers'}
             and entry.get('status') in {'unavailable', 'error', 'degraded_enrichment'}
             and type(entry.get('record_count')) is int and entry['record_count'] == 0]
     if rows:

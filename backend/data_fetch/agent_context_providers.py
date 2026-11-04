@@ -179,15 +179,20 @@ class AlternativeJobOpeningsProvider(DataProvider):
         elif request.ticker == '2633.TW':
             from .thsrc_careers_provider import thsrc_context_result
             official = thsrc_context_result(official_request, context)
+        elif request.ticker == '6757.TW':
+            from .tigerair_yes123_provider import tigerair_context_result
+            official = tigerair_context_result(official_request, context)
         else:
             official = cht_context_result(official_request, context) if request.ticker == '2412.TW' else None
         if official is not None and official.status == 'success':
             return official
-        result = cached_context_result(self, request, context, self._fetch_uncached)
+        result = cached_context_result(self, official_request if request.ticker == '6757.TW' else request,
+                                       context, self._fetch_uncached)
         if official is not None:
             result.audit = {**result.audit, 'related_entries': [
                 *(result.audit.get('related_entries') or []), {**official.audit,
                     'provider': ('THSRC official public careers' if request.ticker == '2633.TW'
+                                 else 'Tigerair official-linked yes123 public careers' if request.ticker == '6757.TW'
                                  else 'CHT official public careers')}]}
         return result
 

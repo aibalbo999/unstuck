@@ -150,6 +150,9 @@ def _alternative_observation_count(data: dict) -> int:
     from source_content_selection import select_company_records
 
     payload = safe_mapping_dict(data.get("alternative_data")) or {}
+    from data_fetch.market_sources.tigerair_yes123_evidence import verified_job_count as verified_yes123_count
+    yes123_count = verified_yes123_count(payload.get('job_openings_yes123'), data,
+                                       payload.get('company_legal_name_evidence')) if payload.get('job_openings_yes123') else 0
     philjobnet_count = 0
     if payload.get('job_openings_philjobnet') is not None:
         from data_fetch.market_sources.philjobnet_medtecs import verified_philjobnet_observation
@@ -359,7 +362,7 @@ def _alternative_observation_count(data: dict) -> int:
             from data_fetch.market_sources.taiwanjobs_company_jobs import verified_taiwanjobs_job_count
             taiwanjobs_count = verified_taiwanjobs_job_count(taiwanjobs, ticker, legal_name, ubn)
     if not news:
-        return numeric_count + len(company_jobs) + official_count + taiwanjobs_count + philjobnet_count
+        return numeric_count + len(company_jobs) + official_count + taiwanjobs_count + philjobnet_count + yes123_count
     selected, _ = select_company_records(news, data)
     links, titles = set(), set()
     for item in selected:
@@ -372,7 +375,7 @@ def _alternative_observation_count(data: dict) -> int:
             links.add(link)
             if title:
                 titles.add(title)
-    return numeric_count + len(company_jobs) + official_count + taiwanjobs_count + philjobnet_count + len(links)
+    return numeric_count + len(company_jobs) + official_count + taiwanjobs_count + philjobnet_count + yes123_count + len(links)
 
 
 def source_record_count(source: str, data: Any) -> int:
