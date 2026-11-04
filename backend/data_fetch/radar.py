@@ -32,8 +32,28 @@ def _market_fields(snapshot, *, calendar=False):
     return {'daily_prices': rows, 'current_price': rows[-1]['close']}
 
 
+def _persist_failed_plan(request, entries):
+    """Retain actual observations once, before the unchanged failure propagates."""
+    if not request.options.record_provider_sla or not entries:
+        return
+    try:
+        from provider_sla import record_source_audit_entries
+        record_source_audit_entries(entries)
+    except Exception:
+        # A diagnostic write cannot replace an error or initiate a source retry.
+        pass
+
+
 async def fetch_radar_payload(request, sources, registry):
     data = {'ticker': request.ticker, 'source_audit': []}
+    try:
+        return await _fetch_radar_plan(request, sources, registry, data)
+    except BaseException:
+        _persist_failed_plan(request, data['source_audit'])
+        raise
+
+
+async def _fetch_radar_plan(request, sources, registry, data):
     snapshot = None
     for source in sources:
         provider_source = 'market_data' if source == 'event_calendar' else source
@@ -43,7 +63,9 @@ async def fetch_radar_payload(request, sources, registry):
             provider = registry.first_provider(request, provider_source)
             if provider is None:
                 raise RuntimeError(f'雷達缺少資料來源：{source}')
-            result = await fetch_correlated_provider(provider, request, {'original_ticker': request.ticker})
+            result = await fetch_correlated_provider(
+                provider, request, {'original_ticker': request.ticker},
+                error_audit_sink=data['source_audit'].append)
             for entry in result.audit.get('related_entries') or []:
                 if isinstance(entry, dict):
                     data['source_audit'].append(entry)

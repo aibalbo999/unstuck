@@ -1,3 +1,5 @@
+雷達在部分資料、空結果、缺少後續供應商、欄位萃取失敗或例外／取消時，先保存本次已產生的 source audits 再沿原例外離開；成功仍只由共用結果建構器保存一次，研究 `record_provider_sla=False` 不寫父觀測。`fetch_correlated_provider` 的被動 error audit sink 在當次呼叫 context 內保留精確關聯，不保存例外文字或猜 HTTP 狀態，取消維持 unknown，原 exception object／重試／快取行為不變。觀測寫入失敗不替換來源例外、不重抓，也不回填歷史失敗。
+
 年度與匯率傳輸的完整旗標描述實際消費完成／尺寸一致，不把完整429／503／504錯稱截斷；錯誤仍保留原狀態、零筆傳輸與失敗語意，不封存為成功原件。
 
 既有匯率 GET 的 `fx_transport_receipts` 在精確公開端點、匿名且完整非快取回應後封存 decoded 原件；銀行／幣別／報價時間／買賣方向仍由原 parser 核對，200 或完整正文不代表報價合格。HTTP 子事件維持零筆傳輸觀測，SQL 只投影雜湊，研究 `record_provider_sla=False` 不封存或寫 SLA。暖快取、原鍵、TTL、供應商順序、時限、冷卻及原始失敗保持；封存失敗不新增請求或改來源結果。

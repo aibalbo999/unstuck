@@ -1,6 +1,6 @@
 import sys,asyncio,importlib.util
 from pathlib import Path
-sys.path.insert(0,'/Volumes/X10 Pro Mac/stock-agent/backend')
+sys.path.insert(0,str(Path(__file__).resolve().parents[1]/'backend'))
 import data_fetch
 from data_fetch.types import FetchRequest,ProviderResult
 from provider_correlation import correlation_scope,current_correlation,current_source_identity

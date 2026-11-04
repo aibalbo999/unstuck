@@ -143,7 +143,9 @@ def test_monitor_rechecks_false_condition_after_ttl_on_same_day(monkeypatch):
     import watchlist_service as service
     async def no_pacing_wait(_seconds):
         return None
-    monkeypatch.setattr(service, 'asyncio', SimpleNamespace(sleep=no_pacing_wait))
+    monkeypatch.setattr(service, 'asyncio', SimpleNamespace(
+        sleep=no_pacing_wait, create_task=asyncio.create_task,
+        shield=asyncio.shield, CancelledError=asyncio.CancelledError))
     tick = [0]
     calls = []
     class Data:
