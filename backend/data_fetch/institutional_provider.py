@@ -42,7 +42,8 @@ def fetch_institutional_result(request: FetchRequest, *, fetch=None) -> Provider
         return fresh_ttl if value.get("latest_date")==expected and phase=="post_cutoff" and recency["observation_status"] == "recent" else min(STALE_RECHECK_SECONDS,300)
 
     started = time.time()
-    with source_operation(SOURCE, PROVIDER):
+    from finmind_transport_receipts import receipt_observation_scope
+    with source_operation(SOURCE, PROVIDER), receipt_observation_scope(request.options.record_provider_sla):
         value, meta = shared_fetch(
             primary_key,
             lambda: call_provider_with_resilience(PROVIDER, fetch, (request.ticker,), {}),
@@ -145,6 +146,8 @@ def fetch_institutional_result(request: FetchRequest, *, fetch=None) -> Provider
         if value:
             from official_institutional_verification import attach_cached_verification
             value = attach_cached_verification(value, request.ticker)
+        from finmind_dataset_originals import attach_input_audit
+        audit = attach_input_audit({'value': value, 'audit': audit})['audit']
         return ProviderResult(source=SOURCE, provider=PROVIDER, status=status, value=value,
                               audit=audit, duration_ms=audit.get("duration_ms") or 0,
                               as_of=recency["observed_at"])

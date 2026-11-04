@@ -18,7 +18,8 @@ async def fetch_correlated_provider(provider, request, context, *, capture_error
     """
     source = getattr(provider, "source", "unknown")
     name = getattr(provider, "name", provider.__class__.__name__)
-    with source_operation(source, name):
+    from finmind_transport_receipts import receipt_observation_scope
+    with source_operation(source, name), receipt_observation_scope(request.options.record_provider_sla):
         started = time.monotonic()
         result_received = False
         try:

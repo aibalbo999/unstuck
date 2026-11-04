@@ -85,7 +85,20 @@ def _fetch_finmind_payload(symbol: str) -> Optional[dict[str, Any]]:
     income = _call_loader(loader, ("taiwan_stock_income_statement", "taiwan_stock_financial_statement"), symbol, start_date)
     balance = _call_loader(loader, ("taiwan_stock_balance_sheet",), symbol, start_date)
     cash_flow = _call_loader(loader, ("taiwan_stock_cash_flows_statement", "taiwan_stock_cash_flows"), symbol, start_date)
-    return _build_payload(_frame_rows(income), _frame_rows(balance), _frame_rows(cash_flow), "FinMind_TWSE")
+    payload = _build_payload(_frame_rows(income), _frame_rows(balance), _frame_rows(cash_flow), "FinMind_TWSE")
+    if payload:
+        # This proves only SDK input identity, never TTM/units/metric derivation.
+        inputs=[]
+        for frame,dataset in ((income,'TaiwanStockFinancialStatements'),(balance,'TaiwanStockBalanceSheet'),(cash_flow,'TaiwanStockCashFlowsStatement')):
+            try:
+                from finmind_dataset_originals import bind_sdk_frame
+                from provider_correlation import current_correlation
+                proof=bind_sdk_frame(loader,frame,current_correlation().get('ticker'),dataset)
+                if proof is not None:inputs.append(proof)
+            except Exception:
+                pass
+        if inputs:payload['native_sdk_inputs']=inputs
+    return payload
 
 
 def _login_finmind(loader: Any) -> None:

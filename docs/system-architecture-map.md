@@ -1,3 +1,5 @@
+FinMind SDK 的法人與財務三表由既有 owned Session、零 retry adapter 與完整消費的精確 GET 被動封存 decoded 原件；`finmind_dataset_originals` 核公司／查詢期間／schema、去除公開 URL 的憑證並拒絕正文回顯秘密，再重播原件與實際 SDK DataFrame 全列比對。`sdk_input_lineages` 僅證明原件到 SDK 輸入，`derived_metrics_verified`、獨立證交所與歷史時點核實都維持 false，不能升格為 TTM／單位／法人彙總或報告主張已核實。財務內部 metadata 在 typed provider 出口移入 audit、不增加資料欄位或 record_count；法人保留既有 SDK JSON 憑據種類，另存輸入關聯。暖 cache／舊 attempt／不同 context 不升格；研究 scope 在共用執行與兩個直接入口阻止新原件／HTTP SLA，巢狀 scope 不可重新啟用。舊 monthly／PER 原件種類不回填，HTTP 子事件仍零筆，不新增請求、不改解析、重試、身分、品質或 TTL。
+
 年度人力／職安補抓失敗但保留舊資料時，只有實際進入並失敗的當次 callback 可加 `annual-current-attempt-stale-fallback:v1`。保留值、fetched／retained期限及 availability 狀態不改；此標記代表 provider invocation，不猜 HTTP。SLA 序列化依當時 ticker／fetch context 重新判定，舊 cache 交付不能沿用當次標記；取得率將新失敗保留為一個分母，同 operation 的關聯複本不重計。純快取、冷卻、未知 SDK 舊旗標與既有歷史紀錄維持原分類，不回填或改寫。
 
 雷達在部分資料、空結果、缺少後續供應商、欄位萃取失敗或例外／取消時，先保存本次已產生的 source audits 再沿原例外離開；成功仍只由共用結果建構器保存一次，研究 `record_provider_sla=False` 不寫父觀測。`fetch_correlated_provider` 的被動 error audit sink 在當次呼叫 context 內保留精確關聯，不保存例外文字或猜 HTTP 狀態，取消維持 unknown，原 exception object／重試／快取行為不變。觀測寫入失敗不替換來源例外、不重抓，也不回填歷史失敗。

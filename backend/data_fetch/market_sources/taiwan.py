@@ -75,12 +75,19 @@ def fetch_institutional_trading_trend(ticker: str) -> dict:
     if df is None or df.empty:
         return {}
 
+    native_input = None
+    try:
+        from finmind_dataset_originals import bind_sdk_frame
+        native_input = bind_sdk_frame(loader, df, ticker, "TaiwanStockInstitutionalInvestorsBuySell")
+    except Exception:
+        pass  # Optional evidence never changes the established parser or result.
     from official_response_evidence import archive_response
     acquired=datetime.fromtimestamp(time.time(),ZoneInfo("UTC")).isoformat()
     source_url=loader._dispatcher_url("TaiwanStockInstitutionalInvestorsBuySell") if hasattr(loader,"_dispatcher_url") else None
     sdk_evidence=archive_response(df.to_json(orient="records",force_ascii=False,date_format="iso").encode(),source_url=source_url,retrieved_at=acquired,evidence_kind="sdk_dataframe_json_not_raw_http",http_status=None)
     sdk_evidence["query"]={"dataset":"TaiwanStockInstitutionalInvestorsBuySell","data_id":stock_id,
                            "start_date":start_date,"end_date":end_date}
+    if native_input is not None:sdk_evidence['native_sdk_input']=native_input
     df = df.copy()
     if not {"stock_id", "date", "name", "buy", "sell"}.issubset(df.columns):
         raise ValueError("Institutional response lacks required identity or observation fields")

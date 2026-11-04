@@ -33,14 +33,21 @@ class TwseOfficialProvider(DataProvider):
     def fetch(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
         import external_data_twse
 
-        result = audited_fetch(
-            self.source,
-            self.name,
-            external_data_twse.fetch_twse_official_data,
-            (request.ticker,),
-            default={},
-            unavailable_message="台股官方財務資料（TWSE/MOPS）本次未取得。",
-        )
+        from finmind_transport_receipts import receipt_observation_scope
+        from source_audit import record_count_from_value
+        with receipt_observation_scope(request.options.record_provider_sla):
+            result = audited_fetch(
+                self.source,
+                self.name,
+                external_data_twse.fetch_twse_official_data,
+                (request.ticker,),
+                default={},
+                record_counter=lambda value: record_count_from_value(
+                    {k:v for k,v in value.items()if k!='native_sdk_inputs'}if isinstance(value,dict)else value),
+                unavailable_message="台股官方財務資料（TWSE/MOPS）本次未取得。",
+            )
+        from finmind_dataset_originals import attach_input_audit
+        result = attach_input_audit(result)
         return provider_result_from_audited(result, self.source, self.name)
 
 

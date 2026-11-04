@@ -349,6 +349,11 @@ def observation_details(entry: dict) -> dict:
         per_lineage=audit_per_lineage(entry)
     except Exception:per_lineage=None
     if per_lineage is not None:result['sdk_per_quantile_lineage']=per_lineage
+    try:
+        from finmind_dataset_originals import audit_input_lineages
+        input_lineages=audit_input_lineages(entry)
+    except Exception:input_lineages=[]
+    if input_lineages:result['sdk_input_lineages']=input_lineages
     for key,allowed in _VERIFICATION.items():
         value=entry.get(key)
         if isinstance(value,str) and value in allowed:

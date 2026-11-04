@@ -4,6 +4,16 @@ from urllib.parse import urlsplit,parse_qs
 import time
 import threading
 import weakref
+from contextlib import contextmanager
+from contextvars import ContextVar
+
+_RECORD_RECEIPTS=ContextVar('finmind_receipt_observation',default=True)
+
+@contextmanager
+def receipt_observation_scope(enabled):
+    token=_RECORD_RECEIPTS.set(_RECORD_RECEIPTS.get()and enabled is True)
+    try:yield
+    finally:_RECORD_RECEIPTS.reset(token)
 
 _LOCK=threading.Lock()
 _DATASETS={'TaiwanStockMonthRevenue':'monthly_revenue',
@@ -15,6 +25,7 @@ _DATASETS={'TaiwanStockMonthRevenue':'monthly_revenue',
 
 
 def _record(session,request,response,started):
+    if not _RECORD_RECEIPTS.get():return None
     import requests
     from provider_correlation import current_correlation,current_source_identity
     from provider_sla import record_source_audit_entries
@@ -42,7 +53,7 @@ def _record(session,request,response,started):
         'response_bytes':len(response.content),'response_sha256':sha256(response.content).hexdigest(),
         'duration_ms':max(0,int((time.monotonic()-started)*1000)),
         'message':'Native FinMind SDK transport only, not direct exchange proof; parsed data is separately audited.'}
-    capsule=None
+    capsule=None;dataset_original=False
     if dataset[0]=='TaiwanStockMonthRevenue':
         try:
             from finmind_monthly_lineage import capture_monthly_response
@@ -53,7 +64,15 @@ def _record(session,request,response,started):
             from finmind_per_lineage import capture_per_response
             capsule=capture_per_response(request,response,context)
         except Exception:pass
+    elif dataset[0]in {'TaiwanStockInstitutionalInvestorsBuySell','TaiwanStockFinancialStatements','TaiwanStockBalanceSheet','TaiwanStockCashFlowsStatement'}:
+        try:
+            from finmind_dataset_originals import capture_dataset_response
+            capsule=capture_dataset_response(request,response,context)
+            dataset_original=capsule is not None
+        except Exception:pass
     if capsule is not None:entry['raw_http_receipt']=capsule.receipt
+    if dataset_original:
+        entry.update(http_status_observed=True,response_complete=True,cache_hit=False)
     record_source_audit_entries([entry])
     return capsule
 
@@ -75,7 +94,9 @@ def observe_loader(loader):
                 capsule=_record(session,request,response,started)
                 owner=owner_ref()
                 if capsule is not None and owner is not None:
-                    key='_stock_per_transport_capsules' if getattr(capsule,'dataset','')=='TaiwanStockPER' else '_stock_monthly_transport_capsules'
+                    dataset=getattr(capsule,'dataset','')
+                    key=('_stock_per_transport_capsules'if dataset=='TaiwanStockPER'else
+                         '_stock_dataset_transport_capsules'if dataset in {'TaiwanStockInstitutionalInvestorsBuySell','TaiwanStockFinancialStatements','TaiwanStockBalanceSheet','TaiwanStockCashFlowsStatement'}else '_stock_monthly_transport_capsules')
                     setattr(owner,key,[*getattr(owner,key,[])[-7:],capsule])
             except Exception:pass
             return response
