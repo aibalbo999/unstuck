@@ -166,3 +166,28 @@ def test_existing_raw_original_or_negative_guard_prevents_namespace_bypass(monke
         with pytest.raises(SourceResponseError) as caught: t.PeerIncomeHttp()._download(t.spec('home'),{})
         assert caught.value.error_kind == 'legacy_raw_cache_still_live'
         assert caught.value.diagnostic['http_status_observed'] is False
+
+
+def test_exact_twse_methodology_uses_its_explicit_utf8_meta_when_header_omits_charset():
+    request = t.spec('methodology')
+    raw = b'<html><head><meta charset="utf-8"></head><body>fixture</body></html>'
+    value = parts(request, body=raw)
+    value['headers'] = b'HTTP/2 200\r\nContent-Type: text/html\r\n\r\n'
+    packet = consume(request, value)
+    assert t.receipt_body(packet, request, check_owner=False) == raw
+
+
+@pytest.mark.parametrize('kind,meta,header', [
+    ('home', '<meta charset="utf-8">', 'text/html'),
+    ('methodology', '', 'text/html'),
+    ('methodology', '<meta charset="big5">', 'text/html'),
+    ('methodology', '<meta charset="utf-8"><meta charset="utf-8">', 'text/html'),
+    ('methodology', '<meta charset="utf-8">', 'text/html; charset=big5'),
+    ('methodology', '<meta charset="utf-8"><meta http-equiv="Content-Type" content="text/html; charset=big5">', 'text/html'),
+])
+def test_meta_rule_does_not_relax_other_routes_or_ambiguous_encoding(kind, meta, header):
+    request = t.spec(kind)
+    body = ('<html><head>'+meta+'</head><body>fixture</body></html>').encode()
+    value = parts(request, body=body)
+    value['headers'] = ('HTTP/2 200\r\nContent-Type: '+header+'\r\n\r\n').encode()
+    with pytest.raises(SourceResponseError):consume(request, value)

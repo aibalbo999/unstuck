@@ -99,6 +99,27 @@ def _error(kind,*,status=None,observed=False):
     return exc
 
 
+def _encoding_matches(request,url,raw,mime):
+    declarations=[p.strip().replace(' ','').replace('-','')for p in mime[1:]
+                  if p.strip().split('=',1)[0].strip()=='charset']
+    if request['kind']!='methodology' or url!=METHODOLOGY:
+        return 'charset='+request['encoding'].replace('-','')in declarations
+    # This exact TWSE page publishes Content-Type:text/html without a header
+    # charset, but explicitly declares UTF-8 in its head. Never apply this
+    # exception to the financial forms, filing index, or another host/URL.
+    if declarations not in ([],['charset=utf8']):return False
+    try:
+        from bs4 import BeautifulSoup
+        soup=BeautifulSoup(raw.decode('utf-8',errors='strict'),'html.parser')
+        if soup.head is None:return False
+        metas=soup.head.find_all('meta',charset=True)
+        if len(metas)!=1 or str(metas[0]['charset']).strip().lower().replace('-','')!='utf8':return False
+        equivalents=[m for m in soup.head.find_all('meta')if str(m.get('http-equiv','')).lower()=='content-type']
+        return (len(equivalents)<=1 and all(str(m.get('content','')).lower().replace(' ','').replace('-','')
+                =='text/html;charset=utf8'for m in equivalents))
+    except(UnicodeError,ValueError):return False
+
+
 def receipt_body(packet,request,*,now=None,check_owner=True):
     request=canonical_spec(request);now=time.time()if now is None else now
     if (not isinstance(packet,dict)or set(packet)!={'schema','spec','request_url','native','fetched_at_epoch','raw_receipt','metadata_manifest'}
@@ -185,7 +206,7 @@ class PeerIncomeHttp:
         if _security_refusal_page(raw):fail('access_denied')
         mime=headers.get('content-type','').lower().split(';')
         if mime[0].strip()!=request['mime']or headers.get('content-encoding','identity').lower()not in{'','identity'}:fail('unexpected_content_type')
-        if request['mime']=='text/html'and not any(s.strip().replace(' ','').replace('-','')=='charset='+request['encoding'].replace('-','')for s in mime[1:]):fail('unexpected_encoding')
+        if request['mime']=='text/html'and not _encoding_matches(request,url,raw,mime):fail('unexpected_encoding')
         if not 0<len(raw)<=request['limit']or type(meta.get('size_download'))not in(int,float)or meta['size_download']!=len(raw):fail('transport_body_incomplete')
         if time.monotonic()>=self.deadline:fail('timeout')
         stamp=time.time();packet={'schema':SCHEMA,'spec':deepcopy(request),'request_url':url,'fetched_at_epoch':stamp,

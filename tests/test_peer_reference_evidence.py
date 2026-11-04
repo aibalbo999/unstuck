@@ -38,7 +38,7 @@ def evidence_environment(monkeypatch):
         calls.append(deepcopy(request)); p = request['params']; kind = request['kind']
         if kind == 'home': body = '<html><body><a name="IncomeStatement">綜合損益表(累計)</a></body></html>'.encode()
         elif kind == 'methodology':
-            body = ('<html><body><li>本益比 = 收盤價／每股參考稅後純益，'
+            body = ('<html><head><meta charset="utf-8"></head><body><li>本益比 = 收盤價／每股參考稅後純益，'
                 '其中每股參考稅後純益 = 該公司稅後參考純益／發行參考股數，'
                 '當每股參考稅後純益為0或負數時，則不計算本益比。'
                 '以上純益資料採用各上市公司於公開資訊觀測站過去已申報格式化之近滿4季財務報告為計算基礎。'
