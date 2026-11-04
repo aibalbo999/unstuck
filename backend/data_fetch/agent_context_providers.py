@@ -170,11 +170,17 @@ class AlternativeJobOpeningsProvider(DataProvider):
     def fetch(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
         from .context_provider_cache import cached_context_result
         from .cht_careers_provider import cht_context_result
-        if request.ticker == '2633.TW':
+        from dataclasses import replace
+        # A report-level refresh never changes the shared official source TTL.
+        # Keep the caller immutable and let the source validate its saved epoch.
+        official_request = replace(request, options=replace(request.options, force_refresh=False))
+        if request.options.skip_optional_http:
+            official = None
+        elif request.ticker == '2633.TW':
             from .thsrc_careers_provider import thsrc_context_result
-            official = thsrc_context_result(request, context)
+            official = thsrc_context_result(official_request, context)
         else:
-            official = cht_context_result(request, context) if request.ticker == '2412.TW' else None
+            official = cht_context_result(official_request, context) if request.ticker == '2412.TW' else None
         if official is not None and official.status == 'success':
             return official
         result = cached_context_result(self, request, context, self._fetch_uncached)
