@@ -129,9 +129,14 @@ def project_public_holding_statement(value, ticker):
                 or not isinstance(docs, list) or len(docs) != 5):
             return None
         close = datetime(int(years[-1]) + 1, 1, 1, tzinfo=ZoneInfo('Asia/Taipei')).timestamp()
-        index = _receipt(value['published_index_receipt'], INDEX_URL, 2_500_000, not_before=close)
-        if sorted(_filing_urls(index, '2886'))[-5:] != [int(y) for y in years]:
-            return None
+        if 'acquisition_protocol'in value or 'publication_catalogue'in value:
+            from .mega_annual_catalog import POLICY,replay_catalogue
+            if value.get('acquisition_protocol')!=POLICY or 'published_index_receipt'in value:return None
+            replay_catalogue(value.get('publication_catalogue'),years=years)
+        else:
+            index = _receipt(value['published_index_receipt'], INDEX_URL, 2_500_000, not_before=close)
+            if sorted(_filing_urls(index, '2886'))[-5:] != [int(y) for y in years]:
+                return None
         primary, comparative, templates = {}, {}, {}
         for y, doc in zip(years, docs):
             year = int(y)
@@ -172,13 +177,17 @@ def project_public_holding_statement(value, ticker):
         return None
 
 
-def fetch_public_holding_histories(ticker, *, transport=None):
+def fetch_public_holding_histories(ticker, *, transport=None, publication_catalogue=None):
     if not supports_public_holding(ticker):
         raise FilingError('public holding issuer layout unsupported')
     http = transport or PublicMopsHttp()
     with http.batch():
-        index, index_receipt = http.request(INDEX_URL, request={'step': '1', 'firstin': 'ture', 'off': '1', 'queryName': 'co_id', 'inpuType': 'co_id', 'TYPEK': 'all', 'co_id': '2886'})
-        years = sorted(_filing_urls(index, '2886'))[-5:]
+        if publication_catalogue is None:
+            index, index_receipt = http.request(INDEX_URL, request={'step': '1', 'firstin': 'ture', 'off': '1', 'queryName': 'co_id', 'inpuType': 'co_id', 'TYPEK': 'all', 'co_id': '2886'})
+            years = sorted(_filing_urls(index, '2886'))[-5:]
+        else:
+            from .mega_annual_catalog import replay_catalogue
+            years=replay_catalogue(publication_catalogue)['years']
         if len(years) != 5 or years != list(range(years[0], years[0] + 5)) or years[-1] >= date.today().year:
             raise FilingError('public holding five published annual filings incomplete')
         templates = {s: http.request(template_url(s)) for s in STATEMENTS}
@@ -201,21 +210,41 @@ def fetch_public_holding_histories(ticker, *, transport=None):
                          'sha256': sha256(';'.join(p['sha256'] for p in parts).encode()).hexdigest()})
         assembled, revisions = _resolved(primary, comparative)
         value = {**assembled, 'schema': SCHEMA, 'ticker': ticker, 'currency': 'TWD', 'statement_taxonomy': 'financial_holding',
-                 'report_scope': 'consolidated', 'source_url': SOURCE_URL, 'published_index_receipt': index_receipt,
+                 'report_scope': 'consolidated', 'source_url': SOURCE_URL,
                  'documents': docs, 'comparative_revisions': revisions}
+        if publication_catalogue is None:value['published_index_receipt']=index_receipt
+        else:
+            from .mega_annual_catalog import POLICY
+            value.update(acquisition_protocol=POLICY,publication_catalogue=deepcopy(publication_catalogue))
         if project_public_holding_statement(value, ticker) is None:
             raise FilingError('public holding complete original projection invalid')
     if time.monotonic() >= http.deadline:
         raise SourceResponseError('timeout')
+    if publication_catalogue is not None:
+        from .mega_annual_catalog import verify_live_catalogue
+        verify_live_catalogue(publication_catalogue)
+        if time.monotonic() >= http.deadline:
+            raise SourceResponseError('timeout')
     return value
 
 
 def fetch_public_holding_result(ticker, *, transport=None):
     from source_audit import audited_fetch
     http = transport or PublicMopsHttp()
+    from .mega_annual_catalog import prefer_catalogue,fetch_catalogue,POLICY
+    use_catalogue=prefer_catalogue(ticker);catalogue_components=[]
     def acquire():
         try:
-            return fetch_public_holding_histories(ticker, transport=http)
+            if use_catalogue:
+                # A different publication index does not bypass the actual
+                # financial JSON/template host's retained quota/access wait.
+                from .mops_public_annual import PROVIDER as PUBLIC_JSON_PROVIDER
+                from search_provider_runtime import cooldown_state,scope_key
+                hosts={urlsplit(api_url(s)).hostname for s in STATEMENTS}|{urlsplit(template_url(s)).hostname for s in STATEMENTS}
+                if any(cooldown_state(scope_key(p,endpoint=h))for h in hosts
+                        for p in(PUBLIC_JSON_PROVIDER,'Verified issuer news')):raise SourceResponseError('cooldown')
+            catalogue=fetch_catalogue(http.deadline,diagnostics=catalogue_components)if use_catalogue else None
+            return fetch_public_holding_histories(ticker, transport=http,publication_catalogue=catalogue)
         except (FilingError, SourceResponseError):
             raise
         except Exception as exc:
@@ -224,9 +253,11 @@ def fetch_public_holding_result(ticker, *, transport=None):
             raise FilingError('public holding acquisition failed closed: ' + type(exc).__name__) from exc
     result = audited_fetch('financial_statements', PROVIDER, acquire,
                           default=None, record_counter=lambda v: len(v['years']))
-    sent = sum(c.get('http_request_sent') is True for c in http.components)
+    components=catalogue_components+http.components
+    sent = sum(c.get('http_request_sent') is True for c in components)
     result['audit'].update(http_request_sent=bool(sent), http_request_count=sent,
-        event_kind='aggregate' if sent else 'local_block', component_statuses={str(i): deepcopy(c) for i, c in enumerate(http.components)})
-    if http.components:
-        result['audit']['http_status'] = http.components[-1].get('http_status')
+        event_kind='aggregate' if sent else 'local_block', component_statuses={str(i): deepcopy(c) for i, c in enumerate(components)})
+    if use_catalogue:result['audit']['selection_policy']=POLICY
+    if components:
+        result['audit']['http_status'] = components[-1].get('http_status')
     return result
