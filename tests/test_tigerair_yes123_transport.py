@@ -96,6 +96,20 @@ def test_only_exact_source_scope_can_emit_passive_native_receipts(monkeypatch):
     c._consume(t.PAGE,parts(),0,None,{})
     assert len(rows)==1 and rows[0]['record_count']==0 and rows[0]['event_kind']=='http_transport_receipt'
     assert rows[0]['selection_policy']=='transport-receipt-only:v1'
+    from provider_acquisition import observation_kind
+    assert observation_kind({**rows[0],'details':rows[0]})=='aggregate_count'
     monkeypatch.setattr(correlation,'current_source_identity',lambda:('other','other'))
     c._consume(t.PAGE,parts(),0,None,{})
     assert len(rows)==1
+
+
+def test_cold_source_preserves_local_cooldown_reason_and_zero_http(monkeypatch):
+    c=client(monkeypatch)
+    monkeypatch.delenv('STOCK_AGENT_TEST_NO_NETWORK')
+    monkeypatch.setattr(t,'proxy_url_for_request',lambda *a:None)
+    monkeypatch.setattr(t,'cooldown_state',lambda *a:{'until':time.time()+60})
+    for k in ('HTTP_PROXY','HTTPS_PROXY','ALL_PROXY','http_proxy','https_proxy','all_proxy'):monkeypatch.delenv(k,raising=False)
+    monkeypatch.setattr(t,'collect_capped_process',lambda *a,**k:pytest.fail('local cooldown sent HTTP'))
+    with pytest.raises(SourceResponseError)as err:c.read(t.PAGE)
+    assert err.value.error_kind=='cooldown'
+    assert c.http_request_count==0 and c.components[0]['http_request_sent']is False

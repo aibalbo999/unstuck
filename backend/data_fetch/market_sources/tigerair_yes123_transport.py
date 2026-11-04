@@ -126,23 +126,29 @@ class TigerairCareersHttp:
     def _download(self, url, diagnostic):
         from cache_store import get_cache_json
         allowed_url(url)
+        def block(kind):
+            diagnostic.update(error_kind=kind, http_status=None, http_status_observed=False,
+                response_complete=False, http_request_sent=False, http_request_count=0)
+            exc = SourceResponseError(kind)
+            exc.diagnostic.update(http_status_observed=False, response_complete=False)
+            raise exc
         if os.getenv('STOCK_AGENT_TEST_NO_NETWORK') == '1':
-            raise SourceResponseError('test_network_disabled')
+            block('test_network_disabled')
         if proxy_url_for_request(url, PROVIDER) or any(os.getenv(k) for k in
                 ('HTTP_PROXY', 'HTTPS_PROXY', 'ALL_PROXY', 'http_proxy', 'https_proxy', 'all_proxy')):
-            raise SourceResponseError('proxy_configuration_unsupported')
+            block('proxy_configuration_unsupported')
         host = urlsplit(url).hostname
         if any(cooldown_state(scope_key(p, endpoint=host)) for p in (PROVIDER, 'Verified issuer news')):
-            raise SourceResponseError('cooldown')
+            block('cooldown')
         # Do not use a new namespace to bypass a previously retained raw source.
         legacy = get_cache_json('shared_provider:v1:' + sha256(('issuer-news-raw:v1:' + url).encode()).hexdigest())
         if isinstance(legacy, dict) and any(type(legacy.get(k)) in (int, float)
                 and math.isfinite(legacy[k]) and legacy[k] > time.time()
                 for k in ('fresh_until_epoch', 'retry_after_epoch')):
-            raise SourceResponseError('legacy_raw_cache_still_live')
+            block('legacy_raw_cache_still_live')
         remaining = min(5., self.deadline - time.monotonic())
         if remaining <= 0:
-            raise SourceResponseError('timeout')
+            block('timeout')
         argv = ['/usr/bin/curl', '--disable', '--silent', '--max-time', str(remaining),
             '--connect-timeout', str(min(2., remaining)), '--max-filesize', str(MAX_BYTES),
             '--proto', '=https', '--max-redirs', '0', '--retry', '0',
