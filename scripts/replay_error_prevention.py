@@ -17,6 +17,13 @@ import re
 import os
 import subprocess
 import sys
+from contextlib import contextmanager, ExitStack
+from datetime import datetime, timezone
+import socket
+import tempfile
+import time
+from unittest.mock import patch
+from uuid import uuid4
 
 ROOT=Path(__file__).resolve().parents[1]
 sys.path.insert(0,str(ROOT/'backend'))
@@ -67,7 +74,7 @@ def sha256(content):
 
 
 def encoded(value):
-    return json.dumps(value,ensure_ascii=False,sort_keys=True,default=str).encode()
+    return json.dumps(value,ensure_ascii=False,sort_keys=True,default=str,allow_nan=False).encode()
 
 
 def write_json(path,value):
@@ -155,24 +162,143 @@ def replay_case(case):
     return result
 
 
+def validator_receipt():
+    paths=set(ROOT.glob('backend/**/*.py')) | set(ROOT.glob('backend/prompts/*.json')) | {Path(__file__).resolve()}
+    return {str(p.relative_to(ROOT)):sha256(p.read_bytes()) for p in sorted(paths)}
+
+
 def replay_manifest(path):
-    path=Path(path).resolve();manifest=json.loads(path.read_text());results=[]
+    """Replay a fixed corpus. Callers outside the CLI must provide isolation."""
+    path=Path(path).resolve();manifest_bytes=path.read_bytes();manifest=json.loads(manifest_bytes)
+    if (not isinstance(manifest,dict) or manifest.get('schema_version')!=1
+            or not isinstance(manifest.get('cases'),list) or not manifest['cases']):
+        raise ValueError('a nonempty version-1 corpus is required')
+    identities=[]
     for entry in manifest['cases']:
+        if (not isinstance(entry,dict) or not isinstance(entry.get('identity'),str) or not entry['identity']
+                or not isinstance(entry.get('payload'),str)
+                or not isinstance(entry.get('sha256'),str) or not re.fullmatch('[0-9a-f]{64}',entry['sha256'])):
+            raise ValueError('invalid corpus entry')
+        identities.append(entry['identity'])
+    if len(set(identities))!=len(identities):raise ValueError('duplicate corpus identity')
+    run_id=uuid4().hex;started=datetime.now(timezone.utc).isoformat()
+    receipt=validator_receipt();results=[];attempts=[]
+    for entry in manifest['cases']:
+        attempt_started=time.monotonic();payload_hash=None
         try:
             payload=(path.parent/entry['payload']).resolve()
             if not payload.is_relative_to(path.parent):raise ValueError('payload outside corpus')
             content=payload.read_bytes()
             if sha256(content)!=entry['sha256']:raise ValueError('payload hash mismatch')
-            result=replay_case(json.loads(content))
+            case=json.loads(content)
+            if (not isinstance(case,dict) or case.get('identity')!=entry['identity']
+                    or case.get('kind') not in {'job','report'}):
+                raise ValueError('payload identity mismatch')
+            payload_hash=sha256(content)
+            result=replay_case(case)
+            if not isinstance(result,dict) or result.get('identity')!=entry['identity']:
+                raise ValueError('result identity mismatch')
+            result_hash=sha256(encoded(result))
         except Exception as exc:
             result={'identity':entry['identity'],'classification':'evidence_missing','missing':[('payload outside corpus' if isinstance(exc,ValueError) and str(exc)=='payload outside corpus'
                                                        else 'corpus read/validation failure: '+type(exc).__name__)]}
+            result_hash=sha256(encoded(result))
         results.append(result)
+        attempts.append({'run_id':run_id,'attempt_id':uuid4().hex,'identity':entry['identity'],
+                         'payload_sha256':payload_hash,'result_sha256':result_hash,
+                         'execution_status':'incomplete' if result.get('classification')=='evidence_missing' else 'completed',
+                         'latency_ms':max(0,round((time.monotonic()-attempt_started)*1000))})
     from collections import Counter
-    code_paths=sorted(set(ROOT.glob('backend/**/*.py')) | set(ROOT.glob('backend/prompts/*.json')) | {Path(__file__).resolve()})
-    receipt={str(p.relative_to(ROOT)):sha256(p.read_bytes()) for p in code_paths}
-    return {'schema_version':1,'replay_code_receipt':receipt,'manifest_sha256':sha256(path.read_bytes()),'results':results,
-            'counts':dict(Counter(r['classification'] for r in results))}
+    stable=receipt==validator_receipt()
+    try:
+        commit=subprocess.run(['git','rev-parse','HEAD'],cwd=ROOT,capture_output=True,text=True,timeout=3,check=True).stdout.strip()
+    except (OSError,subprocess.SubprocessError):commit=None
+    incomplete=not stable or any(a['execution_status']=='incomplete' for a in attempts)
+    return {'schema_version':2,'replay_code_receipt':receipt,'manifest_sha256':sha256(manifest_bytes),
+            'results':results,'counts':dict(Counter(r['classification'] for r in results)),
+            'case_receipts':attempts,'run_receipt':{'run_id':run_id,'started_at':started,
+            'finished_at':datetime.now(timezone.utc).isoformat(),'git_commit':commit,
+            'validator_sha256':sha256(encoded(receipt)),'code_stable_during_run':stable,
+            'execution_status':'incomplete' if incomplete else 'completed','quality_accepted':None,
+            'scope':'retained inputs and current deterministic gates only; no generation or publication'}}
+
+
+def _bound_results(replay):
+    if not isinstance(replay,dict):raise ValueError('a replay object is required')
+    if replay.get('schema_version')!=2:raise ValueError('baseline requires version-2 receipts')
+    run=replay['run_receipt'];code=replay['replay_code_receipt']
+    if (run['execution_status']!='completed' or run['code_stable_during_run'] is not True
+            or not code or run['validator_sha256']!=sha256(encoded(code))):
+        raise ValueError('incomplete or unbound replay')
+    results=replay['results'];receipts=replay['case_receipts']
+    if not results or len(results)!=len(receipts):raise ValueError('incomplete case receipts')
+    bound={}
+    for result,receipt in zip(results,receipts):
+        identity=result['identity']
+        if (identity in bound or identity!=receipt['identity'] or receipt['run_id']!=run['run_id']
+                or receipt['execution_status']!='completed'
+                or not isinstance(receipt.get('payload_sha256'),str)
+                or not re.fullmatch('[0-9a-f]{64}',receipt['payload_sha256'])
+                or receipt['result_sha256']!=sha256(encoded(result))
+                or result['classification'] not in {'fixed_in_scoped_replay','still_reproduced','true_error_still_blocked'}):
+            raise ValueError('unbound case or ineligible baseline finding')
+        bound[identity]=(receipt['payload_sha256'],receipt['result_sha256'])
+    return bound
+
+
+def compare_replays(current,baseline):
+    """Report any changed deterministic finding; never silently bless a new baseline."""
+    try:
+        before=_bound_results(baseline);after=_bound_results(current)
+        if baseline['manifest_sha256']!=current['manifest_sha256'] or before.keys()!=after.keys():
+            raise ValueError('different corpus')
+        if any(before[key][0]!=after[key][0] for key in before):raise ValueError('different input payload')
+    except (KeyError,TypeError,ValueError):
+        return {'status':'not_comparable','changed_cases':[],
+                'reason':'same complete corpus and bound version-2 input/code/result receipts required'}
+    changed=sorted(key for key in before if before[key][1]!=after[key][1])
+    return {'status':'changed' if changed else 'unchanged','changed_cases':changed,
+            'validator_changed':baseline['run_receipt']['validator_sha256']!=current['run_receipt']['validator_sha256'],
+            'quality_accepted':None}
+
+
+@contextmanager
+def offline_replay_boundary():
+    """Standalone deterministic replay cannot connect sockets or open databases."""
+    if sys.platform=='darwin':
+        # Reuse the project's external-volume guard, including temp/cache placement.
+        sys.path.insert(0,str(ROOT/'scripts'))
+        from project_storage import external_environment
+        environment=external_environment()
+        archive=Path(environment['STOCK_AGENT_ARCHIVE_DIR']).resolve(strict=True)
+        base=archive/'test-sandboxes'
+        if not base.resolve().is_relative_to(archive):raise OSError('Replay sandbox leaves external archive')
+        base.mkdir(exist_ok=True,mode=0o700)
+        if base.stat().st_dev!=archive.stat().st_dev:raise OSError('Replay sandbox is on another volume')
+    else:
+        environment={};base=None
+    def denied(*args,**kwargs):raise OSError('Offline replay cannot contact services or open databases')
+    with tempfile.TemporaryDirectory(prefix='error-replay-',dir=base) as directory, ExitStack() as stack:
+        root=Path(directory)
+        environment.update({'STOCK_AGENT_TEST_NO_NETWORK':'1','CACHE_BACKEND':'memory',
+            'CACHE_DIR':str(root/'cache'),'OUTPUT_DIR':str(root/'output'),
+            'CACHE_DB_PATH':str(root/'cache.sqlite3'),'OPERATIONAL_DB_PATH':str(root/'operational.sqlite3'),
+            'TASK_DB_PATH':str(root/'operational.sqlite3'),'JSON_CACHE_DB_PATH':'',
+            'LANGGRAPH_CHECKPOINT_BACKEND':'sqlite','LANGGRAPH_CHECKPOINT_PATH':str(root/'checkpoints.sqlite3'),
+            'STOCK_AGENT_MAINTENANCE_DIR':str(root/'maintenance'),
+            'TMPDIR':directory,'TEMP':directory,'TMP':directory})
+        stack.enter_context(patch.dict(os.environ,environment))
+        stack.enter_context(patch.object(sys,'dont_write_bytecode',True))
+        for owner,name in ((socket,'create_connection'),(socket.socket,'connect'),
+                           (socket.socket,'connect_ex'),(sqlite3,'connect')):
+            stack.enter_context(patch.object(owner,name,denied))
+        yield
+
+
+def write_new_result(path,value):
+    """Exclusive creation preserves the corpus, reviewed baseline, and prior runs."""
+    descriptor=os.open(path,os.O_WRONLY|os.O_CREAT|os.O_EXCL,0o600)
+    with os.fdopen(descriptor,'wb') as stream:stream.write(encoded(value))
 
 
 def read_only(path):
@@ -257,18 +383,38 @@ def export_corpus(audit_dir,corpus,checkpoint_db,operational_db,output_root):
     return manifest
 
 
-def main():
+def main(argv=None):
     parser=argparse.ArgumentParser(description=__doc__)
     sub=parser.add_subparsers(dest='command',required=True)
     export=sub.add_parser('export')
     for name in ('audit-dir','corpus','checkpoint-db','operational-db','output-root'):export.add_argument('--'+name,required=True,type=Path)
     replay=sub.add_parser('replay');replay.add_argument('manifest',type=Path);replay.add_argument('--result',required=True,type=Path)
-    args=parser.parse_args()
+    replay.add_argument('--baseline',type=Path,help='Compare against a retained version-2 replay; never updates it')
+    args=parser.parse_args(argv)
     if args.command=='export':
         result=export_corpus(args.audit_dir,args.corpus,args.checkpoint_db,args.operational_db,args.output_root)
         print(json.dumps({'exported':len(result['cases'])}))
     else:
-        result=replay_manifest(args.manifest);write_json(args.result,result);print(json.dumps(result['counts']))
-        if result['counts'].get('true_error_unexpectedly_passed'):raise SystemExit(2)
+        try:
+            if os.path.lexists(args.result):raise FileExistsError('result already exists')
+            with offline_replay_boundary():
+                result=replay_manifest(args.manifest)
+                if args.baseline:
+                    baseline=args.baseline.read_bytes()
+                    result['comparison']={**compare_replays(result,json.loads(baseline)),
+                                          'baseline_sha256':sha256(baseline)}
+            write_new_result(args.result,result)
+        except (OSError,ValueError,TypeError,KeyError) as exc:
+            print(json.dumps({'status':'incomplete','error':type(exc).__name__}))
+            return 3
+        print(json.dumps({'run_id':result['run_receipt']['run_id'],'counts':result['counts'],
+                          'execution_status':result['run_receipt']['execution_status'],
+                          'comparison':result.get('comparison',{}).get('status','not_requested')}))
+        if result['counts'].get('true_error_unexpectedly_passed'):return 2
+        if result['run_receipt']['execution_status']!='completed':return 3
+        comparison=result.get('comparison',{}).get('status')
+        if comparison=='not_comparable':return 3
+        if comparison=='changed':return 4
+    return 0
 
-if __name__=='__main__':main()
+if __name__=='__main__':raise SystemExit(main())
