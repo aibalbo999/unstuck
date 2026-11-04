@@ -81,3 +81,10 @@ lsof -nP -iTCP:8080 -sTCP:LISTEN
 pgrep -fl 'start_mac.command|worker_main.py --role all|uvicorn api:app'
 scripts/project_exec.sh "$(scripts/project_python.sh)" scripts/doctor_runtime.py --json
 ```
+
+## 共用工具選用與容量控制 2026年11月5日
+
+- 共用指引與登記見 `/Volumes/X10 Pro Mac/project-system-tools/README.md`；`route --project stock --intent code-change` 只定位原驗證入口，不讀正式資料庫、不 export corpus、不執行模型或部署。
+- 修改報告／提示詞／驗證器相關邏輯時，先按本次變更選用 `scripts/README_error_prevention.md` 的既有離線 replay 與 `tests/run_prompt_boundary_tests.py`。replay 使用既有明確 corpus／baseline 與新的隔離結果位置；不得用一般查詢名義 export 正式資料，也不以離線結果宣告正式來源或部署通過。
+- 建立工作區／備份先查既有 commit、差異及必要私有資料，避免每輪複製整棵原始碼／環境／資料庫。大量寫入估算峰值並沿用原外接儲存入口；報告、provider cache、checkpoint、未完任務、最新必要備份與凍結證據仍受保護。
+- 共用容量工具目前未接管本專案正式服務／資料庫寫入，不能宣稱有全程硬配額。歷史工作區只能按精確 owner 審核與原授權退役；保留正式 Redis 等實際 consumer。runtime doctor 輸出可能含連線設定，不把完整 payload 轉印到共用摘要。
