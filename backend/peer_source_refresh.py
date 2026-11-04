@@ -2,6 +2,10 @@
 
 
 def validate_peer_refresh_context(data,ticker):
+ if ticker=='9917.TW':
+  from security_peer_source_refresh import validate_context
+  validate_context(data,ticker)
+  return 'security_related'
  if ticker=='2633.TW':
   from railway_peer_source_refresh import validate_context
   validate_context(data,ticker)
@@ -21,6 +25,9 @@ def validate_peer_refresh_context(data,ticker):
 
 
 def guard_peer_result(result,data,ticker):
+ if ticker=='9917.TW':
+  from security_peer_source_refresh import guard_result
+  return guard_result(result,data,ticker)
  from data_fetch.market_sources.ncc_mobile_peer_cohort import IDENTITIES
  if ticker in IDENTITIES:
   from ncc_peer_source_refresh import guard_ncc_result
@@ -30,6 +37,9 @@ def guard_peer_result(result,data,ticker):
 
 def merge_peer_source(old_data,old_audits,value,audits,ticker):
  policy=validate_peer_refresh_context(old_data,ticker)
+ if policy=='security_related':
+  from security_peer_source_refresh import merge_source
+  return merge_source(old_data,old_audits,value,audits,ticker)
  if policy=='ncc':
   from ncc_peer_source_refresh import merge_ncc_peer_source
   return merge_ncc_peer_source(old_data,old_audits,value,audits,ticker)
