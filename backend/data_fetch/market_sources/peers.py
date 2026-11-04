@@ -37,6 +37,11 @@ from .security_related_peer_cohort import (
     verified_candidates as verified_security_related_candidates,
     TARGET as SECURITY_TARGET, SCOPE as SECURITY_SCOPE,
 )
+from .auto_sales_related_peer_cohort import (
+    get_candidates as get_auto_sales_related_candidates,
+    verified_candidates as verified_auto_sales_related_candidates,
+    TARGET as AUTO_SALES_TARGET, SCOPE as AUTO_SALES_SCOPE,
+)
 from .official_underwriter_peer_cohort import documented_peer_candidates
 from .peer_recovery import (_today, finite_number, fetch_peer_valuation_fallback,
                             industry_comparability, load_peer_stock_master, resolve_legacy_peer_candidates)
@@ -245,6 +250,16 @@ def fetch_dynamic_peer_metrics_with_diagnostics(ticker: str, company_name: str, 
                 candidates = security['candidates'] + candidates
                 audit['selection_status'] = 'selected'
                 audit['candidate_order_policy'] = 'dated_security_related_leads_then_current_master'
+        if (ticker == AUTO_SALES_TARGET
+                and industry_comparability(industry, 'Auto & Truck Dealerships') == 'business_industry_matched'):
+            auto_sales = get_auto_sales_related_candidates(ticker, master_rows, today=today)
+            audit['published_auto_sales_related_status'] = auto_sales['status']
+            if isinstance(auto_sales.get('source_audit'), dict):
+                audit.setdefault('related_entries', []).append(auto_sales['source_audit'])
+            if auto_sales['candidates']:
+                candidates = auto_sales['candidates'] + candidates
+                audit['selection_status'] = 'selected'
+                audit['candidate_order_policy'] = 'dated_auto_sales_related_leads_then_current_master'
         documented = documented_peer_candidates(ticker, master_rows, today=today)
         audit["official_underwriter_candidate_count"] = len(documented)
         if documented:
@@ -373,9 +388,10 @@ def fetch_dynamic_peer_metrics_with_diagnostics(ticker: str, company_name: str, 
             record["reported_industry"] = info.get("industry")
         medical_scope=candidate.get('comparison_scope')=='publisher_other_medical_candidates'
         security_scope=candidate.get('comparison_scope')==SECURITY_SCOPE
+        auto_sales_scope=candidate.get('comparison_scope')==AUTO_SALES_SCOPE
         airline_scope=candidate.get('comparison_scope')==AIRLINE_SCOPE
         ncc_scope=candidate.get('comparison_scope')==NCC_SCOPE
-        if medical_scope or airline_scope or ncc_scope or security_scope:
+        if medical_scope or airline_scope or ncc_scope or security_scope or auto_sales_scope:
             if (str(info.get('symbol')or'').upper()!=symbol or str(info.get('quoteType')or'').upper()!='EQUITY'):
                 info,yf_status={},'identity_unverified';record['comparison_status']='identity_unverified'
             elif record['comparison_status']!='business_industry_matched':
@@ -390,7 +406,7 @@ def fetch_dynamic_peer_metrics_with_diagnostics(ticker: str, company_name: str, 
             record[field] = round(number * (100 if field.endswith("_pct") else 1), 2) if number is not None else None
         revenue, assets = finite_number(info.get("totalRevenue")), finite_number(info.get("totalAssets"), positive=True)
         record["asset_turnover"] = round(revenue / assets, 4) if revenue is not None and assets is not None else None
-        if candidate.get("comparison_status") == "published_segment_candidate" or medical_scope or thermal_scope or airline_scope or ic_scope or rail_scope or security_scope:
+        if candidate.get("comparison_status") == "published_segment_candidate" or medical_scope or thermal_scope or airline_scope or ic_scope or rail_scope or security_scope or auto_sales_scope:
             # Undated quote aggregates cannot establish a common annual period.
             record["asset_turnover"] = None
         financial_signature = " ".join([industry, str(info.get("industry", "")), *candidate.get("industry_categories", [])]).casefold()
@@ -508,6 +524,10 @@ def fetch_dynamic_peer_metrics_with_diagnostics(ticker: str, company_name: str, 
     if security_records and not verified_security_related_candidates(security_records, ticker, today=today):
         selected_records = [r for r in selected_records if r.get('comparison_scope') != SECURITY_SCOPE]
         audit['published_security_related_status'] = 'originals_expired_or_unverified_after_metrics'
+    auto_sales_records = [r for r in selected_records if r.get('comparison_scope') == AUTO_SALES_SCOPE]
+    if auto_sales_records and not verified_auto_sales_related_candidates(auto_sales_records, ticker, today=today):
+        selected_records = [r for r in selected_records if r.get('comparison_scope') != AUTO_SALES_SCOPE]
+        audit['published_auto_sales_related_status'] = 'originals_expired_or_unverified_after_metrics'
     usable_count = sum(r["metrics_status"] != "unavailable" for r in selected_records)
     partial = any(r["metrics_status"] != "complete" for r in selected_records) or (
         ticker == RAIL_TARGET and (len(selected_records) != len(RAIL_IDENTITIES)

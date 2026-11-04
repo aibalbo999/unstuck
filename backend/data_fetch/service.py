@@ -89,6 +89,9 @@ class StockDataService:
         elif source == 'dynamic_peer_metrics':
             from peer_source_refresh import validate_peer_refresh_context
             policy = validate_peer_refresh_context((context or {}).get('data'), request.ticker)
+            if policy == 'auto_sales_related' and request.options.force_refresh:
+                from fastapi import HTTPException
+                raise HTTPException(status_code=400, detail='汽車銷售同業來源僅接受保留正常快取的流程')
             if policy == 'ncc' and request.options.force_refresh:
                 from fastapi import HTTPException
                 raise HTTPException(status_code=400, detail='NCC 同業來源僅接受保留正常快取的流程')

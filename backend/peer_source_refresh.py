@@ -2,6 +2,10 @@
 
 
 def validate_peer_refresh_context(data,ticker):
+ if ticker=='2207.TW':
+  from auto_sales_peer_source_refresh import validate_context
+  validate_context(data,ticker)
+  return 'auto_sales_related'
  if ticker=='9917.TW':
   from security_peer_source_refresh import validate_context
   validate_context(data,ticker)
@@ -25,6 +29,9 @@ def validate_peer_refresh_context(data,ticker):
 
 
 def guard_peer_result(result,data,ticker):
+ if ticker=='2207.TW':
+  from auto_sales_peer_source_refresh import guard_result
+  return guard_result(result,data,ticker)
  if ticker=='9917.TW':
   from security_peer_source_refresh import guard_result
   return guard_result(result,data,ticker)
@@ -37,6 +44,9 @@ def guard_peer_result(result,data,ticker):
 
 def merge_peer_source(old_data,old_audits,value,audits,ticker):
  policy=validate_peer_refresh_context(old_data,ticker)
+ if policy=='auto_sales_related':
+  from auto_sales_peer_source_refresh import merge_source
+  return merge_source(old_data,old_audits,value,audits,ticker)
  if policy=='security_related':
   from security_peer_source_refresh import merge_source
   return merge_source(old_data,old_audits,value,audits,ticker)

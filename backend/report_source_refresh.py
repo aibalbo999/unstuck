@@ -276,7 +276,7 @@ async def fetch_report_source_data(previous_snapshot, source, refresh_service):
             raise HTTPException(status_code=400, detail='原核心資料取得時間缺漏、無效或互相矛盾')
     # Institutional caches already separate the expected session and cutoff
     # phase. Reuse valid all-market originals when repairing different reports.
-    request = FetchRequest.from_ticker(ticker, force_refresh=source not in {'institutional_trading', 'alternative_data'} and peer_refresh_policy not in {'ncc', 'ic_distribution', 'railway', 'security_related'}, record_provider_sla=True)
+    request = FetchRequest.from_ticker(ticker, force_refresh=source not in {'institutional_trading', 'alternative_data'} and peer_refresh_policy not in {'ncc', 'ic_distribution', 'railway', 'security_related', 'auto_sales_related'}, record_provider_sla=True)
     try:
         if honhai_recovery:
             result = await refresh_service.fetch_source_async(request, source, context={'data':old_data,'source_only_recovery':True})
