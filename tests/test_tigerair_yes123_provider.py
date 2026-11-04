@@ -134,6 +134,18 @@ def test_live_legacy_context_is_not_bypassed_by_new_source_namespace(monkeypatch
     assert len(seen)==1 and seen[0].startswith('optional-context:v3:')
 
 
+def test_legacy_negative_cache_cooldown_is_not_bypassed(monkeypatch):
+    from data_fetch.tigerair_yes123_provider import tigerair_context_result
+    from data_fetch.types import FetchRequest
+    import shared_provider_cache,cache_store
+    e,now,owners,issuer,data,jobs=setup(monkeypatch)
+    monkeypatch.setattr(shared_provider_cache,'peek_fresh_shared',lambda *a:(None,{'cache_hit':False}))
+    monkeypatch.setattr(cache_store,'peek_cache_json',lambda *a:{'value':None,'error_kind':'timeout',
+        'fresh_until_epoch':0,'retry_after_epoch':now+60})
+    monkeypatch.setattr(shared_provider_cache,'shared_fetch',lambda *a,**k:pytest.fail('legacy negative guard bypassed'))
+    assert tigerair_context_result(FetchRequest.from_ticker(e.TICKER),{'data':data})is None
+
+
 def test_native_complete_corpus_replays_normal_protocol_and_preserves_analysis(monkeypatch):
     """Offline old originals are not new HTTP or formal acquisition evidence."""
     from pathlib import Path

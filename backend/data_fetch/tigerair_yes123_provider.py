@@ -1,5 +1,6 @@
 """Officially linked exact-employer portal samples through the normal source path."""
 from dataclasses import asdict
+from hashlib import sha256
 import json
 import math
 import time
@@ -82,6 +83,7 @@ def _remaining(payload):
 
 def tigerair_context_result(request, context):
     from shared_provider_cache import shared_fetch, peek_fresh_shared
+    from cache_store import peek_cache_json
     data = (context or {}).get('data') or {}
     if (request.ticker != TICKER or request.options.force_refresh or request.options.skip_optional_http
             or not valid_context(data)):
@@ -94,6 +96,12 @@ def tigerair_context_result(request, context):
         ensure_ascii=False, sort_keys=True)
     legacy, legacy_meta = peek_fresh_shared('optional-context:v3:' + legacy_key)
     if legacy is not None and legacy_meta.get('cache_hit'):
+        return None
+    legacy_owner = peek_cache_json('shared_provider:v1:' + sha256(
+        ('optional-context:v3:' + legacy_key).encode()).hexdigest())
+    if isinstance(legacy_owner, dict) and any(type(legacy_owner.get(k)) in (int, float)
+            and math.isfinite(legacy_owner[k]) and legacy_owner[k] > time.time()
+            for k in ('fresh_until_epoch', 'retry_after_epoch')):
         return None
     identity = data['company_identity']
     key = json.dumps([TICKER, data['company_name'],
