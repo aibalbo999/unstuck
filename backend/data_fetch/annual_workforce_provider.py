@@ -130,13 +130,8 @@ class _DatasetText(str):
 
 def _response_request_evidence(url, response):
     import httpx
-    if type(response) is not httpx.Response or getattr(response, 'from_cache', False):
-        return {}
-    try:
-        if (response.url != url or response.request.method != 'GET'
-                or type(response.status_code) is not int or not 100 <= response.status_code <= 599):
-            return {}
-    except RuntimeError:
+    from annual_disclosure_transport import native_response
+    if not native_response(url, response):
         return {}
     proof = {'http_request_sent': True, 'http_request_count': 1,
              'http_status': response.status_code}
@@ -193,6 +188,11 @@ class AnnualWorkforceProvider(DataProvider):
     cost_tier = "free"
 
     def fetch(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
+        from annual_disclosure_transport import receipt_observation_scope
+        with receipt_observation_scope(request.options.record_provider_sla):
+            return self._fetch(request, context)
+
+    def _fetch(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
         ticker = request.ticker.strip().upper()
         suffix = ".TWO" if ticker.endswith(".TWO") else ".TW" if ticker.endswith(".TW") else ""
         if not suffix or not ticker[:-len(suffix)].isdigit():

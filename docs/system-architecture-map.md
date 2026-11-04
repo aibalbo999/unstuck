@@ -1,3 +1,5 @@
+年度人力與職安來源的原生 GET 收據在完整、非快取且精確匿名 GET 回應時保存可重播 decoded 原件；HTTP、雜湊與原件路徑分開處理，SQL 只投影有限雜湊明細。傳輸事件維持 record_count=0，不代表公司／期間／欄位准入。研究請求 `record_provider_sla=False` 不寫原件或 SLA；暖快取不新增 HTTP、不續取得時間，原快取鍵、TTL、解析及失敗分母保持。原件保存失敗不重試來源或丟棄已下載資料。此變更只適用後續取得，不補造歷史收據。
+
 # 系統架構關聯圖
 
 同業 P/E 的非適用理由由 `market_sources/peer_reference_income`、`peer_reference_transport`、`peer_reference_evidence` 與 `peer_reference_applicability` 處理，初期只准入已獨立資格化的6230。正常數值備援仍缺 P/E 時，重用現存完整TWSE主檔，再核完整估值表的參考財季、官方計算規則、曆年制合併發布索引，以及公開財務比較站明列期間／TWD仟元的累計母公司與總淨利。以前一年全年減前一年同季累計、加本年同季累計重算近四季淨利；不加總不同分母的EPS、不猜個股空白原因，也不下載加密PDF。
