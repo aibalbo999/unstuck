@@ -14,13 +14,16 @@ class IssuerNewsProvider(DataProvider):
     freshness_seconds = 1800
 
     def supports(self, request):
-        if str(request.ticker or '').upper() in {'5880', '5880.TW'}:
+        if str(request.ticker or '').upper() in {'5880', '5880.TW', '2308.TW'}:
             return True
         if str(request.ticker or '').upper() in {'2201', '2201.TW', '2464', '2886', '2464.TW', '2886.TW'}:
             return True
         return str(request.ticker or "").upper() in {"3324.TWO", "1101", "2206", "2353", "2360", "2379", "2412", "3023", "3042", "3443", "6672", "6669", "8150", "2884", "1101.TW", "2206.TW", "2353.TW", "2360.TW", "2379.TW", "2412.TW", "3023.TW", "3042.TW", "3443.TW", "6672.TW", "6669.TW", "8069.TWO", "8150.TW", "2884.TW"}
 
     def fetch(self, request, context=None):
+        if str(request.ticker or '').upper()=='2308.TW':
+            from .delta_press_provider import fetch_delta_press
+            return fetch_delta_press(request,context)
         from .market_sources.issuer_news import fetch_recent_issuer_news
         requested_ticker = str(request.ticker).upper()
         if (requested_ticker in {'2206', '2206.TW'} and context is not None

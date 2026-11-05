@@ -140,6 +140,12 @@ class StockDataService:
             provider = PhilJobNetJobObservationProvider()
             canonical_source = 'alternative_data'
         elif source in {"issuer_news", "tdr_announcements", "official_announcements"}:
+            if source=='issuer_news'and request.ticker=='2308.TW':
+                from fastapi import HTTPException
+                from .market_sources.delta_press_evidence import valid_context
+                supplied=context.get('data')if isinstance(context,dict)else None
+                if request.options.force_refresh or not valid_context(supplied):
+                    raise HTTPException(status_code=400,detail='台達電新聞須為一致的已核對股票身分及正常快取流程')
             if source == 'official_announcements':
                 from official_announcement_source_refresh import supports as supports_ordinary
                 if supports_ordinary(request.ticker):
@@ -169,7 +175,7 @@ class StockDataService:
         if source == 'earnings_call':
             from .market_sources.mops_presentation import supports as supports_material
             material_context = supports_material(request.ticker)
-        result = await fetch_correlated_provider(provider, request, context if material_context or source in {'financial_statements', 'recent_catalysts', 'official_announcements', 'dynamic_peer_metrics', 'alternative_data'} or source == 'issuer_news' and request.ticker in {'2201.TW', '5880.TW', '2206.TW'} or source == 'earnings_call' and (request.ticker in {'1476.TW', '3653.TW', '2912.TW', '3443.TW', '1503.TW', '2059.TW', '2367.TW', '8150.TW', '2344.TW', '6257.TW', '2480.TW', '2330.TW', '1229.TW', '1605.TW', '2002.TW', '2412.TW', '1514.TW', '2368.TW', '2049.TW', '1560.TW'} or request.ticker == '2317.TW' and isinstance(context,dict)and context.get('source_only_recovery')is True or re.fullmatch(r'[1-9]\d{3,5}\.TWO',request.ticker) is not None) else {"original_ticker": request.ticker})
+        result = await fetch_correlated_provider(provider, request, context if material_context or source in {'financial_statements', 'recent_catalysts', 'official_announcements', 'dynamic_peer_metrics', 'alternative_data'} or source == 'issuer_news' and request.ticker in {'2201.TW', '5880.TW', '2206.TW', '2308.TW'} or source == 'earnings_call' and (request.ticker in {'1476.TW', '3653.TW', '2912.TW', '3443.TW', '1503.TW', '2059.TW', '2367.TW', '8150.TW', '2344.TW', '6257.TW', '2480.TW', '2330.TW', '1229.TW', '1605.TW', '2002.TW', '2412.TW', '1514.TW', '2368.TW', '2049.TW', '1560.TW'} or request.ticker == '2317.TW' and isinstance(context,dict)and context.get('source_only_recovery')is True or re.fullmatch(r'[1-9]\d{3,5}\.TWO',request.ticker) is not None) else {"original_ticker": request.ticker})
         if source == 'recent_catalysts':
             from recent_catalyst_source_refresh import guard_recent_source_result
             result = guard_recent_source_result(result, context['data'])
@@ -193,6 +199,9 @@ class StockDataService:
             result = guard_alternative_result(result, context['data'])
             if request.options.record_provider_sla:
                 record_related_alternative_attempts(result)
+        if source=='issuer_news'and request.ticker=='2308.TW':
+            from .delta_press_provider import guard_delta_result
+            result=guard_delta_result(result,context['data'])
         if source == 'airline_operating_metrics':
             from .caa_operating_provider import guard_operating_result
             result = guard_operating_result(result, context['data'])
@@ -204,7 +213,8 @@ class StockDataService:
             if isinstance(related,list):
                 source_audits.extend(entry for entry in related if isinstance(entry,dict))
         data = {"ticker": request.ticker, canonical_source: result.value, "source_audit": source_audits}
-        if source in {'alternative_data', 'airline_operating_metrics'}:
+        if source in {'alternative_data', 'airline_operating_metrics'}or source=='issuer_news'and request.ticker=='2308.TW':
+            from copy import deepcopy
             from alternative_source_refresh import IDENTITY_FIELDS
             data.update({k: deepcopy(context['data'][k]) for k in IDENTITY_FIELDS if k in context['data']})
         return self._build_result(request, data, max(0, int((time.time() - started) * 1000)))

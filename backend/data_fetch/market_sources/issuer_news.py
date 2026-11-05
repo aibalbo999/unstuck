@@ -121,6 +121,9 @@ def verified_issuer_news(record, data, *, today=None):
     """A saved receipt admits the official alias only on its exact issuer route."""
     try:
         ticker = str(data.get("ticker") or "").upper()
+        if ticker == "2308.TW":
+            from .delta_press_evidence import verified_record
+            return verified_record(record,data,today=today)
         if ticker == "2206.TW":
             from .sym_issuer_news import is_marked, verified_record
             if is_marked(record):

@@ -1,3 +1,7 @@
+台達電2308官方新聞由 `delta_press_provider` 接入既有 `IssuerNewsProvider` 的 `recent_catalysts`，正常來源刷新為 `issuer_news`。入口須有一致的原股票身分及當前完整TWSE主檔，核對法名、統編、DELTA英文簡稱與官方網站；不以模糊別名或子公司代填。只沿完整新聞索引公布的最新合格Corporate action，取得完整文章及綁定主畫面的內嵌srcdoc正文，不執行JavaScript、不把圖片說明當正文。日期只有日精度，時鐘／時區保持未知，採2至28日的保守窗口；這是公司自行陳述，非獨立媒體、事件影響評估、財務主張核實或完整30日歷史，原新聞數量／獨立來源品質門檻不變。
+
+每次交付及計數重播完整索引／文章原件、不可變metadata manifest、未續期的獨立同URL原件及組合owner、當前公司主檔。私有 `delta_press_receipt` 留server驗證，提示保留全文、公開URL、日期精度及限制。原 `issuer-news-raw:v1:` 鍵優先；不改已有快取或冷卻。匿名兩次GET，各最多1000000bytes／5秒／connect2秒，流程20秒，零重試／redirect／proxy／cookies；研究及 `record_provider_sla=False` 只讀既有合格原件。HTTP子事件為零筆傳輸，僅本次新取得且通過全部驗證的文章正文計一筆父來源取得；更新索引、暖快取與離線重播不增加成功數，失敗及未知HTTP保留。補來源不改原報告、已通過角色或模型計數。
+
 民航局航空營運資料由 `caa_operating_provider` 接入 `alternative_data`，僅涵蓋已核對的華航2610、長榮航2618、星宇2646及台灣虎航6757。完整當前 TWSE 主檔、CAA國籍航空公司名稱／IATA名錄及年度ODS共同綁定身分；CAA原標籤不是官方股票代碼，不用模糊比對或集團／子公司代填。只交付具名航空公司的全球本月／年初累計旅客人數、載客率、含郵件／貨物／行李的貨運噸數及載貨率；不是職缺、人力、合併財報、未來成長或估值證據。
 
 正常 `StockDataService.fetch_source_async(..., 'airline_operating_metrics')` 使用既有明確股票身分及 `force_refresh=False`；一般分析只在原職缺資料真正不足、沒有存取／額度拒收時委派，保留原失敗。原 `alternative_data` 指定職缺刷新仍為job-only，營運數字不能讓職缺門檻通過。新provider不另排一次工作、不取代既有有效職缺。每次交付、計數及報告引用均重播三份完整原件、私有manifest、獨立原件／組合owner與完整當前主檔；公開旗標、SHA、研究重播不能補造原生取得。私有 `caa_operating_receipt` 只留server驗證，提示保留數值、單位、期間與限制。新營運主張須每行明示「民航局 官方簡稱 西元年年月 全球指標：原顯示值 單位。」；累計明示「年1至月累計」，貨運噸數必明示含郵件、貨物及行李。逐欄按原顯示精度比對，錯期間／公司／單位、額外推論或缺原件維持未知，數值矛盾拒收；其他財務主張擷取與既有品質門檻保持。
