@@ -394,6 +394,10 @@ def flatten_snapshot_numbers(snapshot: Any, *, eligible_only: bool = False, _nor
     walk(snapshot, "")
     return values
 def _check_financial_or_other_claim(claim, snapshot, snapshot_values, **kwargs):
+    from evidence_airline_operating_claims import operating_claim
+    operating = operating_claim(claim, snapshot)
+    if operating is not None:
+        return operating
     if claim.get('river_value_path') == 'pe_river_chart.eps_twd':
         return _check_year_bound_river_eps(claim, snapshot, tolerance_pct=kwargs['tolerance_pct'])
     from evidence_financial_amounts import check_financial_amount

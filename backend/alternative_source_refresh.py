@@ -65,6 +65,9 @@ def valid_alternative_receipt(value, audit, data, *, require_fetch_id=True):
     ttl = source_max_age_seconds(SOURCE, data['ticker'])
     if stamp is None or not 0 <= time.time() - stamp < ttl:
         return False
+    # Carrier operating data cannot satisfy this specifically job-only refresh.
+    if value.get('operating_metrics_official') is not None:
+        return False
     # A recruitment article alone cannot satisfy this job recovery operation.
     jobs = deepcopy(value)
     jobs['recent_recruitment_news'] = []

@@ -3,11 +3,7 @@ import pytest
 from data_fetch.market_sources.caa_operating_parse import select_dataset
 from data_fetch.market_sources.caa_operating_parse import parse_dataset
 from data_fetch.market_sources.caa_operating_ods import replay,T,O
-from caa_operating_fixtures import ods,directory,master
-
-def index_page(year=115,ods=True,published='2026/10/27'):
-    ext='ods'if ods else'xlsx'
-    return (f'<html><body><div class="content" id="content"><h2>國籍航空公司全球航線客貨運概況</h2><table><tr><td>{year}年</td><td><a class="download-filebase" href="../FileAtt.ashx?lang=1&amp;id=41753" title="{year}年.{ext}"><span>最後更新日期：<b>{published}</b></span></a></td></tr></table></div></body></html>').encode()
+from caa_operating_fixtures import ods,directory,master,index_page
 
 def test_exact_newest_dataset_and_publication_date():
     result=select_dataset(index_page(),date(2026,11,5))

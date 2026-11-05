@@ -194,7 +194,8 @@ class AlternativeJobOpeningsProvider(DataProvider):
                     'provider': ('THSRC official public careers' if request.ticker == '2633.TW'
                                  else 'Tigerair official-linked yes123 public careers' if request.ticker == '6757.TW'
                                  else 'CHT official public careers')}]}
-        return result
+        from .caa_operating_provider import maybe_operating_fallback
+        return maybe_operating_fallback(request, context, result)
 
     def _fetch_uncached(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
         from data_trust import AUDIT_STATUS_DEGRADED_ENRICHMENT, AUDIT_STATUS_SUCCESS, source_record_count

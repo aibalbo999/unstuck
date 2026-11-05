@@ -65,7 +65,7 @@ class StockDataService:
     @correlate_fetch
     async def fetch_source_async(self, request: FetchRequest, source: str, *, context: dict | None = None) -> FetchResult:
         """Acquire one optional source, including its unsuccessful observations."""
-        if source not in {"instrument_identity", "financial_statements", "annual_workforce", "earnings_call", "recent_catalysts", "issuer_news", "tdr_announcements", "official_announcements", "philjobnet_jobs", "dynamic_peer_metrics", "institutional_trading", "alternative_data"} or self._fetcher is not None:
+        if source not in {"instrument_identity", "financial_statements", "annual_workforce", "earnings_call", "recent_catalysts", "issuer_news", "tdr_announcements", "official_announcements", "philjobnet_jobs", "dynamic_peer_metrics", "institutional_trading", "alternative_data", "airline_operating_metrics"} or self._fetcher is not None:
             raise RuntimeError("指定來源刷新不支援此資料計畫")
         if source == 'instrument_identity':
             from .security_identity_provider import SecurityIdentityProvider
@@ -116,10 +116,23 @@ class StockDataService:
             from alternative_source_refresh import validate_alternative_refresh_context, PROVIDER
             validate_alternative_refresh_context((context or {}).get('data'), request.ticker)
             context = deepcopy(context or {})
+            context['_alternative_job_only'] = True
             candidates = [p for p in self.registry.for_request(request, source)
                           if p.name == PROVIDER and p.cost_tier == 'free']
             provider = candidates[0] if len(candidates) == 1 else None
             canonical_source = source
+        elif source == 'airline_operating_metrics':
+            from copy import deepcopy
+            from fastapi import HTTPException
+            from .caa_operating_provider import PROVIDER
+            from .market_sources.caa_operating_evidence import valid_context
+            if request.options.force_refresh or not valid_context((context or {}).get('data'), request.ticker):
+                raise HTTPException(status_code=400, detail='航空營運來源須為一致的已核對股票身分及正常快取流程')
+            context = deepcopy(context or {})
+            candidates = [p for p in self.registry.for_request(request, 'alternative_data')
+                          if p.name == PROVIDER and p.cost_tier == 'free']
+            provider = candidates[0] if len(candidates) == 1 else None
+            canonical_source = 'alternative_data'
         elif source == 'philjobnet_jobs':
             if request.ticker != '9103.TW':
                 raise RuntimeError('此雇主入口尚未驗證此股票')
@@ -151,6 +164,8 @@ class StockDataService:
             raise RuntimeError("指定來源未設定")
         started = time.time()
         material_context = False
+        if source == 'airline_operating_metrics':
+            material_context = True
         if source == 'earnings_call':
             from .market_sources.mops_presentation import supports as supports_material
             material_context = supports_material(request.ticker)
@@ -178,6 +193,9 @@ class StockDataService:
             result = guard_alternative_result(result, context['data'])
             if request.options.record_provider_sla:
                 record_related_alternative_attempts(result)
+        if source == 'airline_operating_metrics':
+            from .caa_operating_provider import guard_operating_result
+            result = guard_operating_result(result, context['data'])
         # Build the canonical source result before a caller rejects a failure.
         # Radar instead persists its observed audits before propagating rejection.
         source_audits = [result.audit]
@@ -186,7 +204,7 @@ class StockDataService:
             if isinstance(related,list):
                 source_audits.extend(entry for entry in related if isinstance(entry,dict))
         data = {"ticker": request.ticker, canonical_source: result.value, "source_audit": source_audits}
-        if source == 'alternative_data':
+        if source in {'alternative_data', 'airline_operating_metrics'}:
             from alternative_source_refresh import IDENTITY_FIELDS
             data.update({k: deepcopy(context['data'][k]) for k in IDENTITY_FIELDS if k in context['data']})
         return self._build_result(request, data, max(0, int((time.time() - started) * 1000)))

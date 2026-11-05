@@ -199,7 +199,8 @@ def extract_numeric_claims(markdown: str) -> list[dict[str, Any]]:
     for claim in claims:
         claim.setdefault("claim_type", "financial")
     from evidence_financial_amounts import extract_financial_amounts
-    return extract_financial_amounts(markdown, claims)
+    from evidence_airline_operating_claims import extract_operating_claims
+    return extract_operating_claims(markdown, extract_financial_amounts(markdown, claims))
 
 
 

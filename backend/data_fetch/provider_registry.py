@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 
 from .agent_context_providers import AlternativeJobOpeningsProvider, ChipDataProvider, MacroIndicatorsProvider, SocialSentimentProvider
+from .caa_operating_provider import AirlineOperatingMetricsProvider
 from .enrichment_providers import (
     AlternativePeerDiscoveryProvider,
     AlternativeSearchProvider,
@@ -78,6 +79,7 @@ def default_providers() -> list[DataProvider]:
         CompanyIrProvider(),
         ChipDataProvider(),
         AlternativeJobOpeningsProvider(),
+        AirlineOperatingMetricsProvider(),
         AnnualWorkforceProvider(),
         SocialSentimentProvider(),
         SecEdgarProvider(),

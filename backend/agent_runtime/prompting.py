@@ -45,6 +45,8 @@ def _verification_data_for_agent(agent_num: int, data: StockData) -> StockData:
     """Server-only routed view; derive evidence before stripping private receipts."""
     agent_id = int(agent_num)
     prompt_data = dict(data)
+    from airline_operating_prompt import qualified_alternative_context
+    operating_context = qualified_alternative_context(data, agent_id)
     prompt_data["_prompt_agent_num"] = agent_id
     from conference_presentation_prompt import presentation_prompt_context, without_presentation_documents
     earnings_input = data.get('earnings_call')
@@ -61,6 +63,10 @@ def _verification_data_for_agent(agent_num: int, data: StockData) -> StockData:
     for key, allowed_agents in ROUTED_EXTERNAL_CONTEXT_KEYS.items():
         if agent_id not in allowed_agents:
             prompt_data.pop(key, None)
+    if operating_context is not None:
+        # Full native proof remains available to server-side count/verifiers.
+        # prompt_evidence_copy removes only the private envelope afterwards.
+        prompt_data['alternative_data'] = operating_context
     if agent_id in AGENT_HISTORY_YEARS:
         prompt_data["_prompt_history_year_limit"] = AGENT_HISTORY_YEARS[agent_id]
     if agent_id in {4, 14} and isinstance(temporal_memory, dict):

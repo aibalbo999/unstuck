@@ -3,6 +3,10 @@ import io,json,zipfile,xml.etree.ElementTree as E
 from data_fetch.market_sources.caa_operating_ods import T,O,LABELS
 from data_fetch.market_sources.caa_operating_identity import PROFILES,NATIONAL
 
+def index_page(year=115,ods=True,published='2026/10/27'):
+    ext='ods'if ods else'xlsx'
+    return (f'<html><body><div class="content" id="content"><h2>國籍航空公司全球航線客貨運概況</h2><table><tr><td>{year}年</td><td><a class="download-filebase" href="../FileAtt.ashx?lang=1&amp;id=41753" title="{year}年.{ext}"><span>最後更新日期：<b>{published}</b></span></a></td></tr></table></div></body></html>').encode()
+
 def ods(months=9,year=2026,mutate=None):
     root=E.Element(O+'document-content');body=E.SubElement(root,O+'body');sheet=E.SubElement(body,O+'spreadsheet')
     for month in range(months,0,-1):
