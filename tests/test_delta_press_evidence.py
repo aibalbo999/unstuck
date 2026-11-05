@@ -14,6 +14,9 @@ def owned_statement(monkeypatch):
     from official_response_evidence import archive_response
     from data_fetch.market_sources.official_company_legal_name import parse_roster
     now=datetime(2026,11,5,12,tzinfo=ZoneInfo('Asia/Taipei')).timestamp();owners={}
+    # Freeze downstream freshness/order clocks too, so this saved-day fixture
+    # cannot become a future CI failure merely because the wall clock advances.
+    monkeypatch.setattr(time,'time',lambda:now+2)
     monkeypatch.setattr(cache_store,'peek_cache_json',lambda key:deepcopy(owners.get(key)))
     receipts=[]
     with correlation_scope(replace=True,ticker='2308.TW',fetch_id='unit-evidence'),source_operation('recent_catalysts',e.PROVIDER):
