@@ -208,6 +208,12 @@ def fetch_published_industry_peers(ticker: str, *, today: date | None = None,
                 raise ValueError("source archive differs from the parsed page")
         except (OSError, ValueError, EOFError):
             raise RankingError("source_archive_unavailable") from None
+        from .published_peer_http_capsule import bind_native_response
+        try:
+            receipt = bind_native_response(receipt, response, raw, ticker,
+                                           owned_client=owns_client)
+        except (OSError, ValueError, TypeError, KeyError, EOFError, OverflowError):
+            raise RankingError('source_native_receipt_invalid') from None
         parsed["raw_http_receipt"] = receipt
         return parsed
     finally:
@@ -235,6 +241,8 @@ def validate_stored_ranking_body(value: dict, ticker: str, master_rows: list[dic
         raw = read_response(receipt)
         if not 0 < len(raw) <= MAX_BYTES or len(raw) != receipt["raw_response_bytes"]:
             raise ValueError("source receipt size invalid")
+        from .published_peer_http_capsule import validate_native_receipt
+        validate_native_receipt(receipt, ticker)
         parsed = parse_ranking_page(raw, ticker, master_rows, today=today)
         for key, expected in parsed.items():
             if json.dumps(value.get(key), sort_keys=True, ensure_ascii=False) != json.dumps(
