@@ -19,7 +19,7 @@ import canary_release_policy
 
 from quality_campaign_budget import CampaignBudget, manifest_identity
 from quality_campaign_runner import (FrozenJob, encoded, exclusive_json, ledger_pin,
-    read_json, regular_bytes, reopen_ledger, sha, execute_reserved_job, private_artifacts_match)
+    read_json, regular_bytes, reopen_ledger, sha, execute_reserved_job, reserved_job_storage, private_artifacts_match)
 from quality_campaign_wire import ReplayAbort
 
 BASELINE_REVISION = '758242290e795146520f58f68ffa113cac35e52c'
@@ -581,7 +581,7 @@ class Campaign:
             self.ledger.pass_stage(stage, acceptance_evidence_sha256=sha(regular_bytes(path)))
             return decision
 
-    def run_next(self):
+    def run_next(self, *, storage_budget=None):
         """One fresh owned job, in fixed order. Never resume/relaunch a spent job.
 
         Single-job batches are within the approved maxima (12 total/3 per mode)
@@ -592,7 +592,6 @@ class Campaign:
         canary_release_policy.require_canary_enabled()
         with self.lock():
             self._s0_review()
-            self.ledger.check()
             state = self.ledger.snapshot()
             require(not any(j['status'] == 'active' for j in state['jobs'].values())
                     and not any(b['ended_ms'] is None for b in state['batches'].values()),
@@ -633,12 +632,15 @@ class Campaign:
             if stage in ('S2', 'S3') and row['role'] == 'candidate':
                 winner = self._stage_acceptance('S1')['metrics'].get('accepted_code_sha256')
                 require(actual['code_sha256'] == winner, 'Candidate differs from the accepted S1 version')
-            # Drift is checked BEFORE starting the live calendar. No child, key
-            # read or model transport occurs when these prerequisites fail.
-            if state['stage'] != stage: self.ledger.start_stage(stage)
-            batch_id = 'batch-' + row['job_id']
-            self.ledger.start_batch(batch_id, stage)
-            self.ledger.reserve_job(row['job_id'], batch_id, binding_id=binding_id, actual_hashes=actual)
-            receipt = execute_reserved_job(plan, self.ledger, row['job_id'])
-            self.ledger.finish_batch(batch_id, cleanup_evidence_sha256=receipt['cleanup_sha256'])
-            return receipt
+            # Both review and the shared claim precede live calendar/job slots.
+            # The same bound claim is held through execution and batch closure.
+            with reserved_job_storage(plan, self.ledger, row['job_id'], storage_budget) as prepared:
+                self.ledger.check()
+                if state['stage'] != stage: self.ledger.start_stage(stage)
+                batch_id = 'batch-' + row['job_id']
+                self.ledger.start_batch(batch_id, stage)
+                self.ledger.reserve_job(row['job_id'], batch_id, binding_id=binding_id, actual_hashes=actual)
+                receipt = execute_reserved_job(plan, self.ledger, row['job_id'],
+                    storage_budget=storage_budget, _storage=prepared)
+                self.ledger.finish_batch(batch_id, cleanup_evidence_sha256=receipt['cleanup_sha256'])
+                return receipt

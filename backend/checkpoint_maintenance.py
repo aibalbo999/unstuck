@@ -6,6 +6,7 @@ import math
 import sqlite3
 from pathlib import Path
 
+from storage.capacity import reserve_write, sqlite_write_bytes
 from config import LANGGRAPH_CHECKPOINT_PATH, TASK_DB_PATH
 from security_sanitizer import sanitize_error_message
 
@@ -72,10 +73,12 @@ def cleanup_terminal_checkpoints(
 
             deleted_writes = 0
             deleted_checkpoints = 0
-            for batch in _chunks(candidate_threads, effective_batch_size):
-                with checkpoint_conn:
-                    deleted_writes += _delete_rows(checkpoint_conn, "writes", batch)
-                    deleted_checkpoints += _delete_rows(checkpoint_conn, "checkpoints", batch)
+            with reserve_write(checkpoint_path, sqlite_write_bytes(checkpoint_path),
+                               'Terminal checkpoint bulk deletion journal allowance'):
+                for batch in _chunks(candidate_threads, effective_batch_size):
+                    with checkpoint_conn:
+                        deleted_writes += _delete_rows(checkpoint_conn, "writes", batch)
+                        deleted_checkpoints += _delete_rows(checkpoint_conn, "checkpoints", batch)
             return {
                 **result,
                 "deleted_write_rows": deleted_writes,

@@ -14,6 +14,18 @@ def main():
     install_boundary()
     import maintenance_entry as bootstrap
     control_bundle = bootstrap.load_control_bundle(bootstrap.control_digest())
+    # The actual shared lock engine operates only in this test's private
+    # registry; the existing outer native test lease covers sandbox creation.
+    from types import SimpleNamespace
+    from storage import capacity_delegation as capacity
+    sys.path.insert(0,'/Volumes/X10 Pro Mac/project-system-tools/work')
+    import shared_capacity as shared
+    registry=root/'capacity-reservations'
+    capacity.REGISTRY=registry
+    capacity._shared=lambda:SimpleNamespace(REGISTRY=registry,external=shared.external,
+        estimate_peak=shared.estimate_peak,Reservation=lambda peak,reserve,reason,**kw:
+            shared.Reservation(peak,0,reason,**kw,directory=registry,
+                legacy_directories=[root/'legacy-capacity-claims']))
     # Private Redis/socket-denied fixture only; no product activation switch.
     control_bundle.module('canary_release_policy').require_canary_enabled = lambda: None
     from maintenance_canary_dispatch import ClaimedCanaryDispatch
@@ -31,6 +43,8 @@ def main():
     source_root.mkdir(mode=0o700)
     plan, ledger = reserved_normal_fixture(source_root, mode,
         job_seconds=3 if case == 'blocked_ledger' else 12 if case == 'deadline_stop' else 45)
+    from test_quality_campaign_runner import storage_review
+    storage_budget=storage_review(plan,ledger)
     binding = {'campaign_id': 'fixture', 'job_id': 'job', 'ticker': '2330.TW',
                'pipeline_id': mode, 'manifest_sha256': plan.expected_sha,
                'timeout_seconds': 1 if case == 'timeout_mismatch' else 45}
@@ -55,14 +69,17 @@ def main():
         assert control_bundle.verify()['control_sha256'] == process_binding['control_sha256']
         bootstrap = Path(__file__).with_name('test_quality_campaign_owned_normal_child.py')
         original_start = OwnedProcess.start
-        def offline_start(self, command, *, env, cwd, admission_fd=None, owned_session=False):
+        def offline_start(self, command, *, env, cwd, admission_fd=None, owned_session=False, readonly_fds=()):
             # No product test flag: substitute only this test's outer bootstrap.
             # It installs explicit offline leaves and calls the real owned CLI.
             assert command[:4] == [sys.executable, '-I', '-B', str(Path(runner.__file__).resolve())]
-            assert command[4] == '--owned-job' and command[6:] == ['--owned-admission-fd', str(admission_fd)]
+            assert command[4] == '--owned-job' and command[6:8] == ['--owned-admission-fd', str(admission_fd)]
+            assert len(readonly_fds)==2
+            assert command[8:]==['--storage-capacity-fd',str(readonly_fds[0]),'--storage-lifetime-fd',str(readonly_fds[1])]
             result = original_start(self, [sys.executable, '-I', '-B', str(bootstrap), command[5],
-                'warm_stop' if case in ('warm_stop', 'deadline_stop') else 'blocked' if case == 'graph_blocked' else 'published', str(admission_fd)],
-                env=env, cwd=cwd, admission_fd=admission_fd, owned_session=owned_session)
+                'warm_stop' if case in ('warm_stop', 'deadline_stop') else 'blocked' if case == 'graph_blocked' else 'published', str(admission_fd),
+                '--storage-capacity-fd',str(readonly_fds[0]),'--storage-lifetime-fd',str(readonly_fds[1])],
+                env=env, cwd=cwd, admission_fd=admission_fd, owned_session=owned_session,readonly_fds=readonly_fds)
             if case == 'delivery_failure':
                 raise OSError('Offline parent fails after launch, before admission delivery')
             if case == 'control_drift':
@@ -98,7 +115,7 @@ def main():
                     assert state['stop_requested'], state
                 ledger.check = stuck_check
                 try:
-                    dispatch.start()
+                    dispatch.start(storage_budget=storage_budget)
                 except runner.ReplayAbort as error:
                     assert 'supervision stopped' in str(error), str(error)
                 else:
@@ -122,7 +139,7 @@ def main():
             if case in ('delivery_failure', 'control_drift'):
                 try:
                     try:
-                        dispatch.start()
+                        dispatch.start(storage_budget=storage_budget)
                     except (OSError, runner.ReplayAbort) as error:
                         assert ('Offline parent fails' if case == 'delivery_failure' else 'controller source or module drift') in str(error), str(error)
                     else:
@@ -135,7 +152,7 @@ def main():
                 for name in ('maintenance-admission.json', 'child-started.json', 'outcome.json'):
                     assert not (output / name).exists(), name
                 try:
-                    dispatch.start()
+                    dispatch.start(storage_budget=storage_budget)
                 except runner.ReplayAbort as error:
                     assert 'relaunch' in str(error)
                 else:
@@ -148,12 +165,12 @@ def main():
                     json.dump({'case': case, 'admission_denied': True, 'no_relaunch': True,
                         'reservation_retained': True, 'campaign_settled': False}, stream)
                 return
-            dispatch.start()
+            dispatch.start(storage_budget=storage_budget)
             controller = dispatch.process_owner
             output = source_root / 'job'
             if case == 'replay':
                 try:
-                    dispatch.start()
+                    dispatch.start(storage_budget=storage_budget)
                 except runner.ReplayAbort as error:
                     assert 'relaunch' in str(error)
                 else:
@@ -163,6 +180,23 @@ def main():
                 wait_path(output / 'stop-ready.json', controller.process, seconds=15)
                 dispatch.request_stop()
                 dispatch.request_stop()
+            if case == 'concurrent_wait':
+                from concurrent.futures import ThreadPoolExecutor
+                original_json = runner.exclusive_json
+                release_writes = []
+                def checked_json(path, value):
+                    if path.name == 'storage-capacity-release.json':
+                        assert dispatch._capacity.lease.receipt()['state']=='active'
+                        assert value['state']=='writers_stopped_release_pending'
+                        release_writes.append(path)
+                    return original_json(path,value)
+                runner.exclusive_json=checked_json
+                try:
+                    with ThreadPoolExecutor(max_workers=3) as workers:
+                        observed=list(workers.map(dispatch.wait_for_exit,[30,30,30]))
+                    assert all(row['storage_capacity']['state']=='completed' for row in observed)
+                    assert len(release_writes)==1
+                finally:runner.exclusive_json=original_json
             assert dispatch.wait_for_exit(30)['returncode'] == (2 if case in ('warm_stop', 'deadline_stop', 'graph_blocked') else 0)
             assert not (output / 'offline-fixture-error.txt').exists()
             assert not (source_root / (ledger.path.name + '.job.watchdog-started.json')).exists()

@@ -275,8 +275,8 @@ def write_market_calendar(calendar: dict, calendar_dir: Optional[str] = None, ov
     path = calendar_path(normalized["market"], normalized["year"], calendar_dir)
     if path.exists() and not overwrite:
         return {"path": str(path), "written": False, "reason": "exists"}
-    path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(json.dumps(normalized, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8")
+    from storage.capacity import write_text
+    write_text(path, json.dumps(normalized, ensure_ascii=False, indent=2, sort_keys=True), parents=True)
     return {"path": str(path), "written": True, "reason": "written"}
 
 

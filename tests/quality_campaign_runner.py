@@ -472,7 +472,66 @@ def private_artifacts_match(output, outcome):
         return False
 
 
-def execute_reserved_job(plan, ledger, job_id):
+_UNCONFIRMED_STORAGE_CLAIMS = []
+
+
+class _PreparedJobStorage:
+    def __init__(self, plan, ledger, job_id, reference, lease, fd, capability):
+        self.plan, self.ledger, self.job_id = plan, ledger, job_id
+        self.reference = copy.deepcopy(reference)
+        self.lease, self.fd, self.capability = lease, fd, capability
+        self.active = True
+
+
+@contextmanager
+def reserved_job_storage(plan, ledger, job_id, storage_budget):
+    """Admit a fixed job before its campaign stage/batch/slot can be consumed."""
+    canary_release_policy.require_canary_enabled()
+    plan.verify()
+    backend = str(Path(plan.manifest['dev']) / 'backend')
+    sys.path.insert(0, backend)
+    try:
+        from storage.capacity_delegation import reviewed_budget, prepare_parent_claim
+        from storage.capacity import StorageCapacityUnavailable
+    finally:
+        sys.path.remove(backend)
+    review = reviewed_budget(storage_budget, manifest_sha256=plan.expected_sha,
+                             job_id=job_id, source_bytes=len(encoded(plan.source_job())))
+    output = ledger.path.parent / job_id
+    try:
+        lease, fd, capability = prepare_parent_claim(output, job_id, plan.expected_sha, review)
+    except (OSError, RuntimeError, ValueError) as error:
+        raise StorageCapacityUnavailable('Guarded job storage admission refused before reservation') from error
+    prepared = _PreparedJobStorage(plan, ledger, job_id, storage_budget, lease, fd, capability)
+    try:
+        yield prepared
+    finally:
+        prepared.active = False
+        os.close(fd)
+        if (getattr(lease, '_guardian_started', False)
+                and not getattr(lease, '_guardian_cleanup_confirmed', False)):
+            _UNCONFIRMED_STORAGE_CLAIMS.append(lease)
+        else:
+            lease.__exit__(*sys.exc_info())
+
+
+def execute_reserved_job(plan, ledger, job_id, *, storage_budget=None, _storage=None):
+    """Run an already reserved job using exactly its admitted storage claim."""
+    canary_release_policy.require_canary_enabled()
+    check_reserved(plan, ledger, job_id)
+    if _storage is None:
+        with reserved_job_storage(plan, ledger, job_id, storage_budget) as prepared:
+            return execute_reserved_job(plan, ledger, job_id, storage_budget=storage_budget, _storage=prepared)
+    if (type(_storage) is not _PreparedJobStorage or not _storage.active
+            or _storage.plan is not plan or _storage.ledger is not ledger or _storage.job_id != job_id
+            or _storage.reference != storage_budget or _storage.lease.receipt()['state'] != 'active'):
+        raise ReplayAbort('Original active storage binding required; no adoption or replay')
+    _storage.lease.check()
+    return _execute_reserved_job(plan, ledger, job_id, storage_budget,
+        _storage.lease, _storage.fd, _storage.capability)
+
+
+def _execute_reserved_job(plan, ledger, job_id, storage_budget, lease, readonly_fd, capability):
     """Owned cleanup plus exact outcome readback; no stage/quality promotion."""
     canary_release_policy.require_canary_enabled()
     check_reserved(plan, ledger, job_id)
@@ -484,13 +543,15 @@ def execute_reserved_job(plan, ledger, job_id):
     try: output.mkdir(mode=0o700)
     except OSError: raise ReplayAbort('New exclusive job output required; no resume') from None
     ticket = {'manifest_path': str(plan.path), 'manifest_sha256': plan.expected_sha,
-              'ledger_pin': pin, 'job_id': job_id, 'output': str(output)}
+              'ledger_pin': pin, 'job_id': job_id, 'output': str(output),
+              'storage_budget': storage_budget, 'storage_capacity': capability}
     ticket_path = output / 'child-ticket.json'
     exclusive_json(ticket_path, ticket)
     result = run_reserved_process(ledger, job_id,
-        [sys.executable, '-I', '-B', str(Path(__file__).resolve()), '--owned-job', str(ticket_path)],
+        [sys.executable, '-I', '-B', str(Path(__file__).resolve()), '--owned-job', str(ticket_path),
+         '--storage-capacity-fd', str(readonly_fd)],
         env={'PATH': '/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin', 'PYTHONDONTWRITEBYTECODE': '1'},
-        output_dir=output)
+        output_dir=output, capacity_lease=lease, capacity_read_fd=readonly_fd)
     if not result.get('cleanup_verified'):
         raise CleanupUnconfirmed('Owned cleanup has not been verified')
     reopen_ledger(pin)
@@ -530,7 +591,7 @@ def execute_reserved_job(plan, ledger, job_id):
     return receipt
 
 
-async def owned_job(ticket_path, *, stop_requested=lambda: False, completion=None, admission_fd=None):
+async def owned_job(ticket_path, *, stop_requested=lambda: False, completion=None, admission_fd=None, storage_capacity_fd=None, storage_lifetime_fd=None):
     canary_release_policy.require_canary_enabled()
     ticket_path = Path(ticket_path)
     ticket = read_json(regular_bytes(ticket_path))
@@ -539,6 +600,8 @@ async def owned_job(ticket_path, *, stop_requested=lambda: False, completion=Non
         raise ReplayAbort('Owned child ticket path mismatch')
     if any(name in sys.modules for name in ('config', 'llm_transport', 'psycopg', 'psycopg2', 'asyncpg', 'pg8000')):
         raise ReplayAbort('Fresh isolated process required')
+    if storage_capacity_fd is None or 'storage_capacity' not in ticket or 'storage_budget' not in ticket:
+        raise ReplayAbort('Reviewed parent-held storage capacity required before child execution')
     admission = None
     if 'maintenance_admission' in ticket:
         admission, admission_sha = consume_maintenance_admission(ticket_path, ticket, admission_fd)
@@ -552,7 +615,6 @@ async def owned_job(ticket_path, *, stop_requested=lambda: False, completion=Non
         observe_process_scope = install_owned_process_boundary()
     started = {'job_id': job_id, 'process_pid': os.getpid(), 'ticket_sha256': sha(regular_bytes(ticket_path))}
     if admission is not None: started['maintenance_admission_sha256'] = admission_sha
-    exclusive_json(output / 'child-started.json', started)
     plan = FrozenJob(ticket['manifest_path'], ticket['manifest_sha256'])
     ledger = reopen_ledger(ticket['ledger_pin'])
     hashes = check_reserved(plan, ledger, job_id)
@@ -568,6 +630,19 @@ async def owned_job(ticket_path, *, stop_requested=lambda: False, completion=Non
         raise ReplayAbort('Maintenance launch does not match the original reservation')
     if stop_requested():
         raise asyncio.CancelledError()
+    backend = str(Path(plan.manifest['dev']) / 'backend')
+    sys.path.insert(0, backend)
+    try:
+        from storage.capacity_delegation import reviewed_budget, install_readonly_capacity
+    finally:
+        sys.path.remove(backend)
+    review = reviewed_budget(ticket['storage_budget'], manifest_sha256=plan.expected_sha,
+                             job_id=job_id, source_bytes=len(encoded(plan.source_job())))
+    if sum(review['components'].values()) != ticket['storage_capacity']['limit_bytes']:
+        raise ReplayAbort('Readonly capability differs from reviewed byte budget')
+    install_readonly_capacity(storage_capacity_fd, ticket['storage_capacity'], output=output,
+                              job_id=job_id, manifest_sha256=plan.expected_sha, lifetime_fd=storage_lifetime_fd)
+    exclusive_json(output / 'child-started.json', started)
     environment = child_environment(plan, output)
     runtime_identity = None
     if observe_process_scope is not None:
@@ -715,7 +790,7 @@ def _close_owned_loop(loop_runner):
             'pending_async_generators': pending_generators}
 
 
-def run_owned_job(ticket_path, *, admission_fd=None):
+def run_owned_job(ticket_path, *, admission_fd=None, storage_capacity_fd=None, storage_lifetime_fd=None):
     """CLI-owned loop: the first TERM cancels work; repeats do not cancel again.
 
     Keep the handler through Runner.close (including executor shutdown). Do not
@@ -743,6 +818,10 @@ def run_owned_job(ticket_path, *, admission_fd=None):
         if requested:
             raise asyncio.CancelledError()
         options = {'admission_fd': admission_fd} if admission_fd is not None else {}
+        if storage_capacity_fd is not None:
+            options['storage_capacity_fd'] = storage_capacity_fd
+        if storage_lifetime_fd is not None:
+            options['storage_lifetime_fd'] = storage_lifetime_fd
         return await owned_job(ticket_path, stop_requested=lambda: requested, completion=completion, **options)
     try:
         previous = signal.signal(signal.SIGTERM, stopping)
@@ -797,9 +876,11 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--owned-job', required=True)
     parser.add_argument('--owned-admission-fd', type=int)
+    parser.add_argument('--storage-capacity-fd', type=int)
+    parser.add_argument('--storage-lifetime-fd', type=int)
     args = parser.parse_args()
     try:
-        code = run_owned_job(args.owned_job, admission_fd=args.owned_admission_fd)
+        code = run_owned_job(args.owned_job, admission_fd=args.owned_admission_fd, storage_capacity_fd=args.storage_capacity_fd, storage_lifetime_fd=args.storage_lifetime_fd)
     except BaseException as error:
         # No exception/body/env repr on inherited terminal output.
         print(json.dumps({'status': 'child_failed', 'error_type': type(error).__name__}), flush=True)

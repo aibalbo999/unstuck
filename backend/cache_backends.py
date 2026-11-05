@@ -11,6 +11,7 @@ from contextlib import contextmanager, closing
 from pathlib import Path
 from typing import Iterator, Protocol, runtime_checkable
 
+from storage.capacity import reserve_write, sqlite_write_bytes
 from storage.migrations import MigrationRunner
 from storage.sqlite_resource import ThreadLocalSqliteResource
 
@@ -122,7 +123,8 @@ class SqliteCacheBackend:
         _validate_ttl(ttl_seconds)
         now = time.time()
         serialized = _serialize_json(value)
-        with self._lock, self._connection() as conn:
+        known = sqlite_write_bytes(self._peek_db_path, len(serialized.encode('utf-8')) + len(key.encode('utf-8')))
+        with reserve_write(self._peek_db_path, known, 'JSON cache serialized payload, existing-page journal and WAL allowance'), self._lock, self._connection() as conn:
             conn.execute(
                 """
                 INSERT INTO cache_entries (cache_key, value, expires_at, updated_at)

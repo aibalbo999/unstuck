@@ -27,6 +27,7 @@ CONTROL_FILES = ('backend/canary_release_policy.py', 'start_mac.command', 'scrip
                  'scripts/maintenance_owned_process.py', 'scripts/maintenance_canary_claim.py',
                  'scripts/maintenance_canary_enrollment.py', 'scripts/maintenance_canary_settlement.py',
                  'scripts/maintenance_canary_dispatch.py', 'scripts/maintenance_control_sources.py') + tuple(
+                     'backend/storage/' + name + '.py' for name in ('__init__', 'capacity', 'capacity_delegation', 'capacity_companion', 'migrations', 'report_storage', '_local_file_operations', '_report_keys', 'memory_report_storage')) + tuple(
                      'tests/quality_campaign_' + name + '.py'
                      for name in ('runner', 'budget', 'wire', 'transport', 'watchdog', 'safety', 'graph'))
 

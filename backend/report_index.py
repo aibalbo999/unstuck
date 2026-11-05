@@ -11,6 +11,7 @@ from contextlib import contextmanager
 from pathlib import Path
 from typing import Iterator, Optional
 
+from storage.capacity import reserve_write, sqlite_write_bytes, StorageCapacityUnavailable
 from config import OUTPUT_DIR
 from report_index_connection import connect_report_index_sqlite
 from report_index_parsing import is_safe_report_filename, normalize_recommendation_label, output_dir_key, parse_recommendation_summary
@@ -90,7 +91,9 @@ def upsert_report_metadata(
             raise ValueError("new report metadata could not be built")
         return None
 
-    with _REPORT_INDEX_LOCK, _connect() as conn:
+    row_bytes = len(json.dumps(metadata, ensure_ascii=False).encode('utf-8'))
+    with reserve_write(CACHE_DB_PATH, sqlite_write_bytes(CACHE_DB_PATH, row_bytes),
+                       'Report index exact serialized row and DB/WAL allowance'), _REPORT_INDEX_LOCK, _connect() as conn:
         conn.execute(
             """
             INSERT INTO reports (
@@ -158,7 +161,7 @@ def upsert_report_metadata(
 def delete_report_metadata(filename: str, output_dir: Optional[str] = None) -> None:
     if not is_safe_report_filename(filename, ".html"):
         return
-    with _REPORT_INDEX_LOCK, _connect() as conn:
+    with reserve_write(CACHE_DB_PATH, sqlite_write_bytes(CACHE_DB_PATH), 'Report index bounded deletion and DB/WAL allowance'), _REPORT_INDEX_LOCK, _connect() as conn:
         conn.execute(
             "DELETE FROM reports WHERE output_dir = ? AND filename = ?",
             (output_dir_key(output_dir), filename),
@@ -168,7 +171,7 @@ def delete_report_metadata(filename: str, output_dir: Optional[str] = None) -> N
 def sync_report_metadata(output_dir: Optional[str] = None) -> None:
     out_dir = output_dir_key(output_dir)
     if not os.path.exists(out_dir):
-        with _REPORT_INDEX_LOCK, _connect() as conn:
+        with reserve_write(CACHE_DB_PATH, sqlite_write_bytes(CACHE_DB_PATH), 'Report index bounded deletion and DB/WAL allowance'), _REPORT_INDEX_LOCK, _connect() as conn:
             conn.execute("DELETE FROM reports WHERE output_dir = ?", (out_dir,))
         return
 
@@ -201,7 +204,7 @@ def sync_report_metadata(output_dir: Optional[str] = None) -> None:
     stale = [filename for filename in existing_mtimes if filename not in filename_set
              and not publication_is_pending(out_dir, filename)]
     if stale:
-        with _REPORT_INDEX_LOCK, _connect() as conn:
+        with reserve_write(CACHE_DB_PATH, sqlite_write_bytes(CACHE_DB_PATH), 'Report index bounded deletion and DB/WAL allowance'), _REPORT_INDEX_LOCK, _connect() as conn:
             conn.executemany(
                 "DELETE FROM reports WHERE output_dir = ? AND filename = ?",
                 [(out_dir, filename) for filename in stale],
@@ -220,7 +223,13 @@ def query_report_metadata(
     row_mapper=None,
 ) -> tuple[list[dict], int]:
     out_dir = output_dir_key(output_dir)
-    if sync_metadata: sync_report_metadata(out_dir)
+    if sync_metadata:
+        try:
+            sync_report_metadata(out_dir)
+        except StorageCapacityUnavailable:
+            # A read remains available from the existing index. Do not clear it,
+            # rewrite freshness or turn skipped maintenance into validation.
+            pass
 
     clauses = ["output_dir = ?"]
     params: list[object] = [out_dir]

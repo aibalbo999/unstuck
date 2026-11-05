@@ -175,6 +175,7 @@ def test_slow_or_oversized_real_child_is_stopped_and_reaped(transport, monkeypat
     from bounded_curl_process import collect_capped_process
     created, original = [], subprocess.Popen
     def spawn(*args, **kwargs):
+        if args[0] == ['/usr/sbin/diskutil','info','-plist','/Volumes/X10 Pro Mac']:return original(*args,**kwargs)
         assert args[0][0] == sys.executable and kwargs["shell"] is False
         child = original(*args, **kwargs)
         created.append(child)

@@ -9,6 +9,7 @@ from typing import Any
 from fastapi import HTTPException
 
 from agent_runtime import AnalysisPipelineRunner
+from storage.capacity import StorageCapacityUnavailable
 from agent_runtime.retry_policy import AgentRateLimitError, AgentTransientError
 from analysis_job_retry import build_analysis_retry_event, prepare_analysis_retry
 from report_publication_gate import ReportPublicationBlockedError, publication_blocked_event
@@ -251,6 +252,14 @@ async def run_report_rerun_job_async(
             "rerun_scope": normalized_scope,
             "source_filename": event_source_filename,
         })
+        return ""
+    except StorageCapacityUnavailable as exc:
+        # RQ has a generic exception retry budget. Return a terminal domain
+        # error, as publication-blocked does, without replaying completed work.
+        message = str(exc)
+        update_job(job_id, "error", error=message)
+        append_event(job_id, {"type":"error", "phase":"storage_capacity_refused",
+            "message":message, "retry_scheduled":False, "quality_status":"not_evaluated"})
         return ""
     except (AgentRateLimitError, AgentTransientError) as exc:
         retry = prepare_analysis_retry(job_id, exc, task_id=f"report-rerun:{job_id}")

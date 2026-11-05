@@ -25,6 +25,9 @@ def migrate_legacy_reports(output_dir: Optional[str] = None, dry_run: bool = Fal
     if not out_dir.exists():
         return result
 
+    from storage.capacity import reserve_write, sqlite_write_bytes, write_text
+    import report_index
+
     for html_path in sorted(out_dir.glob("*.html")):
         result["scanned"] += 1
         filename = html_path.name
@@ -36,6 +39,7 @@ def migrate_legacy_reports(output_dir: Optional[str] = None, dry_run: bool = Fal
         data_filename = data_snapshot_filename_for_report(filename)
         data_path = out_dir / data_filename
         action = "exists"
+        snapshot_text = None
         if not data_path.exists():
             action = "create_snapshot"
             snapshot = build_legacy_report_snapshot(
@@ -44,15 +48,21 @@ def migrate_legacy_reports(output_dir: Optional[str] = None, dry_run: bool = Fal
                 pipeline=metadata["pipeline_id"],
                 recommendation=metadata["recommendation"],
             )
-            if not dry_run:
-                data_path.write_text(json.dumps(snapshot, ensure_ascii=False, indent=2), encoding="utf-8")
+            snapshot_text = json.dumps(snapshot, ensure_ascii=False, indent=2)
             result["created"] += 1
         else:
             result["skipped"] += 1
 
         if not dry_run:
-            upsert_report_metadata(filename, output_dir=str(out_dir))
-            result["indexed"] += 1
+            new_bytes = len(snapshot_text.encode('utf-8')) if snapshot_text is not None else 0
+            source_bytes = new_bytes + sum(p.stat().st_size for p in
+                (html_path, html_path.with_suffix('.md'), data_path) if p.is_file())
+            known = new_bytes + sqlite_write_bytes(report_index.CACHE_DB_PATH, 8 * source_bytes + 64 * 1024)
+            with reserve_write(out_dir, known, 'Legacy snapshot and derived index DB/WAL before either mutation'):
+                if snapshot_text is not None:
+                    write_text(data_path, snapshot_text)
+                upsert_report_metadata(filename, output_dir=str(out_dir))
+                result["indexed"] += 1
 
         result["files"].append({
             "filename": filename,

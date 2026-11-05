@@ -268,6 +268,7 @@ def test_earnings_call_provider_uses_free_mops_source_without_fmp_key(monkeypatc
     result = EarningsCallProvider().fetch(FetchRequest.from_ticker("2330.TW"))
 
     assert result.status == "success"
-    assert result.provider == "MOPS investor conference"
+    # This supported issuer is qualified by the published-presentation provider.
+    assert result.provider == "MOPS published presentation"
     assert result.value["transcript_available"] is False
     assert result.value["materials"][0]["label"] == "簡報檔案"

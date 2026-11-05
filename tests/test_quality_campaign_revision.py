@@ -7,11 +7,11 @@ import pytest
 import quality_campaign_protocol as protocol
 from quality_campaign_budget import BudgetDenied
 from quality_campaign_wire import ReplayAbort
-from test_quality_campaign_protocol import executable_campaign, content_review, put
+from test_quality_campaign_protocol import executable_campaign, content_review, put, _run_next
 
 
 def reviewed_failure(session):
-    job_id = session.run_next()['job_id']
+    job_id = _run_next(session)['job_id']
     ref = content_review(session, job_id)
     review = protocol.referenced(ref)
     review['assessment'].update(audit_passed=False, root_cause='fixture_audit_failure')
@@ -46,7 +46,7 @@ def proposed_revision(session, failed_job_id):
 
 def test_terminal_times_are_ledger_facts_not_reviewer_claims(tmp_path, monkeypatch):
     session = executable_campaign(tmp_path, monkeypatch)
-    job_id = session.run_next()['job_id']
+    job_id = _run_next(session)['job_id']
     ref = content_review(session, job_id)
     review = protocol.referenced(ref)
     review['assessment'].update(started_at_ms=0, finished_at_ms=0)
@@ -77,12 +77,12 @@ def test_second_candidate_maps_whole_remaining_roster_without_budget_reset(tmp_p
         else:
             assert effective['manifest'] == row['manifest']
     for _ in range(2):
-        job_id = resumed.run_next()['job_id']
+        job_id = _run_next(resumed)['job_id']
         assert resumed.record_review(job_id, content_review(resumed, job_id))['code_sha256'] == 'f' * 64
     assert resumed.pass_stage('S1')['metrics']['accepted_code_sha256'] == 'f' * 64
-    first = resumed.run_next()['job_id']  # Fixed baseline then new candidate.
+    first = _run_next(resumed)['job_id']  # Fixed baseline then new candidate.
     assert resumed.record_review(first, content_review(resumed, first))['code_sha256'] == 'c' * 64
-    second = resumed.run_next()['job_id']
+    second = _run_next(resumed)['job_id']
     assert resumed.record_review(second, content_review(resumed, second))['code_sha256'] == 'f' * 64
     assert resumed.ledger.snapshot()['spent']['jobs'] == 5
 
@@ -92,7 +92,7 @@ def test_second_candidate_maps_whole_remaining_roster_without_budget_reset(tmp_p
     'unreviewed_check', 'rubric', 'cause', 'not_failed'])
 def test_revision_cannot_change_inputs_profiles_or_repair_authority(tmp_path, monkeypatch, case):
     session = executable_campaign(tmp_path, monkeypatch)
-    failed = reviewed_failure(session) if case != 'not_failed' else session.run_next()['job_id']
+    failed = reviewed_failure(session) if case != 'not_failed' else _run_next(session)['job_id']
     if case == 'not_failed': session.record_review(failed, content_review(session, failed))
     ref = proposed_revision(session, failed)
     revision = protocol.referenced(ref)
@@ -152,7 +152,7 @@ def test_registered_revision_is_bound_across_resume(tmp_path, monkeypatch, case)
 def test_raw_ledger_revision_cannot_turn_reviewed_success_into_repair_authority(tmp_path, monkeypatch):
     from quality_campaign_revision import binding_id
     session = executable_campaign(tmp_path, monkeypatch)
-    job_id = session.run_next()['job_id']
+    job_id = _run_next(session)['job_id']
     session.record_review(job_id, content_review(session, job_id))
     ref = proposed_revision(session, job_id)
     revision = protocol.referenced(ref)
@@ -169,7 +169,7 @@ def test_raw_ledger_revision_cannot_turn_reviewed_success_into_repair_authority(
 
 def test_controller_statistics_uses_real_timestamps_fixed_roster_and_separate_token_views(tmp_path, monkeypatch):
     session = executable_campaign(tmp_path, monkeypatch)
-    job_id = session.run_next()['job_id']
+    job_id = _run_next(session)['job_id']
     observed = session.record_review(job_id, content_review(session, job_id))
     before = session.ledger.snapshot()
     output = session.statistics()

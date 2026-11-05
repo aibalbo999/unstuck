@@ -122,7 +122,7 @@ def test_missing_authoritative_reviews_never_start_live_clock(tmp_path, monkeypa
         r['job_id']: {'code_sha256': 'a' * 64, 'source_sha256': r['source_sha256'],
                      'route_sha256': r['route_sha256']} for r in value['samples']})
     session = protocol.Campaign.create(tmp_path / 'anchor.json', tmp_path / 'campaign', manifest())
-    with pytest.raises(ReplayAbort): session.run_next()
+    with pytest.raises(ReplayAbort): _run_next(session)
     state = session.ledger.snapshot()
     assert state['live_deadline_ms'] is None
     assert state['jobs'] == {}
@@ -190,14 +190,19 @@ def executable_campaign(tmp_path, monkeypatch):
     session = protocol.Campaign.create(tmp_path / 'anchor.json', tmp_path / 'campaign', value)
     class Plan:
         def __init__(self, path, digest):
+            self.expected_sha = digest
             self.manifest = protocol.referenced({'path': str(path), 'sha256': digest})
             self.row = copy.deepcopy(next(r for r in value['samples'] if r['job_id'] == self.manifest['fixture_job_id']))
             self.row['manifest'] = {'path': str(path), 'sha256': digest}
+        def source_job(self):
+            return protocol.referenced(self.manifest['source'])
         def verify(self):
             return bindings[self.row['job_id']] | {'code_sha256': self.manifest['code_files']['fixture.py']}
     monkeypatch.setattr(protocol, 'FrozenJob', Plan)
     monkeypatch.setattr(protocol, 'frozen_mode_roles', lambda frozen: ROLES[frozen['mode']].copy())
-    def executor(plan, ledger, job_id):
+    def executor(plan, ledger, job_id, *, storage_budget, _storage):
+        assert _storage.lease.receipt()['state']=='active'
+        assert _storage.reference==storage_budget
         output = ledger.path.parent / job_id
         output.mkdir(mode=0o700)
         (output / 'reports').mkdir(mode=0o700)
@@ -267,19 +272,19 @@ def content_review(session, job_id):
 
 def test_controller_requires_artifact_review_and_retains_real_ledger_counters(tmp_path, monkeypatch):
     session = executable_campaign(tmp_path, monkeypatch)
-    first = session.run_next()
+    first = _run_next(session)
     first_id = first['job_id']
-    with pytest.raises(ReplayAbort, match='pending external'): session.run_next()
+    with pytest.raises(ReplayAbort, match='pending external'): _run_next(session)
     assert session.ledger.snapshot()['spent']['jobs'] == 1
     actual = session.record_review(first_id, content_review(session, first_id))
     assert actual['tokens'] == 225  # 3 real ledger observations, not review's invented 100.
     assert actual['actual_models'][0]['returned'] == 'observed-fixture'
     with pytest.raises(ReplayAbort): session.pass_stage('S1')
-    second = session.run_next()
+    second = _run_next(session)
     session.record_review(second['job_id'], content_review(session, second['job_id']))
     assert session.pass_stage('S1')['decision'] == 'passed'
     resumed = protocol.Campaign.resume(session.anchor)
-    third = resumed.run_next()
+    third = _run_next(resumed)
     assert third['job_id'].startswith('S2-')
     state = resumed.ledger.snapshot()
     assert state['spent']['jobs'] == 3
@@ -292,7 +297,7 @@ def test_controller_requires_artifact_review_and_retains_real_ledger_counters(tm
 @pytest.mark.parametrize('mutation', ['snapshot', 'outcome', 'review_source', 'receipt', 'review_replaced'])
 def test_changed_report_or_review_cannot_authorize_next_dispatch(tmp_path, monkeypatch, mutation):
     session = executable_campaign(tmp_path, monkeypatch)
-    job_id = session.run_next()['job_id']
+    job_id = _run_next(session)['job_id']
     ref = content_review(session, job_id)
     if mutation == 'snapshot': (session.root / job_id / 'reports' / 'report.json').write_text('changed')
     if mutation == 'outcome': (session.root / job_id / 'outcome.json').write_text('{}')
@@ -304,11 +309,11 @@ def test_changed_report_or_review_cannot_authorize_next_dispatch(tmp_path, monke
     if mutation == 'review_replaced':
         session.record_review(job_id, ref)
         Path(ref['path']).write_text('{}')
-        with pytest.raises((ReplayAbort, BudgetDenied)): session.run_next()
+        with pytest.raises((ReplayAbort, BudgetDenied)): _run_next(session)
     else:
         try: session.record_review(job_id, ref)
         except ReplayAbort: pass
-        with pytest.raises((ReplayAbort, BudgetDenied)): session.run_next()
+        with pytest.raises((ReplayAbort, BudgetDenied)): _run_next(session)
     assert session.ledger.snapshot()['spent']['jobs'] == 1
 
 
@@ -316,16 +321,16 @@ def test_anchor_lock_prevents_overlapping_coordinators(tmp_path, monkeypatch):
     session = executable_campaign(tmp_path, monkeypatch)
     with session.lock():
         with pytest.raises(ReplayAbort, match='holds the anchor'):
-            protocol.Campaign.resume(session.anchor).run_next()
+            _run_next(protocol.Campaign.resume(session.anchor))
     assert session.ledger.snapshot()['spent']['jobs'] == 0
 
 
 def test_raw_ledger_hash_cannot_skip_stage_acceptance(tmp_path, monkeypatch):
     session = executable_campaign(tmp_path, monkeypatch)
-    job_id = session.run_next()['job_id']
+    job_id = _run_next(session)['job_id']
     session.record_review(job_id, content_review(session, job_id))
     session.ledger.pass_stage('S1', acceptance_evidence_sha256='a' * 64)
-    with pytest.raises(ReplayAbort, match='no verified acceptance receipt'): session.run_next()
+    with pytest.raises(ReplayAbort, match='no verified acceptance receipt'): _run_next(session)
     assert session.ledger.snapshot()['spent']['jobs'] == 1
 
 
@@ -340,7 +345,7 @@ def test_industry_whitespace_does_not_invent_five_industries():
 @pytest.mark.parametrize('change', ['bad_offset', 'bad_hash', 'unknown_position', 'missing_source'])
 def test_completed_review_requires_actual_source_and_artifact_positions(tmp_path, monkeypatch, change):
     session = executable_campaign(tmp_path, monkeypatch)
-    job_id = session.run_next()['job_id']
+    job_id = _run_next(session)['job_id']
     ref = content_review(session, job_id)
     value = json.loads(Path(ref['path']).read_bytes())
     if change == 'bad_offset': value['positions']['source']['end'] = 10000000
@@ -412,7 +417,7 @@ def test_actual_plan_drift_cannot_initialize_a_campaign(tmp_path, monkeypatch, c
 
 def test_qualified_role_claim_cannot_replace_completed_provider_node_evidence(tmp_path, monkeypatch):
     session = executable_campaign(tmp_path, monkeypatch)
-    job_id = session.run_next()['job_id']
+    job_id = _run_next(session)['job_id']
     # Preserve the original red's only-Agent-22 evidence after the positive
     # executor fixture was improved to emit every node and real ledger attempt.
     outcome_path = session.root / job_id / 'outcome.json'
@@ -425,3 +430,66 @@ def test_qualified_role_claim_cannot_replace_completed_provider_node_evidence(tm
     put(parent_path, parent)
     observed = session.record_review(job_id, content_review(session, job_id))
     assert observed['required_roles_valid'] is False
+
+
+
+
+def next_storage_review(session):
+    state=session.ledger.snapshot()
+    stage=next(s for s in protocol.STAGES if state['stages'].get(s)!='passed')
+    raw=next(r for r in session.protocol['samples'] if r['stage']==stage and r['job_id'] not in state['jobs'])
+    row=session._sample(raw['job_id'])
+    return put(session.root.parent/(row['job_id']+'-storage-review.json'), {
+        'schema':'stock.storage-budget-review.v1','decision':'reviewed',
+        'manifest_sha256':row['manifest']['sha256'],'job_id':row['job_id'],
+        'components':{k:16*1024**2 for k in ('source','artifacts','evidence','sqlite','temporary')},
+        'maximum_files':1000,
+        'basis':{k:'Synthetic offline test-only allowance' for k in ('source','artifacts','evidence','sqlite','temporary')}})
+
+
+def _run_next(session):
+    return session.run_next(storage_budget=next_storage_review(session))
+
+
+def test_missing_storage_estimate_does_not_consume_live_clock_slot_or_ledger(tmp_path, monkeypatch):
+    from storage.capacity import StorageCapacityUnavailable
+    session=executable_campaign(tmp_path,monkeypatch)
+    before=session.ledger.path.read_bytes();state=session.ledger.snapshot()
+    with pytest.raises(StorageCapacityUnavailable):session.run_next()
+    assert session.ledger.path.read_bytes()==before
+    assert session.ledger.snapshot()==state
+    assert not any((session.root/r['job_id']).exists() for r in session.protocol['samples'])
+
+
+def test_denied_storage_claim_does_not_consume_live_clock_slot_or_ledger(tmp_path, monkeypatch):
+    from storage.capacity import StorageCapacityUnavailable, _shared
+    session=executable_campaign(tmp_path,monkeypatch)
+    reference=next_storage_review(session)
+    before=session.ledger.path.read_bytes();state=session.ledger.snapshot()
+    monkeypatch.setattr(_shared(),'available_bytes',lambda:0)
+    with pytest.raises(StorageCapacityUnavailable):session.run_next(storage_budget=reference)
+    assert session.ledger.path.read_bytes()==before
+    assert session.ledger.snapshot()==state
+    assert not any((session.root/r['job_id']).exists() for r in session.protocol['samples'])
+
+
+def test_protocol_reuses_one_bound_claim_through_original_runner(tmp_path, monkeypatch):
+    import quality_campaign_runner as runner
+    from storage.capacity import _shared
+    session=executable_campaign(tmp_path,monkeypatch)
+    executor=protocol.execute_reserved_job;calls=[]
+    original=_shared().Reservation
+    def counted(*args,**kwargs):
+        value=original(*args,**kwargs);calls.append(value);return value
+    monkeypatch.setattr(_shared(),'Reservation',counted)
+    monkeypatch.setattr(protocol,'execute_reserved_job',runner.execute_reserved_job)
+    def leaf(plan,ledger,job_id,reference,lease,fd,capability):
+        assert len(calls)==1 and lease is calls[0]
+        from types import SimpleNamespace
+        return executor(plan,ledger,job_id,storage_budget=reference,
+            _storage=SimpleNamespace(lease=lease,reference=reference))
+    monkeypatch.setattr(runner,'_execute_reserved_job',leaf)
+    result=_run_next(session)
+    assert result['status']=='private_pipeline_completed'
+    assert len(calls)==1 and calls[0].receipt()['state']=='completed'
+    assert session.ledger.snapshot()['spent']['jobs']==1

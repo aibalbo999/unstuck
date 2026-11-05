@@ -18,6 +18,13 @@ import traceback
 
 def main():
     ticket, case = Path(sys.argv[1]), sys.argv[2]
+    options={}
+    tail=list(sys.argv[3:])
+    if tail and not tail[0].startswith('--'):
+        options['admission_fd']=int(tail.pop(0))
+    for index in range(0,len(tail),2):
+        field={'--storage-capacity-fd':'storage_capacity_fd','--storage-lifetime-fd':'storage_lifetime_fd'}[tail[index]]
+        options[field]=int(tail[index+1])
     def forbidden(*args, **kwargs):
         raise AssertionError('Offline owned normal test forbids external network')
     socket.socket.connect = socket.socket.connect_ex = forbidden
@@ -35,6 +42,9 @@ def main():
     # Only this network-denied fixture simulates the dormant implementation.
     canary_release_policy.require_canary_enabled = lambda: None
     import quality_campaign_runner as runner
+    if 'storage_lifetime_fd' in options:
+        from storage import capacity_delegation
+        capacity_delegation.REGISTRY=ticket.parent.parent.parent/'capacity-reservations'
     import quality_campaign_graph as graph
     real_normal = graph.run_normal_job
     retained_generators = []  # Keep the shutdown fixture alive until Runner.close.
@@ -159,7 +169,6 @@ def main():
         return outcome
     graph.run_normal_job = offline_leaves
     try:
-        options = {'admission_fd': int(sys.argv[3])} if len(sys.argv) > 3 else {}
         return runner.run_owned_job(ticket, **options)
     except BaseException:
         # All inputs here are dummy fixtures, never an operator credential file.

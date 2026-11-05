@@ -11,7 +11,7 @@ import pytest
 import quality_campaign_runner as runner
 from quality_campaign_budget import CampaignBudget, manifest_identity
 from quality_campaign_watchdog import run_reserved_process
-from test_quality_campaign_runner import fixture, put
+from test_quality_campaign_runner import fixture, put, storage_review
 
 
 def frozen_normal_fixture(tmp_path, mode):
@@ -83,9 +83,10 @@ def test_real_owned_normal_job_settles_only_after_parent_readback(tmp_path, monk
         # Replace only the outer executable with this explicit test bootstrap.
         # The watchdog, runner.owned_job and run_normal_job are real and unchanged.
         child = Path(__file__).with_name('test_quality_campaign_owned_normal_child.py')
-        return run_reserved_process(ledger, job_id, [sys.executable, '-I', '-B', str(child), argv[-1], case], **kwargs)
+        return run_reserved_process(ledger, job_id, [sys.executable, '-I', '-B', str(child), argv[argv.index('--owned-job')+1], case,
+            '--storage-capacity-fd',str(kwargs['capacity_read_fd'])], **kwargs)
     monkeypatch.setattr(runner, 'run_reserved_process', real_owned)
-    receipt = runner.execute_reserved_job(plan, ledger, 'job')
+    receipt = runner.execute_reserved_job(plan, ledger, 'job', storage_budget=storage_review(plan,ledger))
     output = tmp_path / 'job'
     diagnostic = output / 'offline-fixture-error.txt'
     assert not diagnostic.exists(), diagnostic.read_text() if diagnostic.exists() else ''

@@ -88,39 +88,41 @@ def copy_cache_entries(legacy, destination):
     legacy, destination = Path(legacy).resolve(), requested.resolve()
     if legacy == destination or requested.exists() or requested.is_symlink():
         raise FileExistsError('Dedicated cache destination must be new')
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    temporary = destination.with_name('.' + destination.name + '.' + uuid4().hex + '.migrating')
-    with closing(_read_only(legacy)) as source:
-        try:
-            source.execute('BEGIN')
-            columns = tuple(row[1] for row in source.execute('PRAGMA table_info(cache_entries)'))
-            if columns != COLUMNS:
-                raise ValueError('Unsupported legacy cache schema; no data copy performed')
-            target = sqlite3.connect(temporary)
+    from storage.capacity import reserve_write, sqlite_write_bytes
+    with reserve_write(destination, 3 * sqlite_write_bytes(legacy), "Exact provider cache migration destination, journal and verification allowance"):
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        temporary = destination.with_name('.' + destination.name + '.' + uuid4().hex + '.migrating')
+        with closing(_read_only(legacy)) as source:
             try:
-                temporary.chmod(0o600)
-                _init_schema(target)
-                digest, count = hashlib.sha256(), 0
-                for row in source.execute('SELECT cache_key,value,expires_at,updated_at FROM cache_entries ORDER BY cache_key'):
-                    target.execute('INSERT INTO cache_entries VALUES(?,?,?,?)', tuple(row))
-                    digest.update(_row_bytes(row)); count += 1
-                manifest = {'policy': POLICY, 'source_database': str(legacy),
-                            'row_count': count, 'row_sha256': digest.hexdigest(), 'copied_at': time.time()}
-                if cache_fingerprint(target) != {key: manifest[key] for key in ('row_count', 'row_sha256')}:
-                    raise RuntimeError('Copied cache records differ; destination not published')
-                target.execute('CREATE TABLE provider_json_cache_migrations (id INTEGER PRIMARY KEY CHECK(id=1), manifest_json TEXT NOT NULL)')
-                target.execute('INSERT INTO provider_json_cache_migrations VALUES(1,?)', (json.dumps(manifest),))
-                target.commit()
-                if target.execute('PRAGMA integrity_check').fetchone()[0] != 'ok':
-                    raise RuntimeError('Copied cache integrity check failed')
+                source.execute('BEGIN')
+                columns = tuple(row[1] for row in source.execute('PRAGMA table_info(cache_entries)'))
+                if columns != COLUMNS:
+                    raise ValueError('Unsupported legacy cache schema; no data copy performed')
+                target = sqlite3.connect(temporary)
+                try:
+                    temporary.chmod(0o600)
+                    _init_schema(target)
+                    digest, count = hashlib.sha256(), 0
+                    for row in source.execute('SELECT cache_key,value,expires_at,updated_at FROM cache_entries ORDER BY cache_key'):
+                        target.execute('INSERT INTO cache_entries VALUES(?,?,?,?)', tuple(row))
+                        digest.update(_row_bytes(row)); count += 1
+                    manifest = {'policy': POLICY, 'source_database': str(legacy),
+                                'row_count': count, 'row_sha256': digest.hexdigest(), 'copied_at': time.time()}
+                    if cache_fingerprint(target) != {key: manifest[key] for key in ('row_count', 'row_sha256')}:
+                        raise RuntimeError('Copied cache records differ; destination not published')
+                    target.execute('CREATE TABLE provider_json_cache_migrations (id INTEGER PRIMARY KEY CHECK(id=1), manifest_json TEXT NOT NULL)')
+                    target.execute('INSERT INTO provider_json_cache_migrations VALUES(1,?)', (json.dumps(manifest),))
+                    target.commit()
+                    if target.execute('PRAGMA integrity_check').fetchone()[0] != 'ok':
+                        raise RuntimeError('Copied cache integrity check failed')
+                finally:
+                    target.close()
             finally:
-                target.close()
-        finally:
-            source.close()
-    with temporary.open('rb') as stream:
-        os.fsync(stream.fileno())
-    os.link(temporary, destination)  # Atomic no-overwrite publication on the same volume.
-    temporary.unlink()
-    ensure_cache_destination(legacy, destination)
-    return {**manifest, 'destination_database': str(destination), 'original_rows_removed': False,
-            'keys_values_and_expiry_preserved': True}
+                source.close()
+        with temporary.open('rb') as stream:
+            os.fsync(stream.fileno())
+        os.link(temporary, destination)  # Atomic no-overwrite publication on the same volume.
+        temporary.unlink()
+        ensure_cache_destination(legacy, destination)
+        return {**manifest, 'destination_database': str(destination), 'original_rows_removed': False,
+                'keys_values_and_expiry_preserved': True}

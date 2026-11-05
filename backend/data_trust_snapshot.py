@@ -202,8 +202,8 @@ def build_data_snapshot(
 def write_data_snapshot(path: str | Path, context: dict, pipeline_id: Optional[str] = None) -> dict:
     snapshot = build_data_snapshot(context, pipeline_id=pipeline_id)
     path_obj = Path(path)
-    path_obj.parent.mkdir(parents=True, exist_ok=True)
-    path_obj.write_text(json.dumps(snapshot, ensure_ascii=False, indent=2), encoding="utf-8")
+    from storage.capacity import write_text
+    write_text(path_obj, json.dumps(snapshot, ensure_ascii=False, indent=2), parents=True)
     return snapshot
 
 

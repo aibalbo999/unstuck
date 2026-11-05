@@ -4,6 +4,7 @@ import asyncio
 
 from config import API_KEY_SETUP_MESSAGE, OUTPUT_DIR, has_api_keys
 from agent_runtime import AnalysisPipelineRunner, AnalysisRequest
+from storage.capacity import StorageCapacityUnavailable
 from agent_runtime.retry_policy import AgentRateLimitError, AgentTransientError
 from analysis_job_helpers import (
     build_data_fetch_blocking_notice,
@@ -322,6 +323,14 @@ async def run_stock_analysis_job_async(
         )
         update_job(job_id, "error", error=event["message"])
         append_event(job_id, event)
+        return ""
+    except StorageCapacityUnavailable as exc:
+        # RQ has a generic exception retry budget. Return a terminal domain
+        # error, as publication-blocked does, without replaying completed work.
+        message = str(exc)
+        update_job(job_id, "error", error=message)
+        append_event(job_id, {"type":"error", "phase":"storage_capacity_refused",
+            "message":message, "retry_scheduled":False, "quality_status":"not_evaluated"})
         return ""
     except (AgentRateLimitError, AgentTransientError) as e:
         if frozen:

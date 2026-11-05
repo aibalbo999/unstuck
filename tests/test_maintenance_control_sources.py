@@ -41,7 +41,7 @@ assert str(project / 'tests') not in sys.path and str(project / 'backend') not i
 ''')
 
 
-@pytest.mark.parametrize('name', ['maintenance_guard', 'maintenance_canary_claim', 'quality_campaign_graph'])
+@pytest.mark.parametrize('name', ['maintenance_guard', 'maintenance_canary_claim', 'quality_campaign_graph', 'storage', 'storage.capacity', 'storage.capacity_delegation', 'storage.capacity_companion'])
 def test_bundle_rejects_preloaded_controls_or_harness_before_compilation(tmp_path, name):
     guarded(tmp_path, '''
 import maintenance_entry as bootstrap, types
@@ -124,10 +124,13 @@ assert not marker.exists(), 'Later harness bytes executed instead of captured sn
 ''', project=project)
 
 
-@pytest.mark.parametrize('case', ['source', 'module', 'spec', 'finder', 'harness_module', 'harness_spec'])
+@pytest.mark.parametrize('case', ['source', 'module', 'spec', 'finder', 'harness_module', 'harness_spec', 'capacity_source', 'capacity_module', 'capacity_loaded_sha'])
 def test_bound_controls_detect_drift_before_next_action(tmp_path, case):
     project = copy_controller(tmp_path)
     mutation = {
+        'capacity_source': "path = project / 'backend/storage/capacity_companion.py'; path.write_bytes(path.read_bytes() + b'\\n# changed\\n')",
+        'capacity_module': "import types; sys.modules['storage.capacity_delegation'] = types.ModuleType('storage.capacity_delegation')",
+        'capacity_loaded_sha': "sys.modules['storage.capacity']._control_source_sha256 = '0'*64",
         'source': "path = project / 'scripts/maintenance_canary_claim.py'; path.write_bytes(path.read_bytes() + b'\\n# changed\\n')",
         'module': "import types; sys.modules['maintenance_canary_claim'] = types.ModuleType('maintenance_canary_claim')",
         'spec': "sys.modules['maintenance_canary_claim'].__spec__ = None",
@@ -220,7 +223,8 @@ for relative in bootstrap.CONTROL_FILES:
     info = path.stat()
     path.write_bytes(source.replace(b'LOADER_SOURCE_PROBE = 0', b'LOADER_SOURCE_PROBE = 1'))
     os.utime(path, ns=(info.st_atime_ns, info.st_mtime_ns))
-    names[path.stem] = relative
+    name = ('storage' if path.stem=='__init__' else 'storage.'+path.stem) if relative.startswith('backend/storage/') else path.stem
+    names[name] = relative
 shadow = Path(os.environ['STOCK_AGENT_PRIVATE_RQ_ROOT']) / 'shadow'
 shadow.mkdir()
 for name in names:

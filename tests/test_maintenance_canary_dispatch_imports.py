@@ -87,6 +87,7 @@ def copy_controller(tmp_path):
     harness = ('runner', 'budget', 'wire', 'transport', 'watchdog', 'safety', 'graph')
     files = ['start_mac.command', 'backend/maintenance_state.py', 'backend/maintenance_guard.py',
              'backend/canary_release_policy.py']
+    files += ['backend/storage/' + name + '.py' for name in ('__init__', 'capacity', 'capacity_delegation', 'capacity_companion', 'migrations', 'report_storage', '_local_file_operations', '_report_keys', 'memory_report_storage')]
     files += ['scripts/' + name + '.py' for name in scripts]
     files += ['tests/quality_campaign_' + name + '.py' for name in harness]
     for relative in files:
@@ -114,7 +115,7 @@ assert dispatch.runner.LOADER_SOURCE_PROBE == 1, 'Stale timestamp bytecode was l
 ''', project=project)
 
 
-@pytest.mark.parametrize('case', ['source', 'module'])
+@pytest.mark.parametrize('case', ['source', 'module', 'capacity_module'])
 def test_dispatch_preflight_rejects_loaded_source_or_module_drift(tmp_path, case):
     project = copy_controller(tmp_path)
     mutation = r'''
@@ -123,6 +124,16 @@ path.write_bytes(path.read_bytes() + b'\n# Changed after controller load\n')
 ''' if case == 'source' else '''
 import types
 sys.modules['quality_campaign_budget'] = types.ModuleType('quality_campaign_budget')
+'''
+    if case == 'capacity_module':
+        mutation = '''
+import types
+foreign = types.ModuleType('storage.capacity_delegation')
+def unverified_budget(*args, **kwargs):
+    (root / 'unverified-capacity-called').touch()
+    return {}
+foreign.reviewed_budget = unverified_budget
+sys.modules['storage.capacity_delegation'] = foreign
 '''
     guarded(tmp_path, '''
 import maintenance_entry as bootstrap
@@ -137,6 +148,8 @@ from redis import Redis
 root = Path(os.environ['STOCK_AGENT_PRIVATE_RQ_ROOT']) / 'campaign'
 root.mkdir(mode=0o700)
 plan, ledger = reserved_normal_fixture(root, 'v4')
+from test_quality_campaign_runner import storage_review
+storage_budget=storage_review(plan,ledger)
 bound = {'campaign_id': 'fixture', 'job_id': 'job', 'ticker': '2330.TW',
          'pipeline_id': 'v4', 'manifest_sha256': plan.expected_sha, 'timeout_seconds': 45}
 # Primitive enrolled-shape fixture; no socket call and no claim/launch proof.
@@ -154,11 +167,12 @@ owner = dispatch.ClaimedCanaryDispatch(plan, ledger, **values, claimed=claimed,
     process_binding={'operation_id': 'import-only', 'control_sha256': control_digest(), 'backend_revision': 'b' * 40})
 ''' + mutation + '''
 try:
-    owner.start()
+    owner.start(storage_budget=storage_budget)
 except dispatch.runner.ReplayAbort as error:
     assert 'controller' in str(error) and 'drift' in str(error), str(error)
 else:
     raise AssertionError('Changed loaded harness was admitted')
+assert not (root / 'unverified-capacity-called').exists(), 'Unbound capacity callable executed before controller verification'
 assert owner.process_owner is None and not (root / 'job').exists()
 assert ledger.snapshot()['jobs']['job']['status'] == 'active'
 ''', project=project)

@@ -16,6 +16,15 @@ import threading
 
 
 FILES = {
+    'storage': 'backend/storage/__init__.py',
+    'storage.capacity': 'backend/storage/capacity.py',
+    'storage.capacity_delegation': 'backend/storage/capacity_delegation.py',
+    'storage.capacity_companion': 'backend/storage/capacity_companion.py',
+    'storage.migrations': 'backend/storage/migrations.py',
+    'storage.report_storage': 'backend/storage/report_storage.py',
+    'storage._local_file_operations': 'backend/storage/_local_file_operations.py',
+    'storage._report_keys': 'backend/storage/_report_keys.py',
+    'storage.memory_report_storage': 'backend/storage/memory_report_storage.py',
     'canary_release_policy': 'backend/canary_release_policy.py',
     'maintenance_entry': 'scripts/maintenance_entry.py',
     'maintenance_state': 'backend/maintenance_state.py',
@@ -62,7 +71,9 @@ class ControlSources:
                 raise RuntimeError('Control reload drift rejected')
             if self._failed or fullname in self._modules:
                 raise RuntimeError('Never resume or reimport a control bundle')
-            return importlib.util.spec_from_file_location(fullname, self._root / FILES[fullname], loader=self)
+            package = [str(self._root / 'backend/storage')] if fullname == 'storage' else None
+            return importlib.util.spec_from_file_location(fullname, self._root / FILES[fullname],
+                                                         loader=self, submodule_search_locations=package)
         return None
 
     def create_module(self, spec):
@@ -77,6 +88,7 @@ class ControlSources:
         name = module.__name__
         if name in self._modules:
             raise RuntimeError('Never re-execute a control module')
+        module._control_source_sha256 = hashlib.sha256(self._sources[FILES[name]]).hexdigest()
         module._CONTROL_BUNDLE = self
         self._modules[name] = module
         exec(compile(self._sources[FILES[name]], module.__file__, 'exec'), module.__dict__)
@@ -115,7 +127,8 @@ class ControlSources:
             if (sys.modules.get(name) is not module or getattr(module, '__loader__', None) is not self
                     or getattr(spec, 'loader', None) is not self or getattr(spec, 'origin', None) != str(self._root / FILES[name])
                     or getattr(module, '__file__', None) != str(self._root / FILES[name])
-                    or getattr(module, '_CONTROL_BUNDLE', None) is not self):
+                    or getattr(module, '_CONTROL_BUNDLE', None) is not self
+                    or getattr(module, '_control_source_sha256', None) != hashlib.sha256(self._sources[FILES[name]]).hexdigest()):
                 raise RuntimeError('Loaded control module identity drift')
         dispatch = self._modules['maintenance_canary_dispatch']
         for name, path in HARNESS_FILES.items():

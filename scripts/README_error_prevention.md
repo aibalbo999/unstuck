@@ -83,3 +83,42 @@ scripts/project_exec.sh "$(scripts/project_python.sh)" -B tests/run_prompt_bound
 ```
 
 私有完整 corpus 未提供時，該一項歷史回放保持 skip；合成案例與單元回歸不替代真實報告的人工驗收。
+
+
+## 有界寫入與 guarded job 容量預估
+
+原生報告、來源原件、provider SQLite cache、bounded curl 與模型嘗試入口會自行呼叫 `storage.capacity`，一般 job 不需 campaign manifest。讀取與既有 SHA 原件重用不需要新的寫入 claim。模型預設 16 MiB 是磁碟增量估算，並非輸出或品質上限；實際產物另按 bytes 重新准入，不因超估重送模型。
+
+`Campaign.run_next()`、`quality_campaign_runner.execute_reserved_job()` 與 `ClaimedCanaryDispatch.start()` 的新 guarded run 必須明確傳入 `storage_budget={"path": absolute_path, "sha256": digest}`。原 frozen manifest 與舊紀錄仍可讀；不得回寫歷史 pins。準備預估不代表允許啟用 canary／模型／maintenance，原業務授權保持原狀。
+
+在已授權任務中，agent 可以依實際輸入／既有產物 stat／暫存寫入上限建立一份 ≤64 KiB 的私有 JSON；`reviewed` 表示有可查估算依據和版本綁定，不要求再加一次人類批准：
+
+```python
+# plan / ledger / dispatch 已由原流程驗證；各 *_bytes 與 basis 先依本 job 計算。
+review = {
+    "schema": "stock.storage-budget-review.v1", "decision": "reviewed",
+    "manifest_sha256": plan.expected_sha, "job_id": job_id,
+    "components": {"source": source_bytes, "artifacts": artifact_bytes,
+                   "evidence": evidence_bytes, "sqlite": sqlite_bytes,
+                   "temporary": temporary_bytes},
+    "maximum_files": estimated_file_count,
+    "basis": {"source": source_basis, "artifacts": artifact_basis,
+              "evidence": evidence_basis, "sqlite": sqlite_basis,
+              "temporary": temporary_basis},
+}
+# 五項皆為正整數；source 至少涵蓋既有 source_job 的序列化 bytes。
+raw = json.dumps(review, sort_keys=True, separators=(",", ":")).encode()
+# 用既有私有儲存入口，以新檔、0600、已准入的小型 metadata 寫入保存 raw。
+reference = {"path": str(review_path), "sha256": hashlib.sha256(raw).hexdigest()}
+runner.execute_reserved_job(plan, ledger, job_id, storage_budget=reference)
+# 維護使用既有、已授權的單一 dispatch：
+# dispatch.start(storage_budget=reference)
+# 固定 campaign 排程亦傳同樣 reference；在扣 stage/batch/job 槽前准入：
+# campaign.run_next(storage_budget=reference)
+```
+
+`artifacts` 應計 HTML／MD／snapshot／sidecar 與必要舊版，`sqlite` 計現有 DB／WAL、索引和 checkpoint 的預期增量，`evidence` 計既有證據保留上限，`temporary` 計 staging／暫存／同時存在的副本。只有已知正整數與明確 basis 才准入；不能以 16 MiB 模型估算或 64 MiB 單一證據上限冒充完整 job 峰值。共用層再加餘裕；不建立 ZIP、複製環境或重建來源來估算。
+
+父程序／guardian 持有共享 kernel lease；真正 child 只收唯讀 claim 和受綁定的能力。受限 child 的 native writers 以同一固定池計量，含配置區塊／小檔案 metadata；不同並行 task 仍各自占用額度。`maximum_files` 是各寫入階段的已存在檔案數觀察，不是 OS 檔案數配額。maintenance 保留真正 child PID／PGID／SID，容量 companion 透過 ready pipe 確認持權，直到原 group cleanup 證實或所有 child lifetime reader 關閉才結束。cleanup 不明時保留 claim，交原 owner 依原 process handle／收據查核；不得靠 PID／TTL 自行搶權。
+
+維護控制器的 source snapshot 同時編譯並核對容量模組與其 storage package 依賴；來源或已載入 module identity 漂移會拒絕下一次動作。此保護、合作式容量准入與隔離測試皆不等於 OS quota、真實模型品質或正式部署驗收。

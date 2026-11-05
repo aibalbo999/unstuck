@@ -4,6 +4,7 @@ import hashlib
 import os
 from pathlib import Path
 import tempfile
+from storage.capacity import reserve_write, StorageCapacityUnavailable
 
 MAX_BYTES = 8 * 1024 * 1024
 HARD_MAX_BYTES = 16 * 1024 * 1024
@@ -25,18 +26,24 @@ def archive_response(body, *, source_url, retrieved_at, evidence_kind='raw_http_
     directory = current_runtime_paths().cache_dir / 'official-response-evidence'
     path = directory / (digest + '.gz')
     try:
-        directory.mkdir(parents=True, exist_ok=True)
         if not path.exists():
-            with tempfile.NamedTemporaryFile(dir=directory, delete=False) as handle:
-                temporary = handle.name
-                handle.write(gzip.compress(body, mtime=0))
-            os.replace(temporary, path)
+            compressed = gzip.compress(body, mtime=0)
+            with reserve_write(directory, len(compressed) + 4096, 'Exact compressed public original plus directory entry'):
+                directory.mkdir(parents=True, exist_ok=True)
+                # Another cooperating acquisition may have stored the same hash.
+                if not path.exists():
+                    with tempfile.NamedTemporaryFile(dir=directory, delete=False) as handle:
+                        temporary = handle.name
+                        handle.write(compressed)
+                    os.replace(temporary, path)
         proof = {'status':'archived','source_url':source_url,'retrieved_at':retrieved_at,'http_status':http_status,
                  'raw_response_sha256':digest,'raw_response_path':str(path),'raw_response_bytes':len(body),
                  'evidence_kind':evidence_kind,'historical_point_in_time_verified':False,'finality_guaranteed':False}
         if read_response(proof, max_bytes=limit) != body:
             raise ValueError('Archived evidence differs')
         return proof
+    except StorageCapacityUnavailable:
+        return {'status':'unavailable','reason':'storage_capacity_unavailable','raw_response_sha256':digest}
     except (OSError, ValueError, EOFError):
         return {'status':'unavailable','reason':'raw_archive_failed','raw_response_sha256':digest}
 

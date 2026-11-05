@@ -6,6 +6,7 @@ from pathlib import Path
 
 import pytest
 import quality_campaign_runner as runner
+from test_quality_campaign_runner import storage_review
 from quality_campaign_wire import ReplayAbort
 from test_quality_campaign_runner import frozen, reserved
 
@@ -52,7 +53,7 @@ def test_real_watchdog_field_shape_can_complete_private_pipeline(tmp_path, monke
     plan, _, ledger = reserved(tmp_path)
     monkeypatch.setattr(runner, 'run_reserved_process', lambda *a, **k:
         parent_process_result(tmp_path, ledger))
-    result = runner.execute_reserved_job(plan, ledger, 'job')
+    result = runner.execute_reserved_job(plan, ledger, 'job', storage_budget=storage_review(plan, ledger))
     assert result['status'] == 'private_pipeline_completed'
     assert result['qualified_for_campaign'] is False
 
@@ -65,7 +66,7 @@ def test_parent_completion_receipt_binds_captured_generation_configuration(tmp_p
         (tmp_path / 'job' / 'prompts.jsonl').write_bytes(raw)
         return result
     monkeypatch.setattr(runner, 'run_reserved_process', process)
-    result = runner.execute_reserved_job(plan, ledger, 'job')
+    result = runner.execute_reserved_job(plan, ledger, 'job', storage_budget=storage_review(plan, ledger))
     assert result.get('prompts_sha256') == runner.sha(raw)
 
 
@@ -82,7 +83,7 @@ def test_parent_rejects_cleanup_not_bound_to_original_admission(tmp_path, monkey
     monkeypatch.setattr(runner, 'run_reserved_process', lambda *a, **k:
         parent_process_result(tmp_path, ledger, mutate=mutate, skip_claim=case == 'missing_claim'))
     with pytest.raises(ReplayAbort):
-        runner.execute_reserved_job(plan, ledger, 'job')
+        runner.execute_reserved_job(plan, ledger, 'job', storage_budget=storage_review(plan, ledger))
     assert ledger.snapshot()['jobs']['job']['status'] == 'active'
 
 
@@ -115,7 +116,7 @@ def test_parent_rechecks_original_ledger_inode_after_child(tmp_path, monkeypatch
         return result
     monkeypatch.setattr(runner, 'run_reserved_process', finish)
     with pytest.raises(ReplayAbort):
-        runner.execute_reserved_job(plan, ledger, 'job')
+        runner.execute_reserved_job(plan, ledger, 'job', storage_budget=storage_review(plan, ledger))
 
 
 def test_real_report_template_extension_cannot_change_without_frozen_rejection(tmp_path):
@@ -147,7 +148,7 @@ def test_failed_or_unbound_outcome_is_never_completed(tmp_path, monkeypatch, cas
         if case == 'missing_outcome': outcome.unlink()
         return result
     monkeypatch.setattr(runner, 'run_reserved_process', finish)
-    result = runner.execute_reserved_job(plan, ledger, 'job')
+    result = runner.execute_reserved_job(plan, ledger, 'job', storage_budget=storage_review(plan, ledger))
     assert result['status'] == 'failed'
     assert ledger.snapshot()['jobs']['job']['status'] == 'failed'
 """Narrow runtime-file inventory checks with fake distributions, no real secrets."""
@@ -156,6 +157,7 @@ from pathlib import Path
 
 import pytest
 import quality_campaign_runner as runner
+from test_quality_campaign_runner import storage_review
 from quality_campaign_wire import ReplayAbort
 
 

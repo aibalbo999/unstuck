@@ -73,8 +73,11 @@ def test_local_storage_failed_replace_preserves_old_content_and_cleans_temp(tmp_
     storage = LocalFileStorage(tmp_path)
     storage.save_report("report.html", b"old", content_type="text/html")
 
+    real_replace = os.replace
     def fail_replace(source, target):
-        raise OSError("replace failed")
+        if Path(target).is_relative_to(tmp_path):
+            raise OSError("replace failed")
+        return real_replace(source, target)
 
     monkeypatch.setattr(os, "replace", fail_replace)
 
@@ -225,9 +228,10 @@ def test_local_storage_rolls_back_metadata_when_report_replace_fails(tmp_path, m
 
     def fail_second_replace(source, target):
         nonlocal replace_count
-        replace_count += 1
-        if replace_count == 2:
-            raise OSError("report replace failed")
+        if Path(target).is_relative_to(tmp_path):
+            replace_count += 1
+            if replace_count == 2:
+                raise OSError("report replace failed")
         return real_replace(source, target)
 
     monkeypatch.setattr(os, "replace", fail_second_replace)

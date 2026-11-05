@@ -25,6 +25,7 @@ from maintenance_state import MaintenanceError, _directory, _identifier, _identi
 LIMIT = 32768
 JOURNAL = 'process-attempt.jsonl'
 SCHEMA = 'stock-agent.owned-process-attempt.v1'
+MAX_READONLY_FDS = 8
 
 
 class ProcessUnavailable(RuntimeError):
@@ -80,6 +81,45 @@ def admission_pipe_identity(fd):
     return _identity(info)
 
 
+def readonly_descriptor_identity(fd):
+    """Bound a private read-only claim or lifetime pipe, never writable state.
+
+    The caller still validates the claim's job/budget binding and retains its
+    guardian until cleanup. This descriptor check grants no business authority.
+    """
+    if type(fd) is not int or not 3 <= fd < 1048576:
+        raise ProcessUnavailable('Explicit read-only descriptor required')
+    info = os.fstat(fd)
+    if fcntl.fcntl(fd, fcntl.F_GETFL) & os.O_ACCMODE != os.O_RDONLY:
+        raise ProcessUnavailable('Writable capacity descriptors cannot reach the child')
+    if stat.S_ISFIFO(info.st_mode):
+        identity, kind = admission_pipe_identity(fd), 'pipe'
+    elif (stat.S_ISREG(info.st_mode) and info.st_uid == os.geteuid()
+            and stat.S_IMODE(info.st_mode) == 0o600 and info.st_nlink == 1
+            and info.st_size == 0):
+        identity, kind = _identity(info), 'regular'
+    else:
+        raise ProcessUnavailable('Private empty claim file or read-only lifetime pipe required')
+    return {'fd': fd, 'kind': kind, **identity}
+
+
+def _readonly_rows(rows):
+    if type(rows) is not list or not 1 <= len(rows) <= MAX_READONLY_FDS:
+        raise ProcessUnavailable('Bounded read-only descriptor identities required')
+    descriptors, identities = set(), set()
+    for row in rows:
+        if (type(row) is not dict or set(row) != {'fd', 'kind', 'device', 'inode'}
+                or type(row['fd']) is not int or not 3 <= row['fd'] < 1048576
+                or row['kind'] not in ('regular', 'pipe')
+                or any(type(row[key]) is not int or row[key] < 0 for key in ('device', 'inode'))):
+            raise ProcessUnavailable('Invalid read-only descriptor identity')
+        identity = (row['kind'], row['device'], row['inode'])
+        if row['fd'] in descriptors or identity in identities:
+            raise ProcessUnavailable('Duplicate read-only descriptor identity')
+        descriptors.add(row['fd']); identities.add(identity)
+    return rows
+
+
 def _explicit_root(value):
     if value is None:
         raise ProcessUnavailable('Explicit process path required; no environment fallback')
@@ -102,6 +142,7 @@ def _read(fd):
 def _decode(raw, namespace):
     previous, phase, pid, stopped, returned, code = '0' * 64, None, None, False, False, None
     binding = owner_pid = admission_pipe = started_sha = None
+    readonly_descriptors = []
     owned_session = group_absent = False
     prefix = b''
     for index, line in enumerate(raw.splitlines()):
@@ -123,7 +164,7 @@ def _decode(raw, namespace):
             phase = 'reserved'
         elif event == 'launch_intent' and phase == 'reserved':
             fields = {'command_sha256', 'environment_sha256', 'cwd_identity'}
-            if not fields <= set(data) <= fields | {'admission_pipe_identity', 'owned_session'}:
+            if not fields <= set(data) <= fields | {'admission_pipe_identity', 'owned_session', 'readonly_descriptor_identities'}:
                 raise ProcessUnavailable('Invalid launch intent')
             if 'owned_session' in data and data['owned_session'] is not True:
                 raise ProcessUnavailable('Invalid owned session intent')
@@ -133,6 +174,12 @@ def _decode(raw, namespace):
                     or set(admission_pipe) != {'device', 'inode'}
                     or any(type(value) is not int or value < 0 for value in admission_pipe.values())):
                 raise ProcessUnavailable('Invalid admission pipe identity')
+            if 'readonly_descriptor_identities' in data:
+                readonly_descriptors = _readonly_rows(data['readonly_descriptor_identities'])
+                if admission_pipe is not None and any(row['kind'] == 'pipe'
+                        and {key: row[key] for key in ('device', 'inode')} == admission_pipe
+                        for row in readonly_descriptors):
+                    raise ProcessUnavailable('Admission and capacity pipe must be distinct')
             phase = 'launch_unconfirmed'
         elif event == 'started' and phase == 'launch_unconfirmed':
             pid = data.get('pid')
@@ -159,6 +206,7 @@ def _decode(raw, namespace):
         raise ProcessUnavailable('Empty attempt journal')
     return {'schema_version': SCHEMA, 'binding': binding, 'phase': phase, 'pid': pid,
         'owner_pid': owner_pid, 'admission_pipe_identity': admission_pipe, 'started_journal_sha256': started_sha,
+        'readonly_descriptor_identities': readonly_descriptors,
         'owned_session': owned_session, 'process_group_id': pid if owned_session else None,
         'process_group_absence_verified': group_absent,
         'stop_requested': stopped, 'signal_call_returned': returned,
@@ -274,7 +322,7 @@ class OwnedProcess:
         self._bytes += encoded
         self._verify()
 
-    def start(self, command, *, env, cwd, admission_fd=None, owned_session=False):
+    def start(self, command, *, env, cwd, admission_fd=None, owned_session=False, readonly_fds=()):
         with self._operation():
             self._verify()
             if self._launch_attempted:
@@ -288,6 +336,16 @@ class OwnedProcess:
             if type(owned_session) is not bool or owned_session and os.name != 'posix':
                 raise ProcessUnavailable('Explicit POSIX owned session required')
             pipe_identity = admission_pipe_identity(admission_fd) if admission_fd is not None else None
+            if type(readonly_fds) not in (tuple, list) or len(readonly_fds) > MAX_READONLY_FDS:
+                raise ProcessUnavailable('Bounded explicit read-only descriptors required')
+            readonly_fds = tuple(readonly_fds)
+            readonly_identities = [readonly_descriptor_identity(fd) for fd in readonly_fds]
+            if readonly_identities:
+                _readonly_rows(readonly_identities)
+            if admission_fd in readonly_fds or pipe_identity is not None and any(
+                    row['kind'] == 'pipe' and {key: row[key] for key in ('device', 'inode')} == pipe_identity
+                    for row in readonly_identities):
+                raise ProcessUnavailable('Admission and capacity descriptors must be distinct')
             if len(_raw([command, env])) > 1024 * 1024:
                 raise ProcessUnavailable('Bounded process configuration required')
             fd = _directory(cwd)
@@ -296,12 +354,15 @@ class OwnedProcess:
             self._launch_attempted = True
             intent = {'command_sha256': _sha(command), 'environment_sha256': _sha(env), 'cwd_identity': cwd_identity}
             if pipe_identity is not None: intent['admission_pipe_identity'] = pipe_identity
+            if readonly_identities: intent['readonly_descriptor_identities'] = readonly_identities
             if owned_session: intent['owned_session'] = True
             self._append('launch_intent', intent)
             if admission_fd is not None and admission_pipe_identity(admission_fd) != pipe_identity:
                 raise ProcessUnavailable('Admission pipe identity changed before launch')
+            if [readonly_descriptor_identity(fd) for fd in readonly_fds] != readonly_identities:
+                raise ProcessUnavailable('Read-only descriptor identity changed before launch')
             self._process = subprocess.Popen(command, env=env, cwd=cwd, close_fds=True,
-                pass_fds=() if admission_fd is None else (admission_fd,),
+                pass_fds=(() if admission_fd is None else (admission_fd,)) + readonly_fds,
                 start_new_session=owned_session,
                 stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             if owned_session and (os.getpgid(self.process.pid) != self.process.pid

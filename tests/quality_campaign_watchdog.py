@@ -119,13 +119,14 @@ class _OwnedGroup:
                 self.finished.set()
 
 
-def _guardian(fd, argv):
+def _guardian(fd, argv, *, capacity_read_fd=None):
     """Keep the session leader unreaped while parent cleans all descendants."""
     signal.signal(signal.SIGTERM, lambda *_: None)
     signal.signal(signal.SIGINT, lambda *_: None)
     try:
         child = subprocess.Popen(argv, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
-                                 stderr=subprocess.DEVNULL, close_fds=True)
+                                 stderr=subprocess.DEVNULL, close_fds=True,
+                                 pass_fds=() if capacity_read_fd is None else (capacity_read_fd,))
         payload = {'returncode': child.wait()}
     except BaseException:
         payload = {'start_failed': True}
@@ -136,7 +137,8 @@ def _guardian(fd, argv):
 
 
 def run_reserved_process(ledger, job_id, argv, *, env, output_dir, cancel_check=None,
-                         poll_seconds=0.05, term_grace=0.3, kill_grace=1.0):
+                         poll_seconds=0.05, term_grace=0.3, kill_grace=1.0,
+                         capacity_lease=None, capacity_read_fd=None):
     """Run once; return safe cleanup evidence or raise after verified cleanup.
 
     ``cancel_check`` is a nonblocking parent callback: true requests stop;
@@ -145,6 +147,17 @@ def run_reserved_process(ledger, job_id, argv, *, env, output_dir, cancel_check=
     CleanupUnconfirmed never produces a successful cleanup artifact.
     """
     from quality_campaign_budget import BudgetDenied
+    if (capacity_lease is None) != (capacity_read_fd is None):
+        raise WatchdogError('Explicit parent lease and readonly capacity descriptor required together')
+    capacity_fds = ()
+    if capacity_lease is not None:
+        import fcntl
+        if fcntl.fcntl(capacity_read_fd, fcntl.F_GETFL) & os.O_ACCMODE != os.O_RDONLY:
+            raise WatchdogError('Real child capacity descriptor must be readonly')
+        capacity_lease.check()
+        capacity_fds = (*capacity_lease.claim_fds(), capacity_read_fd)
+        capacity_lease._guardian_started = False
+        capacity_lease._guardian_cleanup_confirmed = False
     if os.name != 'posix' or not hasattr(os, 'killpg'):
         raise WatchdogError('POSIX owned process groups required')
     if not isinstance(job_id, str) or not re.fullmatch(r'[A-Za-z0-9_.:-]{1,160}', job_id):
@@ -195,10 +208,17 @@ def run_reserved_process(ledger, job_id, argv, *, env, output_dir, cancel_check=
             raise WatchdogError('reserved job admission changed before spawn')
         if time.monotonic() >= hard_deadline:
             raise WatchdogError('deadline elapsed before spawn')
+        guardian_args = ['--owned-child', str(writer)]
+        if capacity_lease is not None:
+            capacity_lease.check()
+            guardian_args += ['--readonly-capacity', str(capacity_read_fd), '--']
+            # Mark the launch attempt before Popen: an asynchronous interruption
+            # must never make a possibly live guardian look unstarted.
+            capacity_lease._guardian_started = True
         process = subprocess.Popen([sys.executable, '-I', '-B', str(Path(__file__).resolve()),
-            '--owned-child', str(writer), *argv], cwd=output, env=dict(env),
+            *guardian_args, *argv], cwd=output, env=dict(env),
             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
-            close_fds=True, pass_fds=(writer,), start_new_session=True)
+            close_fds=True, pass_fds=(writer, *capacity_fds), start_new_session=True)
         owner.process, owner.pgid = process, process.pid
         os.close(writer)
         writer = None
@@ -257,6 +277,8 @@ def run_reserved_process(ledger, job_id, argv, *, env, output_dir, cancel_check=
     if owner.error is not None or not owner.proof or (timer is not None and timer.is_alive()):
         kind = type(owner.error).__name__ if owner.error is not None else 'deadline_thread_unconfirmed'
         raise CleanupUnconfirmed('owned cleanup unconfirmed; no cleanup receipt: ' + owner.phase + ':' + kind) from None
+    if capacity_lease is not None:
+        capacity_lease._guardian_cleanup_confirmed = True
     cleanup = {'version': 1, 'job_id': job_id, 'ledger_binding_sha256': ledger.binding,
                'deadline_ms': deadline_ms, 'command_returncode': returncode, **owner.proof}
     path = Path(str(prefix) + '.cleanup.json')
@@ -271,4 +293,7 @@ def run_reserved_process(ledger, job_id, argv, *, env, output_dir, cancel_check=
 if __name__ == '__main__':
     if len(sys.argv) < 4 or sys.argv[1] != '--owned-child':
         raise SystemExit(2)
-    _guardian(int(sys.argv[2]), sys.argv[3:])
+    if len(sys.argv) > 5 and sys.argv[3] == '--readonly-capacity' and sys.argv[5] == '--':
+        _guardian(int(sys.argv[2]), sys.argv[6:], capacity_read_fd=int(sys.argv[4]))
+    else:
+        _guardian(int(sys.argv[2]), sys.argv[3:])

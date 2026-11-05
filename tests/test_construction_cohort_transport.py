@@ -56,6 +56,7 @@ def test_real_no_network_child_is_stopped_reaped_and_bounded(transport,monkeypat
     from bounded_curl_process import collect_capped_process
     created=[];real_popen=subprocess.Popen
     def spawn(*a,**kw):
+        if a[0] == ['/usr/sbin/diskutil','info','-plist','/Volumes/X10 Pro Mac']:return real_popen(*a,**kw)
         assert a[0][0]==sys.executable and kw["shell"] is False
         child=real_popen(*a,**kw);created.append(child);return child
     monkeypatch.setattr(subprocess,"Popen",spawn)

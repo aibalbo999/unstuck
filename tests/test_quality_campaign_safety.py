@@ -133,6 +133,12 @@ output, ledger_path = Path(sys.argv[2]), Path(sys.argv[3])
 identity = json.loads(sys.argv[4])
 def no_network(*args, **kwargs): raise AssertionError('test child cannot use network')
 socket.socket.connect = socket.socket.connect_ex = socket.getaddrinfo = no_network
+backend=Path(sys.argv[1]).parent / 'backend'
+sys.path.insert(0,str(backend))
+from storage.capacity_delegation import install_readonly_capacity
+install_readonly_capacity(int(sys.argv[5]), json.loads(sys.argv[6]), output=output,
+                          job_id='guard-fixture', manifest_sha256='0'*64)
+sys.path.remove(str(backend))
 sqlite3.connect = safety.sqlite_guard(output, sqlite3.connect, ledger_path=ledger_path)
 sys.addaudithook(safety.write_audit_guard(output, ledger_path=ledger_path))
 backend=Path(sys.argv[1]).parent / 'backend'
@@ -140,10 +146,18 @@ sys.path.insert(0,str(backend))
 import canary_release_policy
 sys.path.remove(str(backend))
 '''
-    result = subprocess.run([sys.executable, '-I', '-B', '-c', setup + source,
-        str(Path(__file__).parent), str(output), str(ledger.path), json.dumps(identity)],
-        env={'PATH': '/usr/bin:/bin'}, cwd=output, stdin=subprocess.DEVNULL,
-        stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=10)
+    from storage.capacity_delegation import prepare_parent_claim, COMPONENTS
+    # Synthetic offline scope only; this is not a real budget/source review.
+    lease, fd, capability = prepare_parent_claim(output, 'guard-fixture', '0'*64,
+        {'components': {key: 2*1024*1024 for key in COMPONENTS}, 'maximum_files': 200})
+    try:
+        result = subprocess.run([sys.executable, '-I', '-B', '-c', setup + source,
+            str(Path(__file__).parent), str(output), str(ledger.path), json.dumps(identity), str(fd), json.dumps(capability)],
+            env={'PATH': '/usr/bin:/bin'}, cwd=output, stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=10, pass_fds=(fd,))
+    finally:
+        os.close(fd)
+        lease.__exit__(*sys.exc_info())
     assert result.returncode == 0, result.stderr
     return result.stdout
 

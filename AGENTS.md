@@ -87,4 +87,7 @@ scripts/project_exec.sh "$(scripts/project_python.sh)" scripts/doctor_runtime.py
 - 共用指引與登記見 `/Volumes/X10 Pro Mac/project-system-tools/README.md`；`route --project stock --intent code-change` 只定位原驗證入口，不讀正式資料庫、不 export corpus、不執行模型或部署。
 - 修改報告／提示詞／驗證器相關邏輯時，先按本次變更選用 `scripts/README_error_prevention.md` 的既有離線 replay 與 `tests/run_prompt_boundary_tests.py`。replay 使用既有明確 corpus／baseline 與新的隔離結果位置；不得用一般查詢名義 export 正式資料，也不以離線結果宣告正式來源或部署通過。
 - 建立工作區／備份先查既有 commit、差異及必要私有資料，避免每輪複製整棵原始碼／環境／資料庫。大量寫入估算峰值並沿用原外接儲存入口；報告、provider cache、checkpoint、未完任務、最新必要備份與凍結證據仍受保護。
-- 共用容量工具目前未接管本專案正式服務／資料庫寫入，不能宣稱有全程硬配額。歷史工作區只能按精確 owner 審核與原授權退役；保留正式 Redis 等實際 consumer。runtime doctor 輸出可能含連線設定，不把完整 payload 轉印到共用摘要。
+- 本版本的原生有界入口已接入共用容量准入：報告／sidecar／索引整組寫入、來源原件封存、SQLite provider cache、bounded curl、模型嘗試前的磁碟增量估算，以及 SQLite 備份／遷移、快照與 checkpoint 大量維護。低容量在相依副作用前拒收；保留 reader、既有原件／cache、TTL、原截止時間與重試語意。部署生效仍以實際 runtime revision 為準。
+- 模型預估採明確正整數 `STOCK_AGENT_MODEL_STORAGE_FORECAST_BYTES`（預設 16 MiB，加共用餘裕），只預估磁碟增量，不能當 response／token／品質上限。實際序列化寫入另核算，超估重新准入，不因此重送模型或清 cache。
+- campaign／maintenance 新 run 需與 manifest／job 綁定、附各項估算 basis 的 `stock.storage-budget-review.v1` reference（source、artifacts、evidence、SQLite、temporary 皆有明確正整數）。已授權任務可由 agent 依實際輸入建立；缺估算先停止 launch，不新增人工作業批准。保留原 canary／模型啟用授權。父程序／guardian 持 kernel lease 至原 cleanup 證實；child 只持唯讀能力及固定池，tiny files 依實際配置與 metadata 計量。無 cleanup 證據不得用 PID／時間猜測釋放。
+- 共用容量是合作式估算與准入，不是 OS 硬配額。一般 control-plane／LangGraph checkpoint、Redis、remote PostgreSQL 不在 connection 層凍結；非 bounded-curl 的 SDK／HTTP source 不代表已取得來源消耗前准入。歷史工作區只能按精確 owner 審核與原授權退役；保留正式 Redis 等實際 consumer。runtime doctor 輸出可能含連線設定，不把完整 payload 轉印到共用摘要。

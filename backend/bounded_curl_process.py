@@ -9,6 +9,26 @@ import time
 HEADER_LIMIT = METADATA_LIMIT = 65536
 
 def collect_capped_process(argv, deadline, *, body_limit, headers=False):
+    """Admit the bounded acquisition before creating any external HTTP child."""
+    from runtime_paths import current_runtime_paths
+    from storage.capacity import reserve_write, sqlite_write_bytes, StorageCapacityUnavailable
+    if type(body_limit) is not int or body_limit <= 0:
+        raise ValueError('Explicit positive transport body limit required')
+    # Existing response caps bound the acquisition; allow raw/original staging
+    # and worst-case six-byte JSON escaping. The native cache may also journal
+    # existing pages, so count its DB/WAL before spending a source request.
+    paths = current_runtime_paths()
+    payload = 8 * body_limit + HEADER_LIMIT + METADATA_LIMIT
+    known = payload + sqlite_write_bytes(paths.json_cache_db or paths.report_index_db, payload)
+    try:
+        with reserve_write(paths.cache_dir, known, 'Bounded source caps, original/JSON staging and native cache DB/WAL forecast'):
+            return _collect_capped_process(argv, deadline, body_limit=body_limit, headers=headers)
+    except StorageCapacityUnavailable:
+        return {'body': b'', 'headers': b'', 'metadata': b'', 'process_started': False,
+                'body_bytes_read': 0}, None, 'storage_capacity_unavailable'
+
+
+def _collect_capped_process(argv, deadline, *, body_limit, headers=False):
     """Nonblocking capped pipes; stop/reap our exact child before returning."""
     buffers = {'body': bytearray(), 'headers': bytearray(), 'metadata': bytearray()}
     limits = {'body': body_limit, 'headers': HEADER_LIMIT, 'metadata': METADATA_LIMIT}

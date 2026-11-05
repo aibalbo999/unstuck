@@ -11,6 +11,8 @@ from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from typing import Protocol, runtime_checkable
 
+from .capacity import reserve_write, account_materialized
+
 from ._local_file_operations import (
     atomic_write,
     exclusive_storage_lock,
@@ -65,7 +67,7 @@ class LocalFileStorage:
     def save_report(self, key: str, content: bytes, *, content_type: str) -> StoredReport:
         payload = bytes(content)
         content_digest = hashlib.sha256(payload).hexdigest()
-        with exclusive_storage_lock(self._root):
+        with reserve_write(self._root, len(payload) + len(content_type.encode('utf-8')) + 8192, 'Atomic report payload and metadata'), exclusive_storage_lock(self._root):
             normalized, target = self._target(key)
             target.parent.mkdir(parents=True, exist_ok=True)
             self._assert_no_symlink_components(normalized)
@@ -73,20 +75,21 @@ class LocalFileStorage:
             if sidecar_path.is_symlink():
                 raise ValueError("report metadata path must not be a symlink")
 
-            previous_sidecar = self._read_existing_sidecar(sidecar_path)
-            metadata_payload = json.dumps(
-                {"content_type": content_type, "sha256": content_digest},
-                ensure_ascii=False,
-                separators=(",", ":"),
-            ).encode("utf-8")
-            atomic_write(sidecar_path, metadata_payload)
-            try:
-                atomic_write(target, payload)
-            except Exception:
-                self._restore_sidecar(sidecar_path, previous_sidecar)
-                raise
+            with account_materialized((target, sidecar_path)):
+                previous_sidecar = self._read_existing_sidecar(sidecar_path)
+                metadata_payload = json.dumps(
+                    {"content_type": content_type, "sha256": content_digest},
+                    ensure_ascii=False,
+                    separators=(",", ":"),
+                ).encode("utf-8")
+                atomic_write(sidecar_path, metadata_payload)
+                try:
+                    atomic_write(target, payload)
+                except Exception:
+                    self._restore_sidecar(sidecar_path, previous_sidecar)
+                    raise
 
-            return self._metadata(normalized, target, content_type=content_type)
+                return self._metadata(normalized, target, content_type=content_type)
 
     def get_report(self, key: str) -> StoredReportContent | None:
         with exclusive_storage_lock(self._root):

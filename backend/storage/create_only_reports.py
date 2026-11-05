@@ -16,6 +16,7 @@ from tempfile import NamedTemporaryFile
 
 from ._local_file_operations import exclusive_storage_lock, fsync_directory, metadata_path
 from .report_storage import LocalFileStorage
+from .capacity import reserve_write
 
 
 _RECEIPTS = ".onstock-storage-publications.tmp"  # Reserved by normal local storage.
@@ -87,7 +88,12 @@ def create_only_bundle(storage, *, output_dir, filename, candidates, contents):
     root = Path(output_dir)
     if (not root.is_absolute() or root.is_symlink() or root.resolve(strict=True) != storage._root):
         raise ValueError("create-only output directory does not match storage")
-    with exclusive_storage_lock(storage._root):
+    contents = list(contents)
+    admission_payloads = [value for _, payload, content_type in contents for value in (
+        payload, json.dumps({"content_type": content_type, "sha256": hashlib.sha256(payload).hexdigest()},
+                            separators=(",", ":")).encode())]
+    known = sum(len(payload) for payload in admission_payloads) + (len(contents) + 2) * 4096
+    with reserve_write(storage._root, known, 'Create-only bundle exact bodies/metadata and publication markers'), exclusive_storage_lock(storage._root):
         directory, attempt, complete = _receipt_paths(storage._root, filename)
         if (os.path.lexists(directory) and (directory.is_symlink() or not directory.is_dir())):
             raise ValueError("invalid private publication receipt directory")

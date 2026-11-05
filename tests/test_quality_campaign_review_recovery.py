@@ -5,12 +5,12 @@ import pytest
 import quality_campaign_protocol as protocol
 from quality_campaign_budget import BudgetDenied
 from quality_campaign_wire import ReplayAbort
-from test_quality_campaign_protocol import executable_campaign, content_review, put
+from test_quality_campaign_protocol import executable_campaign, content_review, put, _run_next
 
 @pytest.mark.parametrize('after_bind', [False, True])
 def test_review_bind_interruption_cannot_reset_or_dispatch_past_known_stop(tmp_path, monkeypatch, after_bind):
     session = executable_campaign(tmp_path, monkeypatch)
-    job_id = session.run_next()['job_id']
+    job_id = _run_next(session)['job_id']
     ref = content_review(session, job_id)
     value = json.loads(Path(ref['path']).read_bytes())
     value['assessment']['major_error'] = True
@@ -30,7 +30,7 @@ def test_review_bind_interruption_cannot_reset_or_dispatch_past_known_stop(tmp_p
     resumed = protocol.Campaign.resume(session.anchor)
     assert (job_id in resumed.ledger.snapshot()['reviews']) is after_bind
     with pytest.raises((ReplayAbort, BudgetDenied)):
-        resumed.run_next()
+        _run_next(resumed)
     assert resumed.ledger.snapshot()['spent'] == before
     if after_bind:
         assert resumed.ledger.snapshot()['blocked'] == 'acceptance_safety_stop'
@@ -42,7 +42,7 @@ def test_review_bind_interruption_cannot_reset_or_dispatch_past_known_stop(tmp_p
 
 def test_ledger_review_binding_is_single_assignment_across_reopen(tmp_path, monkeypatch):
     session = executable_campaign(tmp_path, monkeypatch)
-    job_id = session.run_next()['job_id']
+    job_id = _run_next(session)['job_id']
     session.record_review(job_id, content_review(session, job_id))
     before = session.ledger.snapshot()
     resumed = protocol.Campaign.resume(session.anchor)
@@ -57,7 +57,7 @@ def test_ledger_review_binding_is_single_assignment_across_reopen(tmp_path, monk
 @pytest.mark.parametrize('failure', ['required_roles_valid', 'generation_passed', 'audit_passed', 'classification'])
 def test_terminal_failed_review_cannot_pin_pending_failure_review(tmp_path, monkeypatch, failure):
     session = executable_campaign(tmp_path, monkeypatch)
-    job_id = session.run_next()['job_id']
+    job_id = _run_next(session)['job_id']
     if failure == 'classification':
         output = session.root / job_id
         outcome = json.loads((output / 'outcome.json').read_bytes())
@@ -83,7 +83,7 @@ def test_terminal_failed_review_cannot_pin_pending_failure_review(tmp_path, monk
 @pytest.mark.parametrize('after_bind', [False, True])
 def test_explicit_recovery_only_binds_existing_fully_reverified_review(tmp_path, monkeypatch, major_error, after_bind):
     session = executable_campaign(tmp_path, monkeypatch)
-    job_id = session.run_next()['job_id']
+    job_id = _run_next(session)['job_id']
     ref = content_review(session, job_id)
     review = protocol.referenced(ref)
     review['assessment']['major_error'] = major_error
@@ -113,7 +113,7 @@ def test_explicit_recovery_only_binds_existing_fully_reverified_review(tmp_path,
 @pytest.mark.parametrize('mutation', ['review', 'artifact', 'pending', 'missing_pointer'])
 def test_review_recovery_cannot_adopt_changed_or_incomplete_evidence(tmp_path, monkeypatch, mutation):
     session = executable_campaign(tmp_path, monkeypatch)
-    job_id = session.run_next()['job_id']
+    job_id = _run_next(session)['job_id']
     ref = content_review(session, job_id)
     if mutation == 'pending':
         review = protocol.referenced(ref)
@@ -131,8 +131,8 @@ def test_review_recovery_cannot_adopt_changed_or_incomplete_evidence(tmp_path, m
 
 def interrupted_batch(session, monkeypatch):
     original = protocol.execute_reserved_job
-    def executor(plan, ledger, job_id):
-        receipt = original(plan, ledger, job_id)
+    def executor(plan, ledger, job_id, **kwargs):
+        receipt = original(plan, ledger, job_id, **kwargs)
         job = ledger.snapshot()['jobs'][job_id]
         put(ledger.path.parent / (ledger.path.name + '.' + job_id + '.watchdog-started.json'),
             {'job_id': job_id, 'ledger_binding_sha256': ledger.binding,
@@ -142,7 +142,7 @@ def interrupted_batch(session, monkeypatch):
     with monkeypatch.context() as patch:
         patch.setattr(protocol, 'execute_reserved_job', executor)
         patch.setattr(type(session.ledger), 'finish_batch', interrupted)
-        with pytest.raises(RuntimeError): session.run_next()
+        with pytest.raises(RuntimeError): _run_next(session)
     job_id = next(iter(session.ledger.snapshot()['jobs']))
     return job_id, session.ledger.snapshot()['jobs'][job_id]['batch_id']
 
@@ -160,7 +160,7 @@ def test_explicit_batch_recovery_closes_only_original_terminal_receipt_without_r
     assert after['live_deadline_ms'] == before['live_deadline_ms']
     assert all(p.read_bytes() == raw for p, raw in original_files.items())
     with pytest.raises(ReplayAbort): session.recover_terminal_batch(batch_id)
-    assert session.run_next()['job_id'] != job_id
+    assert _run_next(session)['job_id'] != job_id
 
 
 @pytest.mark.parametrize('case', ['no_review', 'missing_parent', 'missing_cleanup', 'claim_drift', 'active', 'unknown'])

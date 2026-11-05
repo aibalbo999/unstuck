@@ -6,6 +6,7 @@ import json
 from pathlib import Path
 from typing import Optional
 
+from storage.capacity import write_text
 from config import OUTPUT_DIR
 from data_trust_snapshot import set_snapshot_integrity, verify_data_snapshot_integrity
 
@@ -60,7 +61,7 @@ def _verify_one(path: Path, write: bool = False, file_label: Optional[str] = Non
         if write:
             previous_hash = integrity.get("expected_hash", "")
             set_snapshot_integrity(snapshot)
-            path.write_text(json.dumps(snapshot, ensure_ascii=False, indent=2), encoding="utf-8")
+            write_text(path, json.dumps(snapshot, ensure_ascii=False, indent=2))
             return {
                 "file": file_name,
                 "status": "repaired",
@@ -79,5 +80,5 @@ def _verify_one(path: Path, write: bool = False, file_label: Optional[str] = Non
     if not write:
         return {"file": file_name, "status": "missing_hash"}
     set_snapshot_integrity(snapshot)
-    path.write_text(json.dumps(snapshot, ensure_ascii=False, indent=2), encoding="utf-8")
+    write_text(path, json.dumps(snapshot, ensure_ascii=False, indent=2))
     return {"file": file_name, "status": "backfilled", "hash": snapshot.get("snapshot_hash", "")}

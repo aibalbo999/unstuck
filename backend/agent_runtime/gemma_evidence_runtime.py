@@ -1,4 +1,5 @@
 """Gemma evidence requests reuse provider quota controls, with per-batch cache."""
+from storage.capacity import reserve_model_phase
 import asyncio
 import time
 import uuid
@@ -145,6 +146,7 @@ async def call_batch_with_retry_async(batch, context, rotator):
             await observed_sleep_async(RETRY_DELAY_SECONDS)
 
 
+@reserve_model_phase
 @observe_attempt
 def call_batch(batch, context, rotator):
     raise_if_cancelled(context)
@@ -165,6 +167,7 @@ def call_batch(batch, context, rotator):
     return finish_response(batch, context, rotator, key, response)
 
 
+@reserve_model_phase
 @observe_attempt
 async def call_batch_async(batch, context, rotator):
     raise_if_cancelled(context)

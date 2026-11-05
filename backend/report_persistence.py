@@ -90,78 +90,81 @@ def persist_report_bundle(
     }
     attempted_keys: list[str] = []
 
-    if create_only:
-        from storage.create_only_reports import create_only_bundle
+    from storage.capacity import reserve_report_bundle
+    payloads = [str(html_content or '').encode('utf-8'), str(markdown_content or '').encode('utf-8'), data_bytes]
+    with reserve_report_bundle(storage, payloads, previous.values(), repository):
+        if create_only:
+            from storage.create_only_reports import create_only_bundle
 
-        candidates = [key for kind in ("html", "md", "data", "review")
-                      for key in report_storage_candidates_for_filename(filename, kind=kind)]
-        contents = [(keys.html_key, str(html_content or "").encode("utf-8"), HTML_CONTENT_TYPE),
-                    (keys.md_key, str(markdown_content or "").encode("utf-8"), MARKDOWN_CONTENT_TYPE),
-                    (keys.data_key, data_bytes, DATA_SNAPSHOT_CONTENT_TYPE)]
-        with create_only_bundle(storage, output_dir=output_dir, filename=filename, candidates=candidates,
-                                contents=contents) as write_contents:
-            if repository.exists(keys.filename, output_dir=output_dir):
-                raise FileExistsError("report identity already exists in index")
-            # Do not route failures into the legacy destructive rollback below.
-            # An uncertain index commit retains the corresponding artifacts.
-            write_contents()
-            metadata = repository.insert(keys.filename, output_dir=output_dir,
-                html_content=html_content, markdown_content=markdown_content, data_trust=data_trust)
-        return {**vars(keys), "data_trust": data_trust, "metadata": metadata}
+            candidates = [key for kind in ("html", "md", "data", "review")
+                          for key in report_storage_candidates_for_filename(filename, kind=kind)]
+            contents = [(keys.html_key, str(html_content or "").encode("utf-8"), HTML_CONTENT_TYPE),
+                        (keys.md_key, str(markdown_content or "").encode("utf-8"), MARKDOWN_CONTENT_TYPE),
+                        (keys.data_key, data_bytes, DATA_SNAPSHOT_CONTENT_TYPE)]
+            with create_only_bundle(storage, output_dir=output_dir, filename=filename, candidates=candidates,
+                                    contents=contents) as write_contents:
+                if repository.exists(keys.filename, output_dir=output_dir):
+                    raise FileExistsError("report identity already exists in index")
+                # Do not route failures into the legacy destructive rollback below.
+                # An uncertain index commit retains the corresponding artifacts.
+                write_contents()
+                metadata = repository.insert(keys.filename, output_dir=output_dir,
+                    html_content=html_content, markdown_content=markdown_content, data_trust=data_trust)
+            return {**vars(keys), "data_trust": data_trust, "metadata": metadata}
 
-    try:
-        attempted_keys.append(keys.html_key)
-        storage.save_report(
-            keys.html_key,
-            str(html_content or "").encode("utf-8"),
-            content_type=HTML_CONTENT_TYPE,
-        )
-        attempted_keys.append(keys.md_key)
-        storage.save_report(
-            keys.md_key,
-            str(markdown_content or "").encode("utf-8"),
-            content_type=MARKDOWN_CONTENT_TYPE,
-        )
-        attempted_keys.append(keys.data_key)
-        storage.save_report(keys.data_key, data_bytes, content_type=DATA_SNAPSHOT_CONTENT_TYPE)
+        try:
+            attempted_keys.append(keys.html_key)
+            storage.save_report(
+                keys.html_key,
+                str(html_content or "").encode("utf-8"),
+                content_type=HTML_CONTENT_TYPE,
+            )
+            attempted_keys.append(keys.md_key)
+            storage.save_report(
+                keys.md_key,
+                str(markdown_content or "").encode("utf-8"),
+                content_type=MARKDOWN_CONTENT_TYPE,
+            )
+            attempted_keys.append(keys.data_key)
+            storage.save_report(keys.data_key, data_bytes, content_type=DATA_SNAPSHOT_CONTENT_TYPE)
 
-        metadata = repository.upsert(
-            keys.filename,
-            output_dir=output_dir,
-            html_content=html_content,
-            markdown_content=markdown_content,
-            data_trust=data_trust,
-        )
-    except Exception as publication_error:
-        recovery_errors: list[Exception] = []
-        for attempted_key in reversed(attempted_keys):
-            try:
-                prior = previous[attempted_key]
-                if prior is None:
-                    storage.delete_report(attempted_key)
-                else:
-                    storage.save_report(
-                        attempted_key, prior.content,
-                        content_type=prior.metadata.content_type,
-                    )
-            except Exception as recovery_error:
-                recovery_errors.append(recovery_error)
-        if recovery_errors:
-            raise ExceptionGroup(
-                "Report publication failed and artifact recovery was incomplete",
-                [publication_error, *recovery_errors],
-            ) from publication_error
-        raise
-    return {
-        "filename": keys.filename,
-        "md_filename": keys.md_filename,
-        "data_filename": keys.data_filename,
-        "html_key": keys.html_key,
-        "md_key": keys.md_key,
-        "data_key": keys.data_key,
-        "data_trust": data_trust,
-        "metadata": metadata or {},
-    }
+            metadata = repository.upsert(
+                keys.filename,
+                output_dir=output_dir,
+                html_content=html_content,
+                markdown_content=markdown_content,
+                data_trust=data_trust,
+            )
+        except Exception as publication_error:
+            recovery_errors: list[Exception] = []
+            for attempted_key in reversed(attempted_keys):
+                try:
+                    prior = previous[attempted_key]
+                    if prior is None:
+                        storage.delete_report(attempted_key)
+                    else:
+                        storage.save_report(
+                            attempted_key, prior.content,
+                            content_type=prior.metadata.content_type,
+                        )
+                except Exception as recovery_error:
+                    recovery_errors.append(recovery_error)
+            if recovery_errors:
+                raise ExceptionGroup(
+                    "Report publication failed and artifact recovery was incomplete",
+                    [publication_error, *recovery_errors],
+                ) from publication_error
+            raise
+        return {
+            "filename": keys.filename,
+            "md_filename": keys.md_filename,
+            "data_filename": keys.data_filename,
+            "html_key": keys.html_key,
+            "md_key": keys.md_key,
+            "data_key": keys.data_key,
+            "data_trust": data_trust,
+            "metadata": metadata or {},
+        }
 
 
 __all__ = [

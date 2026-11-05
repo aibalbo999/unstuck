@@ -7,6 +7,7 @@ keeps the provider call attempt and compatibility re-exports used by older tests
 from __future__ import annotations
 
 import asyncio
+from storage.capacity import reserve_model_phase
 
 from analysis_types import AnalysisContext
 from config import LLM_AGENT_CALL_TIMEOUT_SECONDS
@@ -68,6 +69,7 @@ async def _await_with_agent_timeout(coro, *, model_id: str, timeout_seconds: flo
     return await await_response(coro, model_id=model_id, timeout=timeout)
 
 
+@reserve_model_phase
 @observe_attempt
 def _run_agent_once(
     agent_num: int,
@@ -150,6 +152,7 @@ def _run_agent_once(
     return result
 
 
+@reserve_model_phase
 @observe_attempt
 async def _run_agent_once_async(
     agent_num: int,

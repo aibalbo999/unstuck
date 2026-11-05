@@ -236,8 +236,14 @@ def finalize_and_cache_legacy_payload(
     finalize_data_trust(data)
     data["cache_generated_at_epoch"] = fetched_at_epoch
     data["cache_generated_at"] = datetime.fromtimestamp(fetched_at_epoch, timezone.utc).isoformat()
-    set_cache_json(original_cache_key, data, FINANCIAL_DATA_PAYLOAD_CACHE_TTL_SECONDS)
-    resolved_cache_key = f"financial_data:{ticker}"
-    if resolved_cache_key != original_cache_key:
-        set_cache_json(resolved_cache_key, data, FINANCIAL_DATA_PAYLOAD_CACHE_TTL_SECONDS)
+    from storage.capacity import StorageCapacityUnavailable
+    try:
+        set_cache_json(original_cache_key, data, FINANCIAL_DATA_PAYLOAD_CACHE_TTL_SECONDS)
+        resolved_cache_key = f"financial_data:{ticker}"
+        if resolved_cache_key != original_cache_key:
+            set_cache_json(resolved_cache_key, data, FINANCIAL_DATA_PAYLOAD_CACHE_TTL_SECONDS)
+    except StorageCapacityUnavailable:
+        # Optional persistence cannot discard this completed source observation
+        # or cause another acquisition. Existing cache and freshness stay intact.
+        pass
     return data

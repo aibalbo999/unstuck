@@ -25,6 +25,11 @@ def fixture(tmp_path):
     dev = tmp_path / 'dev'
     (dev / 'backend').mkdir(parents=True)
     (dev / 'backend' / 'unit.py').write_text('ANSWER = 42\n')
+    storage = dev / 'backend' / 'storage';storage.mkdir()
+    (storage / '__init__.py').write_text('')
+    # Only the exact capability source used by this synthetic frozen child.
+    for name in ('capacity.py', 'capacity_delegation.py'):
+        (storage / name).write_bytes((Path(__file__).resolve().parents[1] / 'backend' / 'storage' / name).read_bytes())
     source = put(tmp_path / 'database-job.json', {'pipeline_id': 'v4',
         'job_id': 'original', 'data_snapshot': {'ticker': '2330.TW', 'fetch_date': '2026-09-12',
             'data_trust': {'status': 'unknown'}, 'analysis_input_cutoff': '2026-09-12T07:30:00+00:00'},
@@ -78,6 +83,16 @@ def reserved(tmp_path):
     ledger.start_batch('batch', 'S1')
     ledger.reserve_job('job', 'batch', binding_id='v4-one', actual_hashes=plan.verify())
     return plan, manifest, ledger
+
+
+def storage_review(plan, ledger, job_id='job'):
+    """Pinned synthetic estimate only, never a real source/quality review."""
+    keys=('source','artifacts','evidence','sqlite','temporary')
+    return put(ledger.path.parent / 'offline-storage-budget.json', {
+        'schema':'stock.storage-budget-review.v1','decision':'reviewed',
+        'manifest_sha256':plan.expected_sha,'job_id':job_id,
+        'components':{key:64*1024*1024 for key in keys},'maximum_files':1000,
+        'basis':{key:'Synthetic test-only byte allowance; no real approval or quality proof' for key in keys}})
 
 
 def test_import_has_no_backend_or_network_side_effects():
@@ -199,7 +214,7 @@ def test_runner_never_finishes_without_owned_cleanup(tmp_path, monkeypatch):
     plan, manifest, ledger = reserved(tmp_path)
     def failed(*args, **kwargs): raise runner.CleanupUnconfirmed('fixture cleanup unknown')
     monkeypatch.setattr(runner, 'run_reserved_process', failed)
-    with pytest.raises(runner.CleanupUnconfirmed): runner.execute_reserved_job(plan, ledger, 'job')
+    with pytest.raises(runner.CleanupUnconfirmed): runner.execute_reserved_job(plan, ledger, 'job', storage_budget=storage_review(plan, ledger))
     assert ledger.snapshot()['jobs']['job']['status'] == 'active'
     assert not (tmp_path / 'job' / 'parent-receipt.json').exists()
 
@@ -210,7 +225,7 @@ def test_parent_readback_cannot_convert_failed_or_missing_outcome_to_success(tmp
         return {'cleanup_verified': True, 'cleanup_evidence_sha256': 'a' * 64,
             'cleanup_path': str(tmp_path / 'nonexistent'), 'returncode': 0, 'status': 'exited'}
     monkeypatch.setattr(runner, 'run_reserved_process', fake_process)
-    with pytest.raises(ReplayAbort): runner.execute_reserved_job(plan, ledger, 'job')
+    with pytest.raises(ReplayAbort): runner.execute_reserved_job(plan, ledger, 'job', storage_budget=storage_review(plan, ledger))
     assert ledger.snapshot()['jobs']['job']['status'] == 'active'
 
 
@@ -218,7 +233,7 @@ def test_existing_output_or_wrong_binding_never_spawns(tmp_path, monkeypatch):
     plan, manifest, ledger = reserved(tmp_path)
     (tmp_path / 'job').mkdir(mode=0o700)
     monkeypatch.setattr(runner, 'run_reserved_process', lambda *a, **k: pytest.fail('must not spawn'))
-    with pytest.raises(ReplayAbort): runner.execute_reserved_job(plan, ledger, 'job')
+    with pytest.raises(ReplayAbort): runner.execute_reserved_job(plan, ledger, 'job', storage_budget=storage_review(plan, ledger))
 
 
 def test_same_candidate_code_identity_is_shared_across_source_reviews(tmp_path):
@@ -304,7 +319,7 @@ def test_parent_requires_private_artifact_bytes_not_only_published_scalar(tmp_pa
     plan, manifest, ledger = reserved(tmp_path)
     monkeypatch.setattr(runner, 'run_reserved_process', lambda *a, **k:
         completed_process_fixture(ledger, tmp_path / 'job', damage=damage))
-    receipt = runner.execute_reserved_job(plan, ledger, 'job')
+    receipt = runner.execute_reserved_job(plan, ledger, 'job', storage_budget=storage_review(plan, ledger))
     assert receipt['status'] == ('private_pipeline_completed' if damage is None else 'failed')
     assert receipt['qualified_for_campaign'] is False
 
@@ -328,7 +343,7 @@ def test_real_owned_child_shares_http_accounting_and_cleanup_without_quality_pro
     ledger.reserve_job('job', 'batch', binding_id='v4-one', actual_hashes=plan.verify())
     helper_root = str(Path(runner.__file__).parent)
     def real_process_with_offline_graph(ledger, job_id, argv, **kwargs):
-        ticket_path = argv[-1]
+        ticket_path = argv[argv.index('--owned-job') + 1]
         script = """
 import asyncio, json, socket, sys, traceback
 from pathlib import Path
@@ -367,7 +382,7 @@ async def offline_graph(**kw):
     return outcome
 graph.run_normal_job = offline_graph
 try:
-    code = asyncio.run(runner.owned_job(Path(TICKET_PATH)))
+    code = asyncio.run(runner.owned_job(Path(TICKET_PATH), storage_capacity_fd=CAPACITY_FD))
 except BaseException as error:
     # Only offline fixture data; this file helps attribute an integration failure.
     diagnostic = traceback.format_exc()
@@ -384,10 +399,10 @@ except BaseException as error:
     Path(TICKET_PATH).with_name('fixture-error.txt').write_text(diagnostic)
     code = 2
 raise SystemExit(code)
-""".replace('HELPER_ROOT', repr(helper_root)).replace('TICKET_PATH', repr(ticket_path))
+""".replace('HELPER_ROOT', repr(helper_root)).replace('TICKET_PATH', repr(ticket_path)).replace('CAPACITY_FD', repr(kwargs['capacity_read_fd']))
         return run_reserved_process(ledger, job_id, [sys.executable, '-I', '-B', '-c', script], **kwargs)
     monkeypatch.setattr(runner, 'run_reserved_process', real_process_with_offline_graph)
-    receipt = runner.execute_reserved_job(plan, ledger, 'job')
+    receipt = runner.execute_reserved_job(plan, ledger, 'job', storage_budget=storage_review(plan, ledger))
     error_path = tmp_path / 'job' / 'fixture-error.txt'
     assert not error_path.exists(), error_path.read_text() if error_path.exists() else ''
     assert receipt['status'] == 'failed'

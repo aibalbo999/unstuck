@@ -13,7 +13,7 @@ import pytest
                                'delivery_failure', 'control_drift', 'warm_stop', 'replay', 'blocked_ledger',
                                'expired_cleanup', 'deadline_stop', 'rq_lost_ack', 'rq_cancelled_ack',
                                'budget_lost_ack', 'ack_receipt_drift', 'scope_missing', 'scope_boolean',
-                               'identity_missing', 'identity_boolean', 'identity_hash')])
+                               'identity_missing', 'identity_boolean', 'identity_hash', 'concurrent_wait')])
 def test_claimed_canary_uses_original_parent_admission_without_watchdog_file(mode, case, request):
     from test_maintenance_rq_private_integration import private_redis
     def record(label, value):

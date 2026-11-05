@@ -131,6 +131,10 @@ class ClaimedCanaryDispatch:
         self._lock = threading.Lock()
         self._attempted = self._settlement_attempted = False
         self._owner = None
+        self._capacity = self._storage_budget = None
+        self._capacity_lock = threading.Lock()
+        self._capacity_release_recorded = False
+        self._capacity_receipt = None
         self._supervisor = self._deadline = None
         self._authorization = self._original_job = self._pin = None
         self._preflight()
@@ -179,10 +183,55 @@ class ClaimedCanaryDispatch:
             raise runner.ReplayAbort('Claim does not match the reserved frozen normal job')
         return hashes
 
-    def start(self):
+    def start(self, *, storage_budget=None):
         canary_release_policy.require_canary_enabled()
+        if storage_budget is None:
+            raise runner.ReplayAbort('Reviewed storage budget required before maintenance launch')
         with self._operation():
-            return self._start()
+            if self._attempted:
+                raise runner.ReplayAbort('Never relaunch a canary dispatch attempt')
+            self._preflight()  # Verify loaded dependencies before importing/calling them.
+            backend = str(Path(self._plan.manifest['dev']) / 'backend')
+            sys.path.insert(0, backend)
+            try:
+                from storage.capacity_delegation import reviewed_budget
+                from storage.capacity_companion import CapacityCompanion
+            finally:
+                sys.path.remove(backend)
+            review = reviewed_budget(storage_budget, manifest_sha256=self._plan.expected_sha,
+                job_id=self._job_id, source_bytes=len(runner.encoded(self._plan.source_job())))
+            self._preflight()
+            self._storage_budget = storage_budget
+            self._capacity = CapacityCompanion(self._output,self._job_id,self._plan.expected_sha,review)
+            try:
+                return self._start()
+            except BaseException:
+                if self._owner is None or self._owner.process is None:
+                    self._capacity.finish(child_never_started=True)
+                # A started child/uncertain exit retains the companion and lease.
+                raise
+
+    def _release_capacity_after_exit(self, state):
+        # wait_for_exit may have concurrent observers; completion is one write
+        # and one release, independent of the non-reentrant dispatch operation.
+        with self._capacity_lock:
+            if (self._capacity is not None and not self._capacity.closed
+                    and state.get('supervision_complete') is True
+                    and state.get('process_group_absence_verified') is True):
+                if not self._capacity_release_recorded:
+                    value = {'job_id':self._job_id,'claim_id':self._capacity.lease.id,
+                        'state':'writers_stopped_release_pending','physical_bytes_reserved':0,
+                        'group_absence_verified':True,'quality_status':'not_evaluated'}
+                    # prepare_parent_claim includes an explicit 64 KiB parent
+                    # metadata allowance. Record this bounded summary while
+                    # the original claim is active, never after releasing it.
+                    if len(runner.encoded(value)) > 65536:
+                        raise runner.ReplayAbort('Capacity release metadata exceeded allowance')
+                    self._capacity.lease.check()
+                    runner.exclusive_json(self._output / 'storage-capacity-release.json', value)
+                    self._capacity_release_recorded = True
+                self._capacity_receipt = self._capacity.finish(child_group_absent=True)
+            return {**state, 'storage_capacity':self._capacity_receipt} if self._capacity_receipt else state
 
     def _runtime_code_identity(self, code_sha256):
         # Capture truthful Git provenance outside the no-spawn child. Never
@@ -240,6 +289,7 @@ class ClaimedCanaryDispatch:
             intent_sha = runner.exclusive_json(self._output / 'dispatch-intent.json', intent)
             ticket = {'manifest_path': str(self._plan.path), 'manifest_sha256': self._plan.expected_sha,
                 'ledger_pin': self._pin, 'job_id': self._job_id, 'output': str(self._output),
+                'storage_budget': self._storage_budget, 'storage_capacity': self._capacity.capability,
                 'maintenance_admission': {'schema': 'maintenance.owned-admission.v1',
                     'intent_sha256': intent_sha, 'parent_pid': self._owner_pid,
                     'pipe_identity': pipe_identity, 'process_binding': self._process_binding}}
@@ -248,10 +298,15 @@ class ClaimedCanaryDispatch:
             self._preflight()
             if self._ledger.snapshot()['jobs'][self._job_id] != self._original_job:
                 raise runner.ReplayAbort('Reservation changed before owned launch')
+            self._capacity.ensure_ready()
             self._owner.start([sys.executable, '-I', '-B', str(Path(runner.__file__).resolve()),
-                '--owned-job', str(ticket_path), '--owned-admission-fd', str(reader)],
+                '--owned-job', str(ticket_path), '--owned-admission-fd', str(reader),
+                '--storage-capacity-fd',str(self._capacity.readonly_fd),
+                '--storage-lifetime-fd',str(self._capacity.reader)],
                 env={'PATH': '/opt/homebrew/bin:/usr/bin:/bin:/usr/sbin:/sbin', 'PYTHONDONTWRITEBYTECODE': '1'},
-                cwd=self._output, admission_fd=reader, owned_session=True)
+                cwd=self._output, admission_fd=reader, owned_session=True,
+                readonly_fds=(self._capacity.readonly_fd,self._capacity.reader))
+            self._capacity.handoff_complete()
             self._supervisor = OwnedProcessSupervisor(self._owner, deadline_monotonic=self._deadline)
             os.close(reader)
             reader = None
@@ -292,7 +347,7 @@ class ClaimedCanaryDispatch:
 
     def wait_for_exit(self, seconds):
         if self._owner is None: raise runner.ReplayAbort('No original process to observe')
-        return (self._supervisor or self._owner).wait_for_exit(seconds)
+        return self._release_capacity_after_exit((self._supervisor or self._owner).wait_for_exit(seconds))
 
     def request_stop(self):
         if self._owner is None: raise runner.ReplayAbort('No original process to stop')
@@ -315,7 +370,7 @@ class ClaimedCanaryDispatch:
         self._preflight(cleanup_only=True)
         if self._supervisor is None:
             raise runner.ReplayAbort('Original process supervision required')
-        supervised = self._supervisor.wait_for_exit(0)
+        supervised = self._release_capacity_after_exit(self._supervisor.wait_for_exit(0))
         if (not supervised['supervision_complete'] or not supervised['process_group_absence_verified']
                 or supervised['stop_reason'] is not None and not supervised['stop_requested']):
             raise runner.ReplayAbort('Original process supervision or group exit unconfirmed')

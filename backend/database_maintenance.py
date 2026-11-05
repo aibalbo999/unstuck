@@ -17,6 +17,7 @@ from config import (
     TASK_DB_PATH,
 )
 from database_maintenance_backups import backup_plan, date_stamp, prune_backup_files
+from storage.capacity import reserve_write, sqlite_write_bytes, validate_write_target
 from security_sanitizer import sanitize_error_message
 
 
@@ -98,6 +99,8 @@ def maintain_sqlite_databases(
     )
     _validate_maintenance_config(effective_retention_days, effective_backup_interval_days)
     stamp = date_stamp(timestamp)
+    if write and backup_dir:
+        validate_write_target(Path(backup_dir).expanduser())
     backup_root = Path(backup_dir).expanduser().resolve(strict=False) if backup_dir else None
     results = [
         _maintain_one_database(
@@ -176,8 +179,9 @@ def _maintain_one_database(
         return result
 
     try:
-        _create_backup_if_needed(resolved, result["backup"])
-        checkpoint_rows = _checkpoint_and_vacuum(resolved)
+        with reserve_write(resolved, 3 * sqlite_write_bytes(resolved), 'SQLite backup plus checkpoint/vacuum copy and journal allowance'):
+            _create_backup_if_needed(resolved, result["backup"])
+            checkpoint_rows = _checkpoint_and_vacuum(resolved)
         result["wal_checkpoint"] = {"status": "ran", "result": checkpoint_rows}
         result["vacuum"] = {"status": "ran"}
     except sqlite3.Error as exc:
@@ -193,6 +197,7 @@ def _create_backup_if_needed(source_path: Path, backup: dict) -> None:
     if backup.get("status") != "pending":
         return
     backup_path = Path(str(backup["path"]))
+    validate_write_target(backup_path)
     backup_path.parent.mkdir(parents=True, exist_ok=True)
     with sqlite3.connect(source_path, timeout=30) as source, sqlite3.connect(backup_path, timeout=30) as dest:
         source.backup(dest)
