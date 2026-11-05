@@ -207,6 +207,40 @@ def _attach_reference_income(result, official, ticker, today):
     return result
 
 
+def _repair_originally_missing_reference(result, ticker, today):
+    """A new audited source need may fill an absent auxiliary explanation.
+
+    The numeric cache remains untouched. Existing (including invalid) auxiliary
+    proofs are never replaced by this path; their ordinary failure stays closed.
+    The original collector still owns all HTTP/cache/access/period admission.
+    """
+    from .official_peer_valuation import PROVIDER, URLS
+    metrics = result.get('metrics')
+    if (not isinstance(metrics, dict) or metrics.get('pe_ttm') is not None
+            or finite_number(metrics.get('pb'), positive=True) is None
+            or result.get('source') != PROVIDER
+            or result.get('source_url') != URLS['.TWO' if ticker.endswith('.TWO') else '.TW']):
+        return result
+    stamp = result.get('observed_at')
+    try:
+        observed = date.fromisoformat(stamp)
+        if observed.isoformat() != stamp or not 0 <= (today - observed).days <= 7:
+            return result
+    except (TypeError, ValueError, OverflowError):
+        return result
+    from .ncc_mobile_peer_transport import peer_receipt_observation_enabled
+    from provider_correlation import current_correlation, current_source_identity
+    context = current_correlation()
+    if (not peer_receipt_observation_enabled()
+            or current_source_identity() != ('dynamic_peer_metrics', 'FinMind/yfinance')
+            or not all(isinstance(context.get(key), str) and context[key]
+                       for key in ('ticker', 'fetch_id', 'operation_id'))):
+        return result
+    # This does not refetch the valuation roster or call set_cache_json. A new
+    # explanation has its own immutable full originals/owners and observation.
+    return _attach_reference_income(result, result, ticker, today)
+
+
 def fetch_peer_valuation_fallback(ticker: str, *, today: date | None = None) -> dict:
     from cache_store import get_cache_json, set_cache_json
     from .official_peer_valuation import fetch_official_peer_valuation
@@ -219,12 +253,13 @@ def fetch_peer_valuation_fallback(ticker: str, *, today: date | None = None) -> 
     cached = get_cache_json(cache_key)
     if isinstance(cached, dict):
         result = {**cached, "cache_hit": True}
-        if 'pe_applicability_evidence' in result:
+        had_auxiliary = 'pe_applicability_evidence' in result
+        if had_auxiliary:
             from .peer_reference_applicability import verified_explanation
             if not verified_explanation(result['pe_applicability_evidence'], ticker, today=today):
                 result.pop('pe_applicability_evidence')
         # Losing auxiliary proof never clears, rewrites or renews a valid cache.
-        return result
+        return result if had_auxiliary else _repair_originally_missing_reference(result, ticker, today)
     try:
         official = fetch_official_peer_valuation(ticker, today=today)
     except Exception as exc:
