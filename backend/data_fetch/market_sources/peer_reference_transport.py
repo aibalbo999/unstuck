@@ -34,8 +34,10 @@ ARCHIVE_FIELDS={'status','source_url','retrieved_at','http_status','raw_response
     'raw_response_path','raw_response_bytes','evidence_kind','historical_point_in_time_verified','finality_guaranteed'}
 
 
-def spec(kind,*,day=None,year=None,quarter=None,peer_ticker='6230.TW'):
+def spec(kind,*,day=None,year=None,quarter=None,peer_ticker='6230.TW',published_action=None):
     issuer = consolidated_issuer(peer_ticker)
+    if published_action is not None and kind!='correction':
+        raise ValueError('unexpected correction action')
     params={};data=None;method='GET';mime='text/html';encoding='utf-8';limit=250000
     if kind=='home':url=HOME
     elif kind=='methodology':url=METHODOLOGY
@@ -50,8 +52,12 @@ def spec(kind,*,day=None,year=None,quarter=None,peer_ticker='6230.TW'):
         quarter_end(year,quarter);params={'year':year,'quarter':quarter};url=REPORT;method='POST'
         data={'compareItem':'IncomeStatement','quarter':'true','ylabel':'','ys':f'{year}{quarter}',
             'revenue':'true','bcodeAvg':'false','companyAvg':'false','qnumber':'','companyId':issuer.published_company_label}
+    elif kind=='correction':
+        from .gourmet_correction_notice import request_url
+        url=request_url(published_action,peer_ticker,year,quarter)
+        params={'year':year,'quarter':quarter,'published_action':published_action}
     else:raise ValueError('unsupported reference-income request')
-    if kind in {'index', 'income'} and peer_ticker != '6230.TW':
+    if kind in {'index', 'income', 'correction'} and peer_ticker != '6230.TW':
         params['consolidated_reference_issuer'] = peer_ticker
     return {'kind':kind,'params':params,'url':url,'method':method,'data':data,'mime':mime,'encoding':encoding,'limit':limit}
 
@@ -65,7 +71,8 @@ def canonical_spec(value):
     p=value.get('params')or{}
     if not isinstance(p,dict):raise ValueError('invalid request parameters')
     expected=spec(value.get('kind'),day=date.fromisoformat(p['day'])if'day'in p else None,
-        year=p.get('year'),quarter=p.get('quarter'),peer_ticker=p.get('consolidated_reference_issuer', '6230.TW'))
+        year=p.get('year'),quarter=p.get('quarter'),peer_ticker=p.get('consolidated_reference_issuer', '6230.TW'),
+        published_action=p.get('published_action'))
     if value!=expected:raise ValueError('request specification not admitted')
     return expected
 
@@ -164,7 +171,7 @@ class PeerIncomeHttp:
 
     def _bound_request(self, request):
         request = canonical_spec(request)
-        if request['kind'] in {'index', 'income'}:
+        if request['kind'] in {'index', 'income', 'correction'}:
             expected = request['params'].get('individual_reference_issuer',
                 request['params'].get('consolidated_reference_issuer', '6230.TW'))
             if expected != getattr(self, 'peer_ticker', '6230.TW'):

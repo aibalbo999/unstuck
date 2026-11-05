@@ -89,7 +89,7 @@ def parse_reference(raw,observed_day,*,issuer_ticker=TICKER):
             'reference_quarter':row[7],'official_short_name':row[1]}
 
 
-def parse_calendar_index(raw,year,quarters,observed_day,*,issuer_ticker=TICKER):
+def parse_calendar_index(raw,year,quarters,observed_day,*,issuer_ticker=TICKER,correction_originals=None):
     issuer = consolidated_issuer(issuer_ticker)
     if (not isinstance(raw,bytes)or not 0<len(raw)<=250000 or not raw.rstrip().lower().endswith(b'</html>')
             or type(observed_day)is not date or not isinstance(quarters,(list,tuple))
@@ -105,7 +105,7 @@ def parse_calendar_index(raw,year,quarters,observed_day,*,issuer_ticker=TICKER):
     if len(tables)!=1:raise ValueError('filing table schema unverified')
     rows=tables[0].find_all('tr')[1:]
     if not 1<=len(rows)<=64:raise ValueError('filing index over limit or empty')
-    result={};names={1:'一',2:'二',3:'三',4:'四'}
+    result={};pending={};names={1:'一',2:'二',3:'三',4:'四'}
     for row in rows:
         cells=row.find_all(['td','th'],recursive=False);values=[c.get_text(' ',strip=True)for c in cells]
         if len(values)!=11 or values[0]!=issuer.code or values[2]!='財務報告書':raise ValueError('index issuer or shape mismatch')
@@ -114,7 +114,10 @@ def parse_calendar_index(raw,year,quarters,observed_day,*,issuer_ticker=TICKER):
         q=next(q for q,n in names.items()if n==match[1])
         if values[5]!='IFRSs合併財報':continue
         if q not in quarters:continue
-        if q in result or values[10]!='無':raise ValueError('duplicate or corrected filing is not admitted')
+        if q in result:raise ValueError('duplicate filing is not admitted')
+        if values[10]!='無':
+            from .gourmet_correction_notice import published_action
+            pending[(year,q)]=published_action(cells[10],issuer.ticker,year,q)
         links=cells[7].find_all('a');filename=f'{year}{q:02d}_{issuer.code}_AI1.pdf'
         if (len(links)!=1 or links[0].get_text(strip=True)!=filename
                 or links[0].get('href')!=f'javascript:readfile2("A","{issuer.code}","{filename}");'
@@ -127,6 +130,16 @@ def parse_calendar_index(raw,year,quarters,observed_day,*,issuer_ticker=TICKER):
         result[q]={'filename':filename,'published_at':published.isoformat(),'size':int(values[8].replace(',','')),
                    'scope':'consolidated','calendar':'calendar_year','period_end':quarter_end(year,q).isoformat()}
     if set(result)!=set(quarters):raise ValueError('required filing not in complete published index')
+    if pending:
+        from .gourmet_correction_notice import CorrectionRequired,parse_notice
+        if correction_originals is None:raise CorrectionRequired()
+        if not isinstance(correction_originals,dict)or set(correction_originals)!=set(pending):
+            raise ValueError('complete correction original set unavailable')
+        for (_,q),notice in correction_originals.items():
+            checked=parse_notice(notice)
+            result[q].update(correction_notice_sha256=checked['sha256'],correction_scope=checked['scope'])
+    elif correction_originals is not None:
+        raise ValueError('unpublished correction original supplied')
     return result
 
 
@@ -149,7 +162,14 @@ def parse_cumulative_income(raw,year,quarter,*,issuer_ticker=TICKER):
            if label.get_text(' ',strip=True)=='本期淨利（淨損）']
     from .official_mopsfin_financial import _amount
     income=facts['ProfitLossAttributableToOwnersOfParent']
-    if len(total)!=1 or _amount(total[0],label='本期淨利（淨損）')!=income:
+    if len(total)!=1:
+        raise ValueError('total reference-income fact missing or ambiguous')
+    total_income=_amount(total[0],label='本期淨利（淨損）')
+    if issuer.ticker=='2723.TW':
+        from .gourmet_parent_income import verify_parent_allocation
+        verify_parent_allocation(labels,values,parent_income=income,total_income=total_income,
+                                 ordinary_shares=issuer.ordinary_shares)
+    elif total_income!=income:
         raise ValueError('total versus parent reference-income basis requires separate qualification')
     return income
 

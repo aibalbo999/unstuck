@@ -17,6 +17,8 @@ class ConsolidatedIssuer:
     industry_code: str
     company_header: str
     published_company_label: str
+    ordinary_shares: int | None = None
+    registered_country: str | None = None
 
 
 _ISSUERS = MappingProxyType({
@@ -27,6 +29,10 @@ _ISSUERS = MappingProxyType({
     '6558.TW': ConsolidatedIssuer('6558.TW', '6558', '興能高',
         '興能高科技股份有限公司', '97430131', '31',
         '6558 興能高 (上市其他電子業)', '6558 興能高'),
+    '2723.TW': ConsolidatedIssuer('2723.TW', '2723', '美食-KY',
+        '開曼美食達人股份有限公司', '39682101', '16',
+        '2723 美食-KY (上市觀光事業)', '2723 美食-KY',
+        ordinary_shares=180000000, registered_country='KY 開曼群島'),
 })
 
 

@@ -58,6 +58,11 @@ def _master(today, *, issuer_ticker=TICKER):
     published = row.get('出表日期')
     if not isinstance(shares, str) or not shares.isascii() or not shares.isdigit() or int(shares) <= 0:
         raise ValueError('positive ordinary share identity unavailable')
+    if issuer.ordinary_shares is not None:
+        country=row.get('外國企業註冊地國')
+        if (shares!=str(issuer.ordinary_shares)
+                or not isinstance(country,str) or country.strip()!=issuer.registered_country):
+            raise ValueError('qualified fixed ordinary-share or country basis changed')
     if not isinstance(published, str) or len(published) != 7 or not published.isascii() or not published.isdigit():
         raise ValueError('issuer master publication date unavailable')
     published_on = date(int(published[:3])+1911, int(published[3:5]), int(published[5:]))
@@ -92,6 +97,23 @@ def _cumulative_contract(raw):
         raise ValueError('cumulative income interpretation not published')
 
 
+def _qualified_index(raw,year,quarters,observed,issuer_ticker,read_correction):
+    from .gourmet_correction_notice import CorrectionRequired
+    try:
+        parse_calendar_index(raw,year,quarters,observed,issuer_ticker=issuer_ticker)
+        return set()
+    except CorrectionRequired as needed:
+        # The exception is produced only after the complete index passes its
+        # issuer/calendar/period/publication checks and publishes this action.
+        key=f'correction:{needed.year}Q{needed.quarter}'
+        request=spec('correction',peer_ticker=issuer_ticker,year=needed.year,
+                     quarter=needed.quarter,published_action=needed.published_action)
+        notice=read_correction(key,request)
+        parse_calendar_index(raw,year,quarters,observed,issuer_ticker=issuer_ticker,
+                             correction_originals={(needed.year,needed.quarter):notice})
+        return {key}
+
+
 def _replay(components, observed, *, now, issuer_ticker=TICKER):
     consolidated_issuer(issuer_ticker)
     def request_for(kind, **kwargs):
@@ -105,13 +127,17 @@ def _replay(components, observed, *, now, issuer_ticker=TICKER):
     years = sorted({y for y, _ in periods})
     expected = {'reference', 'home', 'methodology', *('index:'+str(y) for y in years),
                 *(f'income:{y}Q{q}' for y, q in periods)}
-    if set(components) != expected:
+    allowed=expected|({'correction:2025Q4'}if issuer_ticker=='2723.TW'else set())
+    if not expected<=set(components)<=allowed:
         raise ValueError('required original set is incomplete or ambiguous')
     parse_methodology(body('methodology', request_for('methodology')))
     _cumulative_contract(body('home', request_for('home')))
+    corrections=set()
     for y in years:
-        parse_calendar_index(body('index:'+str(y), request_for('index', year=y)), y,
-                             [q for yy, q in periods if yy == y], observed, issuer_ticker=issuer_ticker)
+        corrections|=_qualified_index(body('index:'+str(y),request_for('index',year=y)),y,
+            [q for yy,q in periods if yy==y],observed,issuer_ticker,body)
+    if set(components)!=expected|corrections:
+        raise ValueError('unpublished correction component supplied')
     incomes = {(y,q): parse_cumulative_income(body(f'income:{y}Q{q}', request_for('income', year=y, quarter=q)), y, q,
                                             issuer_ticker=issuer_ticker)
                for y, q in periods}
@@ -165,8 +191,8 @@ def collect_reference_income(ticker, observed_at, *, today=None, transport=None)
     year, quarter = reference['year'], reference['quarter']
     periods = required_periods(year, quarter)
     for y in sorted({y for y, _ in periods}):
-        parse_calendar_index(get('index:'+str(y), request_for('index', year=y)), y,
-                             [q for yy, q in periods if yy == y], observed, issuer_ticker=ticker)
+        _qualified_index(get('index:'+str(y),request_for('index',year=y)),y,
+            [q for yy,q in periods if yy==y],observed,ticker,get)
     _cumulative_contract(get('home', request_for('home')))
     incomes = {(y,q): parse_cumulative_income(get(f'income:{y}Q{q}', request_for('income', year=y, quarter=q)), y, q,
                                             issuer_ticker=ticker)
