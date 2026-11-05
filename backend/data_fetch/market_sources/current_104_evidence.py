@@ -18,6 +18,7 @@ from .current_104_postings import POLICY, MAX_LIST_BYTES, MAX_DETAIL_BYTES, MAX_
 TTL = 1800
 PREFIX = '104-current-enabled-batch:v1:'
 SCHEMA = '104-current-enabled-originals:v1'
+MIXED_SCHEMA = '104-current-enabled-originals:mixed-expiry:v2'
 PROVIDER = '104 & 1111 job openings'
 
 
@@ -186,31 +187,46 @@ def make_batch(receipts, issuer, *, now=None):
     now = time.time() if now is None else now
     if not verified_issuer(issuer,now=now):
         raise ValueError('104 official issuer unavailable')
-    _parse(receipts,issuer,now)
+    parsed = _parse(receipts,issuer,now)
     stamp = receipts[0]['observed_at_epoch']; url = list_url(issuer)
     content = {'schema':SCHEMA, 'issuer':{k:issuer[k] for k in ('ticker','legal_name','official_short_name','official_ubn')},
                'receipts':deepcopy(receipts)}
+    if parsed.excluded_postings:
+        content.update(schema=MIXED_SCHEMA, selection=_selection(parsed))
     proof = archive_response(_dump(content), source_url=url, retrieved_at=stamp, http_status=None,
                              evidence_kind='private_acquisition_manifest', max_bytes=32768)
     if proof.get('status') != 'archived':
         raise ValueError('104 batch manifest unavailable')
-    return {'schema':SCHEMA,'manifest':_pathless(proof)}
+    return {'schema':content['schema'],'manifest':_pathless(proof)}
+
+
+def _selection(parsed):
+    return {'selected_job_ids':list(parsed.selected_job_ids),
+            'eligible_job_ids':[p.job_id for p in parsed.postings],
+            'excluded_postings':[dict(p)for p in parsed.excluded_postings]}
 
 
 def replay_batch(batch, issuer, *, now=None):
     now = time.time() if now is None else now
-    if not isinstance(batch, dict) or set(batch) != {'schema','manifest'} or batch['schema'] != SCHEMA:
+    if (not isinstance(batch, dict) or set(batch) != {'schema','manifest'}
+            or batch['schema'] not in (SCHEMA, MIXED_SCHEMA)):
         raise ValueError('104 original manifest missing')
     stamp = batch['manifest']['retrieved_at']
     if not _finite(stamp) or not 0 <= now-stamp < TTL:
         raise ValueError('104 batch expired')
     raw = _read(batch['manifest'], list_url(issuer), stamp, 'private_acquisition_manifest', None, 32768)
     content = json.loads(raw)
-    if (not isinstance(content,dict) or set(content) != {'schema','issuer','receipts'} or content['schema'] != SCHEMA
+    fields = {'schema','issuer','receipts'} | ({'selection'} if batch['schema'] == MIXED_SCHEMA else set())
+    if (not isinstance(content,dict) or set(content) != fields or content['schema'] != batch['schema']
             or content['issuer'] != {k:issuer[k] for k in ('ticker','legal_name','official_short_name','official_ubn')}
             or content['receipts'][0]['observed_at_epoch'] != stamp):
         raise ValueError('104 batch issuer invalid')
     parsed = _parse(content['receipts'],issuer,now)
+    if batch['schema'] == MIXED_SCHEMA:
+        if not parsed.excluded_postings or _dump(content['selection']) != _dump(_selection(parsed)):
+            raise ValueError('104 original eligibility decision changed')
+    elif parsed.excluded_postings:
+        raise ValueError('104 legacy batch cannot contain excluded postings')
     p = parsed.public_value()
     p.update(status='partial',native_originals_verified=True,fetched_at_epoch=stamp,
              source_record_archive=deepcopy(batch))

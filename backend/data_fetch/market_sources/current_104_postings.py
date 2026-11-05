@@ -14,6 +14,7 @@ from zoneinfo import ZoneInfo
 from bs4 import BeautifulSoup
 
 POLICY='104-current-enabled-advertisements:v1'
+MIXED_POLICY='104-current-enabled-advertisements:mixed-expiry:v2'
 MAX_LIST_BYTES=300000
 MAX_DETAIL_BYTES=150000
 MAX_SAMPLES=5
@@ -52,6 +53,12 @@ def _day(value):
     try:return datetime.strptime(value,'%Y/%m/%d').date()
     except ValueError:raise SnapshotError('source_date_invalid')from None
 
+def _deadline(value):
+    # The publisher uses ISO dates for closeDate and slash dates for headers.
+    if isinstance(value,str)and re.fullmatch(r'20[0-9]{2}-[0-9]{2}-[0-9]{2}',value):
+        return _day(value.replace('-','/'))
+    return _day(value)
+
 @dataclass(frozen=True)
 class Posting:
     job_id:str
@@ -76,9 +83,11 @@ class ParsedSnapshot:
     source_company_id:str
     observed_at_epoch:float
     postings:tuple[Posting,...]
+    selected_job_ids:tuple[str,...]=()
+    excluded_postings:tuple[dict,...]=()
 
     def public_value(self):
-        return {'schema':POLICY,'status':'parsed_unverified',
+        value={'schema':POLICY,'status':'parsed_unverified',
             'ticker':self.ticker,'company_name':self.company_name,'official_ubn':self.official_ubn,
             'source_company_id':self.source_company_id,'observed_at_epoch':self.observed_at_epoch,
             'source':'104 publisher-enabled company advertisements',
@@ -89,6 +98,12 @@ class ParsedSnapshot:
             'first_publication_verified':False,'hiring_growth_verified':False,'native_originals_verified':False,
             'source_date_kind':'publisher_appear_or_update_date_not_first_publication',
             'message':'僅為當時公開啟用的徵才廣告樣本；來源日期可能為更新日，不代表首次刊登、近30天新職缺、實際缺額人數或擴編。截止日未提供者保持未知；原件與身分證據需另行核實。'}
+        if self.excluded_postings:
+            value.update(schema=MIXED_POLICY,selected_detail_count=len(self.selected_job_ids),
+                         selected_job_ids=list(self.selected_job_ids),
+                         excluded_postings=[dict(p)for p in self.excluded_postings])
+            value['message']+='固定選中的完整廣告原件含明示已到期紀錄；已另列排除理由，不計入合格樣本，並非全部廣告或缺額總量。'
+        return value
 
 
 def parse_snapshot(listing_raw,detail_bodies,*,issuer,observed_at,now=None):
@@ -129,7 +144,7 @@ def parse_snapshot(listing_raw,detail_bodies,*,issuer,observed_at,now=None):
     if listing['totalCount']<len(seen):raise SnapshotError('listing_count_inconsistent')
     selected=list(seen)[:MAX_SAMPLES]
     if not isinstance(detail_bodies,dict)or set(detail_bodies)!=set(selected):raise SnapshotError('selected_detail_set')
-    postings=[]
+    postings=[];excluded=[]
     for ident in selected:
         d=_json(detail_bodies[ident],MAX_DETAIL_BYTES);h=d.get('header')
         if d.get('switch')!='on':raise SnapshotError('publisher_not_enabled')
@@ -141,10 +156,10 @@ def parse_snapshot(listing_raw,detail_bodies,*,issuer,observed_at,now=None):
         appeared=_day(h.get('appearDate'))
         if appeared>today or tuple(map(int,listed_stamp.split('/')))!=(appeared.month,appeared.day):raise SnapshotError('listing_detail_date')
         if 'closeDate'not in d or not isinstance(d['closeDate'],str):raise SnapshotError('deadline_observation_missing')
-        deadline=None
+        deadline=None;expired=False
         if d['closeDate']:
-            ending=_day(d['closeDate'])
-            if ending<=today:raise SnapshotError('deadline_not_proven_future')
+            ending=_deadline(d['closeDate'])
+            expired=ending<=today
             deadline=ending.isoformat()
         detail=d.get('jobDetail');description=detail.get('jobDescription')if isinstance(detail,dict)else None
         if not isinstance(description,str):raise SnapshotError('concrete_description_missing')
@@ -154,6 +169,13 @@ def parse_snapshot(listing_raw,detail_bodies,*,issuer,observed_at,now=None):
         if not 20<=len(text)<=20000:raise SnapshotError('concrete_description_missing')
         pool=r'人才庫|履歷(?:資料)?庫|(?:無|暫無)(?:實際|現有|任何)?職缺|(?:常年|歡迎常年).{0,12}投遞履歷|talent pool|not currently recruiting'
         if re.search(pool,title+' '+text,re.I):raise SnapshotError('talent_pool_not_posting')
+        if expired:
+            # Exclude only a fully validated, explicitly past deadline. No
+            # malformed/identity/content error is downgraded to a skipped row.
+            excluded.append({'job_id':ident,'url':job_url,'deadline':deadline,
+                             'reason_code':'deadline_not_proven_future'})
+            continue
         postings.append(Posting(ident,title,job_url,legal,employer,'on',appeared.isoformat(),(today-appeared).days,
             deadline,bool(d['closeDate']),len(text),sha256(text.encode()).hexdigest()))
-    return ParsedSnapshot(ticker,legal,short,ubn,company_id,float(observed_at),tuple(postings))
+    if not postings:raise SnapshotError('deadline_not_proven_future')
+    return ParsedSnapshot(ticker,legal,short,ubn,company_id,float(observed_at),tuple(postings),tuple(selected),tuple(excluded))
