@@ -35,6 +35,25 @@ def _kgi_live_remaining(payload):
         return 0
 
 
+def _current_ad_origin(payload):
+    value = payload.get('value') if isinstance(payload, dict) else None
+    return isinstance(value, dict) and 'job_openings_104_current' in value
+
+
+def _current_ad_remaining(payload):
+    try:
+        jobs = payload['value']['job_openings_104_current']
+        stamp = jobs['fetched_at_epoch']
+        if (type(stamp) not in (int, float) or not math.isfinite(stamp)
+                or stamp != payload['audit']['fetched_at_epoch']):
+            return 0
+        from .market_sources.current_104_evidence import TTL
+        age = time.time() - stamp
+        return max(0, TTL - age) if age >= 0 else 0
+    except (KeyError, TypeError, ValueError, OverflowError):
+        return 0
+
+
 def cached_context_result(provider, request, context, acquire):
     from config import SOURCE_FRESHNESS_MAX_AGE_SECONDS
     from shared_provider_cache import shared_fetch
@@ -57,6 +76,8 @@ def cached_context_result(provider, request, context, acquire):
     def result_ttl(payload):
         if payload.get('status') != 'success':
             return min(ttl, 600)
+        if _current_ad_origin(payload):
+            return min(ttl, _current_ad_remaining(payload))
         return min(ttl, _kgi_live_remaining(payload)) if kgi_scope and _kgi_origin(payload) else ttl
 
     def fetch_context(*, refresh=False):
@@ -119,6 +140,22 @@ def cached_context_result(provider, request, context, acquire):
             return ProviderResult(source=provider.source,provider=result.provider,status='error',audit={
                 **result.audit,'status':'error','record_count':0,
                 'reason_code':'philjobnet_original_unverified','message':'雇主入口原件無法重新核對；職缺數未知。'})
+    if _current_ad_origin(payload):
+        from .market_sources.current_104_evidence import verified_count
+        count = verified_count(result.value.get('job_openings_104_current'),
+            {**data,'ticker':request.ticker}, result.value.get('company_legal_name_evidence'))
+        result.audit.update(fetched_at_epoch=original_stamp,cache_stored_at_epoch=meta.get('fetched_at_epoch'),
+                            cache_hit=bool(meta.get('cache_hit')) or original_cache_hit)
+        if result.audit['cache_hit']:
+            result.audit.update(http_request_count=0,http_request_sent=False,event_kind='cache_hit')
+        if (count <= 0 or type(result.audit.get('record_count')) is not int or count != result.audit.get('record_count')
+                or result.source != provider.source or result.provider != provider.name
+                or result.audit.get('source') != provider.source or result.audit.get('provider') != provider.name
+                or result.status != 'success' or result.audit.get('status') != 'success'
+                or _current_ad_remaining(payload) <= 0 or meta.get('stale') or meta.get('error_kind')):
+            return ProviderResult(source=provider.source,provider=result.provider,status='unavailable',audit={
+                **result.audit,'status':'unavailable','record_count':0,'http_request_sent':False,
+                'reason_code':'current_ad_original_unverified','message':'當前徵才廣告原件或雇主無法核對，職缺與人數保持未知。'})
     if isinstance(result.value, dict):
         result.value.update(meta)
         if kgi_origin and result.status == 'success':

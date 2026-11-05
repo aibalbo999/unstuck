@@ -383,3 +383,15 @@ def test_fetch_104_job_openings_count_does_not_mask_parser_errors_with_news_fall
             fetch_104_job_openings_count("台達電", "AI", session=FakeSession("<html></html>"))
 
     news_fallback.assert_not_called()
+
+
+def test_104_primary_preserves_current_transport_refusal_for_fallback_gate():
+ import httpx
+ from alternative_data_fetcher import fetch_104_company_jobs
+ class Refused:
+  def get(self,url,**kwargs):
+   r=httpx.Response(403,request=httpx.Request('GET',url))
+   r.raise_for_status()
+ result=fetch_104_company_jobs('世紀民生科技股份有限公司',session=Refused())
+ assert result['status']=='unavailable'and result['transport_failed']is True
+ assert result['http_status_observed']is True and result['http_status']==403

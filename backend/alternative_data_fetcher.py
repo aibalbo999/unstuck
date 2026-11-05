@@ -56,7 +56,14 @@ def _get_job_search_response(
         return response
     except Exception as exc:
         record_job_transport_receipt(provider,started,response=getattr(exc,'response',response),native_call=session is None)
-        raise _JobSearchTransportError from exc
+        wrapped = _JobSearchTransportError()
+        # Preserve only this request's actual response status, never a prior
+        # listing status. The modern fallback cannot bypass an access refusal.
+        import httpx
+        actual = getattr(exc, 'response', response)
+        wrapped.http_status_observed = type(actual) is httpx.Response
+        wrapped.http_status = actual.status_code if wrapped.http_status_observed else None
+        raise wrapped from exc
 
 
 def fetch_104_company_jobs(
@@ -176,9 +183,14 @@ def fetch_104_company_jobs(
                                                       else "official_name_ubn_alias" if matched_alias
                                                       else "exact_legal_name"),
                              "employer_id": employer_id, "job_no": job_no})
-    except (_JobSearchTransportError, ValueError, TypeError, AttributeError):
-        return _unavailable(company, "", "104 Company Jobs API", source_url,
+    except (_JobSearchTransportError, ValueError, TypeError, AttributeError) as error:
+        unavailable = _unavailable(company, "", "104 Company Jobs API", source_url,
                             "104 公司職缺 JSON 已查詢分頁未完整且可驗證。", reason_code="api_unverified")
+        if isinstance(error, _JobSearchTransportError):
+            unavailable.update(transport_failed=True,
+                http_status_observed=getattr(error, 'http_status_observed', False),
+                http_status=getattr(error, 'http_status', None))
+        return unavailable
     if len(employer_ids) != 1:
         return {**_unavailable(company, "", "104 Company Jobs API", source_url,
                               "未找到單一可核對雇主的近期職缺；不能推定零職缺。",

@@ -198,7 +198,7 @@ class AlternativeJobOpeningsProvider(DataProvider):
 
     def _fetch_uncached(self, request: FetchRequest, context: dict | None = None) -> ProviderResult:
         from data_trust import AUDIT_STATUS_DEGRADED_ENRICHMENT, AUDIT_STATUS_SUCCESS, source_record_count
-        from alternative_data_fetcher import (fetch_104_company_jobs, fetch_104_company_jobs_by_ubn,
+        from alternative_data_fetcher import (fetch_104_company_jobs,
                                               fetch_104_job_openings_count, fetch_1111_job_openings_count,
                                               recruitment_company_name, unique_recruitment_records)
 
@@ -252,13 +252,14 @@ class AlternativeJobOpeningsProvider(DataProvider):
                         fetch_104_company_jobs(legal_name)) if legal_name else None
         if (verified_ubn and isinstance(company_jobs, dict)
                 and company_jobs.get("status") != "success"):
-            company_fallback = fetch_104_company_jobs_by_ubn(
-                legal_name, verified_ubn,
-                official_short_name=str(identity.get("official_name") or "").strip())
-            if company_fallback.get("status") == "success":
-                company_jobs = {**company_fallback,
-                                "primary_status": company_jobs.get("status"),
-                                "primary_reason_code": company_jobs.get("reason_code")}
+            from .market_sources.current_104_transport import fetch_current_advertisements
+            current_ads = fetch_current_advertisements(
+                request, company_context, legal_name_evidence, primary=company_jobs)
+            if current_ads is not None:
+                return current_ads
+            # Keep the recent30 search contract unchanged. The company-list
+            # fallback now uses one modern enabled-state batch; do not send
+            # another legacy detail chain for the same selected advertisements.
         taiwanjobs = None
         if verified_ubn and legal_name and not (isinstance(company_jobs, dict) and company_jobs.get("status") == "success"):
             from .market_sources.taiwanjobs_company_jobs import fetch_taiwanjobs_company_jobs, receipt_observation_scope
