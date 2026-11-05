@@ -180,10 +180,17 @@ def select_peer_valuation_observation(rows: list[dict], ticker: str, *, today: d
 def _attach_reference_income(result, official, ticker, today):
     """Recover an undefined-field reason only after the existing numeric paths."""
     from .peer_reference_income import TICKER, SHORT
-    if (ticker != TICKER or result.get('metrics', {}).get('pe_ttm') is not None
-            or official.get('official_company_name') != SHORT):
+    if ticker == '2646.TW':
+        from .starair_reference_income import SHORT as expected_short
+        from .starair_reference_evidence import collect_reference_income
+    elif ticker == TICKER:
+        expected_short = SHORT
+        from .peer_reference_evidence import collect_reference_income
+    else:
         return result
-    from .peer_reference_evidence import collect_reference_income
+    if (result.get('metrics', {}).get('pe_ttm') is not None
+            or official.get('official_company_name') != expected_short):
+        return result
     from .peer_reference_transport import PROVIDER
     try:
         reason = collect_reference_income(ticker, official.get('observed_at'), today=today)

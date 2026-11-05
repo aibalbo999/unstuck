@@ -1,3 +1,7 @@
+星宇2646的P/E缺值解釋採獨立的 `starair_reference_income`／`starair_reference_spec`／`starair_reference_evidence`／`starair_reference_applicability` 契約，只准入完整官方主檔明列報表類型2、普通股／無特別股、法名及統編一致的此公司。完整發布索引須為曆年制、`IFRSs個別財報`／AI2，財務比較表須明示「個別」、精確公司、TWD仟元與相同起訖季；不借用母公司業主或非控制權益欄位。按官方估值表明示的參考季，用前一年全年減前一年同季累計再加本年同季累計，驗證非正的個別淨利；P/E保持空值，只交付數學上不適用的解釋，非交易所公布的個股空白原因，其他缺欄與可比性門檻保持。
+
+既有 `peer_reference_transport` 保留6230請求與原key／manifest格式；2646的個別索引／損益表有精確subject標記，共用參考表、方法頁及首頁仍沿同一key重用有效原件，不以新namespace重抓。HTTP收據依實際peer subject歸屬，維持零筆傳輸；完整當前主檔、全部原件／metadata manifest及獨立快取owner須於交付、欄位適用性與來源計數反覆重驗。1800秒／20秒流程／5秒單檔／2秒連線、原circuit／cooldown／pacing、零重試與redirect、身分／期間／單位／格式及既有年度原件優先限制均保持；研究不列正式來源成功，離線重播不充當新的對外HTTP；研究傳輸與正式驗收分別記錄，不改舊報告、舊失敗或模型額度。
+
 104 的當前啟用廣告由 `market_sources/current_104_postings`、`current_104_evidence` 與 `current_104_transport` 分別處理解析、原件准入與正常傳輸。原本精確雇主的近30天搜尋優先且期間規則不變；無合格近期資料時，以官方完整TWSE／TPEx名冊的法名、統編和公開公司清單選最多五篇現行 `api/jobs/{id}` 原件，不再另送同批 legacy detail 請求。只接受平台明示 `switch=on`、精確公司／職稱／日期、具體內容與未過期明示截止；空截止保持未知。這是「當前啟用徵才廣告樣本」，不代表首次刊登、近30天新職缺、實際招募意圖、職缺／人數總量或擴編。
 
 每次交付與計數均重播完整 decoded 原件、私有 acquisition manifest、同一 fetch／operation、獨立批次 cache owner及當前完整官方名冊。公共旗標或雜湊不足以通過；原件／名冊／截止失效即拒收。原件最長1800秒且不因內外快取重用續期；既有 optional-context 原鍵與有效觀測優先，不清快取或縮既有TTL。正常模式 `force_refresh=False`，研究模式不進新入口或新增原件／SLA；同批最多六次GET、每次至多5秒socket timeout、25秒流程准入與300000／150000 bytes解析上限，並非DNS／整體硬期限。匿名原headers、proxy路由、circuit／throttle、零重試和重新導向保持；主搜尋傳輸失敗含403／429／504時不切換新入口繞過。HTTP子事件為零筆傳輸，廣告樣本只在既有 alternative_data 父來源計數一次；私有原件含聯絡資訊，不進提示／公開payload／Git，公共資料僅保留最小職稱、狀態、日期與來源URL。補來源不重跑或改寫舊報告結論。

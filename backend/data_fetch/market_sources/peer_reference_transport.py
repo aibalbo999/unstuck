@@ -54,6 +54,10 @@ def spec(kind,*,day=None,year=None,quarter=None):
 
 def canonical_spec(value):
     if not isinstance(value,dict):raise ValueError('invalid request specification')
+    params = value.get('params')
+    if isinstance(params, dict) and 'individual_reference_issuer' in params:
+        from .starair_reference_spec import canonical_spec as individual_spec
+        return individual_spec(value)
     p=value.get('params')or{}
     if not isinstance(p,dict):raise ValueError('invalid request parameters')
     expected=spec(value.get('kind'),day=date.fromisoformat(p['day'])if'day'in p else None,
@@ -148,8 +152,19 @@ def receipt_body(packet,request,*,now=None,check_owner=True):
 
 
 class PeerIncomeHttp:
-    def __init__(self,*,seconds=20):
+    def __init__(self,*,seconds=20,peer_ticker='6230.TW'):
+        if peer_ticker not in {'6230.TW', '2646.TW'}:
+            raise ValueError('unsupported reference-income transport subject')
+        self.peer_ticker = peer_ticker
         self.deadline=time.monotonic()+seconds;self.components=[];self.http_request_count=0
+
+    def _bound_request(self, request):
+        request = canonical_spec(request)
+        if request['kind'] in {'index', 'income'}:
+            expected = request['params'].get('individual_reference_issuer', '6230.TW')
+            if expected != getattr(self, 'peer_ticker', '6230.TW'):
+                raise ValueError('reference-income request crossed its issuer subject')
+        return request
 
     def _emit(self,diag,packet=None):
         from .ncc_mobile_peer_transport import peer_receipt_observation_enabled
@@ -164,7 +179,7 @@ class PeerIncomeHttp:
             component['original_receipt']={**packet['raw_receipt'],'http_status_observed':True,
                 'response_complete':True,'request_method':packet['spec']['method'],'cache_hit':False}
         with suppress(sqlite3.Error):record_source_audit_entries([{**context,'source':'dynamic_peer_metrics',
-            'provider':PROVIDER+' native HTTP','peer_ticker':'6230.TW','record_count':0,
+            'provider':PROVIDER+' native HTTP','peer_ticker':getattr(self, 'peer_ticker', '6230.TW'),'record_count':0,
             'event_kind':'http_transport_receipt','selection_policy':'transport-receipt-only:v1',
             'status':'success'if packet else'error','http_request_sent':diag.get('http_request_sent'),
             'http_status':diag.get('http_status'),'http_status_observed':diag.get('http_status_observed'),
@@ -173,6 +188,7 @@ class PeerIncomeHttp:
             'message':'Reference-income transport only; no P/E value, financial comparison or acquisition success counted.'}])
 
     def _consume(self,request,url,parts,rc,error,diag):
+        request = self._bound_request(request)
         status,headers=_headers(parts['headers'])
         try:meta=json.loads(parts['metadata'])
         except(ValueError,UnicodeError):meta={}
@@ -263,7 +279,7 @@ class PeerIncomeHttp:
         return self._consume(request,url,parts,rc,error,diag)
 
     def get(self,request):
-        request=canonical_spec(request);diag={'url':request['url'],'http_request_sent':False,'http_status_observed':False,'response_complete':False}
+        request=self._bound_request(request);diag={'url':request['url'],'http_request_sent':False,'http_status_observed':False,'response_complete':False}
         self.components.append(diag)
         if time.monotonic()>=self.deadline:raise _error('timeout')
         value,meta=shared_fetch(raw_key(request),lambda:self._download(request,diag),freshness_seconds=TTL,

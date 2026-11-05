@@ -8,6 +8,9 @@ from .peer_reference_transport import spec
 
 
 def verified_explanation(value, ticker, *, today=None):
+    if ticker == '2646.TW':
+        from .starair_reference_applicability import verified_explanation as individual_explanation
+        return individual_explanation(value, ticker, today=today)
     if ticker != TICKER or not isinstance(value, dict):
         return False
     try:
