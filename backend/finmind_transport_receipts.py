@@ -9,6 +9,9 @@ from contextvars import ContextVar
 
 _RECORD_RECEIPTS=ContextVar('finmind_receipt_observation',default=True)
 
+def receipt_observation_enabled():
+    return _RECORD_RECEIPTS.get() is True
+
 @contextmanager
 def receipt_observation_scope(enabled):
     token=_RECORD_RECEIPTS.set(_RECORD_RECEIPTS.get()and enabled is True)

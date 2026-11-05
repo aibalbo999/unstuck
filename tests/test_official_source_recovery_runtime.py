@@ -50,7 +50,14 @@ def test_failure_success_failure_restarts_at_first_cooldown(name, empty, monkeyp
     with pytest.raises(TimeoutError):fetch()
     assert state[key]['consecutive_failures']==1
     assert state[key]['retry_at']==now[0]+60
-    assert [e['outcome'] for e in events]==['failure','valid_empty' if empty else 'results','failure']
+    success = 'valid_empty' if empty else 'results'
+    expected = ['failure', 'failure', success, 'failure', 'failure'] if name == 'institutional' else ['failure', success, 'failure']
+    assert [e['outcome'] for e in events] == expected
+    if name == 'institutional':
+        # Primary and exact official mirror are two actual transport failures;
+        # the endpoint still increments the shared failure history only once.
+        assert [e['details'].get('attempt_role') for e in events if e['outcome'] == 'failure'] == [
+            'primary_before_mirror', 'official_mirror', 'primary_before_mirror', 'official_mirror']
 
 
 @pytest.mark.parametrize('name',['institutional','borrowed','margin'])

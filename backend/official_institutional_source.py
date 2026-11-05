@@ -130,6 +130,11 @@ def _fetch_report(market, day, timeout, *, openapi=False):
         source=TWSE_SOURCE if market=='TWSE' else TPEX_SOURCE
         url=_url(market,day)
     key=scope_key(source, endpoint='institutional_daily'); started=time.monotonic()
+    from institutional_http_capsule import observe_get, request_spec, validate_receipt
+    def observed_get(url, timeout):
+        with observe_get(request_spec(market, day, url, source)) as native:
+            response = sync_get(url, timeout=timeout, provider=source)
+        return response, native
     from search_admission import endpoint_admission
     timeout = max(0.001, min(float(timeout), 8 if market == 'TWSE' else 5))
     with endpoint_admission(key, timeout_seconds=timeout) as owns:
@@ -153,7 +158,7 @@ def _fetch_report(market, day, timeout, *, openapi=False):
         fallback_reason = ''
         try:
             try:
-                response=sync_get(url,timeout=min(5, max(0.001, deadline-time.monotonic())),provider=source)
+                response,native=observed_get(url,min(5, max(0.001, deadline-time.monotonic())))
             except Exception as primary_exc:
                 primary_details = error_details(primary_exc)
                 remaining = deadline-time.monotonic()
@@ -167,11 +172,20 @@ def _fetch_report(market, day, timeout, *, openapi=False):
                 url = url.replace('https://www.twse.com.tw/', 'https://wwwc.twse.com.tw/', 1)
                 attempt_started = time.monotonic()
                 observe_http_response(None)
-                response=sync_get(url,timeout=min(3, max(0.001, deadline-time.monotonic())),provider=source)
+                response,native=observed_get(url,min(3, max(0.001, deadline-time.monotonic())))
             observe_http_response(response)
             report=parse_latest_report(response.content,day) if openapi else _parse_report(response.json(),market,day)
             from official_response_evidence import archive_response
-            report['raw_evidence']=archive_response(getattr(response,'content',None),source_url=url,retrieved_at=datetime.now(timezone.utc).isoformat(),http_status=getattr(response,'status_code',None))
+            stamp=native['received_at_epoch']
+            acquired=datetime.fromtimestamp(stamp,timezone.utc) if stamp is not None else datetime.now(timezone.utc)
+            report['raw_evidence']=archive_response(getattr(response,'content',None),source_url=url,retrieved_at=acquired.isoformat(),http_status=getattr(response,'status_code',None))
+            if native['receipt'] is not None:
+                try:
+                    validate_receipt(native['receipt'],native['spec'],report['raw_evidence'])
+                    report['native_http_receipt']=native['receipt']
+                except Exception:
+                    # Optional new transport metadata cannot alter the source result.
+                    pass
             report['source']=source
             report['source_url']=url
             if fallback_reason:

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import os
 import re
+import time
 from typing import Any
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
@@ -59,7 +60,15 @@ def sync_get(
     if proxy_url:
         kwargs["proxy"] = proxy_url
     response = httpx.get(url, **kwargs)
+    received_at_epoch = time.time()
     response.raise_for_status()
+    try:
+        from institutional_http_capsule import capture_native_get
+        capture_native_get(url, response, provider=provider, verify=verify, proxy=proxy_url,
+                           received_at_epoch=received_at_epoch)
+    except Exception:
+        # Optional transport evidence must not alter the existing HTTP result.
+        pass
     return response
 
 
