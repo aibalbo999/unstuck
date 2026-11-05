@@ -204,7 +204,7 @@ def test_actual_typed_institutional_cold_and_warm_keep_input_identity(native,mon
     finally:cache_store.reset_cache_store_for_tests()
 
 @pytest.mark.parametrize('research',[False,True])
-def test_actual_twse_sdk_three_input_originals_preserve_existing_metrics(native,monkeypatch,research):
+def test_actual_twse_sdk_input_proof_does_not_promote_single_quarter_to_ttm(native,monkeypatch,research):
     from urllib.parse import parse_qs,urlsplit
     from finmind_transport_receipts import observed_loader_class
     import external_data_twse as twse
@@ -234,7 +234,7 @@ def test_actual_twse_sdk_three_input_originals_preserve_existing_metrics(native,
     request=FetchRequest.from_ticker('2330.TW',record_provider_sla=not research)
     with correlation_scope(replace=True,ticker=request.ticker,fetch_id='financial-inputs'):
         result=TwseOfficialProvider().fetch(request)
-    assert result.value['revenue_ttm_raw']==100 and result.value['total_debt_raw']==20
+    assert result.value['revenue_ttm_raw']is None and result.value['total_debt_raw']==20
     assert 'native_sdk_inputs'not in result.value
     assert result.audit['record_count']==len(result.value), 'Evidence handoff must not inflate data record counts'
     assert state['calls']==3

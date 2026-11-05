@@ -142,13 +142,26 @@ def _build_payload(
     cash_flow_rows: list[dict[str, Any]],
     source: str,
 ) -> Optional[dict[str, Any]]:
-    dates = _recent_dates(income_rows, limit=4)
-    revenue = _sum_metric(income_rows, dates, REVENUE_ALIASES)
-    gross_profit = _sum_metric(income_rows, dates, GROSS_PROFIT_ALIASES)
-    operating_income = _sum_metric(income_rows, dates, OPERATING_INCOME_ALIASES)
-    net_income = _sum_metric(income_rows, dates, NET_INCOME_ALIASES)
-    ocf = _sum_metric(cash_flow_rows, dates, OCF_ALIASES)
-    capex = _sum_metric(cash_flow_rows, dates, CAPEX_ALIASES)
+    if source == 'FinMind_TWSE':
+        # Vendor income rows are single-quarter; cashflow rows are YTD.
+        # Neither incomplete quarters nor a four-YTD sum are a TTM result.
+        dates = _finmind_ttm_dates(income_rows)
+        revenue = _complete_quarter_metric(income_rows, dates, REVENUE_ALIASES)
+        gross_profit = _complete_quarter_metric(income_rows, dates, GROSS_PROFIT_ALIASES)
+        operating_income = _complete_quarter_metric(income_rows, dates, OPERATING_INCOME_ALIASES)
+        net_income = _complete_quarter_metric(income_rows, dates, NET_INCOME_ALIASES)
+        ocf = _finmind_ytd_ttm(cash_flow_rows, dates, (*OCF_ALIASES, 'CashFlowsFromOperatingActivities'))
+        capex = _finmind_ytd_ttm(cash_flow_rows, dates, CAPEX_ALIASES)
+    else:
+        # Other adapters retain their own existing contract; a FinMind rule
+        # must never reinterpret a different provider's unknown period basis.
+        dates = _recent_dates(income_rows, limit=4)
+        revenue = _sum_metric(income_rows, dates, REVENUE_ALIASES)
+        gross_profit = _sum_metric(income_rows, dates, GROSS_PROFIT_ALIASES)
+        operating_income = _sum_metric(income_rows, dates, OPERATING_INCOME_ALIASES)
+        net_income = _sum_metric(income_rows, dates, NET_INCOME_ALIASES)
+        ocf = _sum_metric(cash_flow_rows, dates, OCF_ALIASES)
+        capex = _sum_metric(cash_flow_rows, dates, CAPEX_ALIASES)
     free_cash_flow = None
     if ocf is not None and capex is not None:
         free_cash_flow = ocf - abs(capex) if capex > 0 else ocf + capex
@@ -167,6 +180,60 @@ def _build_payload(
         "fetch_date": _today_iso(),
     }
     return payload if _has_any_financial_value(payload) else None
+
+
+
+def _finmind_ttm_dates(rows):
+    """Require four contiguous calendar quarter-ends, never four arbitrary dates."""
+    dates = sorted({_date_key(row) for row in rows if _date_key(row)})
+    if not dates:
+        return []
+    try:
+        latest = datetime.strptime(dates[-1], '%Y-%m-%d')
+        if latest.date() > datetime.strptime(_today_iso(), '%Y-%m-%d').date():
+            return []
+        ends = ('03-31', '06-30', '09-30', '12-31')
+        quarter = ends.index(latest.strftime('%m-%d'))
+        absolute = latest.year * 4 + quarter
+        wanted = [f'{n // 4:04d}-{ends[n % 4]}' for n in range(absolute - 3, absolute + 1)]
+    except (ValueError, OverflowError):
+        return []
+    return wanted if set(wanted) <= set(dates) else []
+
+
+def _unique_finite_metric(rows, day, aliases):
+    import math
+    values = _values_for_date(rows, day, aliases)
+    if len(values) != 1 or not math.isfinite(values[0]):
+        return None
+    value = values[0]
+    # Same magnitude domain as native input-original qualification; tiny or
+    # enormous rejected rows must not return through derived scalar fields.
+    return value if value == 0 or 1e-20 <= abs(value) < 1e31 else None
+
+
+def _complete_quarter_metric(rows, dates, aliases):
+    if len(dates) != 4:
+        return None
+    values = [_unique_finite_metric(rows, day, aliases) for day in dates]
+    import math
+    total = sum(values) if all(value is not None for value in values) else None
+    return total if total is not None and math.isfinite(total) else None
+
+
+def _finmind_ytd_ttm(rows, income_dates, aliases):
+    """Use FY(prior)-YTD(prior same quarter)+YTD(current), or December FY."""
+    if len(income_dates) != 4:
+        return None
+    end = income_dates[-1]
+    if end.endswith('-12-31'):
+        return _unique_finite_metric(rows, end, aliases)
+    year = int(end[:4])
+    dates = (f'{year - 1:04d}-12-31', f'{year - 1:04d}{end[4:]}', end)
+    values = [_unique_finite_metric(rows, day, aliases) for day in dates]
+    import math
+    total = values[0] - values[1] + values[2] if all(value is not None for value in values) else None
+    return total if total is not None and math.isfinite(total) else None
 
 
 def _recent_dates(rows: list[dict[str, Any]], limit: int = 4) -> list[str]:

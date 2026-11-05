@@ -26,6 +26,8 @@ def native(monkeypatch):
         r=requests.Response();r.request=request;r.url=request.url
         r.status_code=200 if request.url=='https://api.web.finmindtrade.com/v2/user_info'else state['code'];r._content_consumed=True
         rows=[{'date':'2026-09-30','stock_id':'2330','type':'Revenue','value':100}]
+        if state.get('complete_income'):
+            rows=[{'date':d,'stock_id':'2330','type':'Revenue','value':100}for d in ('2025-12-31','2026-03-31','2026-06-30','2026-09-30')]
         r._content=json.dumps(state.get('body')or{'status':r.status_code,'msg':'success'if r.status_code==200 else 'unit gateway failure','data':rows}).encode()
         r.headers['Retry-After']='17';state['responses'].append(r);return r
     monkeypatch.setattr(requests.Session,'send',send)
@@ -50,7 +52,7 @@ def test_successful_sdk_frame_and_request_identity_are_unchanged(native):
     assert sdk.request_get is original and requests.Session.request is session_request
 
 def test_existing_token_login_is_kept_but_has_a_finite_timeout(native):
-    loader,s,twse=native;twse.FINMIND_API_TOKEN='unit-private-token'
+    loader,s,twse=native;twse.FINMIND_API_TOKEN='unit-private-token';s['complete_income']=True
     value=twse._fetch_finmind_payload('2330')
     assert value and len(s['calls'])==4
     assert s['calls'][0]['url']=='https://api.web.finmindtrade.com/v2/user_info'
@@ -79,14 +81,14 @@ def test_actual_transport_failure_is_not_replaced_by_sdk_none_json_error(native,
     assert 'private'not in str(caught.value)and len(s['calls'])==2
 
 def test_configured_token_does_not_require_an_extra_anonymous_login(native):
-    _,s,twse=native;twse.FINMIND_API_TOKEN='existing-unit-token'
+    _,s,twse=native;twse.FINMIND_API_TOKEN='existing-unit-token';s['complete_income']=True
     assert twse._fetch_finmind_with_retry('2330')
     assert len(s['calls'])==4 and len([c for c in s['calls']if '/user_info'in c['url']])==1
     assert all(c['headers']['Authorization']=='Bearer existing-unit-token'for c in s['calls'])
 
 def test_component_cooldown_does_not_disable_independent_existing_fallback(native,monkeypatch):
     import provider_throttle as throttle
-    _,s,twse=native;s['code']=429;clock=[1000.]
+    _,s,twse=native;s['code']=429;s['complete_income']=True;clock=[1000.]
     monkeypatch.setattr(throttle.time,'time',lambda:clock[0]);fallback=[];value={'source':'TWSE_OpenAPI','revenue_ttm_raw':100}
     monkeypatch.setattr(twse,'_fetch_twse_openapi_fallback',lambda symbol:fallback.append(symbol)or value)
     assert twse.fetch_twse_official_data('2330.TW')is value

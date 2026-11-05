@@ -48,9 +48,9 @@ class FakeFinMindLoader:
         rows = []
         for date, ocf, capex in [
             ("2025-03-31", 150.0, -50.0),
-            ("2025-06-30", 160.0, -60.0),
-            ("2025-09-30", 170.0, -70.0),
-            ("2025-12-31", 180.0, -80.0),
+            ("2025-06-30", 310.0, -110.0),
+            ("2025-09-30", 480.0, -180.0),
+            ("2025-12-31", 660.0, -260.0),
         ]:
             rows.extend([
                 {"date": date, "type": "NetCashInflowFromOperatingActivities", "value": ocf},
