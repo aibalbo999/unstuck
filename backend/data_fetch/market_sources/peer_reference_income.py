@@ -1,6 +1,6 @@
 """Period-bound official evidence for an undefined peer P/E, never a number.
 
-Initial admission is one independently qualified ordinary consolidated issuer.
+Admission is an explicit set of independently qualified consolidated issuers.
 Neither missing P/E nor a single negative quarter establishes this evidence.
 """
 from calendar import monthrange
@@ -8,13 +8,15 @@ from datetime import date, datetime
 import json
 import re
 from bs4 import BeautifulSoup
+from .peer_reference_issuers import consolidated_issuer
 
-TICKER='6230.TW'
-CODE='6230'
-SHORT='尼得科超眾'
-LEGAL='尼得科超眾科技股份有限公司'
-UBN='34005476'
-COMPANY='6230 尼得科超眾 (上市電腦及週邊設備業)'
+_DEFAULT = consolidated_issuer()
+TICKER = _DEFAULT.ticker
+CODE = _DEFAULT.code
+SHORT = _DEFAULT.short
+LEGAL = _DEFAULT.legal
+UBN = _DEFAULT.ubn
+COMPANY = _DEFAULT.company_header
 SCHEMA='twse-peer-reference-income.v1'
 APPLICABILITY='not_applicable_nonpositive_reference_income'
 FIELDS=['證券代號','證券名稱','收盤價','殖利率(%)','股利年度','本益比','股價淨值比','財報年/季']
@@ -57,7 +59,8 @@ def parse_methodology(raw):
         raise ValueError('official nonpositive-income rule no longer matches admitted methodology')
 
 
-def parse_reference(raw,observed_day):
+def parse_reference(raw,observed_day,*,issuer_ticker=TICKER):
+    issuer = consolidated_issuer(issuer_ticker)
     if type(observed_day)is not date or not isinstance(raw,bytes)or not 0<len(raw)<=1000000:
         raise ValueError('unverified reference roster')
     value=unique_json(raw)
@@ -71,10 +74,10 @@ def parse_reference(raw,observed_day):
         if (not isinstance(row,list)or len(row)!=8 or not isinstance(row[0],str)
                 or not 1<=len(row[0])<=12 or row[0]in seen):raise ValueError('unverified reference row')
         seen.add(row[0])
-        if row[0]==CODE:selected.append(row)
+        if row[0]==issuer.code:selected.append(row)
     if len(selected)!=1:raise ValueError('missing or duplicate reference issuer')
     row=selected[0]
-    if row[1]!=SHORT or row[5]!='-'or not isinstance(row[7],str):
+    if row[1]!=issuer.short or row[5]!='-'or not isinstance(row[7],str):
         raise ValueError('positive/ambiguous P/E or incorrect reference issuer')
     match=re.fullmatch(r'([0-9]{3})/([1-4])',row[7])
     if not match:raise ValueError('financial reference quarter unavailable')
@@ -86,7 +89,8 @@ def parse_reference(raw,observed_day):
             'reference_quarter':row[7],'official_short_name':row[1]}
 
 
-def parse_calendar_index(raw,year,quarters,observed_day):
+def parse_calendar_index(raw,year,quarters,observed_day,*,issuer_ticker=TICKER):
+    issuer = consolidated_issuer(issuer_ticker)
     if (not isinstance(raw,bytes)or not 0<len(raw)<=250000 or not raw.rstrip().lower().endswith(b'</html>')
             or type(observed_day)is not date or not isinstance(quarters,(list,tuple))
             or not quarters or len(set(quarters))!=len(quarters)):
@@ -94,7 +98,7 @@ def parse_calendar_index(raw,year,quarters,observed_day):
     for q in quarters:quarter_end(year,q)
     soup=BeautifulSoup(raw.decode('big5',errors='strict'),'html.parser')
     text=' '.join(soup.get_text(' ',strip=True).split())
-    if '公司名稱：'+SHORT not in text.replace(' ','')or '會計期間：曆年制'not in text.replace(' ',''):
+    if '公司名稱：'+issuer.short not in text.replace(' ','')or '會計期間：曆年制'not in text.replace(' ',''):
         raise ValueError('calendar year or company not established by filing index')
     tables=[t for t in soup.find_all('table')if t.find('tr')and
         [c.get_text(' ',strip=True)for c in t.find('tr').find_all(['td','th'],recursive=False)]==INDEX_FIELDS]
@@ -104,16 +108,16 @@ def parse_calendar_index(raw,year,quarters,observed_day):
     result={};names={1:'一',2:'二',3:'三',4:'四'}
     for row in rows:
         cells=row.find_all(['td','th'],recursive=False);values=[c.get_text(' ',strip=True)for c in cells]
-        if len(values)!=11 or values[0]!=CODE or values[2]!='財務報告書':raise ValueError('index issuer or shape mismatch')
+        if len(values)!=11 or values[0]!=issuer.code or values[2]!='財務報告書':raise ValueError('index issuer or shape mismatch')
         match=re.fullmatch(str(year-1911)+r'年第([一二三四])季',values[1].replace(' ',''))
         if not match:raise ValueError('index fiscal year or quarter mismatch')
         q=next(q for q,n in names.items()if n==match[1])
         if values[5]!='IFRSs合併財報':continue
         if q not in quarters:continue
         if q in result or values[10]!='無':raise ValueError('duplicate or corrected filing is not admitted')
-        links=cells[7].find_all('a');filename=f'{year}{q:02d}_{CODE}_AI1.pdf'
+        links=cells[7].find_all('a');filename=f'{year}{q:02d}_{issuer.code}_AI1.pdf'
         if (len(links)!=1 or links[0].get_text(strip=True)!=filename
-                or links[0].get('href')!=f'javascript:readfile2("A","{CODE}","{filename}");'
+                or links[0].get('href')!=f'javascript:readfile2("A","{issuer.code}","{filename}");'
                 or not re.fullmatch(r'[1-9][0-9,]{0,12}',values[8])):raise ValueError('published filing action unverified')
         match=re.fullmatch(r'([0-9]{3})/([0-9]{2})/([0-9]{2}) ([0-9]{2}):([0-9]{2}):([0-9]{2})',values[9])
         if not match:raise ValueError('filing publication time unverified')
@@ -126,7 +130,8 @@ def parse_calendar_index(raw,year,quarters,observed_day):
     return result
 
 
-def parse_cumulative_income(raw,year,quarter):
+def parse_cumulative_income(raw,year,quarter,*,issuer_ticker=TICKER):
+    issuer = consolidated_issuer(issuer_ticker)
     quarter_end(year,quarter)
     if not isinstance(raw,bytes)or not 0<len(raw)<=250000:raise ValueError('income body outside limit')
     soup=BeautifulSoup(raw.decode('utf-8',errors='strict'),'html.parser')
@@ -135,9 +140,9 @@ def parse_cumulative_income(raw,year,quarter):
         fields=soup.select('input[name='+name+']')
         if len(fields)!=1 or fields[0].get('value')!=expected:raise ValueError('income period metadata mismatch')
     from .official_mopsfin_financial import parse_statement
-    facts=parse_statement(raw,CODE,'IncomeStatement')
+    facts=parse_statement(raw,issuer.code,'IncomeStatement')
     tables=soup.find_all('table');headers=tables[1].select('thead th')
-    if len(headers)!=2 or ' '.join(headers[1].get_text(' ',strip=True).split())!=COMPANY:
+    if len(headers)!=2 or ' '.join(headers[1].get_text(' ',strip=True).split())!=issuer.company_header:
         raise ValueError('income issuer/name/business header mismatch')
     labels=tables[0].select('tbody tr');values=tables[1].select('tbody tr')
     total=[value.get_text(' ',strip=True)for label,value in zip(labels,values)

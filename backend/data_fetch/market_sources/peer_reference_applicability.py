@@ -2,18 +2,20 @@
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
-from .peer_reference_income import APPLICABILITY, TICKER
+from .peer_reference_income import APPLICABILITY, TICKER as TICKER
 from .peer_reference_evidence import verified_reference_income
 from .peer_reference_transport import spec
+from .peer_reference_issuers import consolidated_issuer
 
 
 def verified_explanation(value, ticker, *, today=None):
     if ticker == '2646.TW':
         from .starair_reference_applicability import verified_explanation as individual_explanation
         return individual_explanation(value, ticker, today=today)
-    if ticker != TICKER or not isinstance(value, dict):
+    if not isinstance(value, dict):
         return False
     try:
+        consolidated_issuer(ticker)
         derived = verified_reference_income(value.get('source_record_archive'), ticker=ticker,
             observed_at=value.get('observed_at'), today=today)
         if derived is None:

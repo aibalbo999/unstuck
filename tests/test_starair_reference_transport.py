@@ -41,7 +41,7 @@ def test_transport_cannot_cross_subject_even_with_valid_original_schema():
     with pytest.raises(ValueError):t.PeerIncomeHttp()._consume(request,request['url'],parts(request),0,None,{})
     old=t.spec('income',year=2026,quarter=2)
     with pytest.raises(ValueError):t.PeerIncomeHttp(peer_ticker='2646.TW')._consume(old,old['url'],parts(old),0,None,{})
-    with pytest.raises(ValueError):t.PeerIncomeHttp(peer_ticker='6558.TW')
+    with pytest.raises(ValueError):t.PeerIncomeHttp(peer_ticker='2330.TW')
 
 
 def test_passive_HTTP_subject_matches_actual_individual_consumer(monkeypatch):

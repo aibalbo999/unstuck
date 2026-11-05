@@ -12,10 +12,12 @@ from zoneinfo import ZoneInfo
 from bs4 import BeautifulSoup
 from cache_store import peek_cache_json
 from .official_company_legal_name import read_cached_listed_roster_bytes
-from .peer_reference_income import (SCHEMA, TICKER, CODE, SHORT, LEGAL, UBN,
+from .peer_reference_income import (SCHEMA, TICKER, CODE as CODE, SHORT as SHORT,
+    LEGAL as LEGAL, UBN as UBN,
     APPLICABILITY, unique_json, parse_reference, parse_calendar_index,
     parse_cumulative_income, required_periods, derive_nonpositive_income, parse_methodology)
 from .peer_reference_transport import PeerIncomeHttp, spec, receipt_body
+from .peer_reference_issuers import consolidated_issuer
 
 
 def _today():
@@ -23,7 +25,8 @@ def _today():
 
 
 def _context(ticker, observed_at, today):
-    if ticker != TICKER or not isinstance(observed_at, str):
+    consolidated_issuer(ticker)
+    if not isinstance(observed_at, str):
         raise ValueError('unsupported reference-income issuer')
     observed = date.fromisoformat(observed_at)
     if observed.isoformat() != observed_at or not 0 <= (today - observed).days <= 7:
@@ -31,7 +34,8 @@ def _context(ticker, observed_at, today):
     return observed
 
 
-def _master(today):
+def _master(today, *, issuer_ticker=TICKER):
+    issuer = consolidated_issuer(issuer_ticker)
     value = read_cached_listed_roster_bytes()
     if value is None:
         raise ValueError('current complete issuer master unavailable')
@@ -43,11 +47,11 @@ def _master(today):
             or meta.get('source_payload_bytes') != len(raw)):
         raise ValueError('complete issuer master unverified')
     codes = [str(row.get('公司代號') or '') for row in rows]
-    if len(codes) != len(set(codes)) or codes.count(CODE) != 1:
+    if len(codes) != len(set(codes)) or codes.count(issuer.code) != 1:
         raise ValueError('issuer master duplicate identity')
-    row = rows[codes.index(CODE)]
-    expected = {'公司名稱': LEGAL, '公司簡稱': SHORT, '營利事業統一編號': UBN,
-                '產業別': '25', '編制財務報表類型': '1', '特別股': '0'}
+    row = rows[codes.index(issuer.code)]
+    expected = {'公司名稱': issuer.legal, '公司簡稱': issuer.short, '營利事業統一編號': issuer.ubn,
+                '產業別': issuer.industry_code, '編制財務報表類型': '1', '特別股': '0'}
     if any(row.get(k) != v for k, v in expected.items()):
         raise ValueError('ordinary consolidated issuer identity unverified')
     shares = row.get('已發行普通股數或TDR原股發行股數')
@@ -62,13 +66,14 @@ def _master(today):
     return meta
 
 
-def _existing_annual():
+def _existing_annual(*, issuer_ticker=TICKER):
     """Hold an existing official annual original until its reuse is qualified.
 
     Reading a still valid core never licenses another request for that annual
     under a new key. This conservative branch neither deletes nor renews it.
     """
-    core = peek_cache_json('financial_data:' + TICKER)
+    issuer = consolidated_issuer(issuer_ticker)
+    core = peek_cache_json('financial_data:' + issuer.ticker)
     if not isinstance(core, dict):
         return False
     audits = core.get('source_audit') or []
@@ -87,10 +92,14 @@ def _cumulative_contract(raw):
         raise ValueError('cumulative income interpretation not published')
 
 
-def _replay(components, observed, *, now):
+def _replay(components, observed, *, now, issuer_ticker=TICKER):
+    consolidated_issuer(issuer_ticker)
+    def request_for(kind, **kwargs):
+        return spec(kind, peer_ticker=issuer_ticker, **kwargs)
     def body(key, request):
         return receipt_body(components[key], request, now=now)
-    reference = parse_reference(body('reference', spec('reference', day=observed)), observed)
+    reference = parse_reference(body('reference', request_for('reference', day=observed)), observed,
+                                issuer_ticker=issuer_ticker)
     year, quarter = reference['year'], reference['quarter']
     periods = required_periods(year, quarter)
     years = sorted({y for y, _ in periods})
@@ -98,12 +107,13 @@ def _replay(components, observed, *, now):
                 *(f'income:{y}Q{q}' for y, q in periods)}
     if set(components) != expected:
         raise ValueError('required original set is incomplete or ambiguous')
-    parse_methodology(body('methodology', spec('methodology')))
-    _cumulative_contract(body('home', spec('home')))
+    parse_methodology(body('methodology', request_for('methodology')))
+    _cumulative_contract(body('home', request_for('home')))
     for y in years:
-        parse_calendar_index(body('index:'+str(y), spec('index', year=y)), y,
-                             [q for yy, q in periods if yy == y], observed)
-    incomes = {(y,q): parse_cumulative_income(body(f'income:{y}Q{q}', spec('income', year=y, quarter=q)), y, q)
+        parse_calendar_index(body('index:'+str(y), request_for('index', year=y)), y,
+                             [q for yy, q in periods if yy == y], observed, issuer_ticker=issuer_ticker)
+    incomes = {(y,q): parse_cumulative_income(body(f'income:{y}Q{q}', request_for('income', year=y, quarter=q)), y, q,
+                                            issuer_ticker=issuer_ticker)
                for y, q in periods}
     return reference, derive_nonpositive_income(year, quarter, incomes)
 
@@ -116,36 +126,50 @@ def verified_reference_income(proof, *, ticker, observed_at, today=None):
         if (not isinstance(proof, dict) or set(proof) != {
                 'schema', 'ticker', 'observed_at', 'master', 'components', 'reference', 'derived'}
                 or proof.get('schema') != SCHEMA or proof.get('ticker') != ticker
-                or proof.get('observed_at') != observed_at or _master(today) != proof.get('master')):
+                or proof.get('observed_at') != observed_at
+                or _master(today, issuer_ticker=ticker) != proof.get('master')):
             return None
-        reference, derived = _replay(proof['components'], observed, now=time.time())
+        reference, derived = _replay(proof['components'], observed, now=time.time(), issuer_ticker=ticker)
         return derived if proof['derived'] == derived and proof['reference'] == reference else None
     except (ValueError, TypeError, KeyError, OSError, EOFError, OverflowError, AttributeError):
         return None
 
 
 def collect_reference_income(ticker, observed_at, *, today=None, transport=None):
+    if ticker != TICKER:
+        from .ncc_mobile_peer_transport import peer_receipt_observation_enabled
+        from provider_correlation import current_correlation, current_source_identity
+        context = current_correlation()
+        if (not peer_receipt_observation_enabled()
+                or current_source_identity() != ('dynamic_peer_metrics', 'FinMind/yfinance')
+                or not all(isinstance(context.get(key), str) and context[key]
+                           for key in ('ticker', 'fetch_id', 'operation_id'))):
+            raise ValueError('new consolidated acquisition requires the normal audited source operation')
     workflow_deadline = time.monotonic() + 20
     today = today or _today()
     observed = _context(ticker, observed_at, today)
-    master = _master(today)
-    if _existing_annual():
+    master = _master(today, issuer_ticker=ticker)
+    if _existing_annual(issuer_ticker=ticker):
         raise ValueError('existing annual originals require qualified reuse before another annual fetch')
-    http = transport or PeerIncomeHttp(seconds=max(0, workflow_deadline-time.monotonic()))
+    http = transport or PeerIncomeHttp(seconds=max(0, workflow_deadline-time.monotonic()), peer_ticker=ticker)
     http.deadline = min(http.deadline, workflow_deadline)
     components = {}
+    def request_for(kind, **kwargs):
+        return spec(kind, peer_ticker=ticker, **kwargs)
     def get(key, request):
         raw, packet = http.get(request); components[key] = packet
         return raw
-    reference = parse_reference(get('reference', spec('reference', day=observed)), observed)
-    parse_methodology(get('methodology', spec('methodology')))
+    reference = parse_reference(get('reference', request_for('reference', day=observed)), observed,
+                                issuer_ticker=ticker)
+    parse_methodology(get('methodology', request_for('methodology')))
     year, quarter = reference['year'], reference['quarter']
     periods = required_periods(year, quarter)
     for y in sorted({y for y, _ in periods}):
-        parse_calendar_index(get('index:'+str(y), spec('index', year=y)), y,
-                             [q for yy, q in periods if yy == y], observed)
-    _cumulative_contract(get('home', spec('home')))
-    incomes = {(y,q): parse_cumulative_income(get(f'income:{y}Q{q}', spec('income', year=y, quarter=q)), y, q)
+        parse_calendar_index(get('index:'+str(y), request_for('index', year=y)), y,
+                             [q for yy, q in periods if yy == y], observed, issuer_ticker=ticker)
+    _cumulative_contract(get('home', request_for('home')))
+    incomes = {(y,q): parse_cumulative_income(get(f'income:{y}Q{q}', request_for('income', year=y, quarter=q)), y, q,
+                                            issuer_ticker=ticker)
                for y, q in periods}
     proof = {'schema': SCHEMA, 'ticker': ticker, 'observed_at': observed_at,
              'master': deepcopy(master), 'components': components, 'reference': reference,

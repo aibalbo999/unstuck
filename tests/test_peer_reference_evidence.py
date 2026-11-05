@@ -96,6 +96,6 @@ def test_existing_valid_core_annual_original_is_not_refetched_under_a_new_namesp
 
 def test_unsupported_issuer_or_stale_valuation_starts_no_new_transport(evidence_environment):
     from data_fetch.market_sources.peer_reference_evidence import collect_reference_income
-    for ticker, observed in [('6558.TW', '2026-11-04'), ('6230.TW', '2026-10-01')]:
+    for ticker, observed in [('2330.TW', '2026-11-04'), ('6230.TW', '2026-10-01')]:
         with pytest.raises(ValueError): collect_reference_income(ticker, observed, today=DAY)
     assert not evidence_environment[1]

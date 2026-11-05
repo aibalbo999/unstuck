@@ -18,7 +18,8 @@ from search_provider_runtime import SourceResponseError,cooldown_state,scope_key
 from shared_provider_cache import shared_fetch
 from .construction_cohort_transport import _headers
 from .mops_public_annual import _security_refusal_page
-from .peer_reference_income import COMPANY,CODE,quarter_end
+from .peer_reference_income import COMPANY as COMPANY, CODE as CODE, quarter_end
+from .peer_reference_issuers import consolidated_issuer
 
 PROVIDER='TWSE official peer reference income'
 HOME='https://mopsfin.twse.com.tw/'
@@ -33,7 +34,8 @@ ARCHIVE_FIELDS={'status','source_url','retrieved_at','http_status','raw_response
     'raw_response_path','raw_response_bytes','evidence_kind','historical_point_in_time_verified','finality_guaranteed'}
 
 
-def spec(kind,*,day=None,year=None,quarter=None):
+def spec(kind,*,day=None,year=None,quarter=None,peer_ticker='6230.TW'):
+    issuer = consolidated_issuer(peer_ticker)
     params={};data=None;method='GET';mime='text/html';encoding='utf-8';limit=250000
     if kind=='home':url=HOME
     elif kind=='methodology':url=METHODOLOGY
@@ -43,12 +45,14 @@ def spec(kind,*,day=None,year=None,quarter=None):
         mime='application/json';limit=1000000
     elif kind=='index':
         quarter_end(year,4);params={'year':year};encoding='big5'
-        url=INDEX+'?'+urlencode({'co_id':CODE,'colorchg':'1','mtype':'A','step':'1','year':str(year-1911)})
+        url=INDEX+'?'+urlencode({'co_id':issuer.code,'colorchg':'1','mtype':'A','step':'1','year':str(year-1911)})
     elif kind=='income':
         quarter_end(year,quarter);params={'year':year,'quarter':quarter};url=REPORT;method='POST'
         data={'compareItem':'IncomeStatement','quarter':'true','ylabel':'','ys':f'{year}{quarter}',
-            'revenue':'true','bcodeAvg':'false','companyAvg':'false','qnumber':'','companyId':COMPANY}
+            'revenue':'true','bcodeAvg':'false','companyAvg':'false','qnumber':'','companyId':issuer.published_company_label}
     else:raise ValueError('unsupported reference-income request')
+    if kind in {'index', 'income'} and peer_ticker != '6230.TW':
+        params['consolidated_reference_issuer'] = peer_ticker
     return {'kind':kind,'params':params,'url':url,'method':method,'data':data,'mime':mime,'encoding':encoding,'limit':limit}
 
 
@@ -61,7 +65,7 @@ def canonical_spec(value):
     p=value.get('params')or{}
     if not isinstance(p,dict):raise ValueError('invalid request parameters')
     expected=spec(value.get('kind'),day=date.fromisoformat(p['day'])if'day'in p else None,
-        year=p.get('year'),quarter=p.get('quarter'))
+        year=p.get('year'),quarter=p.get('quarter'),peer_ticker=p.get('consolidated_reference_issuer', '6230.TW'))
     if value!=expected:raise ValueError('request specification not admitted')
     return expected
 
@@ -153,15 +157,16 @@ def receipt_body(packet,request,*,now=None,check_owner=True):
 
 class PeerIncomeHttp:
     def __init__(self,*,seconds=20,peer_ticker='6230.TW'):
-        if peer_ticker not in {'6230.TW', '2646.TW'}:
-            raise ValueError('unsupported reference-income transport subject')
+        if peer_ticker != '2646.TW':
+            consolidated_issuer(peer_ticker)
         self.peer_ticker = peer_ticker
         self.deadline=time.monotonic()+seconds;self.components=[];self.http_request_count=0
 
     def _bound_request(self, request):
         request = canonical_spec(request)
         if request['kind'] in {'index', 'income'}:
-            expected = request['params'].get('individual_reference_issuer', '6230.TW')
+            expected = request['params'].get('individual_reference_issuer',
+                request['params'].get('consolidated_reference_issuer', '6230.TW'))
             if expected != getattr(self, 'peer_ticker', '6230.TW'):
                 raise ValueError('reference-income request crossed its issuer subject')
         return request
