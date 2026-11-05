@@ -23,7 +23,7 @@ _COMPONENT_FIELDS = {'status', 'as_of', 'provider', 'reason_code', 'series_id', 
     'primary_provider', 'primary_status', 'fallback_status'}
 
 
-def _component_details(item):
+def _component_details(item, *, allow_peer_transfer=False):
     """Keep actual typed transport observations; never infer them from a 200.
 
     Only the URL digest is retained. Queries, credentials, headers, bodies and
@@ -59,6 +59,12 @@ def _component_details(item):
     from official_master_transport_observation import MASTER_ENDPOINTS, sanitize_observation
     if (isinstance(item.get('url'), str) and item['url'] in MASTER_ENDPOINTS and item.get('request_method') == 'GET'
             and item.get('http_request_sent') is True and item.get('cache_hit') is False):
+        observation = sanitize_observation(item.get('transfer_observation'))
+        if observation:
+            row['transfer_observation'] = observation
+    if (allow_peer_transfer
+            and item.get('url') == 'https://mopsfin.twse.com.tw/compare/report'
+            and item.get('request_method') == 'POST' and item.get('cache_hit') is not True):
         observation = sanitize_observation(item.get('transfer_observation'))
         if observation:
             row['transfer_observation'] = observation
@@ -332,6 +338,10 @@ def monthly_filing_details(entry):
 
 def observation_details(entry: dict) -> dict:
     result = correlation_metadata(entry)
+    peer_transfer = (entry.get('source') == 'dynamic_peer_metrics'
+        and entry.get('provider') == 'TWSE official peer reference income native HTTP'
+        and entry.get('event_kind') == 'http_transport_receipt'
+        and type(entry.get('record_count')) is int and entry['record_count'] == 0)
     result.update(monthly_filing_details(entry))
     peer_gaps = _peer_candidate_diagnostics(entry)
     if peer_gaps:
@@ -386,13 +396,13 @@ def observation_details(entry: dict) -> dict:
         value = entry.get(key)
         if isinstance(value, dict):
             result[key] = {
-                str(name)[:80]: _component_details(item)
+                str(name)[:80]: _component_details(item, allow_peer_transfer=peer_transfer)
                 for name, item in list(value.items())[:20] if isinstance(item, (dict, str))
             }
         elif key=='component_statuses'and isinstance(value,list):
             # Keep positions, including unknown entries, aligned with original
             # receipt roles while retaining the existing twenty-component cap.
-            result[key]=[_component_details(item)for item in value[:20]]
+            result[key]=[_component_details(item, allow_peer_transfer=peer_transfer)for item in value[:20]]
     from annual_disclosure_acquisition import current_delivery
     current = current_delivery(entry)
     if current is not None:

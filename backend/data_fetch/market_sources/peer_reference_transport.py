@@ -193,6 +193,16 @@ class PeerIncomeHttp:
         try:meta=json.loads(parts['metadata'])
         except(ValueError,UnicodeError):meta={}
         if not isinstance(meta,dict):meta={}
+        # Finite native curl diagnostics only. Missing/zero timings cannot
+        # identify a failed phase or establish HTTP/content success. They do
+        # not enter the immutable original/cache manifest.
+        diag.pop('transfer_observation', None)
+        if request['kind'] == 'income' and parts.get('process_started') is True:
+            from official_master_transport_observation import sanitize_observation
+            observation = sanitize_observation({**meta, 'process_exit_code': rc,
+                'response_bytes': len(parts['body'])})
+            if observation:
+                diag['transfer_observation'] = observation
         if status is None and type(meta.get('http_code'))is int and 200<=meta['http_code']<=599:status=meta['http_code']
         raw=parts['body'];started=parts.get('process_started')is True
         known=(started and type(status)is int and status==meta.get('http_code')and 200<=status<=599

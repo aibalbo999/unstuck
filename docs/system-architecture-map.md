@@ -1,3 +1,5 @@
+既有 peer reference income 的精確 `https://mopsfin.twse.com.tw/compare/report` POST，在實際 curl process 已啟動時，沿 `official_master_transport_observation.sanitize_observation` 保存最多五個有限、非負、至多3600秒的累計時間，以及有界 exit code、實際已消費 bytes 和已知 HTTP 版本。只有該 dynamic_peer_metrics 原生零筆傳輸事件可將此診斷投影到 SQL；其他 provider、URL、GET、暖快取或未啟動 process 不繼承。無 timing 欄位保持未知，零值不代表某階段失敗或略過；不能由此推定 DNS／TCP／TLS／TTFB 根因、429／504、原件完整性或取得成功。診斷不進原件／快取 manifest、不回填舊紀錄；既有 socket／流程時限、重試、status／Retry-After、TTL、解析及計數不變。
+
 星宇2646的P/E缺值解釋採獨立的 `starair_reference_income`／`starair_reference_spec`／`starair_reference_evidence`／`starair_reference_applicability` 契約，只准入完整官方主檔明列報表類型2、普通股／無特別股、法名及統編一致的此公司。完整發布索引須為曆年制、`IFRSs個別財報`／AI2，財務比較表須明示「個別」、精確公司、TWD仟元與相同起訖季；不借用母公司業主或非控制權益欄位。按官方估值表明示的參考季，用前一年全年減前一年同季累計再加本年同季累計，驗證非正的個別淨利；P/E保持空值，只交付數學上不適用的解釋，非交易所公布的個股空白原因，其他缺欄與可比性門檻保持。
 
 既有 `peer_reference_transport` 保留6230請求與原key／manifest格式；2646的個別索引／損益表有精確subject標記，共用參考表、方法頁及首頁仍沿同一key重用有效原件，不以新namespace重抓。HTTP收據依實際peer subject歸屬，維持零筆傳輸；完整當前主檔、全部原件／metadata manifest及獨立快取owner須於交付、欄位適用性與來源計數反覆重驗。1800秒／20秒流程／5秒單檔／2秒連線、原circuit／cooldown／pacing、零重試與redirect、身分／期間／單位／格式及既有年度原件優先限制均保持；研究不列正式來源成功，離線重播不充當新的對外HTTP；研究傳輸與正式驗收分別記錄，不改舊報告、舊失敗或模型額度。
